@@ -1,0 +1,399 @@
+:root {
+  color-scheme: light dark;
+
+  /* Typography */
+  --font: "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* LIGHT */
+  --bg: #ffffff;
+  --text: rgba(17, 24, 39, 0.95);
+  --muted: rgba(17, 24, 39, 0.62);
+
+  --card: #f7f7f8;
+  --border: rgba(17, 24, 39, 0.12);
+  --row-border: rgba(17, 24, 39, 0.10);
+
+  --btn-bg: #ffffff;
+  --btn-text: rgba(17, 24, 39, 0.95);
+  --btn-border: rgba(17, 24, 39, 0.16);
+  --btn-hover: #f3f4f6;
+
+  --icon-bg: rgba(17, 24, 39, 0.06);
+  --icon-hover: rgba(17, 24, 39, 0.10);
+
+  --toast-bg: rgba(17, 24, 39, 0.92);
+  --toast-text: #ffffff;
+
+  --shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+}
+
+/* DARK (Match ChatGPT dark mode) - also applies as default when not on any LLM site */
+:root[data-theme="dark"],
+:root[data-active-source="chatgpt"][data-theme="dark"],
+:root:not([data-active-source])[data-theme="dark"] {
+  --bg: #212121;
+  --text: rgba(236, 236, 241, 0.95);
+  --muted: rgba(236, 236, 241, 0.62);
+
+  --card: #2f2f2f;
+  --border: rgba(255, 255, 255, 0.10);
+  --row-border: rgba(255, 255, 255, 0.08);
+
+  --btn-bg: rgba(255, 255, 255, 0.08);
+  --btn-text: rgba(236, 236, 241, 0.95);
+  --btn-border: rgba(255, 255, 255, 0.12);
+  --btn-hover: rgba(255, 255, 255, 0.14);
+
+  --icon-bg: rgba(255, 255, 255, 0.08);
+  --icon-hover: rgba(255, 255, 255, 0.14);
+
+  --toast-bg: rgba(0, 0, 0, 0.72);
+  --toast-text: rgba(236, 236, 241, 0.95);
+
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+
+.pp-wrap {
+  width: 380px;
+  padding: 12px;
+}
+
+.pp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pp-title {
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.pp-header-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pp-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+details.pp-sec {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+details.pp-sec > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  user-select: none;
+  color: var(--text);
+}
+
+details.pp-sec > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pp-sum-left {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pp-arrow {
+  display: inline-block;
+  transition: transform 140ms ease;
+  color: var(--muted);
+}
+
+details[open] .pp-arrow {
+  transform: rotate(90deg);
+}
+
+/* Claude orange arrows - matches Claude logo */
+details.pp-sec[data-source="claude"] .pp-arrow {
+  color: #C15F3C;
+}
+
+/* Gemini blue arrows - matches Gemini accent */
+details.pp-sec[data-source="gemini"] .pp-arrow {
+  color: #1A73E8;
+}
+
+/* When Claude is active, use Tiempos Text font for entire popup */
+:root[data-active-source="claude"] {
+  --font: 'Tiempos Text Regular', 'Tiempos Text', ui-serif, Georgia, serif;
+}
+
+/* Claude light mode - matches Claude.ai light theme */
+:root[data-active-source="claude"]:not([data-theme="dark"]) {
+  --bg: #ffffff;
+  --text: rgba(0, 0, 0, 0.95);
+  --muted: rgba(0, 0, 0, 0.62);
+
+  --card: #f7f7f8;
+  --border: rgba(0, 0, 0, 0.1);
+  --row-border: rgba(0, 0, 0, 0.08);
+
+  --btn-bg: #ffffff;
+  --btn-text: rgba(0, 0, 0, 0.95);
+  --btn-border: rgba(0, 0, 0, 0.12);
+  --btn-hover: #f3f4f6;
+
+  --icon-bg: rgba(0, 0, 0, 0.06);
+  --icon-hover: rgba(0, 0, 0, 0.10);
+
+  --toast-bg: rgba(0, 0, 0, 0.92);
+  --toast-text: #ffffff;
+
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Claude dark mode - matches Claude.ai dark theme */
+:root[data-active-source="claude"][data-theme="dark"] {
+  --bg: #1a1a1c;
+  --text: rgba(255, 255, 255, 0.95);
+  --muted: rgba(255, 255, 255, 0.62);
+
+  --card: #2a2a2c;
+  --border: rgba(255, 255, 255, 0.15);
+  --row-border: rgba(255, 255, 255, 0.10);
+
+  --btn-bg: rgba(255, 255, 255, 0.08);
+  --btn-text: rgba(255, 255, 255, 0.95);
+  --btn-border: rgba(255, 255, 255, 0.12);
+  --btn-hover: rgba(255, 255, 255, 0.14);
+
+  --icon-bg: rgba(255, 255, 255, 0.08);
+  --icon-hover: rgba(255, 255, 255, 0.14);
+
+  --toast-bg: rgba(0, 0, 0, 0.72);
+  --toast-text: rgba(255, 255, 255, 0.95);
+
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* When Gemini is active, use Google Sans font for entire popup */
+:root[data-active-source="gemini"] {
+  --font: Google Sans, Roboto, ui-sans-serif, system-ui, -apple-system, Arial;
+}
+
+/* Gemini light mode - matches Gemini light theme */
+:root[data-active-source="gemini"]:not([data-theme="dark"]) {
+  --bg: #ffffff;
+  --text: rgba(0, 0, 0, 0.87);
+  --muted: rgba(0, 0, 0, 0.60);
+
+  --card: #f5f5f5;
+  --border: rgba(0, 0, 0, 0.12);
+  --row-border: rgba(0, 0, 0, 0.08);
+
+  --btn-bg: #ffffff;
+  --btn-text: rgba(0, 0, 0, 0.87);
+  --btn-border: rgba(0, 0, 0, 0.12);
+  --btn-hover: #f5f5f5;
+
+  --icon-bg: rgba(0, 0, 0, 0.04);
+  --icon-hover: rgba(0, 0, 0, 0.08);
+
+  --toast-bg: rgba(0, 0, 0, 0.87);
+  --toast-text: #ffffff;
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Gemini dark mode - matches Gemini dark theme (black background) */
+:root[data-active-source="gemini"][data-theme="dark"] {
+  --bg: #000000;
+  --text: rgba(255, 255, 255, 0.87);
+  --muted: rgba(255, 255, 255, 0.60);
+
+  --card: #1a1a1a;
+  --border: rgba(255, 255, 255, 0.12);
+  --row-border: rgba(255, 255, 255, 0.08);
+
+  --btn-bg: rgba(255, 255, 255, 0.08);
+  --btn-text: rgba(255, 255, 255, 0.87);
+  --btn-border: rgba(255, 255, 255, 0.12);
+  --btn-hover: rgba(255, 255, 255, 0.12);
+
+  --icon-bg: rgba(255, 255, 255, 0.08);
+  --icon-hover: rgba(255, 255, 255, 0.12);
+
+  --toast-bg: rgba(255, 255, 255, 0.87);
+  --toast-text: rgba(0, 0, 0, 0.87);
+
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.pp-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pp-list {
+  padding: 8px 10px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.pp-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.pp-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.pp-btn:hover {
+  background: var(--btn-hover);
+}
+
+.pp-icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid var(--btn-border);
+  background: var(--icon-bg);
+  color: var(--btn-text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pp-icon-btn:hover {
+  background: var(--icon-hover);
+}
+
+.pp-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 6px;
+}
+
+.pp-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--row-border);
+}
+
+.pp-row:last-child {
+  border-bottom: none;
+}
+
+.pp-text {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  min-width: 0;
+}
+
+details.pp-item {
+  border-bottom: 1px solid var(--row-border);
+}
+
+details.pp-item:last-child {
+  border-bottom: none;
+}
+
+.pp-item-sum {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 6px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.pp-item-sum::-webkit-details-marker {
+  display: none;
+}
+
+.pp-item-left {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.pp-item-arrow {
+  display: inline-block;
+  transition: transform 140ms ease;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+details[open].pp-item .pp-item-arrow {
+  transform: rotate(90deg);
+}
+
+.pp-item-preview {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.pp-item-body {
+  padding: 0 6px 10px 26px;
+}
+
+.pp-full {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  opacity: 0.95;
+}
