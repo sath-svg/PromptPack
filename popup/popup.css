@@ -301,6 +301,18 @@ details.pp-sec[data-source="gemini"] .pp-arrow {
   background: var(--icon-hover);
 }
 
+/* Logged in state - blue highlight */
+.pp-icon-btn.pp-logged-in {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.pp-icon-btn.pp-logged-in:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
 .pp-empty {
   font-size: 12px;
   color: var(--muted);
@@ -396,4 +408,255 @@ details[open].pp-item .pp-item-arrow {
   word-break: break-word;
   color: var(--text);
   opacity: 0.95;
+}
+
+/* ============ Paid Tier Styles ============ */
+
+/* Auth Bar */
+.pp-auth-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  margin-top: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pp-user-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pp-email {
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-auth-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* Badges */
+.pp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pp-badge-free {
+  background: var(--icon-bg);
+  color: var(--muted);
+}
+
+.pp-badge-pro {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+}
+
+/* Primary button */
+.pp-btn-primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-btn-primary:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+}
+
+/* Secondary button */
+.pp-btn-secondary {
+  background: var(--icon-bg);
+  border: 1px solid var(--btn-border);
+}
+
+/* Upgrade button */
+.pp-btn-upgrade {
+  background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%);
+  color: white;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.pp-btn-upgrade:hover {
+  background: linear-gradient(135deg, #d97706 0%, #ea580c 100%);
+}
+
+/* Tabs */
+.pp-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 4px;
+  background: var(--icon-bg);
+  border-radius: 10px;
+}
+
+.pp-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 150ms ease;
+}
+
+.pp-tab:hover {
+  color: var(--text);
+}
+
+.pp-tab-active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pp-tab-content {
+  margin-top: 10px;
+}
+
+/* Usage Bar */
+.pp-usage-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pp-progress {
+  flex: 1;
+  height: 6px;
+  background: var(--icon-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pp-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+  border-radius: 3px;
+  transition: width 300ms ease;
+}
+
+/* Pack Styles */
+.pp-pack-section {
+  margin-top: 12px;
+}
+
+.pp-pack-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.pp-pack-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.pp-pack-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-pack-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pp-pack-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.pp-marketplace-link {
+  margin-top: 12px;
+  text-align: center;
+}
+
+/* Empty State */
+.pp-empty-state {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.pp-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--icon-bg);
+  border-radius: 12px;
+  color: var(--muted);
+}
+
+.pp-empty-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.pp-empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pp-empty-text {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* Sync animation */
+.pp-syncing svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }

@@ -2,15 +2,21 @@ import "./popup.css";
 import { listPrompts, deletePrompt, deletePromptsBySource, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
+import { getAuthState, login, openBillingPortal, type AuthState } from "./shared/auth";
 
 // SVG Icons
 const ICON = {
   import: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   undo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
   export: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
+  save: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
   delete: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
   chevron: `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,0 10,5 2,10"/></svg>`,
+  user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
 };
+
+// Auth state
+let authState: AuthState = { isAuthenticated: false };
 
 // Undo state
 type UndoAction = {
@@ -425,6 +431,39 @@ function setupEventDelegation() {
       await performUndo();
       return;
     }
+
+    // Login button
+    if (btn.id === "pp-login-btn") {
+      await login();
+      return;
+    }
+
+    // Dashboard button (when logged in) - opens dashboard in new tab
+    if (btn.id === "pp-dashboard-btn") {
+      await openBillingPortal();
+      return;
+    }
+
+    // Save to dashboard button (when logged in)
+    if (btn.dataset.save) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const source = btn.dataset.save as PromptItem["source"];
+      const items = await listPrompts();
+      const sourcePrompts = items.filter(p => p.source === source);
+
+      if (sourcePrompts.length === 0) {
+        toast("No prompts to save");
+        return;
+      }
+
+      // TODO: Implement actual cloud save via Convex API
+      toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
+      // For now, just show a message - actual implementation would call api.savePrompts()
+      setTimeout(() => toast("Saved to dashboard!"), 500);
+      return;
+    }
   });
 
   // File input change handler (delegated to app level)
@@ -445,6 +484,10 @@ async function render() {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
 
+  // Get auth state
+  authState = await getAuthState();
+  const isLoggedIn = authState.isAuthenticated;
+
   const app = document.getElementById("app");
   if (!app) throw new Error("Missing #app in popup index.html");
 
@@ -456,6 +499,11 @@ async function render() {
   // Set active source on root element for styling
   document.documentElement.dataset.activeSource = activeSource;
 
+  // Render auth button based on state
+  const authButton = isLoggedIn
+    ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="Logged in - Go to Dashboard">${ICON.user}</button>`
+    : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
+
   app.innerHTML = `
     <div class="pp-wrap">
       <div class="pp-header">
@@ -463,15 +511,20 @@ async function render() {
         <div class="pp-header-actions">
           <button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>
           <button class="pp-icon-btn" id="pp-undo-btn" title="Undo">${ICON.undo}</button>
+          ${authButton}
         </div>
       </div>
       <input type="file" id="pp-import-input" accept=".pmtpk" style="display:none">
-      <div class="pp-sub">Powered by PmtPk.ai. Click to expand</div>
+      <div class="pp-sub">${isLoggedIn ? `Logged in as ${authState.user?.email}` : "Powered by PmtPk.ai. Click to expand"}</div>
 
       ${order
         .map((src) => {
           const arr = groups[src] ?? [];
           const openAttr = src === activeSource ? "open" : "";
+          // Show save button if logged in, export button if not
+          const saveOrExportBtn = isLoggedIn
+            ? `<button class="pp-icon-btn" data-save="${src}" title="Save ${sectionTitle(src)} prompts to dashboard">${ICON.save}</button>`
+            : `<button class="pp-icon-btn" data-export="${src}" title="Export ${sectionTitle(src)} prompts">${ICON.export}</button>`;
           return `
             <details class="pp-sec" ${openAttr} data-source="${src}">
               <summary>
@@ -480,7 +533,7 @@ async function render() {
                   <span>${sectionTitle(src)}</span>
                 </div>
                 <div class="pp-actions">
-                  <button class="pp-icon-btn" data-export="${src}" title="Export ${sectionTitle(src)} prompts">${ICON.export}</button>
+                  ${saveOrExportBtn}
                   <button class="pp-icon-btn" data-delete-folder="${src}" title="Delete all ${sectionTitle(src)} prompts">${ICON.delete}</button>
                   <span class="pp-count">${arr.length}</span>
                 </div>

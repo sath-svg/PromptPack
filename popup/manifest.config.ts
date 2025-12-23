@@ -4,30 +4,31 @@ const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack",
   version: "0.0.1",
-  permissions: ["storage", "tabs"],
+  permissions: ["storage", "tabs", "identity"],
   host_permissions: [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    "http://localhost:3001/*",
   ],
   action: {
-    default_popup: "index.html", // uses your root index.html
+    default_popup: "index.html",
   },
   content_scripts: [
     {
       matches: ["https://chatgpt.com/", "https://chatgpt.com/*", "https://chat.openai.com/*"],
-      js: ["src/content/chatgpt.ts"],
+      js: ["content/chatgpt.ts"],
       run_at: "document_idle",
     },
     {
       matches: ["https://claude.ai/*"],
-      js: ["src/content/claude.ts"],
+      js: ["content/claude.ts"],
       run_at: "document_idle",
     },
     {
       matches: ["https://gemini.google.com/*"],
-      js: ["src/content/gemini.ts"],
+      js: ["content/gemini.ts"],
       run_at: "document_idle",
     },
   ],
