@@ -4,9 +4,18 @@
 import { getSession, isAuthenticated, saveSession } from "./db";
 import { api } from "./api";
 
-// TODO: Update to production URL when deployed
-const BASE_URL = "http://localhost:3001";
-const AUTH_URL = `${BASE_URL}/extension-auth`; // Extension-specific auth endpoint
+/**
+ * TODO [PRODUCTION]: Update BASE_URL to production domain
+ * Example: const BASE_URL = "https://pmtpk.ai";
+ *
+ * Checklist when deploying:
+ * 1. Update BASE_URL to production domain
+ * 2. Update manifest.config.ts host_permissions to include production domain
+ * 3. Configure Clerk to allow redirects from chrome-extension:// URLs
+ * 4. Test auth flow end-to-end in production
+ */
+const BASE_URL = "http://localhost:3000";
+const AUTH_URL = `${BASE_URL}/extension-auth`;
 
 export type AuthState = {
   isAuthenticated: boolean;
@@ -62,14 +71,22 @@ export async function getAuthState(): Promise<AuthState> {
 }
 
 /**
- * Initiate login flow using chrome.identity.launchWebAuthFlow (MV3 compliant)
+ * Initiate login flow - opens auth page in a new tab
+ * The web page will store auth data, and the popup will check for it on next render
+ *
+ * TODO [PRODUCTION]: When deployed to HTTPS domain, use chrome.identity.launchWebAuthFlow
+ * which properly handles the OAuth redirect flow without these workarounds.
  */
 export async function login(): Promise<boolean> {
   // Generate a random state for CSRF protection
   const state = crypto.randomUUID();
 
-  // Get the redirect URL from chrome.identity
-  const redirectUri = chrome.identity.getRedirectURL();
+  // Store state for verification when callback happens
+  await chrome.storage.local.set({ pp_auth_state: state });
+
+  // Get extension ID for redirect (still needed for validation on server)
+  const extensionId = chrome.runtime.id;
+  const redirectUri = `chrome-extension://${extensionId}/auth-callback.html`;
 
   // Build auth URL
   const authUrl = new URL(AUTH_URL);
@@ -77,32 +94,96 @@ export async function login(): Promise<boolean> {
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("client_id", "promptpack-extension");
 
+  // Open auth page in new tab
+  await chrome.tabs.create({ url: authUrl.toString() });
+
+  // Return false - auth completes when user returns to popup
+  // The popup will check for pending auth on render
+  return false;
+}
+
+/**
+ * Check for pending auth from web page and process it
+ * Called by popup on render to complete any pending auth flow
+ */
+export async function checkPendingAuth(): Promise<boolean> {
+  const stored = await chrome.storage.local.get(["pp_pending_auth", "pp_auth_state"]);
+
+  if (!stored.pp_pending_auth) {
+    return false;
+  }
+
+  const pendingAuth = stored.pp_pending_auth as { code: string; state: string; timestamp: number };
+
+  // Clear pending auth immediately
+  await chrome.storage.local.remove("pp_pending_auth");
+
+  // Check if auth is too old (5 minutes)
+  if (Date.now() - pendingAuth.timestamp > 5 * 60 * 1000) {
+    console.error("Pending auth expired");
+    return false;
+  }
+
+  // Verify state
+  if (pendingAuth.state !== stored.pp_auth_state) {
+    console.error("State mismatch");
+    return false;
+  }
+
+  // Clear stored state
+  await chrome.storage.local.remove("pp_auth_state");
+
   try {
-    // Use launchWebAuthFlow for MV3 compliant auth
-    const responseUrl = await chrome.identity.launchWebAuthFlow({
-      url: authUrl.toString(),
-      interactive: true,
+    // Decode the auth code (it's base64 JSON with user info from Clerk)
+    const decoded = JSON.parse(atob(pendingAuth.code)) as {
+      token: string;
+      userId: string;
+      email: string;
+      timestamp: number;
+    };
+
+    // Create an API token that the Workers API can decode to get userId
+    // This is separate from the Clerk token - it's a simple base64 JSON with userId
+    // The Workers API parses this to identify the user for R2 storage
+    const apiToken = btoa(JSON.stringify({ userId: decoded.userId, email: decoded.email }));
+
+    // Save session directly (bypassing API for dev - API would validate token in production)
+    // TODO [PRODUCTION]: Use api.exchangeCodeForToken() to validate with backend
+    // Note: accessToken is used for Workers API calls, not Clerk auth
+    await saveSession({
+      userId: decoded.userId,
+      email: decoded.email,
+      tier: "free", // Default to free, backend would determine actual tier
+      accessToken: apiToken, // API token for Workers - contains userId for R2 path
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+      entitlements: {
+        promptLimit: 50,
+        loadedPackLimit: 3,
+      },
     });
 
-    if (!responseUrl) {
-      console.error("No response URL from auth flow");
-      return false;
-    }
-
-    // Parse the response URL
-    const url = new URL(responseUrl);
-    const params = new URLSearchParams(url.search);
-
-    // Handle the callback
-    return await handleAuthCallback(params, state);
+    return true;
   } catch (e) {
-    console.error("Auth flow error:", e);
+    console.error("Token processing failed:", e);
     return false;
   }
 }
 
 /**
- * Handle auth callback - called from auth-callback.html
+ * Store pending auth data (called from content script on auth page)
+ */
+export async function storePendingAuth(code: string, state: string): Promise<void> {
+  await chrome.storage.local.set({
+    pp_pending_auth: {
+      code,
+      state,
+      timestamp: Date.now(),
+    },
+  });
+}
+
+/**
+ * Handle auth callback - processes the response from auth page redirect
  */
 export async function handleAuthCallback(params: URLSearchParams): Promise<boolean> {
   const code = params.get("code");
@@ -119,10 +200,10 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
     return false;
   }
 
-  // Verify state
+  // Verify state matches what we stored
   const stored = await chrome.storage.local.get("pp_auth_state");
-  if (stored["pp_auth_state"] !== state) {
-    console.error("State mismatch");
+  if (stored.pp_auth_state !== state) {
+    console.error("State mismatch - possible CSRF attack");
     return false;
   }
 
@@ -213,18 +294,16 @@ export async function canLoadPack(currentLoaded: number): Promise<{
 
 /**
  * Open upgrade page - redirects to Clerk-powered pricing page
+ * TODO [PRODUCTION]: Update URL to use BASE_URL constant
  */
 export async function openUpgradePage(): Promise<void> {
-  // Clerk handles billing through the web app's pricing page
-  // TODO: Update to production URL when deployed
-  await chrome.tabs.create({ url: "http://localhost:3001/pricing" });
+  await chrome.tabs.create({ url: `${BASE_URL}/pricing` });
 }
 
 /**
- * Open billing portal - redirects to user's Clerk profile for subscription management
+ * Open billing portal - redirects to user's dashboard
+ * TODO [PRODUCTION]: Update URL to use BASE_URL constant
  */
 export async function openBillingPortal(): Promise<void> {
-  // Clerk manages subscriptions through the dashboard
-  // TODO: Update to production URL when deployed
-  await chrome.tabs.create({ url: "http://localhost:3001/dashboard" });
+  await chrome.tabs.create({ url: `${BASE_URL}/dashboard` });
 }

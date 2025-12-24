@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Disable Next.js devtools to avoid SegmentViewNode bundler errors
+  devIndicators: false,
 };
 
 export default nextConfig;
