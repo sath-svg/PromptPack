@@ -2,7 +2,8 @@ import "./popup.css";
 import { listPrompts, deletePrompt, deletePromptsBySource, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, login, openBillingPortal, type AuthState } from "./shared/auth";
+import { getAuthState, login, openBillingPortal, checkPendingAuth, type AuthState } from "./shared/auth";
+import { api } from "./shared/api";
 
 // SVG Icons
 const ICON = {
@@ -434,7 +435,11 @@ function setupEventDelegation() {
 
     // Login button
     if (btn.id === "pp-login-btn") {
-      await login();
+      const success = await login();
+      if (success) {
+        toast("Logged in successfully");
+        await render();
+      }
       return;
     }
 
@@ -449,7 +454,7 @@ function setupEventDelegation() {
       e.preventDefault();
       e.stopPropagation();
 
-      const source = btn.dataset.save as PromptItem["source"];
+      const source = btn.dataset.save as "chatgpt" | "claude" | "gemini";
       const items = await listPrompts();
       const sourcePrompts = items.filter(p => p.source === source);
 
@@ -458,10 +463,66 @@ function setupEventDelegation() {
         return;
       }
 
-      // TODO: Implement actual cloud save via Convex API
-      toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
-      // For now, just show a message - actual implementation would call api.savePrompts()
-      setTimeout(() => toast("Saved to dashboard!"), 500);
+      // Ask for optional password to encrypt the pack
+      const password = prompt("Enter a 5-character password to encrypt (or leave empty for no encryption):");
+
+      // User cancelled
+      if (password === null) {
+        return;
+      }
+
+      // Validate password if provided
+      if (password && password.length !== 5) {
+        toast("Password must be exactly 5 characters");
+        return;
+      }
+
+      toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""}...`);
+
+      try {
+        // Create .pmtpk file data
+        const exportData = {
+          version: SCHEMA_VERSION,
+          source,
+          exportedAt: new Date().toISOString(),
+          prompts: sourcePrompts.map(p => ({
+            text: p.text,
+            url: p.url,
+            createdAt: p.createdAt
+          }))
+        };
+
+        const jsonString = JSON.stringify(exportData);
+        let fileBytes: Uint8Array;
+
+        if (password) {
+          // Encrypt with password
+          fileBytes = await encryptPmtpk(jsonString, password);
+        } else {
+          // Obfuscate (not encrypted, but not readable as plain text)
+          fileBytes = await encodePmtpk(jsonString);
+        }
+
+        // Convert to base64 for API
+        const base64 = btoa(String.fromCharCode(...fileBytes));
+
+        // Upload to R2 via API
+        const result = await api.savePromptsToCloud({
+          source,
+          fileData: base64,
+          promptCount: sourcePrompts.length,
+        });
+
+        if (result.success) {
+          toast(`Saved ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""}${password ? " (encrypted)" : ""} to cloud!`);
+        } else {
+          toast("Failed to save to cloud");
+        }
+      } catch (err) {
+        console.error("Save to cloud failed:", err);
+        const errMsg = err instanceof Error ? err.message : "check connection";
+        toast(`Failed to save - ${errMsg}`);
+      }
       return;
     }
   });
@@ -480,9 +541,19 @@ function setupEventDelegation() {
   });
 }
 
+// Track if we just logged in (for showing success message)
+let justLoggedIn = false;
+
 async function render() {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
+
+  // Check for pending auth from web page (completes login flow)
+  const pendingAuthSuccess = await checkPendingAuth();
+  if (pendingAuthSuccess) {
+    justLoggedIn = true;
+    toast("Logged in successfully!");
+  }
 
   // Get auth state
   authState = await getAuthState();
@@ -500,9 +571,15 @@ async function render() {
   document.documentElement.dataset.activeSource = activeSource;
 
   // Render auth button based on state
+  const loggedInTitle = justLoggedIn ? "Logged in successfully! Click to go to Dashboard" : "Logged in - Go to Dashboard";
   const authButton = isLoggedIn
-    ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="Logged in - Go to Dashboard">${ICON.user}</button>`
+    ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="${loggedInTitle}">${ICON.user}</button>`
     : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
+
+  // Reset justLoggedIn flag after rendering
+  if (justLoggedIn) {
+    justLoggedIn = false;
+  }
 
   app.innerHTML = `
     <div class="pp-wrap">

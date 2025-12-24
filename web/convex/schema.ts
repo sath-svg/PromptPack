@@ -41,4 +41,18 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_pack", ["packId"])
     .index("by_user_pack", ["userId", "packId"]),
+
+  // User's saved prompts from extension (metadata only, file stored in R2)
+  savedPacks: defineTable({
+    userId: v.id("users"),
+    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    // R2 object key where the encrypted .pmtpk file is stored
+    r2Key: v.string(),
+    promptCount: v.number(),
+    fileSize: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_source", ["userId", "source"]),
 });
