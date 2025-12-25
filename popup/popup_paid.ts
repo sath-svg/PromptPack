@@ -156,32 +156,71 @@ async function syncWithCloud() {
 
 async function importPmtpk(file: File) {
   try {
+    console.log("[Import] Starting import of file:", file.name, "size:", file.size);
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
 
+    console.log("[Import] File loaded, bytes length:", bytes.length);
+    console.log("[Import] First 10 bytes:", Array.from(bytes.slice(0, 10)).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(' '));
+
+    // Check file type
+    const encrypted = isEncrypted(bytes);
+    const obfuscated = isObfuscated(bytes);
+    console.log("[Import] File type - encrypted:", encrypted, "obfuscated:", obfuscated);
+
     let jsonString: string;
 
-    if (isEncrypted(bytes)) {
+    if (encrypted) {
+      console.log("[Import] File is encrypted, prompting for password");
       const password = prompt("Enter password (5 characters):");
-      if (!password) { toast("Import cancelled"); return; }
-      if (password.length !== 5) { toast("Password must be 5 characters"); return; }
+      if (!password) {
+        console.log("[Import] User cancelled password prompt");
+        toast("Import cancelled");
+        return;
+      }
+      if (password.length !== 5) {
+        console.log("[Import] Invalid password length:", password.length);
+        toast("Password must be 5 characters");
+        return;
+      }
+      console.log("[Import] Attempting decryption...");
       jsonString = await decryptPmtpk(bytes, password);
-    } else if (isObfuscated(bytes)) {
+      console.log("[Import] Decryption successful, JSON length:", jsonString.length);
+    } else if (obfuscated) {
+      console.log("[Import] File is obfuscated, decoding...");
       jsonString = await decodePmtpk(bytes);
+      console.log("[Import] Decode successful, JSON length:", jsonString.length);
     } else {
+      console.log("[Import] File is plain JSON (legacy format)");
       jsonString = new TextDecoder().decode(bytes);
     }
 
+    console.log("[Import] Parsing JSON...");
+    console.log("[Import] JSON preview:", jsonString.substring(0, 200));
     const data = JSON.parse(jsonString);
+    console.log("[Import] Parsed data:", {
+      hasPrompts: !!data.prompts,
+      promptsIsArray: Array.isArray(data.prompts),
+      promptCount: data.prompts?.length,
+      version: data.version,
+      source: data.source
+    });
+
     if (!data.prompts || !Array.isArray(data.prompts)) {
-      toast("Invalid .pmtpk file"); return;
+      console.error("[Import] Invalid file structure - missing prompts array");
+      toast("Invalid .pmtpk file");
+      return;
     }
 
     const source = (data.source as PromptSource) || "chatgpt";
+    console.log("[Import] Source:", source, "Prompt count:", data.prompts.length);
+
     const currentCount = await getPromptCount();
     const { limit, remaining } = await canSavePrompt(currentCount);
+    console.log("[Import] Current count:", currentCount, "Limit:", limit, "Remaining:", remaining);
 
     if (data.prompts.length > remaining) {
+      console.warn("[Import] Import would exceed limit");
       toast(`Can only import ${remaining} more (limit: ${limit})`);
       return;
     }
@@ -196,12 +235,16 @@ async function importPmtpk(file: File) {
       imported.push(newPrompt);
     }
 
+    console.log("[Import] Saved", imported.length, "prompts to database");
     undoStack.push({ type: "import", prompts: imported });
     toast(`Imported ${imported.length} prompt${imported.length !== 1 ? "s" : ""}`);
+    console.log("[Import] Import complete!");
     await render();
   } catch (e) {
-    console.error("Import error:", e);
+    console.error("[Import] Import error:", e);
+    console.error("[Import] Error stack:", e instanceof Error ? e.stack : "No stack trace");
     if (e instanceof PmtpkError) {
+      console.error("[Import] PmtpkError code:", e.code, "message:", e.message);
       switch (e.code) {
         case 'WRONG_PASSWORD': toast("Wrong password"); break;
         case 'CORRUPTED': toast("File is corrupted"); break;

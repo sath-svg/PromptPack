@@ -6,10 +6,12 @@ export type PromptItem = {
   source: PromptSource;
   url: string;
   createdAt: number;
+  packName?: string; // Optional: name of imported pack (e.g., "Funny", "Work Tips")
 };
 
 const KEY = "promptpack_prompts";
 export const MAX_PROMPTS = 20;
+export const MAX_IMPORTED_PACKS = 2; // Max number of imported packs for pro users
 
 export async function listPrompts(): Promise<PromptItem[]> {
   const res = await chrome.storage.local.get(KEY);

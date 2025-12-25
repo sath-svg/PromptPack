@@ -1,5 +1,5 @@
 import "./popup.css";
-import { listPrompts, deletePrompt, deletePromptsBySource, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
 import { getAuthState, type AuthState } from "./shared/auth";
@@ -57,42 +57,87 @@ async function performUndo() {
 
 async function importPmtpk(file: File) {
   try {
+    console.log("[Import] Starting import of file:", file.name, "size:", file.size);
+
+    // Check if user has reached the imported pack limit
+    const items = await listPrompts();
+    const importedPackNames = new Set(items.filter(p => p.packName).map(p => `${p.source}:${p.packName}`));
+    const importedPackCount = importedPackNames.size;
+
+    if (importedPackCount >= MAX_IMPORTED_PACKS) {
+      toast(`Pack limit reached (${importedPackCount}/${MAX_IMPORTED_PACKS}). Delete a pack to import new ones.`);
+      console.log("[Import] Import blocked - pack limit reached");
+      return;
+    }
+
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
 
+    console.log("[Import] File loaded, bytes length:", bytes.length);
+    console.log("[Import] First 10 bytes:", Array.from(bytes.slice(0, 10)).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(' '));
+
+    // Check file type
+    const encrypted = isEncrypted(bytes);
+    const obfuscated = isObfuscated(bytes);
+    console.log("[Import] File type - encrypted:", encrypted, "obfuscated:", obfuscated);
+    console.log("[Import] Magic bytes check - byte[3]:", `0x${bytes[3]?.toString(16).padStart(2, '0')}`, "expected 0x01 for encrypted, 0x00 for obfuscated");
+
     let jsonString: string;
 
-    if (isEncrypted(bytes)) {
+    if (encrypted) {
+      console.log("[Import] File is encrypted, prompting for password");
       // Encrypted file - prompt for password
       const password = prompt("Enter password (5 characters):");
       if (!password) {
+        console.log("[Import] User cancelled password prompt");
         toast("Import cancelled");
         return;
       }
       if (password.length !== 5) {
+        console.log("[Import] Invalid password length:", password.length);
         toast("Password must be 5 characters");
         return;
       }
+      console.log("[Import] Attempting decryption...");
       jsonString = await decryptPmtpk(bytes, password);
-    } else if (isObfuscated(bytes)) {
+      console.log("[Import] Decryption successful, JSON length:", jsonString.length);
+    } else if (obfuscated) {
+      console.log("[Import] File is obfuscated, decoding...");
       // Obfuscated file (unencrypted but protected)
       jsonString = await decodePmtpk(bytes);
+      console.log("[Import] Decode successful, JSON length:", jsonString.length);
     } else {
+      console.log("[Import] File is plain JSON (legacy format)");
       // Legacy plain JSON (for backwards compatibility)
       jsonString = new TextDecoder().decode(bytes);
     }
 
+    console.log("[Import] Parsing JSON...");
+    console.log("[Import] JSON preview:", jsonString.substring(0, 200));
     const data = JSON.parse(jsonString);
+    console.log("[Import] Parsed data:", {
+      hasPrompts: !!data.prompts,
+      promptsIsArray: Array.isArray(data.prompts),
+      promptCount: data.prompts?.length,
+      version: data.version,
+      source: data.source,
+      title: data.title
+    });
 
     if (!data.prompts || !Array.isArray(data.prompts)) {
+      console.error("[Import] Invalid file structure - missing prompts array");
       toast("Invalid .pmtpk file");
       return;
     }
 
     const source = (data.source as PromptSource) || "chatgpt";
+    const packTitle = data.title || file.name.replace(/\.pmtpk$/, "");
+    console.log("[Import] Source:", source, "Title:", packTitle, "Prompt count:", data.prompts.length);
+
     const KEY = "promptpack_prompts";
     const res = await chrome.storage.local.get(KEY);
     const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
+    console.log("[Import] Existing prompts:", existing.length);
 
     const imported: PromptItem[] = [];
     for (const p of data.prompts) {
@@ -101,22 +146,27 @@ async function importPmtpk(file: File) {
         text: p.text,
         source,
         url: p.url || "",
-        createdAt: p.createdAt || Date.now()
+        createdAt: p.createdAt || Date.now(),
+        packName: packTitle // Save the pack name for grouping
       };
       imported.push(newPrompt);
     }
 
     const merged = [...imported, ...existing];
     await chrome.storage.local.set({ [KEY]: merged });
+    console.log("[Import] Saved to storage. Total prompts:", merged.length);
 
     // Push to undo stack
     undoStack.push({ type: "import", prompts: imported });
 
-    toast(`Imported ${imported.length} prompt${imported.length !== 1 ? "s" : ""}`);
+    toast(`Imported ${imported.length} prompt${imported.length !== 1 ? "s" : ""} from "${packTitle}"`);
+    console.log("[Import] Import complete!");
     await render();
   } catch (e) {
-    console.error("Import error:", e);
+    console.error("[Import] Import error:", e);
+    console.error("[Import] Error stack:", e instanceof Error ? e.stack : "No stack trace");
     if (e instanceof PmtpkError) {
+      console.error("[Import] PmtpkError code:", e.code, "message:", e.message);
       switch (e.code) {
         case 'WRONG_PASSWORD':
           toast("Wrong password");
@@ -182,16 +232,69 @@ function toast(msg: string) {
   setTimeout(() => (el!.style.opacity = "0"), 900);
 }
 
-function groupBySource(items: PromptItem[]) {
-  const groups: Record<PromptItem["source"], PromptItem[]> = {
+type GroupedPrompts = {
+  type: "source" | "pack";
+  key: string;
+  displayName: string;
+  source: PromptSource;
+  prompts: PromptItem[];
+};
+
+function groupPrompts(items: PromptItem[]): GroupedPrompts[] {
+  const groups: GroupedPrompts[] = [];
+
+  // Separate imported packs from regular prompts
+  const importedPacks = new Map<string, PromptItem[]>();
+  const regularPrompts: Record<PromptSource, PromptItem[]> = {
     chatgpt: [],
     claude: [],
     gemini: [],
   };
-  for (const p of items) groups[p.source]?.push(p);
-  for (const k of Object.keys(groups) as Array<PromptItem["source"]>) {
-    groups[k].sort((a, b) => b.createdAt - a.createdAt);
+
+  for (const p of items) {
+    if (p.packName) {
+      // Group by pack name
+      const packKey = `${p.source}:${p.packName}`;
+      if (!importedPacks.has(packKey)) {
+        importedPacks.set(packKey, []);
+      }
+      importedPacks.get(packKey)!.push(p);
+    } else {
+      // Regular prompt saved from extension
+      regularPrompts[p.source]?.push(p);
+    }
   }
+
+  // Add imported packs first (sorted by most recent)
+  const packEntries = Array.from(importedPacks.entries())
+    .map(([key, prompts]) => {
+      const [source, packName] = key.split(":");
+      return {
+        type: "pack" as const,
+        key,
+        displayName: packName,
+        source: source as PromptSource,
+        prompts: prompts.sort((a, b) => b.createdAt - a.createdAt),
+        mostRecent: Math.max(...prompts.map(p => p.createdAt))
+      };
+    })
+    .sort((a, b) => b.mostRecent - a.mostRecent);
+
+  groups.push(...packEntries);
+
+  // Add regular source groups (always show all three sources)
+  const sourceOrder: PromptSource[] = ["chatgpt", "claude", "gemini"];
+  for (const source of sourceOrder) {
+    const prompts = regularPrompts[source];
+    groups.push({
+      type: "source",
+      key: source,
+      displayName: sectionTitle(source),
+      source,
+      prompts: prompts.sort((a, b) => b.createdAt - a.createdAt),
+    });
+  }
+
   return groups;
 }
 
@@ -338,7 +441,7 @@ function setupEventDelegation() {
 
       const source = btn.dataset.deleteFolder as PromptSource;
       const items = await listPrompts();
-      const sourcePrompts = items.filter(p => p.source === source);
+      const sourcePrompts = items.filter(p => p.source === source && !p.packName);
 
       if (sourcePrompts.length === 0) {
         toast("No prompts to delete");
@@ -352,6 +455,35 @@ function setupEventDelegation() {
       return;
     }
 
+    // Delete pack (all prompts from an imported pack)
+    if (btn.dataset.deletePack) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const packKey = btn.dataset.deletePack;
+      const [source, packName] = packKey.split(":");
+      const items = await listPrompts();
+      const packPrompts = items.filter(p => p.packName === packName && p.source === source);
+
+      if (packPrompts.length === 0) {
+        toast("No prompts to delete");
+        return;
+      }
+
+      undoStack.push({ type: "delete-folder", prompts: packPrompts, source: source as PromptSource });
+
+      // Delete all prompts from this pack
+      const KEY = "promptpack_prompts";
+      const res = await chrome.storage.local.get(KEY);
+      const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
+      const filtered = existing.filter(p => !(p.packName === packName && p.source === source));
+      await chrome.storage.local.set({ [KEY]: filtered });
+
+      toast(`Deleted "${packName}" pack (${packPrompts.length} prompts)`);
+      await render();
+      return;
+    }
+
     // Export button
     if (btn.dataset.export) {
       e.preventDefault();
@@ -359,7 +491,7 @@ function setupEventDelegation() {
 
       const source = btn.dataset.export as PromptItem["source"];
       const items = await listPrompts();
-      const sourcePrompts = items.filter(p => p.source === source);
+      const sourcePrompts = items.filter(p => p.source === source && !p.packName);
 
       if (sourcePrompts.length === 0) {
         toast("No prompts to export");
@@ -380,10 +512,14 @@ function setupEventDelegation() {
         return;
       }
 
+      // Map source to display title
+      const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+
       // Create export data with schema version
       const exportData = {
         version: SCHEMA_VERSION,
         source,
+        title: sourceTitle, // Include title for display when imported
         exportedAt: new Date().toISOString(),
         prompts: sourcePrompts.map(p => ({
           text: p.text,
@@ -416,6 +552,71 @@ function setupEventDelegation() {
       URL.revokeObjectURL(url);
 
       toast(`Exported ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""}${password ? " (encrypted)" : ""}`);
+      return;
+    }
+
+    // Export pack button
+    if (btn.dataset.exportPack) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const packKey = btn.dataset.exportPack;
+      const [source, packName] = packKey.split(":");
+      const items = await listPrompts();
+      const packPrompts = items.filter(p => p.packName === packName && p.source === source);
+
+      if (packPrompts.length === 0) {
+        toast("No prompts to export");
+        return;
+      }
+
+      // Ask if user wants to encrypt
+      const password = prompt("Enter a 5-character password to encrypt (or leave empty for no encryption):");
+
+      // User cancelled
+      if (password === null) {
+        return;
+      }
+
+      // Validate password if provided
+      if (password && password.length !== 5) {
+        toast("Password must be exactly 5 characters");
+        return;
+      }
+
+      // Create export data with pack name preserved
+      const exportData = {
+        version: SCHEMA_VERSION,
+        source: source as PromptSource,
+        title: packName, // Preserve original pack name
+        exportedAt: new Date().toISOString(),
+        prompts: packPrompts.map(p => ({
+          text: p.text,
+          url: p.url,
+          createdAt: p.createdAt
+        }))
+      };
+
+      const jsonString = JSON.stringify(exportData);
+      let fileData: Uint8Array;
+
+      if (password) {
+        fileData = await encryptPmtpk(jsonString, password);
+      } else {
+        fileData = await encodePmtpk(jsonString);
+      }
+
+      const blob = new Blob([new Uint8Array(fileData)], { type: "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${packName.replace(/[^a-zA-Z0-9]/g, "-")}-${Date.now()}.pmtpk`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast(`Exported "${packName}" (${packPrompts.length} prompts)${password ? " (encrypted)" : ""}`);
       return;
     }
 
@@ -487,7 +688,7 @@ function setupEventDelegation() {
 
       const source = btn.dataset.save as PromptItem["source"];
       const items = await listPrompts();
-      const sourcePrompts = items.filter(p => p.source === source);
+      const sourcePrompts = items.filter(p => p.source === source && !p.packName);
 
       if (sourcePrompts.length === 0) {
         toast("No prompts to save");
@@ -498,6 +699,99 @@ function setupEventDelegation() {
       toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
       // For now, just show a message - actual implementation would call api.savePrompts()
       setTimeout(() => toast("Saved to dashboard!"), 500);
+      return;
+    }
+
+    // Save pack to dashboard
+    if (btn.dataset.savePack) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const packKey = btn.dataset.savePack;
+      const [source, packName] = packKey.split(":");
+      const items = await listPrompts();
+      const packPrompts = items.filter(p => p.packName === packName && p.source === source);
+
+      if (packPrompts.length === 0) {
+        toast("No prompts to save");
+        return;
+      }
+
+      try {
+        // Ask if user wants to encrypt (optional)
+        const password = prompt("Add a 5-character password to encrypt (or leave empty for no encryption):");
+
+        // User cancelled
+        if (password === null) {
+          return;
+        }
+
+        // Validate password if provided
+        if (password && password.length !== 5) {
+          toast("Password must be exactly 5 characters");
+          return;
+        }
+
+        toast(`Saving "${packName}" pack (${packPrompts.length} prompts) to dashboard...`);
+
+        // Create export data
+        const exportData = {
+          version: SCHEMA_VERSION,
+          source: source as PromptSource,
+          title: packName,
+          exportedAt: new Date().toISOString(),
+          prompts: packPrompts.map(p => ({
+            text: p.text,
+            url: p.url,
+            createdAt: p.createdAt
+          }))
+        };
+
+        const jsonString = JSON.stringify(exportData);
+        let fileData: Uint8Array;
+
+        // Encrypt or obfuscate based on password
+        if (password) {
+          fileData = await encryptPmtpk(jsonString, password);
+        } else {
+          fileData = await encodePmtpk(jsonString);
+        }
+
+        // Convert to base64 for storage
+        const base64FileData = btoa(String.fromCharCode(...fileData));
+
+        // Get user ID from auth state
+        if (!authState.user?.id) {
+          toast("Not logged in. Please log in first.");
+          return;
+        }
+
+        // Call Convex API to create pack
+        const response = await fetch("http://localhost:3000/api/packs/create", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            title: packName,
+            fileData: base64FileData,
+            promptCount: packPrompts.length,
+            version: "1.0",
+            price: 0,
+            isPublic: false,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to save pack");
+        }
+
+        toast(`"${packName}" saved to dashboard!`);
+      } catch (e) {
+        console.error("Save pack failed:", e);
+        toast("Failed to save pack to dashboard");
+      }
       return;
     }
   });
@@ -597,8 +891,7 @@ async function render() {
   if (!app) throw new Error("Missing #app in popup index.html");
 
   const items = await listPrompts();
-  const groups = groupBySource(items);
-  const order: PromptItem["source"][] = ["chatgpt", "claude", "gemini"];
+  const groups = groupPrompts(items);
   const activeSource = await detectActiveSource();
 
   // Set active source on root element for styling
@@ -610,11 +903,19 @@ async function render() {
     ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="Logged in - Go to Dashboard">${ICON.user}</button>`
     : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
 
-  // Show import button only if user has pro billing
+  // Show import button only if user has pro billing and hasn't reached pack limit
   const isPro = authState.billing?.isPro ?? false;
-  const importButton = isPro
-    ? `<button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>`
-    : "";
+
+  // Count unique imported packs (items with packName)
+  const importedPackNames = new Set(items.filter(p => p.packName).map(p => `${p.source}:${p.packName}`));
+  const importedPackCount = importedPackNames.size;
+  const canImport = isPro && importedPackCount < MAX_IMPORTED_PACKS;
+
+  const importButton = canImport
+    ? `<button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk (${importedPackCount}/${MAX_IMPORTED_PACKS})">${ICON.import}</button>`
+    : isPro
+      ? `<button class="pp-icon-btn" id="pp-import-btn-disabled" title="Pack limit reached (${importedPackCount}/${MAX_IMPORTED_PACKS})" disabled style="opacity: 0.4; cursor: not-allowed;">${ICON.import}</button>`
+      : "";
 
   app.innerHTML = `
     <div class="pp-wrap">
@@ -629,32 +930,42 @@ async function render() {
       <input type="file" id="pp-import-input" accept=".pmtpk" style="display:none">
       <div class="pp-sub">${isLoggedIn ? `Logged in as ${authState.user?.email}` : "Powered by PmtPk.ai. Click to expand"}</div>
 
-      ${order
-        .map((src) => {
-          const arr = groups[src] ?? [];
-          const openAttr = src === activeSource ? "open" : "";
-          // Show save button if logged in, export button if not
-          const saveOrExportBtn = isLoggedIn
-            ? `<button class="pp-icon-btn" data-save="${src}" title="Save ${sectionTitle(src)} prompts to dashboard">${ICON.save}</button>`
-            : `<button class="pp-icon-btn" data-export="${src}" title="Export ${sectionTitle(src)} prompts">${ICON.export}</button>`;
+      ${groups
+        .map((group) => {
+          const openAttr = group.source === activeSource && group.type === "source" ? "open" : "";
+          const isPack = group.type === "pack";
+
+          // For both packs and sources: show save/export based on login status
+          const actionButtons = isPack
+            ? isLoggedIn
+              ? `<button class="pp-icon-btn" data-save-pack="${esc(group.key)}" title="Save ${esc(group.displayName)} pack to dashboard">${ICON.save}</button>`
+              : `<button class="pp-icon-btn" data-export-pack="${esc(group.key)}" title="Export ${esc(group.displayName)}">${ICON.export}</button>`
+            : isLoggedIn
+              ? `<button class="pp-icon-btn" data-save="${group.source}" title="Save ${group.displayName} prompts to dashboard">${ICON.save}</button>`
+              : `<button class="pp-icon-btn" data-export="${group.source}" title="Export ${group.displayName} prompts">${ICON.export}</button>`;
+
+          const deleteButton = isPack
+            ? `<button class="pp-icon-btn" data-delete-pack="${esc(group.key)}" title="Delete ${esc(group.displayName)} pack">${ICON.delete}</button>`
+            : `<button class="pp-icon-btn" data-delete-folder="${group.source}" title="Delete all ${group.displayName} prompts">${ICON.delete}</button>`;
+
           return `
-            <details class="pp-sec" ${openAttr} data-source="${src}">
+            <details class="pp-sec ${isPack ? 'pp-pack' : ''}" ${openAttr} data-source="${group.source}" data-group-key="${esc(group.key)}">
               <summary>
                 <div class="pp-sum-left">
                   <span class="pp-arrow">${ICON.chevron}</span>
-                  <span>${sectionTitle(src)}</span>
+                  <span>${esc(group.displayName)}${isPack ? ' 📦' : ''}</span>
                 </div>
                 <div class="pp-actions">
-                  ${saveOrExportBtn}
-                  <button class="pp-icon-btn" data-delete-folder="${src}" title="Delete all ${sectionTitle(src)} prompts">${ICON.delete}</button>
-                  <span class="pp-count">${arr.length}</span>
+                  ${actionButtons}
+                  ${deleteButton}
+                  <span class="pp-count">${group.prompts.length}</span>
                 </div>
               </summary>
               <div class="pp-list">
                 ${
-                  arr.length
-                    ? arr.map(renderPromptRow).join("")
-                    : `<div class="pp-empty">No prompts saved for ${sectionTitle(src)} yet.</div>`
+                  group.prompts.length
+                    ? group.prompts.map(renderPromptRow).join("")
+                    : `<div class="pp-empty">No prompts in ${esc(group.displayName)} yet.</div>`
                 }
               </div>
             </details>
