@@ -18,6 +18,7 @@ const ICON = {
 
 // Auth state
 let authState: AuthState = { isAuthenticated: false };
+let isSyncing = false;
 
 // Undo state
 type UndoAction = {
@@ -515,10 +516,7 @@ function setupEventDelegation() {
   });
 }
 
-async function render() {
-  await applyThemeFromStorageToRoot();
-  ensureThemeListenerOnce();
-
+async function syncAuthState() {
   // Check if we have a pending auth check from button navigation
   const checkResult = await chrome.storage.local.get("pp_auth_check_needed");
   if (checkResult.pp_auth_check_needed) {
@@ -529,44 +527,49 @@ async function render() {
     if (checkResult.pp_auth_check_needed === "logged_out") {
       // User clicked button but landed on sign-in, so they're logged out
       await clearSession();
-      authState = { isAuthenticated: false };
+      return { isAuthenticated: false };
     } else if (checkResult.pp_auth_check_needed === "logged_in") {
       // User clicked button but landed on dashboard, so they're logged in
       // For now just mark as authenticated - full session would need to be synced
-      authState = { isAuthenticated: true };
-    }
-  } else {
-    // Check auth state by making a lightweight request
-    // This runs every time popup opens to verify against Clerk's session
-    try {
-      const response = await fetch("http://localhost:3000/api/auth/status", {
-        method: "GET",
-        credentials: "include", // Include cookies for Clerk session
-      });
-
-      const data = await response.json();
-      const isLoggedIn = data.isAuthenticated === true;
-
-      if (isLoggedIn) {
-        // User is logged in on web
-        const currentAuth = await getAuthState();
-        if (!currentAuth.isAuthenticated) {
-          // Extension doesn't have session yet, just mark as authenticated
-          authState = { isAuthenticated: true };
-        } else {
-          authState = currentAuth;
-        }
-      } else {
-        // User is logged out on web
-        await clearSession();
-        authState = { isAuthenticated: false };
-      }
-    } catch (error) {
-      console.error("Auth check failed:", error);
-      // Fallback to local session check
-      authState = await getAuthState();
+      return { isAuthenticated: true };
     }
   }
+
+  // Check auth state by making a lightweight request
+  // This runs every time popup opens to verify against Clerk's session
+  try {
+    const response = await fetch("http://localhost:3000/api/auth/status", {
+      method: "GET",
+      credentials: "include", // Include cookies for Clerk session
+    });
+
+    const data = await response.json();
+    const isLoggedIn = data.isAuthenticated === true;
+
+    if (isLoggedIn) {
+      // User is logged in on web
+      const currentAuth = await getAuthState();
+      if (!currentAuth.isAuthenticated) {
+        // Extension doesn't have session yet, just mark as authenticated
+        return { isAuthenticated: true };
+      } else {
+        return currentAuth;
+      }
+    } else {
+      // User is logged out on web
+      await clearSession();
+      return { isAuthenticated: false };
+    }
+  } catch (error) {
+    console.error("Auth check failed:", error);
+    // Fallback to local session check
+    return await getAuthState();
+  }
+}
+
+async function render() {
+  await applyThemeFromStorageToRoot();
+  ensureThemeListenerOnce();
 
   const isLoggedIn = authState.isAuthenticated;
 
@@ -582,6 +585,7 @@ async function render() {
   document.documentElement.dataset.activeSource = activeSource;
 
   // Render auth button based on state
+  const syncIndicator = isSyncing ? `<span class="pp-sync-hint" title="Syncing...">•</span>` : "";
   const authButton = isLoggedIn
     ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="Logged in - Go to Dashboard">${ICON.user}</button>`
     : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
@@ -589,7 +593,7 @@ async function render() {
   app.innerHTML = `
     <div class="pp-wrap">
       <div class="pp-header">
-        <div class="pp-title">PromptPack</div>
+        <div class="pp-title">PromptPack${syncIndicator}</div>
         <div class="pp-header-actions">
           <button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>
           <button class="pp-icon-btn" id="pp-undo-btn" title="Undo">${ICON.undo}</button>
@@ -638,4 +642,25 @@ async function render() {
   setupEventDelegation();
 }
 
+// Initial render with local state
 render();
+
+// Sync auth state in background
+(async () => {
+  isSyncing = true;
+  await render(); // Show syncing indicator
+
+  const newAuthState = await syncAuthState();
+  const stateChanged = newAuthState.isAuthenticated !== authState.isAuthenticated;
+
+  authState = newAuthState;
+  isSyncing = false;
+
+  // Only re-render if state actually changed
+  if (stateChanged) {
+    await render();
+  } else {
+    // Just remove sync indicator
+    await render();
+  }
+})();
