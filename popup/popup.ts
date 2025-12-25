@@ -886,12 +886,25 @@ async function render() {
   ensureThemeListenerOnce();
 
   const isLoggedIn = authState.isAuthenticated;
+  const isPro = authState.billing?.isPro ?? false;
 
   const app = document.getElementById("app");
   if (!app) throw new Error("Missing #app in popup index.html");
 
   const items = await listPrompts();
-  const groups = groupPrompts(items);
+
+  // Remove imported packs from storage if user is not pro
+  if (!isPro) {
+    const packPrompts = items.filter(p => p.packName);
+    if (packPrompts.length > 0) {
+      const KEY = "promptpack_prompts";
+      const nonPackPrompts = items.filter(p => !p.packName);
+      await chrome.storage.local.set({ [KEY]: nonPackPrompts });
+      console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user is not pro)`);
+    }
+  }
+
+  const groups = groupPrompts(items.filter(p => isPro || !p.packName));
   const activeSource = await detectActiveSource();
 
   // Set active source on root element for styling
@@ -904,8 +917,6 @@ async function render() {
     : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
 
   // Show import button only if user has pro billing and hasn't reached pack limit
-  const isPro = authState.billing?.isPro ?? false;
-
   // Count unique imported packs (items with packName)
   const importedPackNames = new Set(items.filter(p => p.packName).map(p => `${p.source}:${p.packName}`));
   const importedPackCount = importedPackNames.size;
