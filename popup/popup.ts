@@ -516,7 +516,7 @@ function setupEventDelegation() {
   });
 }
 
-async function syncAuthState() {
+async function syncAuthState(): Promise<AuthState> {
   // Check if we have a pending auth check from button navigation
   const checkResult = await chrome.storage.local.get("pp_auth_check_needed");
   if (checkResult.pp_auth_check_needed) {
@@ -530,8 +530,8 @@ async function syncAuthState() {
       return { isAuthenticated: false };
     } else if (checkResult.pp_auth_check_needed === "logged_in") {
       // User clicked button but landed on dashboard, so they're logged in
-      // For now just mark as authenticated - full session would need to be synced
-      return { isAuthenticated: true };
+      // Get the full auth state from local session or web API
+      return await getAuthState();
     }
   }
 
@@ -543,18 +543,24 @@ async function syncAuthState() {
       credentials: "include", // Include cookies for Clerk session
     });
 
-    const data = await response.json();
-    const isLoggedIn = data.isAuthenticated === true;
+    const data = await response.json() as {
+      isAuthenticated: boolean;
+      user?: {
+        id: string;
+        email: string;
+      };
+    };
 
-    if (isLoggedIn) {
-      // User is logged in on web
-      const currentAuth = await getAuthState();
-      if (!currentAuth.isAuthenticated) {
-        // Extension doesn't have session yet, just mark as authenticated
-        return { isAuthenticated: true };
-      } else {
-        return currentAuth;
-      }
+    if (data.isAuthenticated && data.user) {
+      // User is logged in on web - return auth state with user info from API
+      return {
+        isAuthenticated: true,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          tier: "free", // Default, will be updated from local session if available
+        },
+      };
     } else {
       // User is logged out on web
       await clearSession();
