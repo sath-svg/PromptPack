@@ -19,7 +19,30 @@ export type AuthState = {
     promptLimit: number;
     loadedPackLimit: number;
   };
+  billing?: {
+    isPro: boolean;
+    plan: "free" | "pro";
+  };
 };
+
+/**
+ * Get billing info from Convex
+ */
+export async function getBillingInfo(clerkId: string): Promise<{
+  isPro: boolean;
+  plan: "free" | "pro";
+} | null> {
+  try {
+    const billingStatus = await api.getBillingStatus(clerkId);
+    return {
+      isPro: billingStatus.hasPro,
+      plan: billingStatus.tier,
+    };
+  } catch (error) {
+    console.error("Failed to fetch billing info:", error);
+    return null;
+  }
+}
 
 /**
  * Get current auth state from local storage
@@ -34,6 +57,9 @@ export async function getAuthState(): Promise<AuthState> {
       if (refreshed) {
         const newSession = await getSession();
         if (newSession) {
+          // Fetch billing info from Convex
+          const billing = await getBillingInfo(newSession.userId);
+
           return {
             isAuthenticated: true,
             user: {
@@ -42,6 +68,7 @@ export async function getAuthState(): Promise<AuthState> {
               tier: newSession.tier,
             },
             entitlements: newSession.entitlements,
+            billing: billing || undefined,
           };
         }
       }
@@ -49,6 +76,9 @@ export async function getAuthState(): Promise<AuthState> {
 
     return { isAuthenticated: false };
   }
+
+  // Fetch billing info from Convex
+  const billing = await getBillingInfo(session.userId);
 
   return {
     isAuthenticated: true,
@@ -58,6 +88,7 @@ export async function getAuthState(): Promise<AuthState> {
       tier: session.tier,
     },
     entitlements: session.entitlements,
+    billing: billing || undefined,
   };
 }
 
