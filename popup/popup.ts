@@ -2,7 +2,8 @@ import "./popup.css";
 import { listPrompts, deletePrompt, deletePromptsBySource, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, login, openBillingPortal, type AuthState } from "./shared/auth";
+import { getAuthState, type AuthState } from "./shared/auth";
+import { clearSession } from "./shared/db";
 
 // SVG Icons
 const ICON = {
@@ -432,15 +433,49 @@ function setupEventDelegation() {
       return;
     }
 
-    // Login button
-    if (btn.id === "pp-login-btn") {
-      await login();
-      return;
-    }
+    // Dashboard/Login button - opens dashboard or sign-in
+    // After opening, we'll detect where they land and update auth state
+    if (btn.id === "pp-dashboard-btn" || btn.id === "pp-login-btn") {
+      const targetUrl = btn.id === "pp-dashboard-btn"
+        ? "http://localhost:3000/dashboard"
+        : "http://localhost:3000/sign-in";
 
-    // Dashboard button (when logged in) - opens dashboard in new tab
-    if (btn.id === "pp-dashboard-btn") {
-      await openBillingPortal();
+      // Open the tab
+      const tab = await chrome.tabs.create({ url: targetUrl });
+
+      if (tab.id) {
+        // Listen for navigation to detect where they actually land
+        const listener = (tabId: number, changeInfo: { url?: string; status?: string }, tab: chrome.tabs.Tab) => {
+          if (tabId !== tab.id) return;
+
+          // Check both URL changes and when page finishes loading
+          const shouldCheck = changeInfo.url || (changeInfo.status === "complete" && tab.url);
+          if (!shouldCheck) return;
+
+          const url = (changeInfo.url || tab.url || "").toLowerCase();
+          if (!url) return;
+
+          // If any button led to sign-in page, user is logged out
+          if (url.includes("/sign-in")) {
+            chrome.tabs.onUpdated.removeListener(listener);
+            chrome.storage.local.set({ pp_auth_check_needed: "logged_out" });
+          }
+
+          // If any button led to dashboard, user is logged in
+          if (url.includes("/dashboard")) {
+            chrome.tabs.onUpdated.removeListener(listener);
+            chrome.storage.local.set({ pp_auth_check_needed: "logged_in" });
+          }
+        };
+
+        chrome.tabs.onUpdated.addListener(listener);
+
+        // Clean up listener after 10 seconds
+        setTimeout(() => {
+          chrome.tabs.onUpdated.removeListener(listener);
+        }, 10000);
+      }
+
       return;
     }
 
@@ -484,8 +519,55 @@ async function render() {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
 
-  // Get auth state
-  authState = await getAuthState();
+  // Check if we have a pending auth check from button navigation
+  const checkResult = await chrome.storage.local.get("pp_auth_check_needed");
+  if (checkResult.pp_auth_check_needed) {
+    // Clear the flag
+    await chrome.storage.local.remove("pp_auth_check_needed");
+
+    // Update auth state based on where the user landed
+    if (checkResult.pp_auth_check_needed === "logged_out") {
+      // User clicked button but landed on sign-in, so they're logged out
+      await clearSession();
+      authState = { isAuthenticated: false };
+    } else if (checkResult.pp_auth_check_needed === "logged_in") {
+      // User clicked button but landed on dashboard, so they're logged in
+      // For now just mark as authenticated - full session would need to be synced
+      authState = { isAuthenticated: true };
+    }
+  } else {
+    // Check auth state by making a lightweight request
+    // This runs every time popup opens to verify against Clerk's session
+    try {
+      const response = await fetch("http://localhost:3000/api/auth/status", {
+        method: "GET",
+        credentials: "include", // Include cookies for Clerk session
+      });
+
+      const data = await response.json();
+      const isLoggedIn = data.isAuthenticated === true;
+
+      if (isLoggedIn) {
+        // User is logged in on web
+        const currentAuth = await getAuthState();
+        if (!currentAuth.isAuthenticated) {
+          // Extension doesn't have session yet, just mark as authenticated
+          authState = { isAuthenticated: true };
+        } else {
+          authState = currentAuth;
+        }
+      } else {
+        // User is logged out on web
+        await clearSession();
+        authState = { isAuthenticated: false };
+      }
+    } catch (error) {
+      console.error("Auth check failed:", error);
+      // Fallback to local session check
+      authState = await getAuthState();
+    }
+  }
+
   const isLoggedIn = authState.isAuthenticated;
 
   const app = document.getElementById("app");
