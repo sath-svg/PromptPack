@@ -17,6 +17,7 @@ import {
 type PromptPacksProps = {
   userId: Id<"users">;
   hasPro: boolean;
+  clerkId: string;
 };
 
 type WebPackData = {
@@ -160,8 +161,9 @@ async function encodePrompts(
   }
 }
 
-export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
+export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
+  const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
   const createPack = useMutation(api.packs.create);
   const updatePack = useMutation(api.packs.update);
   const deletePack = useMutation(api.packs.remove);
@@ -619,6 +621,24 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
       {/* Toast notification */}
       {toast && <div className="toast">{toast}</div>}
 
+      {/* Grace period warning banner */}
+      {gracePeriodInfo && !gracePeriodInfo.isExpired && gracePeriodInfo.daysRemaining > 0 && (
+        <div className="warning-banner" style={{
+          padding: "16px",
+          marginBottom: "24px",
+          backgroundColor: "#fff3cd",
+          border: "1px solid #ffc107",
+          borderRadius: "8px",
+          color: "#856404"
+        }}>
+          <strong>⚠️ Subscription Cancelled</strong>
+          <p style={{ margin: "8px 0 0 0" }}>
+            Your prompt packs will be permanently deleted in <strong>{gracePeriodInfo.daysRemaining} day{gracePeriodInfo.daysRemaining !== 1 ? 's' : ''}</strong>.
+            {' '}Resubscribe to Pro to keep your packs.
+          </p>
+        </div>
+      )}
+
       <div className="saved-prompts-header">
         <h2>Your Prompt Packs</h2>
         {hasPro && canCreate && (
@@ -631,7 +651,7 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
         )}
       </div>
 
-      {!hasPro && (
+      {!hasPro && !gracePeriodInfo && (
         <p className="upgrade-notice">Upgrade to Pro to create prompt packs.</p>
       )}
 

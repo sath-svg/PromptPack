@@ -119,8 +119,8 @@ export function DashboardContent() {
 
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
-        {convexUser?._id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} />
+        {convexUser?._id && clerkUser?.id && (
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} clerkId={clerkUser.id} />
         )}
       </div>
 

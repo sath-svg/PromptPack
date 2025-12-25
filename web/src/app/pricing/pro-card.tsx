@@ -57,7 +57,7 @@ export function ProCard() {
             <span
               style={{
                 textDecoration: "line-through",
-                color: "#666",
+                color: "#9ca3af",
                 fontSize: "1.5rem",
                 marginRight: "0.5rem",
               }}
@@ -121,7 +121,7 @@ export function ProCard() {
           />
         </button>
           <span style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-              Billed annually (Save {savePct}%)
+              {isAnnual ? `Billed annually (Save ${savePct}%)` : "Billed monthly"}
           </span>
       </div>
 

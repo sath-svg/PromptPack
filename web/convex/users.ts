@@ -12,6 +12,30 @@ export const getByClerkId = query({
   },
 });
 
+// Get grace period info for a user
+export const getGracePeriodInfo = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user || !user.packDeletionAt) {
+      return null;
+    }
+
+    const now = Date.now();
+    const daysRemaining = Math.max(0, Math.ceil((user.packDeletionAt - now) / (24 * 60 * 60 * 1000)));
+
+    return {
+      packDeletionAt: user.packDeletionAt,
+      daysRemaining,
+      isExpired: user.packDeletionAt <= now,
+    };
+  },
+});
+
 // Create or update user from Clerk webhook
 export const upsert = mutation({
   args: {
@@ -132,8 +156,9 @@ export const updatePlanByClerkId = internalMutation({
   args: {
     clerkId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro")),
+    subscriptionCancelledAt: v.optional(v.number()), // Timestamp when subscription was cancelled
   },
-  handler: async (ctx, { clerkId, plan }) => {
+  handler: async (ctx, { clerkId, plan, subscriptionCancelledAt }) => {
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -142,13 +167,56 @@ export const updatePlanByClerkId = internalMutation({
     if (!user) return;
 
     const oldPlan = user.plan;
-    await ctx.db.patch(user._id, { plan });
 
-    // Enforce limits when downgrading from pro to free
+    // Handle downgrade from pro to free
     if (oldPlan === "pro" && plan === "free") {
-      console.log(`User ${clerkId} downgraded to free - enforcing limits`);
+      console.log(`User ${clerkId} downgraded to free - starting grace period`);
 
-      // 1. Delete ALL user-created prompt packs (free tier = 0 packs allowed)
+      // Set grace period: 1 day (24 hours) from cancellation or now
+      const gracePeriodMs = 24 * 60 * 60 * 1000; // 1 day in milliseconds
+      const cancelTime = subscriptionCancelledAt || Date.now();
+      const packDeletionAt = cancelTime + gracePeriodMs;
+
+      await ctx.db.patch(user._id, {
+        plan,
+        packDeletionAt,
+      });
+
+      console.log(`Grace period set: packs will be deleted at ${new Date(packDeletionAt).toISOString()}`);
+    }
+    // Handle upgrade from free to pro
+    else if (oldPlan === "free" && plan === "pro") {
+      console.log(`User ${clerkId} upgraded to pro - clearing grace period`);
+
+      await ctx.db.patch(user._id, {
+        plan,
+        packDeletionAt: undefined, // Clear any existing grace period
+      });
+    }
+    // Same plan, just update
+    else {
+      await ctx.db.patch(user._id, { plan });
+    }
+  },
+});
+
+// Internal mutation: Clean up packs for users whose grace period has expired
+export const cleanExpiredPacks = internalMutation({
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Find all users with expired grace periods
+    const allUsers = await ctx.db.query("users").collect();
+    const expiredUsers = allUsers.filter(
+      (u) => u.packDeletionAt && u.packDeletionAt <= now
+    );
+
+    console.log(`[Cleanup] Found ${expiredUsers.length} users with expired grace periods`);
+
+    for (const user of expiredUsers) {
+      console.log(`[Cleanup] Processing user ${user.clerkId}`);
+
+      // Delete all user-created prompt packs
       const userPacks = await ctx.db
         .query("packs")
         .withIndex("by_author", (q) => q.eq("authorId", user._id))
@@ -156,25 +224,92 @@ export const updatePlanByClerkId = internalMutation({
 
       for (const pack of userPacks) {
         await ctx.db.delete(pack._id);
-        console.log(`Deleted pack: ${pack.title}`);
+        console.log(`[Cleanup] Deleted pack: ${pack.title}`);
       }
 
-      // 2. Check saved prompts count and delete if over free limit (10)
-      const savedPacks = await ctx.db
-        .query("savedPacks")
-        .withIndex("by_user", (q) => q.eq("userId", user._id))
+      // Clear the packDeletionAt timestamp
+      await ctx.db.patch(user._id, {
+        packDeletionAt: undefined,
+      });
+
+      console.log(`[Cleanup] Deleted ${userPacks.length} packs for user ${user.clerkId}`);
+    }
+
+    return { processedUsers: expiredUsers.length };
+  },
+});
+
+// Test mutation: Manually trigger cleanup (for testing purposes)
+export const testCleanupExpiredPacks = mutation({
+  handler: async (ctx) => {
+    const now = Date.now();
+
+    // Find all users with expired grace periods
+    const allUsers = await ctx.db.query("users").collect();
+    const expiredUsers = allUsers.filter(
+      (u) => u.packDeletionAt && u.packDeletionAt <= now
+    );
+
+    console.log(`[Test Cleanup] Found ${expiredUsers.length} users with expired grace periods`);
+
+    for (const user of expiredUsers) {
+      console.log(`[Test Cleanup] Processing user ${user.clerkId}`);
+
+      // Delete all user-created prompt packs
+      const userPacks = await ctx.db
+        .query("packs")
+        .withIndex("by_author", (q) => q.eq("authorId", user._id))
         .collect();
 
-      const totalPrompts = savedPacks.reduce((sum, pack) => sum + pack.promptCount, 0);
-
-      if (totalPrompts > 10) {
-        // Delete ALL saved packs if exceeding free tier limit
-        for (const pack of savedPacks) {
-          await ctx.db.delete(pack._id);
-          console.log(`Deleted savedPack: ${pack.source} (${pack.promptCount} prompts)`);
-        }
-        console.log(`Deleted all saved prompts (${totalPrompts} total, exceeds free limit of 10)`);
+      for (const pack of userPacks) {
+        await ctx.db.delete(pack._id);
+        console.log(`[Test Cleanup] Deleted pack: ${pack.title}`);
       }
+
+      // Clear the packDeletionAt timestamp
+      await ctx.db.patch(user._id, {
+        packDeletionAt: undefined,
+      });
+
+      console.log(`[Test Cleanup] Deleted ${userPacks.length} packs for user ${user.clerkId}`);
     }
+
+    return { processedUsers: expiredUsers.length };
+  },
+});
+
+// Test mutation: Set grace period for current user (for testing warning display)
+export const testSetGracePeriod = mutation({
+  args: {
+    clerkId: v.string(),
+    hoursUntilExpiry: v.number(), // How many hours until packs are deleted (can be < 1)
+  },
+  handler: async (ctx, { clerkId, hoursUntilExpiry }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User not found with clerkId: ${clerkId}`);
+    }
+
+    const now = Date.now();
+    const packDeletionAt = now + (hoursUntilExpiry * 60 * 60 * 1000);
+
+    await ctx.db.patch(user._id, {
+      plan: "free",
+      packDeletionAt,
+    });
+
+    console.log(`[Test] Set grace period for user ${clerkId}`);
+    console.log(`[Test] Packs will be deleted at: ${new Date(packDeletionAt).toISOString()}`);
+    console.log(`[Test] Hours until expiry: ${hoursUntilExpiry}`);
+
+    return {
+      packDeletionAt,
+      expiresAt: new Date(packDeletionAt).toISOString(),
+      hoursUntilExpiry,
+    };
   },
 });
