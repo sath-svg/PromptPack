@@ -7,6 +7,7 @@ import Link from "next/link";
 import { SavedPrompts } from "./saved-prompts";
 import { ManageSubscriptionButton } from "./manage-subscription-button";
 import { useEffect } from "react";
+import { PromptPacks } from "./prompt-packs";
 
 export function DashboardContent() {
   const { user: clerkUser, isLoaded } = useUser();
@@ -114,6 +115,13 @@ export function DashboardContent() {
             </Link>
           </p>
         </div>
+      </div>
+
+      {/* Saved Prompts Section */}
+      <div className="dashboard-section">
+        {convexUser?._id && (
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} />
+        )}
       </div>
 
       {/* Saved Prompts Section */}

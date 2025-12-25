@@ -3,24 +3,8 @@
 
 import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack } from "./db";
 
-/**
- * TODO [PRODUCTION]: Update API_BASE to production Cloudflare Workers URL
- * Example: const API_BASE = "https://api.pmtpk.ai";
- *
- * Checklist when deploying:
- * 1. Deploy Cloudflare Worker to production
- * 2. Update API_BASE to production URL
- * 3. Update manifest.config.ts host_permissions to include API domain
- * 4. Configure CORS on Worker to allow extension origin
- */
+// TODO: Update to production URL when deployed
 const API_BASE = "http://localhost:8787"; // Cloudflare Workers API (local dev)
-
-/**
- * Convex HTTP API URL
- * Note: HTTP routes use .convex.site (not .convex.cloud)
- * TODO [PRODUCTION]: Update if using a different Convex deployment
- */
-const CONVEX_SITE_URL = "https://brilliant-sandpiper-173.convex.site";
 
 export type ApiError = {
   code: string;
@@ -295,94 +279,6 @@ class ApiClient {
     hasPro: boolean;
   }> {
     return this.request("GET", "/billing/status");
-  }
-
-  // ============ Storage (R2) ============
-
-  /**
-   * Save prompts to cloud storage (R2) and then save metadata to Convex
-   * Two-step process: 1) Upload file to R2, 2) Save metadata to Convex
-   */
-  async savePromptsToCloud(data: {
-    source: "chatgpt" | "claude" | "gemini";
-    fileData: string; // base64 encoded .pmtpk file
-    promptCount: number;
-  }): Promise<{ success: boolean; r2Key: string; size: number }> {
-    // Step 1: Upload to R2 via Workers API
-    const r2Result = await this.request<{ success: boolean; r2Key: string; size: number }>(
-      "POST",
-      "/storage/upload",
-      data
-    );
-
-    // Step 2: Save metadata to Convex
-    const session = await getSession();
-    if (!session) {
-      throw { code: "UNAUTHORIZED", message: "Not authenticated", status: 401 } as ApiError;
-    }
-
-    const convexResponse = await fetch(`${CONVEX_SITE_URL}/api/savedPacks`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        clerkId: session.userId,
-        source: data.source,
-        r2Key: r2Result.r2Key,
-        promptCount: data.promptCount,
-        fileSize: r2Result.size,
-      }),
-    });
-
-    if (!convexResponse.ok) {
-      const error = await convexResponse.json().catch(() => ({
-        error: "Failed to save metadata",
-      }));
-      throw {
-        code: "METADATA_SAVE_FAILED",
-        message: error.error || "Failed to save metadata to Convex",
-        status: convexResponse.status,
-      } as ApiError;
-    }
-
-    return r2Result;
-  }
-
-  /**
-   * Download saved prompts from cloud storage
-   */
-  async downloadPromptsFromCloud(source: "chatgpt" | "claude" | "gemini"): Promise<{
-    success: boolean;
-    fileData: string; // base64 encoded
-    metadata: Record<string, string>;
-  }> {
-    return this.request("GET", `/storage/download?source=${source}`);
-  }
-
-  /**
-   * List all saved files in cloud storage
-   */
-  async listSavedFiles(): Promise<{
-    success: boolean;
-    files: Array<{
-      key: string;
-      source: string;
-      size: number;
-      uploaded: string;
-    }>;
-  }> {
-    return this.request("GET", "/storage/list");
-  }
-
-  /**
-   * Delete saved prompts from cloud storage
-   */
-  async deleteSavedFile(source: "chatgpt" | "claude" | "gemini"): Promise<{
-    success: boolean;
-    deleted: string;
-  }> {
-    return this.request("DELETE", `/storage/delete?source=${source}`);
   }
 }
 

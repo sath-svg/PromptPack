@@ -61,11 +61,18 @@ export const updatePlan = mutation({
       .first();
 
     if (!user) {
-      throw new Error("User not found");
+      throw new Error(`User not found with clerkId: ${clerkId}`);
     }
 
     await ctx.db.patch(user._id, { plan });
     return user._id;
+  },
+});
+
+// List all users (for debugging)
+export const listAll = query({
+  handler: async (ctx) => {
+    return await ctx.db.query("users").collect();
   },
 });
 
@@ -132,8 +139,42 @@ export const updatePlanByClerkId = internalMutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .first();
 
-    if (user) {
-      await ctx.db.patch(user._id, { plan });
+    if (!user) return;
+
+    const oldPlan = user.plan;
+    await ctx.db.patch(user._id, { plan });
+
+    // Enforce limits when downgrading from pro to free
+    if (oldPlan === "pro" && plan === "free") {
+      console.log(`User ${clerkId} downgraded to free - enforcing limits`);
+
+      // 1. Delete ALL user-created prompt packs (free tier = 0 packs allowed)
+      const userPacks = await ctx.db
+        .query("packs")
+        .withIndex("by_author", (q) => q.eq("authorId", user._id))
+        .collect();
+
+      for (const pack of userPacks) {
+        await ctx.db.delete(pack._id);
+        console.log(`Deleted pack: ${pack.title}`);
+      }
+
+      // 2. Check saved prompts count and delete if over free limit (10)
+      const savedPacks = await ctx.db
+        .query("savedPacks")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .collect();
+
+      const totalPrompts = savedPacks.reduce((sum, pack) => sum + pack.promptCount, 0);
+
+      if (totalPrompts > 10) {
+        // Delete ALL saved packs if exceeding free tier limit
+        for (const pack of savedPacks) {
+          await ctx.db.delete(pack._id);
+          console.log(`Deleted savedPack: ${pack.source} (${pack.promptCount} prompts)`);
+        }
+        console.log(`Deleted all saved prompts (${totalPrompts} total, exceeds free limit of 10)`);
+      }
     }
   },
 });
