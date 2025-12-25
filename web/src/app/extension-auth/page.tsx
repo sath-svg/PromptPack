@@ -111,23 +111,9 @@ export default function ExtensionAuthPage() {
       <div style={{ textAlign: "center", padding: "4rem" }}>
         <div style={{ color: "#22c55e", fontSize: "48px", marginBottom: "1rem" }}>✓</div>
         <h1 style={{ marginBottom: "0.5rem" }}>Success!</h1>
-        <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-          You&apos;re now signed in. You can close this tab and return to the extension.
+        <p style={{ color: "#a0a0a0", marginBottom: "1.5rem" }}>
+          You&apos;re now signed in. Please close this tab and return to the extension.
         </p>
-        <button
-          onClick={() => window.close()}
-          style={{
-            padding: "10px 20px",
-            background: "#6366f1",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontSize: "14px",
-          }}
-        >
-          Close Tab
-        </button>
       </div>
     );
   }

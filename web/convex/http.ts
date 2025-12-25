@@ -41,11 +41,23 @@ http.route({
         public_metadata?: { plan?: string };
         // Subscription/SubscriptionItem event fields
         status?: string;
+        user_id?: string;
         payer?: {
           user_id?: string;
           email?: string;
           first_name?: string;
           last_name?: string;
+        };
+        customer?: {
+          user_id?: string;
+          id?: string;
+        };
+        subscriber?: {
+          user_id?: string;
+        };
+        subscription?: {
+          user_id?: string;
+          status?: string;
         };
         plan?: {
           slug?: string;
@@ -68,10 +80,39 @@ http.route({
       return new Response("Invalid signature", { status: 400 });
     }
 
-    console.log("Received webhook event:", event.type);
-    console.log("Event data:", JSON.stringify(event.data, null, 2));
-    console.log("Payer user_id:", event.data.payer?.user_id);
-    console.log("Status:", event.data.status);
+    const resolveUserId = (data: ClerkWebhookEvent["data"]): string | undefined => {
+      return (
+        data.payer?.user_id ??
+        data.user_id ??
+        data.subscription?.user_id ??
+        data.subscriber?.user_id ??
+        data.customer?.user_id ??
+        data.customer?.id
+      );
+    };
+
+    const resolvePlan = (status?: string, planSlug?: string): "free" | "pro" => {
+      // Explicitly check for canceled/ended statuses first
+      if (status === "canceled" || status === "ended" || status === "expired" || status === "incomplete_expired") {
+        return "free";
+      }
+      if (planSlug === "pro" && (status === "active" || status === "trialing")) {
+        return "pro";
+      }
+      if (status === "active" || status === "trialing") {
+        return "pro";
+      }
+      return "free";
+    };
+
+    const resolvedUserId = resolveUserId(event.data);
+    const status = event.data.status ?? event.data.subscription?.status;
+
+    console.log("=== Clerk Webhook Received ===");
+    console.log("Event type:", event.type);
+    console.log("Resolved user_id:", resolvedUserId);
+    console.log("Status:", status);
+    console.log("Full event data:", JSON.stringify(event.data, null, 2));
 
     // Handle different event types
     switch (event.type) {
@@ -82,7 +123,10 @@ http.route({
 
         const email = email_addresses?.[0]?.email_address || "";
         const name = [first_name, last_name].filter(Boolean).join(" ") || undefined;
+        // Prioritize public_metadata.plan for admin control
         const plan = public_metadata?.plan === "pro" ? "pro" : "free";
+
+        console.log(`[user.${event.type === "user.created" ? "created" : "updated"}] Syncing user ${id} with plan: ${plan} (from public_metadata: ${public_metadata?.plan})`);
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
           clerkId: id,
@@ -104,16 +148,19 @@ http.route({
 
       // Clerk Billing subscription events (subscription.* format)
       case "subscription.created":
-      case "subscription.updated": {
-        // These may have a different data structure - try both formats
-        const userId = event.data.payer?.user_id;
-        const status = event.data.status;
+      case "subscription.updated":
+      case "subscription.canceled":
+      case "subscription.deleted": {
+        // These may have a different data structure - try multiple formats
+        const userId = resolveUserId(event.data);
+        const status = event.data.status ?? event.data.subscription?.status;
+        const planSlug = event.data.plan?.slug;
         if (!userId) {
-          console.log("subscription event: no payer.user_id found");
+          console.log("subscription event: no user_id found");
           break;
         }
 
-        const plan = status === "active" ? "pro" : "free";
+        const plan = resolvePlan(status, planSlug);
         console.log(`[subscription.*] Updating user ${userId} to plan: ${plan} (status: ${status})`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
@@ -125,15 +172,16 @@ http.route({
       // Clerk Billing subscriptionItem events (subscriptionItem.* format)
       case "subscriptionItem.created":
       case "subscriptionItem.updated": {
-        const userId = event.data.payer?.user_id;
-        const status = event.data.status;
+        const userId = resolveUserId(event.data);
+        const status = event.data.status ?? event.data.subscription?.status;
+        const planSlug = event.data.plan?.slug;
         if (!userId) {
-          console.log("subscriptionItem event: no payer.user_id found");
+          console.log("subscriptionItem event: no user_id found");
           break;
         }
 
         // Active subscription means Pro plan
-        const plan = status === "active" ? "pro" : "free";
+        const plan = resolvePlan(status, planSlug);
         console.log(`[subscriptionItem.*] Updating user ${userId} to plan: ${plan} (status: ${status})`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
@@ -144,9 +192,9 @@ http.route({
 
       case "subscriptionItem.canceled":
       case "subscriptionItem.deleted": {
-        const userId = event.data.payer?.user_id;
+        const userId = resolveUserId(event.data);
         if (!userId) {
-          console.log("subscriptionItem cancel/delete: no payer.user_id found");
+          console.log("subscriptionItem cancel/delete: no user_id found");
           break;
         }
 
@@ -180,6 +228,67 @@ function corsHeaders(origin: string | null): HeadersInit {
   }
   return {};
 }
+
+// Auth check endpoint for extension (CORS preflight)
+http.route({
+  path: "/api/auth/check",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Auth check endpoint for extension - checks if user is authenticated via session cookie
+http.route({
+  path: "/api/auth/check",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      // Get session token from __session cookie (Clerk's default cookie name)
+      const cookieHeader = request.headers.get("Cookie");
+      const sessionToken = cookieHeader
+        ?.split(";")
+        .find((c) => c.trim().startsWith("__session="))
+        ?.split("=")[1];
+
+      if (!sessionToken) {
+        return new Response(
+          JSON.stringify({ isAuthenticated: false }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // TODO: Verify the session token with Clerk if needed
+      // For now, just check if cookie exists
+      return new Response(
+        JSON.stringify({ isAuthenticated: true }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Auth check error:", error);
+      return new Response(
+        JSON.stringify({ isAuthenticated: false }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
 
 // Handle CORS preflight
 http.route({

@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   },
   // Disable Next.js devtools to avoid SegmentViewNode bundler errors
   devIndicators: false,
+  // Suppress preload warnings for CSS
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
+  // Reduce console noise in development
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
 };
 
 export default nextConfig;

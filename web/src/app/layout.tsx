@@ -5,11 +5,11 @@ import {
   SignUpButton,
   SignedIn,
   SignedOut,
-  UserButton,
 } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import Link from "next/link";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
+import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -56,14 +56,7 @@ export default function RootLayout({
                 </SignUpButton>
               </SignedOut>
               <SignedIn>
-                <UserButton
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: "w-9 h-9",
-                    },
-                  }}
-                />
+                <UserButtonWithExtensionSync />
               </SignedIn>
             </div>
           </header>
