@@ -52,8 +52,14 @@ export default function ExtensionAuthPage() {
           return;
         }
 
-        // Validate redirect_uri is a Chrome extension URL
-        if (!redirectUri.startsWith("chrome-extension://")) {
+        // Validate redirect_uri is a Chrome/Chromium extension URL
+        // Formats: chrome-extension://<id>/* or https://<id>.chromiumapp.org/*
+        const isValidRedirect =
+          redirectUri.startsWith("chrome-extension://") ||
+          redirectUri.startsWith("moz-extension://") || // Firefox
+          redirectUri.includes(".chromiumapp.org"); // Chromium browsers (Chrome, Brave, Edge, etc.)
+
+        if (!isValidRedirect) {
           setError("Invalid redirect URI format");
           return;
         }
@@ -66,7 +72,7 @@ export default function ExtensionAuthPage() {
         }
 
         // Generate an auth code containing user info
-        // In production, this would be a short-lived code stored server-side
+        // In production, store this code in Redis/KV with short TTL instead of encoding in URL
         const code = btoa(JSON.stringify({
           token,
           userId: user.id,
@@ -74,28 +80,13 @@ export default function ExtensionAuthPage() {
           timestamp: Date.now(),
         }));
 
-        /**
-         * TODO [PRODUCTION]: When you have a production domain, you can use
-         * chrome.identity.launchWebAuthFlow which handles redirects properly.
-         * For now, we store the auth data and let the user manually return to extension.
-         *
-         * Production flow:
-         * 1. Use HTTPS domain
-         * 2. Use chrome.identity.launchWebAuthFlow in extension
-         * 3. Redirect to https://<ext-id>.chromiumapp.org/ callback
-         */
+        // Build the redirect URL with code and state
+        const redirectUrl = new URL(redirectUri);
+        redirectUrl.searchParams.set("code", code);
+        redirectUrl.searchParams.set("state", state);
 
-        // Store auth data in localStorage for the extension's content script to capture
-        const authData = {
-          code,
-          state,
-          timestamp: Date.now(),
-        };
-        localStorage.setItem("pp_extension_auth", JSON.stringify(authData));
-
-        // Show success message
-        setSuccess(true);
-        setProcessing(false);
+        // Redirect back to extension callback
+        window.location.href = redirectUrl.toString();
       } catch (err) {
         console.error("Auth callback error:", err);
         setError("Authentication failed. Please try again.");

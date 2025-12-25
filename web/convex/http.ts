@@ -229,66 +229,6 @@ function corsHeaders(origin: string | null): HeadersInit {
   return {};
 }
 
-// Auth check endpoint for extension (CORS preflight)
-http.route({
-  path: "/api/auth/check",
-  method: "OPTIONS",
-  handler: httpAction(async (_, request) => {
-    const origin = request.headers.get("Origin");
-    return new Response(null, {
-      status: 204,
-      headers: corsHeaders(origin),
-    });
-  }),
-});
-
-// Auth check endpoint for extension - checks if user is authenticated via session cookie
-http.route({
-  path: "/api/auth/check",
-  method: "GET",
-  handler: httpAction(async (ctx, request) => {
-    const origin = request.headers.get("Origin");
-    const headers = corsHeaders(origin);
-
-    try {
-      // Get session token from __session cookie (Clerk's default cookie name)
-      const cookieHeader = request.headers.get("Cookie");
-      const sessionToken = cookieHeader
-        ?.split(";")
-        .find((c) => c.trim().startsWith("__session="))
-        ?.split("=")[1];
-
-      if (!sessionToken) {
-        return new Response(
-          JSON.stringify({ isAuthenticated: false }),
-          {
-            status: 200,
-            headers: { ...headers, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      // TODO: Verify the session token with Clerk if needed
-      // For now, just check if cookie exists
-      return new Response(
-        JSON.stringify({ isAuthenticated: true }),
-        {
-          status: 200,
-          headers: { ...headers, "Content-Type": "application/json" },
-        }
-      );
-    } catch (error) {
-      console.error("Auth check error:", error);
-      return new Response(
-        JSON.stringify({ isAuthenticated: false }),
-        {
-          status: 200,
-          headers: { ...headers, "Content-Type": "application/json" },
-        }
-      );
-    }
-  }),
-});
 
 // Handle CORS preflight
 http.route({
@@ -351,6 +291,193 @@ http.route({
       return new Response(
         JSON.stringify({
           error: error instanceof Error ? error.message : "Failed to save",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension auth: exchange code for token
+// CORS preflight
+http.route({
+  path: "/api/extension/exchange-code",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension auth: exchange one-time code for user data + session
+http.route({
+  path: "/api/extension/exchange-code",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { code } = body as { code: string };
+
+      if (!code) {
+        return new Response(
+          JSON.stringify({ error: "Missing code" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Decode the code (in production, verify from Redis/KV store)
+      let authData;
+      try {
+        const decoded = atob(code);
+        authData = JSON.parse(decoded);
+      } catch {
+        return new Response(
+          JSON.stringify({ error: "Invalid code" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Verify code hasn't expired (5 minutes)
+      const codeAge = Date.now() - authData.timestamp;
+      if (codeAge > 5 * 60 * 1000) {
+        return new Response(
+          JSON.stringify({ error: "Code expired" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user from Convex
+      const user = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId: authData.userId,
+      });
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Return user data + token for extension to store
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user: {
+            clerkId: user.clerkId,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+          },
+          token: authData.token, // Clerk session token
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Code exchange error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Exchange failed",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension billing: get user's billing status
+// CORS preflight
+http.route({
+  path: "/api/extension/billing-status",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension billing: get user's current plan/billing status
+http.route({
+  path: "/api/extension/billing-status",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { clerkId } = body as { clerkId: string };
+
+      if (!clerkId) {
+        return new Response(
+          JSON.stringify({ error: "Missing clerkId" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user from Convex
+      const user = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId,
+      });
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Return billing status
+      return new Response(
+        JSON.stringify({
+          tier: user.plan,
+          hasPro: user.plan === "pro",
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Billing status error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Failed to get billing status",
         }),
         {
           status: 500,

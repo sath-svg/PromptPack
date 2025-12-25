@@ -10,7 +10,7 @@ const manifest: ManifestV3Export = {
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
-    "http://localhost:3001/*",
+    "http://localhost:3000/*",
   ],
   action: {
     default_popup: "index.html",

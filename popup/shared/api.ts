@@ -5,6 +5,7 @@ import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack
 
 // TODO: Update to production URL when deployed
 const API_BASE = "http://localhost:8787"; // Cloudflare Workers API (local dev)
+const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex HTTP endpoint
 
 export type ApiError = {
   code: string;
@@ -93,29 +94,55 @@ class ApiClient {
   // ============ Auth ============
 
   async exchangeCodeForToken(code: string): Promise<void> {
-    const data = await this.request<{
-      accessToken: string;
-      refreshToken: string;
-      expiresIn: number;
-      user: {
-        id: string;
-        email: string;
-        tier: "free" | "paid";
-      };
-      entitlements: {
-        promptLimit: number;
-        loadedPackLimit: number;
-      };
-    }>("POST", "/auth/token", { code }, false);
+    // Call Convex code exchange endpoint
+    const response = await fetch(`${CONVEX_API_URL}/api/extension/exchange-code`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
 
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: response.statusText,
+      }));
+      throw {
+        code: "TOKEN_EXCHANGE_FAILED",
+        message: error.error || "Failed to exchange code for token",
+        status: response.status,
+      } as ApiError;
+    }
+
+    const data = await response.json() as {
+      success: boolean;
+      user: {
+        clerkId: string;
+        email: string;
+        name?: string;
+        plan: "free" | "pro";
+      };
+      token: string; // Clerk session token
+    };
+
+    if (!data.success) {
+      throw {
+        code: "TOKEN_EXCHANGE_FAILED",
+        message: "Failed to exchange code",
+        status: 400,
+      } as ApiError;
+    }
+
+    // Save session with Clerk token
     await saveSession({
-      userId: data.user.id,
+      userId: data.user.clerkId,
       email: data.user.email,
-      tier: data.user.tier,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      expiresAt: Date.now() + data.expiresIn * 1000,
-      entitlements: data.entitlements,
+      tier: data.user.plan === "pro" ? "paid" : "free",
+      accessToken: data.token, // Clerk session token
+      refreshToken: data.token, // Use same token for now
+      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+      entitlements: {
+        promptLimit: data.user.plan === "pro" ? 40 : 10,
+        loadedPackLimit: data.user.plan === "pro" ? 999999 : 0,
+      },
     });
   }
 
@@ -272,13 +299,30 @@ class ApiClient {
   }
 
   /**
-   * Get billing status - checks if user has Pro plan via Clerk
+   * Get billing status from Convex - checks user's current plan
    */
-  async getBillingStatus(): Promise<{
+  async getBillingStatus(clerkId: string): Promise<{
     tier: "free" | "pro";
     hasPro: boolean;
   }> {
-    return this.request("GET", "/billing/status");
+    const response = await fetch(`${CONVEX_API_URL}/api/extension/billing-status`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clerkId }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: response.statusText,
+      }));
+      throw {
+        code: "BILLING_STATUS_FAILED",
+        message: error.error || "Failed to get billing status",
+        status: response.status,
+      } as ApiError;
+    }
+
+    return response.json();
   }
 }
 
