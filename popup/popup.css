@@ -660,3 +660,17 @@ details[open].pp-item .pp-item-arrow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+/* Sync hint indicator */
+.pp-sync-hint {
+  display: inline-block;
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 16px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
