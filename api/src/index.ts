@@ -5,12 +5,18 @@
  * - R2 file uploads for .pmtpk files
  * - Auth token validation
  * - CORS for extension requests
- *
- * TODO [PRODUCTION]:
- * - Add proper JWT validation with Clerk
- * - Add rate limiting
- * - Configure production R2 bucket
  */
+
+// ============================================================================
+// TODO-PRODUCTION: Configure these in wrangler.toml before deploying
+// ============================================================================
+// 1. Set ENVIRONMENT = "production"
+// 2. Bind R2 bucket: BUCKET = "your-production-bucket"
+// 3. Set CONVEX_URL = "https://your-project.convex.site"
+// 4. Set ALLOWED_ORIGINS = "https://pmtpk.ai,chrome-extension://*"
+// 5. Add proper JWT validation with Clerk
+// 6. Add rate limiting
+// ============================================================================
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -269,6 +275,53 @@ export default {
         }));
       }
 
+      // Upload pack to R2 (for web dashboard pack creation)
+      // POST /storage/pack-upload
+      if (path === "/storage/pack-upload" && method === "POST") {
+        const body = await request.json() as {
+          r2Key: string;
+          fileData: string; // base64
+          metadata?: Record<string, string>;
+        };
+
+        if (!body.r2Key || !body.fileData) {
+          return addCors(new Response(JSON.stringify({ error: "Missing r2Key or fileData" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+
+        // Security: Verify the r2Key pattern for packs
+        // packs/{userId}/pack_{timestamp}_{random}.pmtpk
+        if (!body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/)) {
+          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+
+        // Decode base64 and upload to R2
+        const fileBuffer = Uint8Array.from(atob(body.fileData), c => c.charCodeAt(0));
+
+        await env.BUCKET.put(body.r2Key, fileBuffer, {
+          httpMetadata: {
+            contentType: "application/octet-stream",
+          },
+          customMetadata: {
+            uploadedAt: new Date().toISOString(),
+            ...body.metadata,
+          },
+        });
+
+        return addCors(new Response(JSON.stringify({
+          success: true,
+          r2Key: body.r2Key,
+          size: fileBuffer.length,
+        }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
       // Download file by R2 key (for web dashboard)
       // POST /storage/fetch - uses POST to send r2Key in body
       if (path === "/storage/fetch" && method === "POST") {
@@ -281,9 +334,12 @@ export default {
           }));
         }
 
-        // Security: Verify the r2Key pattern matches expected format
-        // users/{userId}/saved/{source}.pmtpk
-        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/)) {
+        // Security: Verify the r2Key pattern matches expected formats
+        // users/{userId}/saved/{source}.pmtpk OR packs/{userId}/pack_{id}.pmtpk
+        const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/);
+        const isValidUserPack = body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
+
+        if (!isValidSavedPack && !isValidUserPack) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },

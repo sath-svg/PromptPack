@@ -14,18 +14,20 @@ export default defineSchema({
     packDeletionAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
 
-  // Marketplace packs
+  // Marketplace packs (metadata only - files stored in R2)
   packs: defineTable({
     authorId: v.id("users"),
     title: v.string(),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
-    // The .pmtpk file content (base64 encoded, already compressed/encrypted)
-    fileData: v.string(),
+    // R2 object key where the .pmtpk file is stored (e.g., "packs/user123/pack456.pmtpk")
+    r2Key: v.string(),
     promptCount: v.number(),
+    fileSize: v.number(), // Size in bytes for display
     version: v.string(),
     price: v.number(), // Cents, 0 = free
     isPublic: v.boolean(),
+    isEncrypted: v.optional(v.boolean()), // Whether the pack has a password
     downloads: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),

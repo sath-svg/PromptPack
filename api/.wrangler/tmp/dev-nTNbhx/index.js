@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-bBzYy4/checked-fetch.js
+// .wrangler/tmp/bundle-w9Su53/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -220,6 +220,38 @@ var src_default = {
           headers: { "Content-Type": "application/json" }
         }));
       }
+      if (path === "/storage/pack-upload" && method === "POST") {
+        const body = await request.json();
+        if (!body.r2Key || !body.fileData) {
+          return addCors(new Response(JSON.stringify({ error: "Missing r2Key or fileData" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          }));
+        }
+        if (!body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/)) {
+          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" }
+          }));
+        }
+        const fileBuffer = Uint8Array.from(atob(body.fileData), (c) => c.charCodeAt(0));
+        await env.BUCKET.put(body.r2Key, fileBuffer, {
+          httpMetadata: {
+            contentType: "application/octet-stream"
+          },
+          customMetadata: {
+            uploadedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            ...body.metadata
+          }
+        });
+        return addCors(new Response(JSON.stringify({
+          success: true,
+          r2Key: body.r2Key,
+          size: fileBuffer.length
+        }), {
+          headers: { "Content-Type": "application/json" }
+        }));
+      }
       if (path === "/storage/fetch" && method === "POST") {
         const body = await request.json();
         if (!body.r2Key) {
@@ -228,7 +260,9 @@ var src_default = {
             headers: { "Content-Type": "application/json" }
           }));
         }
-        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/)) {
+        const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/);
+        const isValidUserPack = body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
+        if (!isValidSavedPack && !isValidUserPack) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" }
@@ -365,7 +399,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-bBzYy4/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-w9Su53/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -397,7 +431,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-bBzYy4/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-w9Su53/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;

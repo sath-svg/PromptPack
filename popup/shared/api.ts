@@ -1,11 +1,17 @@
 // API client for PromptPack cloud backend
 // Handles authenticated requests to Cloudflare Workers API
 
-import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack } from "./db";
+// ============================================================================
+// TODO-PRODUCTION: Update these URLs before deploying to production
+// ============================================================================
+const API_BASE = "http://localhost:8787"; // Cloudflare Workers R2 API
+// PRODUCTION: const API_BASE = "https://your-worker.workers.dev";
 
-// TODO: Update to production URL when deployed
-const API_BASE = "http://localhost:8787"; // Cloudflare Workers API (local dev)
 const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex HTTP endpoint
+// PRODUCTION: Update if using different Convex deployment
+// ============================================================================
+
+import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack } from "./db";
 
 export type ApiError = {
   code: string;
