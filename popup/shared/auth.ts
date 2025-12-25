@@ -1,12 +1,16 @@
 // Auth module for PromptPack
 // Handles Clerk authentication via extension auth flow
 
+// ============================================================================
+// TODO-PRODUCTION: Update BASE_URL before deploying to production
+// ============================================================================
+const BASE_URL = "http://localhost:3000"; // Local dev
+// PRODUCTION: const BASE_URL = "https://pmtpk.ai";
+const AUTH_URL = `${BASE_URL}/extension-auth`;
+// ============================================================================
+
 import { getSession, isAuthenticated, saveSession } from "./db";
 import { api } from "./api";
-
-// TODO: Update to production URL when deployed
-const BASE_URL = "http://localhost:3000";
-const AUTH_URL = `${BASE_URL}/extension-auth`; // Extension-specific auth endpoint
 
 export type AuthState = {
   isAuthenticated: boolean;

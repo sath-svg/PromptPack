@@ -193,55 +193,56 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
     setTimeout(() => setToast(null), 2000);
   }, []);
 
-  // Filter to only show web-pack-v1 format packs (JSON or binary)
-  const webPacks = (packs ?? []).filter((pack) => {
-    if (parsePackData(pack.fileData)) return true;
-    if (isBinaryFormat(pack.fileData)) return true;
-    return false;
-  });
+  // All packs are now stored in R2 with metadata in Convex
+  // No need to filter - just display all packs
+  const webPacks = packs ?? [];
   const packCount = webPacks.length;
   const canCreate = hasPro && packCount < MAX_PRO_PACKS;
 
   const handlePackClick = async (pack: typeof webPacks[0]) => {
     setError(null);
+    setIsSaving(true);
 
-    // Check if it's binary format
-    if (isBinaryFormat(pack.fileData)) {
-      if (isEncryptedBinary(pack.fileData)) {
+    try {
+      // Fetch file from R2 using the Cloudflare Workers API
+      const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || 'https://promptpack-api.dksathvik.workers.dev';
+      const response = await fetch(`${R2_API_URL}/storage/fetch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ r2Key: pack.r2Key }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch pack file from R2");
+      }
+
+      const { fileData } = await response.json();
+
+      // Check if it's encrypted or obfuscated
+      if (pack.isEncrypted) {
         // Need password
-        setPendingPack({ id: pack._id, title: pack.title, fileData: pack.fileData });
+        setPendingPack({ id: pack._id, title: pack.title, fileData });
         setShowPasswordModal(true);
         setPassword("");
       } else {
         // Obfuscated - decode directly
-        try {
-          const bytes = Uint8Array.from(atob(pack.fileData), (c) => c.charCodeAt(0));
-          const prompts = await decodeObfuscatedFile(bytes);
-          setSelectedPack({
-            id: pack._id,
-            title: pack.title,
-            fileData: pack.fileData,
-            prompts,
-            isEncrypted: false,
-          });
-        } catch (e) {
-          console.error("Decode failed:", e);
-          setError("Failed to decode pack");
-        }
+        const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+        const prompts = await decodeObfuscatedFile(bytes);
+        setSelectedPack({
+          id: pack._id,
+          title: pack.title,
+          fileData,
+          prompts,
+          isEncrypted: false,
+        });
       }
-    } else {
-      // Plain JSON format
-      const parsed = parsePackData(pack.fileData);
-      if (!parsed) return;
-
-      setSelectedPack({
-        id: pack._id,
-        title: pack.title,
-        fileData: pack.fileData,
-        prompts: parsed.prompts,
-        isEncrypted: false,
-      });
+    } catch (e) {
+      console.error("Failed to fetch pack:", e);
+      setError("Failed to load pack");
+    } finally {
+      setIsSaving(false);
     }
+
     setNewPrompt("");
     setExportPassword("");
   };
@@ -333,17 +334,26 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
         fileData = buildPackData(prompts);
       }
 
-      await createPack({
-        authorId: userId,
-        title,
-        description: undefined,
-        category: undefined,
-        fileData,
-        promptCount: 1,
-        version: "1.0",
-        price: 0,
-        isPublic: false,
+      // Upload to R2 via API route (which handles R2 upload + Convex metadata)
+      const response = await fetch("/api/packs/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          fileData,
+          promptCount: 1,
+          version: "1.0",
+          price: 0,
+          isPublic: false,
+          isEncrypted: !!createPassword,
+        }),
       });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create pack");
+      }
+
       setShowCreateModal(false);
       setPackName("");
       setFirstPrompt("");
@@ -706,7 +716,7 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
               >
                 <div className="pack-title">
                   <span className="source-icon">
-                    {isBinaryFormat(pack.fileData) && isEncryptedBinary(pack.fileData) ? "🔒" : "📦"}
+                    {pack.isEncrypted ? "🔒" : "📦"}
                   </span>
                   <span className="pack-name">{pack.title}</span>
                 </div>
