@@ -4,6 +4,15 @@ import { useState, useCallback } from "react";
 import { useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
+import {
+  encodePmtpk,
+  decodePmtpk,
+  encryptPmtpk,
+  decryptPmtpk,
+  isEncrypted,
+  isObfuscated,
+  SCHEMA_VERSION,
+} from "../../lib/crypto";
 
 type PromptPacksProps = {
   userId: Id<"users">;
@@ -38,15 +47,6 @@ type HistoryAction = {
 };
 
 const MAX_PRO_PACKS = 2;
-
-// File format constants
-const MAGIC_OBFUSCATED = 0x00;
-const MAGIC_ENCRYPTED = 0x01;
-const HEADER_SIZE = 37;
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-const SCHEMA_VERSION = 1;
-const OBFUSCATE_KEY = new Uint8Array([0x50, 0x72, 0x6F, 0x6D, 0x70, 0x74, 0x50, 0x61, 0x63, 0x6B]);
 
 function buildPackData(prompts: WebPackData["prompts"]): string {
   const payload: WebPackData = {
@@ -83,215 +83,80 @@ function isBinaryFormat(fileData: string): boolean {
 function isEncryptedBinary(fileData: string): boolean {
   try {
     const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
-    return bytes.length >= 4 && bytes[3] === MAGIC_ENCRYPTED;
+    return isEncrypted(bytes);
   } catch {
     return false;
   }
 }
 
-// XOR obfuscation
-function xorObfuscate(data: Uint8Array): Uint8Array {
-  const result = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    result[i] = data[i] ^ OBFUSCATE_KEY[i % OBFUSCATE_KEY.length];
-  }
-  return result;
-}
-
-// Decompress gzip
-async function decompressGzip(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([new Uint8Array(data)]).stream();
-  const decompressed = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressed.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result;
-}
-
-// Compress gzip
-async function compressGzip(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([new Uint8Array(data)]).stream();
-  const compressed = stream.pipeThrough(new CompressionStream("gzip"));
-  const reader = compressed.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result;
-}
-
-// Compute SHA-256 hash
-async function computeHash(data: Uint8Array): Promise<Uint8Array> {
-  const buffer = new ArrayBuffer(data.length);
-  new Uint8Array(buffer).set(data);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  return new Uint8Array(hashBuffer);
-}
-
-// Decode obfuscated file
+// Decode obfuscated file using shared crypto
 async function decodeObfuscatedFile(bytes: Uint8Array): Promise<WebPackData["prompts"]> {
-  const payload = bytes.slice(HEADER_SIZE);
-  const deobfuscated = xorObfuscate(payload);
-  const decompressed = await decompressGzip(deobfuscated);
-  const jsonString = new TextDecoder().decode(decompressed);
+  const jsonString = await decodePmtpk(bytes);
   const data = JSON.parse(jsonString);
+
+  // Handle both old web-pack-v1 format and new shared format
   if (data.format === "web-pack-v1" && Array.isArray(data.prompts)) {
     return data.prompts;
   }
+
+  // New shared format includes prompts array
+  if (Array.isArray(data.prompts)) {
+    return data.prompts.map((p: { text: string; createdAt: number; url?: string }) => ({
+      text: p.text,
+      createdAt: p.createdAt,
+    }));
+  }
+
   throw new Error("Invalid pack format");
 }
 
-// Decode encrypted file
+// Decode encrypted file using shared crypto
 async function decodeEncryptedFile(bytes: Uint8Array, password: string): Promise<WebPackData["prompts"]> {
-  const salt = bytes.slice(HEADER_SIZE, HEADER_SIZE + SALT_LENGTH);
-  const iv = bytes.slice(HEADER_SIZE + SALT_LENGTH, HEADER_SIZE + SALT_LENGTH + IV_LENGTH);
-  const ciphertext = bytes.slice(HEADER_SIZE + SALT_LENGTH + IV_LENGTH);
-
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits", "deriveKey"]
-  );
-
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: "PBKDF2",
-      salt,
-      iterations: 100000,
-      hash: "SHA-256",
-    },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["decrypt"]
-  );
-
-  const ciphertextBuffer = new ArrayBuffer(ciphertext.length);
-  new Uint8Array(ciphertextBuffer).set(ciphertext);
-
-  const decrypted = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    key,
-    ciphertextBuffer
-  );
-
-  const decompressed = await decompressGzip(new Uint8Array(decrypted));
-  const jsonString = new TextDecoder().decode(decompressed);
+  const jsonString = await decryptPmtpk(bytes, password);
   const data = JSON.parse(jsonString);
+
+  // Handle both old web-pack-v1 format and new shared format
   if (data.format === "web-pack-v1" && Array.isArray(data.prompts)) {
     return data.prompts;
   }
+
+  // New shared format includes prompts array
+  if (Array.isArray(data.prompts)) {
+    return data.prompts.map((p: { text: string; createdAt: number; url?: string }) => ({
+      text: p.text,
+      createdAt: p.createdAt,
+    }));
+  }
+
   throw new Error("Invalid pack format");
 }
 
-// Encode prompts to binary format
+// Encode prompts using shared crypto library
 async function encodePrompts(
   prompts: WebPackData["prompts"],
   encrypt: boolean,
-  password?: string
+  password?: string,
+  title?: string
 ): Promise<Uint8Array> {
-  const exportData: WebPackData = {
-    format: "web-pack-v1",
-    version: 1,
+  // Use the shared format that's compatible with popup
+  const exportData = {
+    version: SCHEMA_VERSION,
+    source: "chatgpt", // Default source for web packs (used for icon/color in popup)
+    title: title || "Imported Pack", // Pack name for display
+    exportedAt: new Date().toISOString(),
     prompts: prompts.map((p) => ({
       text: p.text,
+      url: "", // Web packs don't have URLs
       createdAt: p.createdAt,
     })),
   };
 
   const jsonString = JSON.stringify(exportData);
-  const jsonBytes = new TextEncoder().encode(jsonString);
-  const compressed = await compressGzip(jsonBytes);
 
   if (encrypt && password) {
-    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(password),
-      "PBKDF2",
-      false,
-      ["deriveBits", "deriveKey"]
-    );
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt,
-        iterations: 100000,
-        hash: "SHA-256",
-      },
-      keyMaterial,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt"]
-    );
-
-    const compressedBuffer = new ArrayBuffer(compressed.length);
-    new Uint8Array(compressedBuffer).set(compressed);
-
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      compressedBuffer
-    );
-
-    const magic = new Uint8Array([0x50, 0x50, 0x4B, MAGIC_ENCRYPTED]);
-    const version = new Uint8Array([SCHEMA_VERSION]);
-    const payload = new Uint8Array([...salt, ...iv, ...new Uint8Array(encrypted)]);
-    const hash = await computeHash(payload);
-
-    const result = new Uint8Array(magic.length + version.length + hash.length + payload.length);
-    result.set(magic, 0);
-    result.set(version, magic.length);
-    result.set(hash, magic.length + version.length);
-    result.set(payload, magic.length + version.length + hash.length);
-
-    return result;
+    return await encryptPmtpk(jsonString, password);
   } else {
-    const obfuscated = xorObfuscate(compressed);
-    const hash = await computeHash(obfuscated);
-
-    const magic = new Uint8Array([0x50, 0x50, 0x4B, MAGIC_OBFUSCATED]);
-    const version = new Uint8Array([SCHEMA_VERSION]);
-
-    const result = new Uint8Array(magic.length + version.length + hash.length + obfuscated.length);
-    result.set(magic, 0);
-    result.set(version, magic.length);
-    result.set(hash, magic.length + version.length);
-    result.set(obfuscated, magic.length + version.length + hash.length);
-
-    return result;
+    return await encodePmtpk(jsonString);
   }
 }
 
@@ -459,7 +324,7 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
       let fileData: string;
       if (createPassword) {
         // Create encrypted binary format
-        const encoded = await encodePrompts(prompts, true, createPassword);
+        const encoded = await encodePrompts(prompts, true, createPassword, title);
         fileData = btoa(String.fromCharCode(...encoded));
       } else {
         // Create plain JSON format
@@ -506,10 +371,10 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
 
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
-        const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password);
+        const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
         fileData = btoa(String.fromCharCode(...encoded));
       } else if (isBinaryFormat(selectedPack.fileData)) {
-        const encoded = await encodePrompts(updatedPrompts, false);
+        const encoded = await encodePrompts(updatedPrompts, false, undefined, selectedPack.title);
         fileData = btoa(String.fromCharCode(...encoded));
       } else {
         fileData = buildPackData(updatedPrompts);
@@ -561,10 +426,10 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
     try {
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
-        const encoded = await encodePrompts(newPrompts, true, selectedPack.password);
+        const encoded = await encodePrompts(newPrompts, true, selectedPack.password, selectedPack.title);
         fileData = btoa(String.fromCharCode(...encoded));
       } else if (isBinaryFormat(selectedPack.fileData)) {
-        const encoded = await encodePrompts(newPrompts, false);
+        const encoded = await encodePrompts(newPrompts, false, undefined, selectedPack.title);
         fileData = btoa(String.fromCharCode(...encoded));
       } else {
         fileData = buildPackData(newPrompts);
@@ -620,7 +485,17 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
         return;
       }
 
-      const fileData = await encodePrompts(selectedPack.prompts, !!exportPassword, exportPassword || undefined);
+      let fileData: Uint8Array;
+
+      // If pack is already encrypted or we're not adding a new password, use stored data
+      if (selectedPack.isEncrypted || !exportPassword) {
+        // Use the original stored binary data (base64 decode it)
+        const base64 = selectedPack.fileData;
+        fileData = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      } else {
+        // User wants to add encryption to an unencrypted pack
+        fileData = await encodePrompts(selectedPack.prompts, true, exportPassword, selectedPack.title);
+      }
 
       const blob = new Blob([new Uint8Array(fileData)], { type: "application/octet-stream" });
       const url = URL.createObjectURL(blob);
@@ -632,7 +507,8 @@ export function PromptPacks({ userId, hasPro }: PromptPacksProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showToast(`Exported ${selectedPack.prompts.length} prompt${selectedPack.prompts.length !== 1 ? "s" : ""}${exportPassword ? " (encrypted)" : ""}`);
+      const isEncrypted = selectedPack.isEncrypted || !!exportPassword;
+      showToast(`Exported ${selectedPack.prompts.length} prompt${selectedPack.prompts.length !== 1 ? "s" : ""}${isEncrypted ? " (encrypted)" : ""}`);
     } catch (e) {
       console.error("Export failed:", e);
       showToast("Failed to export pack");

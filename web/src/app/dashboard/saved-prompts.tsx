@@ -4,20 +4,18 @@ import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  encodePmtpk,
+  decodePmtpk,
+  encryptPmtpk,
+  decryptPmtpk,
+  isEncrypted,
+  isObfuscated,
+  SCHEMA_VERSION,
+} from "../../lib/crypto";
 
 // Workers API URL for fetching from R2
 const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "http://localhost:8787";
-
-// File format constants (from crypto.ts)
-const MAGIC_OBFUSCATED = 0x00; // PPK\0 - not encrypted
-const MAGIC_ENCRYPTED = 0x01;  // PPK\1 - encrypted
-const HEADER_SIZE = 37; // magic (4) + version (1) + hash (32)
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-const SCHEMA_VERSION = 1;
-
-// XOR key for de-obfuscation (same as in crypto.ts)
-const OBFUSCATE_KEY = new Uint8Array([0x50, 0x72, 0x6F, 0x6D, 0x70, 0x74, 0x50, 0x61, 0x63, 0x6B]); // "PromptPack"
 
 type SavedPromptsProps = {
   userId: Id<"users">;
@@ -127,10 +125,10 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
       const { fileData } = await fetchResponse.json();
       const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
 
-      // Check file type (byte 3 indicates encryption status)
-      const isEncrypted = bytes.length >= 4 && bytes[3] === MAGIC_ENCRYPTED;
+      // Check file type using imported function
+      const fileIsEncrypted = isEncrypted(bytes);
 
-      if (isEncrypted) {
+      if (fileIsEncrypted) {
         // Show password modal
         setSelectedPack({
           id: pack._id,
@@ -177,52 +175,15 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
       // Use cached fileData from pack click
       const bytes = Uint8Array.from(atob(selectedPack.fileData), (c) => c.charCodeAt(0));
 
-      // Check if encrypted (byte 3 should be 0x01 for encrypted)
-      if (bytes.length < HEADER_SIZE + SALT_LENGTH + IV_LENGTH || bytes[3] !== MAGIC_ENCRYPTED) {
+      // Check if encrypted
+      if (!isEncrypted(bytes)) {
         setError("File is not encrypted or corrupted");
         setIsDecrypting(false);
         return;
       }
 
-      // Decrypt using Web Crypto API
-      // Format: magic (4) + version (1) + hash (32) + salt (16) + iv (12) + encrypted(gzip(json))
-      const salt = bytes.slice(HEADER_SIZE, HEADER_SIZE + SALT_LENGTH);
-      const iv = bytes.slice(HEADER_SIZE + SALT_LENGTH, HEADER_SIZE + SALT_LENGTH + IV_LENGTH);
-      const ciphertext = bytes.slice(HEADER_SIZE + SALT_LENGTH + IV_LENGTH);
-
-      // Derive key from password
-      const encoder = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey(
-        "raw",
-        encoder.encode(password),
-        "PBKDF2",
-        false,
-        ["deriveBits", "deriveKey"]
-      );
-
-      const key = await crypto.subtle.deriveKey(
-        {
-          name: "PBKDF2",
-          salt,
-          iterations: 100000,
-          hash: "SHA-256",
-        },
-        keyMaterial,
-        { name: "AES-GCM", length: 256 },
-        false,
-        ["decrypt"]
-      );
-
-      // Decrypt
-      const decrypted = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv },
-        key,
-        ciphertext
-      );
-
-      // Decompress (the decrypted data is gzip compressed)
-      const decompressed = await decompressGzip(new Uint8Array(decrypted));
-      const jsonString = new TextDecoder().decode(decompressed);
+      // Use shared crypto function
+      const jsonString = await decryptPmtpk(bytes, password);
       const data = JSON.parse(jsonString);
 
       if (data.prompts && Array.isArray(data.prompts)) {
@@ -701,86 +662,10 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
   );
 }
 
-// Helper function to decompress gzip data
-async function decompressGzip(compressed: Uint8Array): Promise<Uint8Array> {
-  // Use Blob.stream() to avoid TypeScript SharedArrayBuffer issues
-  const stream = new Blob([new Uint8Array(compressed)]).stream();
-  const decompressed = stream.pipeThrough(new DecompressionStream("gzip"));
-  const reader = decompressed.getReader();
-  const chunks: Uint8Array[] = [];
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result;
-}
-
-// Helper function to compress data with gzip
-async function compressGzip(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([new Uint8Array(data)]).stream();
-  const compressed = stream.pipeThrough(new CompressionStream("gzip"));
-  const reader = compressed.getReader();
-  const chunks: Uint8Array[] = [];
-
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result;
-}
-
-// XOR de-obfuscation (same as in crypto.ts)
-function xorDeobfuscate(data: Uint8Array): Uint8Array {
-  const result = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    result[i] = data[i] ^ OBFUSCATE_KEY[i % OBFUSCATE_KEY.length];
-  }
-  return result;
-}
-
-// XOR obfuscation (same key, reversible)
-function xorObfuscate(data: Uint8Array): Uint8Array {
-  return xorDeobfuscate(data); // XOR is its own inverse
-}
-
 // Decode obfuscated (non-encrypted) .pmtpk file
 async function decodeObfuscatedFile(bytes: Uint8Array): Promise<DecodedPrompt[]> {
-  // Format: magic (4) + version (1) + hash (32) + obfuscated(gzip(json))
-  if (bytes.length < HEADER_SIZE) {
-    throw new Error("File is too small or corrupted");
-  }
-
-  // Extract payload (after header)
-  const obfuscated = bytes.slice(HEADER_SIZE);
-
-  // De-obfuscate then decompress
-  const compressed = xorDeobfuscate(obfuscated);
-  const jsonBytes = await decompressGzip(compressed);
-
-  const jsonString = new TextDecoder().decode(jsonBytes);
+  // Use shared crypto function
+  const jsonString = await decodePmtpk(bytes);
   const data = JSON.parse(jsonString);
 
   if (data.prompts && Array.isArray(data.prompts)) {
@@ -790,15 +675,6 @@ async function decodeObfuscatedFile(bytes: Uint8Array): Promise<DecodedPrompt[]>
   throw new Error("Invalid pack format");
 }
 
-// Compute SHA-256 hash
-async function computeHash(data: Uint8Array): Promise<Uint8Array> {
-  // Create a fresh ArrayBuffer to avoid SharedArrayBuffer type issues
-  const buffer = new ArrayBuffer(data.length);
-  new Uint8Array(buffer).set(data);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
-  return new Uint8Array(hashBuffer);
-}
-
 // Encode prompts to .pmtpk format (obfuscated or encrypted)
 async function encodePrompts(
   prompts: DecodedPrompt[],
@@ -806,9 +682,13 @@ async function encodePrompts(
   encrypt: boolean,
   password?: string
 ): Promise<Uint8Array> {
+  // Map source to display title
+  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+
   const exportData = {
     version: SCHEMA_VERSION,
     source,
+    title: sourceTitle, // Include title for display in popup
     exportedAt: new Date().toISOString(),
     prompts: prompts.map((p) => ({
       text: p.text,
@@ -818,76 +698,11 @@ async function encodePrompts(
   };
 
   const jsonString = JSON.stringify(exportData);
-  const jsonBytes = new TextEncoder().encode(jsonString);
-  const compressed = await compressGzip(jsonBytes);
 
+  // Use shared crypto functions
   if (encrypt && password) {
-    // Encrypt with AES-GCM
-    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-
-    // Derive key from password
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(password),
-      "PBKDF2",
-      false,
-      ["deriveBits", "deriveKey"]
-    );
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: "PBKDF2",
-        salt,
-        iterations: 100000,
-        hash: "SHA-256",
-      },
-      keyMaterial,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt"]
-    );
-
-    // Create fresh ArrayBuffer for crypto operation
-    const compressedBuffer = new ArrayBuffer(compressed.length);
-    new Uint8Array(compressedBuffer).set(compressed);
-
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      compressedBuffer
-    );
-
-    // Create header: PPK\1 + version + hash
-    const magic = new Uint8Array([0x50, 0x50, 0x4B, MAGIC_ENCRYPTED]); // PPK\1
-    const version = new Uint8Array([SCHEMA_VERSION]);
-    const payload = new Uint8Array([...salt, ...iv, ...new Uint8Array(encrypted)]);
-    const hash = await computeHash(payload);
-
-    // Combine: magic (4) + version (1) + hash (32) + salt (16) + iv (12) + ciphertext
-    const result = new Uint8Array(magic.length + version.length + hash.length + payload.length);
-    result.set(magic, 0);
-    result.set(version, magic.length);
-    result.set(hash, magic.length + version.length);
-    result.set(payload, magic.length + version.length + hash.length);
-
-    return result;
+    return await encryptPmtpk(jsonString, password);
   } else {
-    // Obfuscate (no encryption)
-    const obfuscated = xorObfuscate(compressed);
-    const hash = await computeHash(obfuscated);
-
-    // Create header: PPK\0 + version + hash
-    const magic = new Uint8Array([0x50, 0x50, 0x4B, MAGIC_OBFUSCATED]); // PPK\0
-    const version = new Uint8Array([SCHEMA_VERSION]);
-
-    // Combine: magic (4) + version (1) + hash (32) + obfuscated(gzip(json))
-    const result = new Uint8Array(magic.length + version.length + hash.length + obfuscated.length);
-    result.set(magic, 0);
-    result.set(version, magic.length);
-    result.set(hash, magic.length + version.length);
-    result.set(obfuscated, magic.length + version.length + hash.length);
-
-    return result;
+    return await encodePmtpk(jsonString);
   }
 }
