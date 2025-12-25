@@ -680,12 +680,18 @@ async function render() {
     ? await renderPromptsTab()
     : await renderPacksTab();
 
+  // Show import button only if user has pro billing
+  const isPro = authState.billing?.isPro ?? false;
+  const importButton = isPro
+    ? `<button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>`
+    : "";
+
   app.innerHTML = `
     <div class="pp-wrap">
       <div class="pp-header">
         <div class="pp-title">PromptPack</div>
         <div class="pp-header-actions">
-          <button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>
+          ${importButton}
           <button class="pp-icon-btn" id="pp-undo-btn" title="Undo">${ICON.undo}</button>
         </div>
       </div>

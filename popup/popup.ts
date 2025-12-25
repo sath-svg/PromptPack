@@ -538,12 +538,19 @@ async function syncAuthState(): Promise<AuthState> {
   // Check auth state by making a lightweight request
   // This runs every time popup opens to verify against Clerk's session
   try {
-    const response = await fetch("http://localhost:3000/api/auth/status", {
-      method: "GET",
-      credentials: "include", // Include cookies for Clerk session
-    });
+    // Fetch both auth status and billing status in parallel
+    const [authResponse, billingResponse] = await Promise.all([
+      fetch("http://localhost:3000/api/auth/status", {
+        method: "GET",
+        credentials: "include", // Include cookies for Clerk session
+      }),
+      fetch("http://localhost:3000/api/auth/billing-status", {
+        method: "GET",
+        credentials: "include", // Include cookies for Clerk session
+      }).catch(() => null), // Billing status is optional
+    ]);
 
-    const data = await response.json() as {
+    const authData = await authResponse.json() as {
       isAuthenticated: boolean;
       user?: {
         id: string;
@@ -551,15 +558,22 @@ async function syncAuthState(): Promise<AuthState> {
       };
     };
 
-    if (data.isAuthenticated && data.user) {
+    // Try to get billing data if available
+    let billingData: { plan: "free" | "pro"; isPro: boolean } | null = null;
+    if (billingResponse && billingResponse.ok) {
+      billingData = await billingResponse.json() as { plan: "free" | "pro"; isPro: boolean };
+    }
+
+    if (authData.isAuthenticated && authData.user) {
       // User is logged in on web - return auth state with user info from API
       return {
         isAuthenticated: true,
         user: {
-          id: data.user.id,
-          email: data.user.email,
-          tier: "free", // Default, will be updated from local session if available
+          id: authData.user.id,
+          email: authData.user.email,
+          tier: billingData?.isPro ? "paid" : "free",
         },
+        billing: billingData || undefined,
       };
     } else {
       // User is logged out on web
@@ -596,12 +610,18 @@ async function render() {
     ? `<button class="pp-icon-btn pp-logged-in" id="pp-dashboard-btn" title="Logged in - Go to Dashboard">${ICON.user}</button>`
     : `<button class="pp-icon-btn" id="pp-login-btn" title="Login">${ICON.user}</button>`;
 
+  // Show import button only if user has pro billing
+  const isPro = authState.billing?.isPro ?? false;
+  const importButton = isPro
+    ? `<button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>`
+    : "";
+
   app.innerHTML = `
     <div class="pp-wrap">
       <div class="pp-header">
         <div class="pp-title">PromptPack${syncIndicator}</div>
         <div class="pp-header-actions">
-          <button class="pp-icon-btn" id="pp-import-btn" title="Import .pmtpk">${ICON.import}</button>
+          ${importButton}
           <button class="pp-icon-btn" id="pp-undo-btn" title="Undo">${ICON.undo}</button>
           ${authButton}
         </div>
