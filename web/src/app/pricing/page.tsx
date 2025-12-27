@@ -1,8 +1,20 @@
-import { SignUpButton, SignedIn, SignedOut, Protect } from "@clerk/nextjs";
+"use client";
+
+import { SignUpButton, SignedIn, SignedOut, useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { ProCard } from "./pro-card";
 
 export default function PricingPage() {
+  const { user } = useUser();
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
+
+  const isPro = convexUser?.plan === "pro";
+
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
@@ -64,19 +76,19 @@ export default function PricingPage() {
           </SignedOut>
           <SignedIn>
             {/* Show "Current Plan" only if user does NOT have pro plan */}
-            <Protect plan="pro" fallback={
+            {!isPro ? (
               <Link href="/dashboard">
                 <button className="btn btn-secondary" style={{ width: "100%" }}>
                   Current Plan
                 </button>
               </Link>
-            }>
+            ) : (
               <Link href="/dashboard">
                 <button className="btn btn-secondary" style={{ width: "100%" }}>
                   View Dashboard
                 </button>
               </Link>
-            </Protect>
+            )}
           </SignedIn>
         </div>
 

@@ -13,9 +13,15 @@ http.route({
     // Get the webhook secret from environment
     const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
     if (!webhookSecret) {
-      console.error("Missing CLERK_WEBHOOK_SECRET");
+      console.error("=== CLERK WEBHOOK ERROR ===");
+      console.error("CLERK_WEBHOOK_SECRET is not set in Convex environment variables");
+      console.error("To fix: Run 'npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx'");
+      console.error("Get the secret from: Clerk Dashboard → Webhooks → Signing Secret");
       return new Response("Webhook secret not configured", { status: 500 });
     }
+
+    console.log("=== Clerk Webhook Received ===");
+    console.log("Timestamp:", new Date().toISOString());
 
     // Verify the webhook signature
     const svix_id = request.headers.get("svix-id");
@@ -63,6 +69,14 @@ http.route({
           slug?: string;
           name?: string;
         };
+        // Subscription items array (for subscription.* events)
+        items?: Array<{
+          status?: string;
+          plan?: {
+            slug?: string;
+            name?: string;
+          };
+        }>;
       };
     };
 
@@ -108,10 +122,11 @@ http.route({
     const resolvedUserId = resolveUserId(event.data);
     const status = event.data.status ?? event.data.subscription?.status;
 
-    console.log("=== Clerk Webhook Received ===");
+    console.log("=== Webhook Event Details ===");
     console.log("Event type:", event.type);
     console.log("Resolved user_id:", resolvedUserId);
     console.log("Status:", status);
+    console.log("Public metadata:", event.data.public_metadata);
     console.log("Full event data:", JSON.stringify(event.data, null, 2));
 
     // Handle different event types
@@ -153,15 +168,42 @@ http.route({
       case "subscription.deleted": {
         // These may have a different data structure - try multiple formats
         const userId = resolveUserId(event.data);
-        const status = event.data.status ?? event.data.subscription?.status;
-        const planSlug = event.data.plan?.slug;
+        const subscriptionStatus = event.data.status ?? event.data.subscription?.status;
+
         if (!userId) {
           console.log("subscription event: no user_id found");
           break;
         }
 
-        const plan = resolvePlan(status, planSlug);
-        console.log(`[subscription.*] Updating user ${userId} to plan: ${plan} (status: ${status})`);
+        console.log(`[subscription.*] Processing subscription for user ${userId}`);
+        console.log(`Subscription status: ${subscriptionStatus}`);
+
+        // Check subscription items for active/upcoming pro plans
+        const items = event.data.items;
+        let hasActivePro = false;
+
+        if (items && Array.isArray(items)) {
+          console.log(`Found ${items.length} subscription items`);
+
+          for (const item of items) {
+            const itemStatus = item.status;
+            const planSlug = item.plan?.slug;
+
+            console.log(`Item: status=${itemStatus}, plan=${planSlug}`);
+
+            // Check if this is an active or upcoming Pro subscription
+            if ((itemStatus === "active" || itemStatus === "upcoming") &&
+                (planSlug === "pro" || item.plan?.name === "Pro")) {
+              hasActivePro = true;
+              console.log(`Found active/upcoming Pro plan item`);
+              break;
+            }
+          }
+        }
+
+        const plan = hasActivePro ? "pro" : "free";
+
+        console.log(`[subscription.*] Updating user ${userId} to plan: ${plan}`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
           plan: plan as "free" | "pro",

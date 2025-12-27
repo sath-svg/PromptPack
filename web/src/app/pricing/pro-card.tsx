@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { SignedIn, SignedOut, SignUpButton, Protect } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignUpButton, useUser } from "@clerk/nextjs";
 import { CheckoutButton } from "@clerk/nextjs/experimental";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
 const PRO_PLAN_ID = "cplan_37Cn3oopuz5AzG1NlC0clKTt0MQ";
 
 export function ProCard() {
   const [isAnnual, setIsAnnual] = useState(true);
+  const { user } = useUser();
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
+
+  const isPro = convexUser?.plan === "pro";
 
   const monthlyPrice = 9;
   const annualMonthlyPrice = 8.33;
@@ -39,7 +48,7 @@ export function ProCard() {
           fontWeight: "600",
         }}
       >
-        POPULAR
+        {isPro ? "CURRENT PLAN" : "POPULAR"}
       </span>
 
       <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>
@@ -147,25 +156,22 @@ export function ProCard() {
         </SignUpButton>
       </SignedOut>
       <SignedIn>
-        <Protect
-          plan="pro"
-          fallback={
-            <CheckoutButton
-              planId={PRO_PLAN_ID}
-              planPeriod={isAnnual ? "annual" : "month"}
-            >
-              <button className="btn btn-primary" style={{ width: "100%" }}>
-                Start 3-day free trial
-              </button>
-            </CheckoutButton>
-          }
-        >
+        {isPro ? (
           <Link href="/dashboard">
             <button className="btn btn-primary" style={{ width: "100%" }}>
-              Current Plan
+              Dashboard
             </button>
           </Link>
-        </Protect>
+        ) : (
+          <CheckoutButton
+            planId={PRO_PLAN_ID}
+            planPeriod={isAnnual ? "annual" : "month"}
+          >
+            <button className="btn btn-primary" style={{ width: "100%" }}>
+              Start 3-day free trial
+            </button>
+          </CheckoutButton>
+        )}
       </SignedIn>
     </div>
   );

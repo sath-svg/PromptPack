@@ -54,6 +54,10 @@ const DB_VERSION = 1;
 
 let dbInstance: IDBDatabase | null = null;
 
+export function resetDBInstance(): void {
+  dbInstance = null;
+}
+
 function openDB(): Promise<IDBDatabase> {
   if (dbInstance) return Promise.resolve(dbInstance);
 
