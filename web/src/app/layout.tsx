@@ -10,6 +10,7 @@ import { dark } from "@clerk/themes";
 import Link from "next/link";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
+import { SupportButton } from "@/components/support-button";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -64,6 +65,7 @@ export default function RootLayout({
           <main className="main">
             <ConvexClientProvider>{children}</ConvexClientProvider>
           </main>
+          <SupportButton />
         </body>
       </html>
     </ClerkProvider>
