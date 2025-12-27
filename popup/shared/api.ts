@@ -12,6 +12,7 @@ const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex 
 // ============================================================================
 
 import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack } from "./db";
+import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT } from "./promptStore";
 
 export type ApiError = {
   code: string;
@@ -146,7 +147,7 @@ class ApiClient {
       refreshToken: data.token, // Use same token for now
       expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
       entitlements: {
-        promptLimit: data.user.plan === "pro" ? 40 : 10,
+        promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
         loadedPackLimit: data.user.plan === "pro" ? 999999 : 0,
       },
     });
@@ -226,6 +227,109 @@ class ApiClient {
 
   async deletePromptsBySource(source: string): Promise<{ deleted: number }> {
     return this.request("DELETE", `/prompts/source/${source}`);
+  }
+
+  /**
+   * Save prompts to dashboard (uploads to R2 and saves metadata to Convex)
+   * Returns success status and any limit errors
+   */
+  async savePromptsToDashboard(params: {
+    source: "chatgpt" | "claude" | "gemini";
+    fileData: string; // base64 encoded .pmtpk file
+    promptCount: number;
+    clerkId: string; // Pass clerkId from authState
+  }): Promise<{ success: boolean; r2Key?: string; error?: string }> {
+    if (!params.clerkId) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // First check if this would exceed the prompt limit
+    const limitCheck = await this.checkDashboardPromptLimit(params.clerkId, params.source, params.promptCount);
+    if (!limitCheck.allowed) {
+      return {
+        success: false,
+        error: `Would exceed ${limitCheck.limit} prompt limit (current: ${limitCheck.currentTotal}, adding: ${params.promptCount})`
+      };
+    }
+
+    // Upload to R2 - use direct fetch with clerkId as auth token
+    // The R2 worker decodes the token to extract userId
+    const authToken = btoa(JSON.stringify({ userId: params.clerkId }));
+
+    try {
+      const uploadResponse = await fetch(`${API_BASE}/storage/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          source: params.source,
+          fileData: params.fileData,
+          promptCount: params.promptCount,
+        }),
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json().catch(() => ({ error: "Upload failed" }));
+        return { success: false, error: error.error || "Failed to upload to storage" };
+      }
+
+      const uploadData = await uploadResponse.json() as { success: boolean; r2Key: string; size: number };
+
+      if (!uploadData.success) {
+        return { success: false, error: "Failed to upload to storage" };
+      }
+
+      // Save metadata to Convex
+      const response = await fetch(`${CONVEX_API_URL}/api/extension/save-prompts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clerkId: params.clerkId,
+          source: params.source,
+          r2Key: uploadData.r2Key,
+          promptCount: params.promptCount,
+          fileSize: uploadData.size,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Unknown error" }));
+        return { success: false, error: error.error || "Failed to save metadata" };
+      }
+
+      return { success: true, r2Key: uploadData.r2Key };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : "Failed to save to dashboard" };
+    }
+  }
+
+  /**
+   * Check if adding prompts would exceed the dashboard limit
+   */
+  async checkDashboardPromptLimit(
+    clerkId: string,
+    source: "chatgpt" | "claude" | "gemini",
+    addingCount: number
+  ): Promise<{ allowed: boolean; limit: number; currentTotal: number }> {
+    try {
+      const response = await fetch(`${CONVEX_API_URL}/api/extension/check-prompt-limit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clerkId, source, addingCount }),
+      });
+
+      if (!response.ok) {
+        // If check fails, assume allowed (fail open for better UX)
+        return { allowed: true, limit: 40, currentTotal: 0 };
+      }
+
+      return await response.json();
+    } catch {
+      // If check fails, assume allowed
+      return { allowed: true, limit: 40, currentTotal: 0 };
+    }
   }
 
   // ============ Packs ============
@@ -328,8 +432,7 @@ class ApiClient {
       }
 
       return await response.json();
-    } catch (error) {
-      console.error("[API] Failed to check web auth status:", error);
+    } catch {
       return null;
     }
   }

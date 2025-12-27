@@ -12,7 +12,13 @@ export type PromptItem = {
 };
 
 const KEY = "promptpack_prompts";
-export const MAX_PROMPTS = 20;
+
+// Prompt limits by tier
+export const FREE_PROMPT_LIMIT = 10;
+export const PRO_PROMPT_LIMIT = 40;
+
+// Legacy constant for backwards compatibility (uses free tier limit)
+export const MAX_PROMPTS = FREE_PROMPT_LIMIT;
 export const MAX_IMPORTED_PACKS = 2; // Max number of imported packs for pro users
 
 export async function listPrompts(): Promise<PromptItem[]> {
@@ -21,9 +27,39 @@ export async function listPrompts(): Promise<PromptItem[]> {
   return (arr ?? []).slice().sort((a, b) => b.createdAt - a.createdAt);
 }
 
+// Type for cached auth state (matches auth.ts CachedAuthState structure)
+type CachedAuthState = {
+  billing?: { isPro?: boolean };
+  entitlements?: { promptLimit?: number };
+  user?: { tier?: string };
+};
+
+/**
+ * Get the user's prompt limit from cached auth state
+ * Returns PRO_PROMPT_LIMIT if pro, FREE_PROMPT_LIMIT otherwise
+ */
+async function getPromptLimitFromCache(): Promise<number> {
+  try {
+    const result = await chrome.storage.local.get("pp_auth_cache");
+    const cached = result["pp_auth_cache"] as CachedAuthState | undefined;
+    if (cached) {
+      // Check billing.isPro, then entitlements.promptLimit, then user.tier
+      if (cached.billing?.isPro) return PRO_PROMPT_LIMIT;
+      if (cached.entitlements?.promptLimit) return cached.entitlements.promptLimit;
+      if (cached.user?.tier === "paid") return PRO_PROMPT_LIMIT;
+    }
+  } catch {
+    // Ignore errors, fall back to free limit
+  }
+  return FREE_PROMPT_LIMIT;
+}
+
 export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
   const text = item.text.trim();
   if (!text) return { ok: false as const, reason: "empty" as const };
+
+  // Get user's prompt limit from cached auth state
+  const promptLimit = await getPromptLimitFromCache();
 
   // Use atomic update to prevent race conditions
   const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
@@ -34,7 +70,7 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
     );
 
     // Hard cap (allow duplicates to "refresh" even at cap)
-    if (!isDuplicate && arr.length >= MAX_PROMPTS) {
+    if (!isDuplicate && arr.length >= promptLimit) {
       // Return unchanged - we'll handle this below
       return arr;
     }
@@ -52,21 +88,20 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
         createdAt: Date.now(),
       },
       ...deduped,
-    ].slice(0, MAX_PROMPTS);
+    ].slice(0, promptLimit);
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Save failed:", result.error);
     return { ok: false as const, reason: "storage_error" as const, error: result.error };
   }
 
   // Check if we hit the limit (length unchanged and not a duplicate refresh)
   const existing = await listPrompts();
-  if (existing.length >= MAX_PROMPTS && !existing.some(p => p.text === text && p.source === item.source)) {
-    return { ok: false as const, reason: "limit" as const, max: MAX_PROMPTS };
+  if (existing.length >= promptLimit && !existing.some(p => p.text === text && p.source === item.source)) {
+    return { ok: false as const, reason: "limit" as const, max: promptLimit };
   }
 
-  return { ok: true as const, count: result.data.length, max: MAX_PROMPTS };
+  return { ok: true as const, count: result.data.length, max: promptLimit };
 }
 
 export async function deletePrompt(id: string) {
@@ -75,7 +110,6 @@ export async function deletePrompt(id: string) {
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Delete failed:", result.error);
     return { ok: false as const, error: result.error };
   }
 
@@ -88,7 +122,6 @@ export async function deletePromptsBySource(source: PromptSource) {
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Delete by source failed:", result.error);
     return { ok: false as const, error: result.error };
   }
 
@@ -99,7 +132,6 @@ export async function clearAllPrompts() {
   const result = await safeSet<PromptItem[]>(KEY, []);
 
   if (!result.ok) {
-    console.error("[PromptStore] Clear failed:", result.error);
     return { ok: false as const, error: result.error };
   }
 
@@ -135,7 +167,6 @@ export async function bulkSavePrompts(
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Bulk save failed:", result.error);
     return { ok: false, imported: [], error: result.error };
   }
 
@@ -153,7 +184,6 @@ export async function removePromptsByIds(ids: string[]): Promise<{ ok: boolean; 
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Remove by IDs failed:", result.error);
     return { ok: false, error: result.error };
   }
 
@@ -176,7 +206,6 @@ export async function deletePackPrompts(
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Delete pack failed:", result.error);
     return { ok: false, deleted: [], error: result.error };
   }
 
@@ -192,7 +221,6 @@ export async function restorePrompts(prompts: PromptItem[]): Promise<{ ok: boole
   });
 
   if (!result.ok) {
-    console.error("[PromptStore] Restore failed:", result.error);
     return { ok: false, error: result.error };
   }
 

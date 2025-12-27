@@ -453,6 +453,210 @@ http.route({
   }),
 });
 
+// Extension: save prompts to dashboard
+// CORS preflight
+http.route({
+  path: "/api/extension/save-prompts",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension: save prompts to dashboard (called after R2 upload)
+http.route({
+  path: "/api/extension/save-prompts",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { clerkId, source, r2Key, promptCount, fileSize } = body as {
+        clerkId: string;
+        source: "chatgpt" | "claude" | "gemini";
+        r2Key: string;
+        promptCount: number;
+        fileSize: number;
+      };
+
+      if (!clerkId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
+        return new Response(
+          JSON.stringify({ error: "Missing required fields" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user to check their plan limits
+      const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Calculate current total prompts across all saved packs
+      const existingPacks = await ctx.runQuery(api.savedPacks.listByUser, { userId: user._id });
+
+      // Calculate what the new total would be
+      // When saving to a source, we replace that source's count, so exclude it from current total
+      const currentTotalExcludingSource = existingPacks
+        .filter(p => p.source !== source)
+        .reduce((sum, p) => sum + p.promptCount, 0);
+      const newTotal = currentTotalExcludingSource + promptCount;
+
+      // Check limit based on plan
+      const limit = user.plan === "pro" ? 40 : 10;
+      if (newTotal > limit) {
+        return new Response(
+          JSON.stringify({
+            error: `Would exceed ${limit} prompt limit (current: ${currentTotalExcludingSource}, adding: ${promptCount})`,
+            allowed: false,
+            limit,
+            currentTotal: currentTotalExcludingSource,
+          }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Save the pack metadata
+      const result = await ctx.runMutation(api.savedPacks.upsertByClerkId, {
+        clerkId,
+        source,
+        r2Key,
+        promptCount,
+        fileSize,
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, ...result }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Save prompts error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Failed to save",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension: check prompt limit before saving
+// CORS preflight
+http.route({
+  path: "/api/extension/check-prompt-limit",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension: check if adding prompts would exceed limit
+http.route({
+  path: "/api/extension/check-prompt-limit",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { clerkId, source, addingCount } = body as {
+        clerkId: string;
+        source: "chatgpt" | "claude" | "gemini";
+        addingCount: number;
+      };
+
+      if (!clerkId || !source || addingCount === undefined) {
+        return new Response(
+          JSON.stringify({ error: "Missing required fields" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user to check their plan
+      const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+      if (!user) {
+        // If user not found, assume free tier limit
+        return new Response(
+          JSON.stringify({ allowed: true, limit: 10, currentTotal: 0 }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Calculate current total prompts across all saved packs
+      const existingPacks = await ctx.runQuery(api.savedPacks.listByUser, { userId: user._id });
+
+      // Calculate what the new total would be
+      // When saving to a source, we replace that source's count, so exclude it from current total
+      const currentTotalExcludingSource = existingPacks
+        .filter(p => p.source !== source)
+        .reduce((sum, p) => sum + p.promptCount, 0);
+      const newTotal = currentTotalExcludingSource + addingCount;
+
+      // Check limit based on plan
+      const limit = user.plan === "pro" ? 40 : 10;
+      const allowed = newTotal <= limit;
+
+      return new Response(
+        JSON.stringify({
+          allowed,
+          limit,
+          currentTotal: currentTotalExcludingSource,
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Check limit error:", error);
+      // On error, allow (fail open)
+      return new Response(
+        JSON.stringify({ allowed: true, limit: 40, currentTotal: 0 }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
 // Extension billing: get user's billing status
 // CORS preflight
 http.route({

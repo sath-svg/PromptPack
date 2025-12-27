@@ -18,8 +18,7 @@ export async function safeGet<T>(key: string): Promise<T | null> {
   try {
     const result = await chrome.storage.local.get(key);
     return (result[key] as T) ?? null;
-  } catch (e) {
-    console.error(`[SafeStorage] Get failed for key "${key}":`, e);
+  } catch {
     return null;
   }
 }
@@ -46,8 +45,7 @@ export async function safeSet<T>(
       if (existing[key] !== undefined) {
         await chrome.storage.local.set({ [BACKUP_PREFIX + key]: existing[key] });
       }
-    } catch (e) {
-      console.warn(`[SafeStorage] Backup creation failed for key "${key}":`, e);
+    } catch {
       // Continue anyway - backup is best-effort
     }
   }
@@ -64,13 +62,8 @@ export async function safeSet<T>(
         const saved = verification[key];
 
         // Deep equality check for verification
-        const savedJson = JSON.stringify(saved);
-        const expectedJson = JSON.stringify(value);
-
-        if (savedJson !== expectedJson) {
-          console.error(`[SafeStorage] Verification failed for key "${key}" on attempt ${attempt}`);
-          console.error(`[SafeStorage] Expected length: ${expectedJson.length}, Got: ${savedJson?.length}`);
-
+        // Use sorted JSON comparison to handle property order differences
+        if (!deepEqual(saved, value)) {
           if (attempt < MAX_RETRIES) {
             await delay(RETRY_DELAY_MS * attempt);
             continue;
@@ -92,12 +85,10 @@ export async function safeSet<T>(
         }, 5000);
       }
 
-      console.log(`[SafeStorage] Successfully saved key "${key}" (attempt ${attempt})`);
       return { ok: true, data: value };
 
     } catch (e) {
       lastError = e;
-      console.error(`[SafeStorage] Write failed for key "${key}" on attempt ${attempt}:`, e);
 
       // Check for quota exceeded
       if (e instanceof Error && e.message.includes("QUOTA_BYTES")) {
@@ -125,15 +116,14 @@ async function tryRestoreFromBackup<T>(key: string, error: string): Promise<Stor
     if (backupData !== undefined) {
       // Restore the backup
       await chrome.storage.local.set({ [key]: backupData });
-      console.log(`[SafeStorage] Restored key "${key}" from backup`);
       return {
         ok: false,
         error: `Write failed: ${error}. Restored from backup.`,
         recoveredFromBackup: true
       };
     }
-  } catch (e) {
-    console.error(`[SafeStorage] Backup restoration failed for key "${key}":`, e);
+  } catch {
+    // Backup restoration failed
   }
 
   return { ok: false, error };
@@ -236,4 +226,38 @@ export async function importBackupData(
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Deep equality check that handles property order differences
+ */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return a === b;
+  if (typeof a !== typeof b) return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  if (typeof a === "object" && typeof b === "object") {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj);
+    const bKeys = Object.keys(bObj);
+
+    if (aKeys.length !== bKeys.length) return false;
+
+    for (const key of aKeys) {
+      if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false;
+      if (!deepEqual(aObj[key], bObj[key])) return false;
+    }
+    return true;
+  }
+
+  return false;
 }

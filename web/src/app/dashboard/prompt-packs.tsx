@@ -18,6 +18,7 @@ type PromptPacksProps = {
   userId: Id<"users">;
   hasPro: boolean;
   clerkId: string;
+  savedPromptsCount: number;
 };
 
 type WebPackData = {
@@ -48,6 +49,8 @@ type HistoryAction = {
 };
 
 const MAX_PRO_PACKS = 2;
+const FREE_PROMPT_LIMIT = 10;
+const PRO_PROMPT_LIMIT = 40;
 
 function buildPackData(prompts: WebPackData["prompts"]): string {
   const payload: WebPackData = {
@@ -161,7 +164,7 @@ async function encodePrompts(
   }
 }
 
-export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
+export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: PromptPacksProps) {
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
   const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
   const deletePack = useMutation(api.packs.remove);
@@ -234,6 +237,10 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
   // No need to filter - just display all packs
   const webPacks = packs ?? [];
   const packCount = webPacks.length;
+  const webPackPrompts = webPacks.reduce((sum, pack) => sum + pack.promptCount, 0);
+  // Available slots = max prompts - saved prompts already used
+  const maxPrompts = hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT;
+  const availableSlots = Math.max(0, maxPrompts - savedPromptsCount);
   const canCreate = hasPro && packCount < MAX_PRO_PACKS;
 
   const handlePackClick = async (pack: typeof webPacks[0]) => {
@@ -351,6 +358,11 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
       setError("You have reached your prompt pack limit.");
       return;
     }
+    // Check if adding this prompt would exceed the prompt limit
+    if (webPackPrompts >= availableSlots) {
+      setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). Delete some prompts to add more.`);
+      return;
+    }
     if (createPassword && createPassword.length !== 5) {
       setError("Password must be exactly 5 characters.");
       return;
@@ -411,6 +423,12 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
     const draft = newPrompt.trim();
     if (!draft) {
       setError("Please enter a prompt.");
+      return;
+    }
+
+    // Check if adding this prompt would exceed the limit
+    if (webPackPrompts >= availableSlots) {
+      setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). ${hasPro ? "Delete some prompts to add more." : "Upgrade to Pro for 40 prompts."}`);
       return;
     }
 
@@ -652,8 +670,6 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
     return <div className="loading">Loading prompt packs...</div>;
   }
 
-  const totalPrompts = webPacks.reduce((sum, pack) => sum + pack.promptCount, 0);
-
   return (
     <div className="saved-prompts">
       {/* Toast notification */}
@@ -705,7 +721,7 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
       ) : (
         <>
           <div className="saved-prompts-summary">
-            <span className="total-count">{totalPrompts} prompts</span>
+            <span className="total-count">{webPackPrompts}/{availableSlots} prompts</span>
             <span className="source-count">
               across {webPacks.length} pack{webPacks.length !== 1 ? "s" : ""}
             </span>
