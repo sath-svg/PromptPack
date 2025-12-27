@@ -1,9 +1,28 @@
 import "./popup.css";
-import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, type PromptItem, type PromptSource } from "./shared/promptStore";
-import { isStorageLow, getStorageStats } from "./shared/safeStorage";
+import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { isStorageLow } from "./shared/safeStorage";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, verifyAuthStateBackground, canSavePrompt, type AuthState } from "./shared/auth";
+import { getAuthState, verifyAuthStateBackground, type AuthState } from "./shared/auth";
+import { api } from "./shared/api";
+
+// Helper to get prompt limit based on auth state
+function getPromptLimit(state: AuthState): number {
+  // Use billing info if available (most accurate)
+  if (state.billing?.isPro) {
+    return PRO_PROMPT_LIMIT;
+  }
+  // Fall back to entitlements if set
+  if (state.entitlements?.promptLimit) {
+    return state.entitlements.promptLimit;
+  }
+  // Fall back to tier
+  if (state.user?.tier === "paid") {
+    return PRO_PROMPT_LIMIT;
+  }
+  // Default to free limit
+  return FREE_PROMPT_LIMIT;
+}
 
 // SVG Icons
 const ICON = {
@@ -83,8 +102,6 @@ async function performUndo() {
 
 async function importPmtpk(file: File) {
   try {
-    console.log("[Import] Starting import of file:", file.name, "size:", file.size);
-
     // Check if user has reached the imported pack limit
     const items = await listPrompts();
     const importedPackNames = new Set(items.filter(p => p.packName).map(p => `${p.source}:${p.packName}`));
@@ -92,94 +109,64 @@ async function importPmtpk(file: File) {
 
     if (importedPackCount >= MAX_IMPORTED_PACKS) {
       toast(`Pack limit reached (${importedPackCount}/${MAX_IMPORTED_PACKS}). Delete a pack to import new ones.`);
-      console.log("[Import] Import blocked - pack limit reached");
       return;
     }
 
-    // Check if user can accommodate more prompts (40 prompt limit for pro)
+    // Check if user can accommodate more prompts (based on billing tier)
     const currentPromptCount = items.length;
-    const promptLimitCheck = await canSavePrompt(currentPromptCount);
-    console.log("[Import] Current prompts:", currentPromptCount, "Limit:", promptLimitCheck.limit, "Remaining:", promptLimitCheck.remaining);
+    const promptLimit = getPromptLimit(authState);
 
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
 
-    console.log("[Import] File loaded, bytes length:", bytes.length);
-    console.log("[Import] First 10 bytes:", Array.from(bytes.slice(0, 10)).map(b => `0x${b.toString(16).padStart(2, '0')}`).join(' '));
-
     // Check file type
     const encrypted = isEncrypted(bytes);
     const obfuscated = isObfuscated(bytes);
-    console.log("[Import] File type - encrypted:", encrypted, "obfuscated:", obfuscated);
-    console.log("[Import] Magic bytes check - byte[3]:", `0x${bytes[3]?.toString(16).padStart(2, '0')}`, "expected 0x01 for encrypted, 0x00 for obfuscated");
 
     let jsonString: string;
 
     if (encrypted) {
-      console.log("[Import] File is encrypted, prompting for password");
       // Encrypted file - prompt for password
       const password = prompt("Enter password (5 characters):");
       if (!password) {
-        console.log("[Import] User cancelled password prompt");
         toast("Import cancelled");
         return;
       }
       if (password.length !== 5) {
-        console.log("[Import] Invalid password length:", password.length);
         toast("Password must be 5 characters");
         return;
       }
-      console.log("[Import] Attempting decryption...");
       jsonString = await decryptPmtpk(bytes, password);
-      console.log("[Import] Decryption successful, JSON length:", jsonString.length);
     } else if (obfuscated) {
-      console.log("[Import] File is obfuscated, decoding...");
       // Obfuscated file (unencrypted but protected)
       jsonString = await decodePmtpk(bytes);
-      console.log("[Import] Decode successful, JSON length:", jsonString.length);
     } else {
-      console.log("[Import] File is plain JSON (legacy format)");
       // Legacy plain JSON (for backwards compatibility)
       jsonString = new TextDecoder().decode(bytes);
     }
 
-    console.log("[Import] Parsing JSON...");
-    console.log("[Import] JSON preview:", jsonString.substring(0, 200));
     const data = JSON.parse(jsonString);
-    console.log("[Import] Parsed data:", {
-      hasPrompts: !!data.prompts,
-      promptsIsArray: Array.isArray(data.prompts),
-      promptCount: data.prompts?.length,
-      version: data.version,
-      source: data.source,
-      title: data.title
-    });
 
     if (!data.prompts || !Array.isArray(data.prompts)) {
-      console.error("[Import] Invalid file structure - missing prompts array");
       toast("Invalid .pmtpk file");
       return;
     }
 
     const source = (data.source as PromptSource) || "chatgpt";
     const packTitle = data.title || file.name.replace(/\.pmtpk$/, "");
-    console.log("[Import] Source:", source, "Title:", packTitle, "Prompt count:", data.prompts.length);
 
     // Check if importing this pack would exceed the prompt limit
     const packPromptCount = data.prompts.length;
     const newTotalPrompts = currentPromptCount + packPromptCount;
 
-    if (newTotalPrompts > promptLimitCheck.limit) {
-      toast(`Cannot import: would exceed ${promptLimitCheck.limit} prompt limit (${currentPromptCount} + ${packPromptCount} = ${newTotalPrompts})`);
-      console.log("[Import] Import blocked - would exceed prompt limit");
+    if (newTotalPrompts > promptLimit) {
+      toast(`Cannot import: would exceed ${promptLimit} prompt limit (${currentPromptCount} + ${packPromptCount} = ${newTotalPrompts})`);
       return;
     }
 
     // Check storage health before importing
     const storageLow = await isStorageLow(90);
     if (storageLow) {
-      const stats = await getStorageStats();
-      console.warn("[Import] Storage is nearly full:", stats);
       toast("Warning: Storage is nearly full. Import may fail.");
     }
 
@@ -194,25 +181,19 @@ async function importPmtpk(file: File) {
     const result = await bulkSavePrompts(promptsToImport, packTitle);
 
     if (!result.ok) {
-      console.error("[Import] Bulk save failed:", result.error);
       toast(`Import failed: ${result.error || "Storage error"}. Please try again.`);
       return;
     }
 
     invalidateCache();
-    console.log("[Import] Saved to storage. Imported:", result.imported.length);
 
     // Push to undo stack with the actual saved prompts (includes IDs)
     undoStack.push({ type: "import", prompts: result.imported });
 
     toast(`Imported ${result.imported.length} prompt${result.imported.length !== 1 ? "s" : ""} from "${packTitle}"`);
-    console.log("[Import] Import complete!");
     await render();
   } catch (e) {
-    console.error("[Import] Import error:", e);
-    console.error("[Import] Error stack:", e instanceof Error ? e.stack : "No stack trace");
     if (e instanceof PmtpkError) {
-      console.error("[Import] PmtpkError code:", e.code, "message:", e.message);
       switch (e.code) {
         case 'WRONG_PASSWORD':
           toast("Wrong password");
@@ -735,7 +716,7 @@ function setupEventDelegation() {
       e.preventDefault();
       e.stopPropagation();
 
-      const source = btn.dataset.save as PromptItem["source"];
+      const source = btn.dataset.save as PromptSource;
       const items = await listPrompts();
       const sourcePrompts = items.filter(p => p.source === source && !p.packName);
 
@@ -744,10 +725,48 @@ function setupEventDelegation() {
         return;
       }
 
-      // TODO: Implement actual cloud save via Convex API
-      toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
-      // For now, just show a message - actual implementation would call api.savePrompts()
-      setTimeout(() => toast("Saved to dashboard!"), 500);
+      // Check if user is authenticated
+      if (!authState.isAuthenticated || !authState.user?.id) {
+        toast("Not authenticated");
+        return;
+      }
+
+      try {
+        toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
+
+        // Create export data for the prompts
+        const exportData = {
+          version: SCHEMA_VERSION,
+          source,
+          exportedAt: new Date().toISOString(),
+          prompts: sourcePrompts.map(p => ({
+            text: p.text,
+            url: p.url,
+            createdAt: p.createdAt
+          }))
+        };
+
+        // Encode the data (no encryption for saved prompts, just obfuscation)
+        const jsonString = JSON.stringify(exportData);
+        const fileData = await encodePmtpk(jsonString);
+        const base64FileData = btoa(String.fromCharCode(...fileData));
+
+        // Save to dashboard via API
+        const result = await api.savePromptsToDashboard({
+          source,
+          fileData: base64FileData,
+          promptCount: sourcePrompts.length,
+          clerkId: authState.user.id,
+        });
+
+        if (result.success) {
+          toast("Saved to dashboard!");
+        } else {
+          toast(result.error || "Failed to save");
+        }
+      } catch {
+        toast("Failed to save to dashboard");
+      }
       return;
     }
 
@@ -837,8 +856,7 @@ function setupEventDelegation() {
         }
 
         toast(`"${packName}" saved to dashboard!`);
-      } catch (e) {
-        console.error("Save pack failed:", e);
+      } catch {
         toast("Failed to save pack to dashboard");
       }
       return;
@@ -880,7 +898,6 @@ async function render(forceRefresh = false) {
     listPrompts().then(freshItems => {
       // Only re-render if data actually changed
       if (JSON.stringify(freshItems) !== JSON.stringify(cachedPrompts)) {
-        console.log("[Render] Data changed, updating cache and re-rendering");
         cachedPrompts = freshItems;
         render(true); // Force refresh with new data
       }
@@ -906,13 +923,10 @@ async function render(forceRefresh = false) {
       const packIds = packPrompts.map(p => p.id);
       const result = await removePromptsByIds(packIds);
       if (result.ok) {
-        console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user downgraded from pro)`);
         invalidateCache();
         // Refresh items after removal
         items = await listPrompts();
         cachedPrompts = items;
-      } else {
-        console.error(`[Render] Failed to remove pack prompts on downgrade:`, result.error);
       }
     }
   }
@@ -1010,19 +1024,13 @@ async function render(forceRefresh = false) {
 
 // Get initial auth state (uses cache if available)
 (async () => {
-  console.log("[Popup] Initializing popup...");
   authState = await getAuthState();
-  console.log("[Popup] Auth state loaded:", {
-    isAuthenticated: authState.isAuthenticated,
-    userId: authState.user?.id,
-  });
   await render(); // Initial render with cached or fresh auth
 
   // Background verification: check if auth state changed on server
   verifyAuthStateBackground(authState).then(async (newState) => {
     if (newState) {
       // Auth state changed - update and re-render
-      console.log("[Popup] Auth state changed, re-rendering");
       authState = newState;
       await render();
     }

@@ -2,8 +2,6 @@
 import { savePrompt } from "../shared/promptStore";
 import { startThemeSync, detectThemeFromPage, claudeTheme, type ThemeMode } from "../shared/theme";
 
-console.log("PromptPack content script running:", location.href);
-
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 
 function toast(msg: string) {

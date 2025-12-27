@@ -142,7 +142,8 @@ export function startThemeSync(options: ThemeSyncOptions = {}) {
  */
 export async function applyThemeFromStorageToRoot(): Promise<void> {
   const result = await chrome.storage.local.get(THEME_KEY);
-  const theme = (result[THEME_KEY] as ThemeMode | undefined) ?? getSystemTheme();
+  const storedTheme = result[THEME_KEY] as ThemeMode | undefined;
+  const theme = storedTheme ?? getSystemTheme();
   document.documentElement.dataset.theme = theme;
 }
 

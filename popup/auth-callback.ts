@@ -33,9 +33,7 @@ async function main() {
         message.textContent = "Something went wrong. Please try again.";
       }
     }
-  } catch (e) {
-    console.error("Auth callback error:", e);
-
+  } catch {
     if (spinner) spinner.style.display = "none";
     if (title) {
       title.textContent = "Error";

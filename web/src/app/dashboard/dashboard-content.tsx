@@ -8,6 +8,7 @@ import { SavedPrompts } from "./saved-prompts";
 import { ManageSubscriptionButton } from "./manage-subscription-button";
 import { useEffect } from "react";
 import { PromptPacks } from "./prompt-packs";
+import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT } from "@/lib/constants";
 
 export function DashboardContent() {
   const { user: clerkUser, isLoaded } = useUser();
@@ -49,8 +50,8 @@ export function DashboardContent() {
   const hasPro = convexUser?.plan === "pro";
 
   // Set limits based on plan
-  const promptLimit = hasPro ? 40 : 10;
-  const packLimit = hasPro ? 5 : 2;
+  const promptLimit = hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT;
+  const packLimit = hasPro ? PRO_PACK_LIMIT : FREE_PACK_LIMIT;
 
   // Calculate saved prompts count
   const savedPromptsCount = savedPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
@@ -120,7 +121,7 @@ export function DashboardContent() {
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
         {convexUser?._id && clerkUser?.id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} clerkId={clerkUser.id} />
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
         )}
       </div>
 
