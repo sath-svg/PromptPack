@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/marketplace",
   "/marketplace/(.*)",
   "/api/webhooks/(.*)",
+  "/api/auth/status", // Extension auth status check
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
