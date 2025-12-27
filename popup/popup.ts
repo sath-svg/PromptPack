@@ -1,5 +1,6 @@
 import "./popup.css";
-import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { isStorageLow, getStorageStats } from "./shared/safeStorage";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
 import { getAuthState, verifyAuthStateBackground, canSavePrompt, type AuthState } from "./shared/auth";
@@ -53,21 +54,26 @@ async function performUndo() {
     return;
   }
 
-  const KEY = "promptpack_prompts";
-  const res = await chrome.storage.local.get(KEY);
-  const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
-
   if (action.type === "delete" || action.type === "delete-folder") {
-    // Restore deleted prompts
-    const restored = [...action.prompts, ...existing];
-    await chrome.storage.local.set({ [KEY]: restored });
+    // Restore deleted prompts using safe storage
+    const result = await restorePrompts(action.prompts);
+    if (!result.ok) {
+      toast("Failed to restore prompts. Please try again.");
+      // Put action back on stack so user can retry
+      undoStack.push(action);
+      return;
+    }
     invalidateCache();
     toast(`Restored ${action.prompts.length} prompt${action.prompts.length !== 1 ? "s" : ""}`);
   } else if (action.type === "import") {
-    // Remove imported prompts
-    const importedIds = new Set(action.prompts.map(p => p.id));
-    const filtered = existing.filter(p => !importedIds.has(p.id));
-    await chrome.storage.local.set({ [KEY]: filtered });
+    // Remove imported prompts using safe storage
+    const ids = action.prompts.map(p => p.id);
+    const result = await removePromptsByIds(ids);
+    if (!result.ok) {
+      toast("Failed to remove imported prompts. Please try again.");
+      undoStack.push(action);
+      return;
+    }
     invalidateCache();
     toast(`Removed ${action.prompts.length} imported prompt${action.prompts.length !== 1 ? "s" : ""}`);
   }
@@ -169,33 +175,37 @@ async function importPmtpk(file: File) {
       return;
     }
 
-    const KEY = "promptpack_prompts";
-    const res = await chrome.storage.local.get(KEY);
-    const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
-    console.log("[Import] Existing prompts:", existing.length);
-
-    const imported: PromptItem[] = [];
-    for (const p of data.prompts) {
-      const newPrompt: PromptItem = {
-        id: crypto.randomUUID(),
-        text: p.text,
-        source,
-        url: p.url || "",
-        createdAt: p.createdAt || Date.now(),
-        packName: packTitle // Save the pack name for grouping
-      };
-      imported.push(newPrompt);
+    // Check storage health before importing
+    const storageLow = await isStorageLow(90);
+    if (storageLow) {
+      const stats = await getStorageStats();
+      console.warn("[Import] Storage is nearly full:", stats);
+      toast("Warning: Storage is nearly full. Import may fail.");
     }
 
-    const merged = [...imported, ...existing];
-    await chrome.storage.local.set({ [KEY]: merged });
+    // Prepare prompts for bulk import
+    const promptsToImport = data.prompts.map((p: { text: string; url?: string; createdAt?: number }) => ({
+      text: p.text,
+      source,
+      url: p.url || "",
+    }));
+
+    // Use safe bulk save with verification and retry
+    const result = await bulkSavePrompts(promptsToImport, packTitle);
+
+    if (!result.ok) {
+      console.error("[Import] Bulk save failed:", result.error);
+      toast(`Import failed: ${result.error || "Storage error"}. Please try again.`);
+      return;
+    }
+
     invalidateCache();
-    console.log("[Import] Saved to storage. Total prompts:", merged.length);
+    console.log("[Import] Saved to storage. Imported:", result.imported.length);
 
-    // Push to undo stack
-    undoStack.push({ type: "import", prompts: imported });
+    // Push to undo stack with the actual saved prompts (includes IDs)
+    undoStack.push({ type: "import", prompts: result.imported });
 
-    toast(`Imported ${imported.length} prompt${imported.length !== 1 ? "s" : ""} from "${packTitle}"`);
+    toast(`Imported ${result.imported.length} prompt${result.imported.length !== 1 ? "s" : ""} from "${packTitle}"`);
     console.log("[Import] Import complete!");
     await render();
   } catch (e) {
@@ -500,25 +510,25 @@ function setupEventDelegation() {
 
       const packKey = btn.dataset.deletePack;
       const [source, packName] = packKey.split(":");
-      const items = await listPrompts();
-      const packPrompts = items.filter(p => p.packName === packName && p.source === source);
 
-      if (packPrompts.length === 0) {
+      // Use safe storage to delete pack prompts
+      const result = await deletePackPrompts(packName, source as PromptSource);
+
+      if (!result.ok) {
+        toast(`Failed to delete pack: ${result.error || "Storage error"}`);
+        return;
+      }
+
+      if (result.deleted.length === 0) {
         toast("No prompts to delete");
         return;
       }
 
-      undoStack.push({ type: "delete-folder", prompts: packPrompts, source: source as PromptSource });
-
-      // Delete all prompts from this pack
-      const KEY = "promptpack_prompts";
-      const res = await chrome.storage.local.get(KEY);
-      const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
-      const filtered = existing.filter(p => !(p.packName === packName && p.source === source));
-      await chrome.storage.local.set({ [KEY]: filtered });
+      // Push to undo stack for recovery
+      undoStack.push({ type: "delete-folder", prompts: result.deleted, source: source as PromptSource });
       invalidateCache();
 
-      toast(`Deleted "${packName}" pack (${packPrompts.length} prompts)`);
+      toast(`Deleted "${packName}" pack (${result.deleted.length} prompts)`);
       await render();
       return;
     }
@@ -892,12 +902,18 @@ async function render(forceRefresh = false) {
   if (lastProStatus === true && !isPro && isLoggedIn) {
     const packPrompts = items.filter(p => p.packName);
     if (packPrompts.length > 0) {
-      const KEY = "promptpack_prompts";
-      const nonPackPrompts = items.filter(p => !p.packName);
-      await chrome.storage.local.set({ [KEY]: nonPackPrompts });
-      console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user downgraded from pro)`);
-      // Invalidate cache after removing prompts
-      invalidateCache();
+      // Use safe storage to remove pack prompts
+      const packIds = packPrompts.map(p => p.id);
+      const result = await removePromptsByIds(packIds);
+      if (result.ok) {
+        console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user downgraded from pro)`);
+        invalidateCache();
+        // Refresh items after removal
+        items = await listPrompts();
+        cachedPrompts = items;
+      } else {
+        console.error(`[Render] Failed to remove pack prompts on downgrade:`, result.error);
+      }
     }
   }
 

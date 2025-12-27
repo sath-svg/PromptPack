@@ -9,7 +9,7 @@ const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack",
   version: "0.0.1",
-  permissions: ["storage", "tabs", "identity"],
+  permissions: ["storage", "unlimitedStorage", "tabs", "identity"],
   host_permissions: [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
