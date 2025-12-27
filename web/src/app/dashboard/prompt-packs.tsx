@@ -164,9 +164,46 @@ async function encodePrompts(
 export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
   const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
-  const createPack = useMutation(api.packs.create);
-  const updatePack = useMutation(api.packs.update);
   const deletePack = useMutation(api.packs.remove);
+
+  // Helper function to create pack via API (uploads to R2)
+  const createPackViaAPI = async (title: string, fileData: string, promptCount: number) => {
+    const response = await fetch("/api/packs/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        fileData,
+        promptCount,
+        version: "1.0",
+        price: 0,
+        isPublic: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to create pack");
+    }
+
+    return await response.json();
+  };
+
+  // Helper function to update pack via API (uploads to R2)
+  const updatePackViaAPI = async (id: Id<"packs">, fileData: string, promptCount: number) => {
+    const response = await fetch("/api/packs/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, fileData, promptCount }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to update pack");
+    }
+
+    return await response.json();
+  };
 
   const [selectedPack, setSelectedPack] = useState<SelectedPack | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -377,10 +414,19 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
       return;
     }
 
-    setIsSaving(true);
-    try {
-      const updatedPrompts = [...selectedPack.prompts, { text: draft, createdAt: Date.now() }];
+    // Optimistic update: Update UI immediately
+    const updatedPrompts = [...selectedPack.prompts, { text: draft, createdAt: Date.now() }];
+    const previousPack = selectedPack;
 
+    setSelectedPack({
+      ...selectedPack,
+      prompts: updatedPrompts,
+    });
+    setNewPrompt("");
+    showToast("Prompt added");
+
+    // Background sync: Upload to server asynchronously
+    try {
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
         const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
@@ -392,23 +438,16 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
         fileData = buildPackData(updatedPrompts);
       }
 
-      await updatePack({
-        id: selectedPack.id,
-        fileData,
-        promptCount: updatedPrompts.length,
-      });
-      setSelectedPack({
-        ...selectedPack,
-        prompts: updatedPrompts,
-        fileData,
-      });
-      setNewPrompt("");
-      showToast("Prompt added");
+      await updatePackViaAPI(selectedPack.id, fileData, updatedPrompts.length);
+
+      // Update fileData after successful upload
+      setSelectedPack(prev => prev ? { ...prev, fileData } : null);
     } catch (e) {
-      console.error("Add prompt failed:", e);
-      setError("Failed to add prompt.");
-    } finally {
-      setIsSaving(false);
+      console.error("Add prompt background sync failed:", e);
+      // Rollback on error
+      setSelectedPack(previousPack);
+      setNewPrompt(draft);
+      setError("Failed to sync prompt. Please try again.");
     }
   };
 
@@ -435,6 +474,15 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
       return;
     }
 
+    // Optimistic update: Update UI immediately
+    const previousPack = selectedPack;
+    setSelectedPack({
+      ...selectedPack,
+      prompts: newPrompts,
+    });
+    showToast("Prompt deleted");
+
+    // Background sync: Upload to server asynchronously
     try {
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
@@ -447,20 +495,15 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
         fileData = buildPackData(newPrompts);
       }
 
-      await updatePack({
-        id: selectedPack.id,
-        fileData,
-        promptCount: newPrompts.length,
-      });
-      setSelectedPack({
-        ...selectedPack,
-        prompts: newPrompts,
-        fileData,
-      });
-      showToast("Prompt deleted");
+      await updatePackViaAPI(selectedPack.id, fileData, newPrompts.length);
+
+      // Update fileData after successful upload
+      setSelectedPack(prev => prev ? { ...prev, fileData } : null);
     } catch (e) {
-      console.error("Delete prompt failed:", e);
-      showToast("Failed to delete prompt");
+      console.error("Delete prompt background sync failed:", e);
+      // Rollback on error
+      setSelectedPack(previousPack);
+      showToast("Failed to sync deletion. Please try again.");
     }
   };
 
@@ -541,29 +584,17 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
 
     try {
       if (action.type === "delete-pack") {
-        await createPack({
-          authorId: userId,
-          title: action.title,
-          description: undefined,
-          category: undefined,
-          fileData: buildPackData(action.prompts),
-          promptCount: action.prompts.length,
-          version: "1.0",
-          price: 0,
-          isPublic: false,
-        });
+        const fileData = buildPackData(action.prompts);
+        await createPackViaAPI(action.title, fileData, action.prompts.length);
         showToast("Pack restored");
       } else if (action.type === "delete-prompt") {
-        await updatePack({
-          id: action.packId,
-          fileData: buildPackData(action.prompts),
-          promptCount: action.prompts.length,
-        });
+        const fileData = buildPackData(action.prompts);
+        await updatePackViaAPI(action.packId, fileData, action.prompts.length);
         if (selectedPack && selectedPack.id === action.packId) {
           setSelectedPack({
             ...selectedPack,
             prompts: action.prompts,
-            fileData: buildPackData(action.prompts),
+            fileData,
           });
         }
         showToast("Prompt restored");
@@ -598,16 +629,13 @@ export function PromptPacks({ userId, hasPro, clerkId }: PromptPacksProps) {
             setSelectedPack(null);
           }
         } else {
-          await updatePack({
-            id: action.packId,
-            fileData: buildPackData(newPrompts),
-            promptCount: newPrompts.length,
-          });
+          const fileData = buildPackData(newPrompts);
+          await updatePackViaAPI(action.packId, fileData, newPrompts.length);
           if (selectedPack && selectedPack.id === action.packId) {
             setSelectedPack({
               ...selectedPack,
               prompts: newPrompts,
-              fileData: buildPackData(newPrompts),
+              fileData,
             });
           }
         }

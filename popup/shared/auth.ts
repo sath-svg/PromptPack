@@ -29,6 +29,93 @@ export type AuthState = {
   };
 };
 
+type CachedAuthState = AuthState & {
+  cachedAt: number;
+  expiresAt: number;
+};
+
+const AUTH_CACHE_KEY = "pp_auth_cache";
+const AUTH_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+
+/**
+ * Get cached auth state (instant, no network calls)
+ */
+async function getCachedAuthState(): Promise<AuthState | null> {
+  // Debug: Check ALL storage keys to see what's there
+  const allStorage = await chrome.storage.local.get(null);
+  console.log("[Auth Cache] All storage keys:", Object.keys(allStorage));
+
+  const result = await chrome.storage.local.get(AUTH_CACHE_KEY);
+  const cached = result[AUTH_CACHE_KEY] as CachedAuthState | undefined;
+
+  console.log("[Auth Cache] Get attempt:", {
+    key: AUTH_CACHE_KEY,
+    found: !!cached,
+    cachedAt: cached?.cachedAt ? new Date(cached.cachedAt).toISOString() : null,
+    expiresAt: cached?.expiresAt ? new Date(cached.expiresAt).toISOString() : null,
+    now: new Date().toISOString(),
+  });
+
+  if (!cached) {
+    console.log("[Auth Cache] No cache found");
+    return null;
+  }
+
+  // Check if cache expired
+  if (Date.now() > cached.expiresAt) {
+    console.log("[Auth Cache] Cache expired, removing");
+    await chrome.storage.local.remove(AUTH_CACHE_KEY);
+    return null;
+  }
+
+  // Return cached state without timestamps
+  const { cachedAt, expiresAt, ...authState } = cached;
+  console.log("[Auth Cache] Returning cached state:", {
+    isAuthenticated: authState.isAuthenticated,
+    userId: authState.user?.id,
+    hasBilling: !!authState.billing,
+  });
+  return authState;
+}
+
+/**
+ * Save auth state to cache with 12-hour TTL
+ */
+async function setCachedAuthState(authState: AuthState): Promise<void> {
+  const now = Date.now();
+  const cached: CachedAuthState = {
+    ...authState,
+    cachedAt: now,
+    expiresAt: now + AUTH_CACHE_TTL,
+  };
+
+  console.log("[Auth Cache] Setting cache:", {
+    key: AUTH_CACHE_KEY,
+    isAuthenticated: authState.isAuthenticated,
+    userId: authState.user?.id,
+    hasBilling: !!authState.billing,
+    cachedAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + AUTH_CACHE_TTL).toISOString(),
+  });
+
+  await chrome.storage.local.set({ [AUTH_CACHE_KEY]: cached });
+
+  // Verify it was saved
+  const verify = await chrome.storage.local.get(AUTH_CACHE_KEY);
+  console.log("[Auth Cache] Verification after save:", {
+    saved: !!verify[AUTH_CACHE_KEY],
+    matches: JSON.stringify(verify[AUTH_CACHE_KEY]) === JSON.stringify(cached),
+  });
+}
+
+/**
+ * Clear cached auth state (on logout)
+ */
+async function clearCachedAuthState(): Promise<void> {
+  console.log("[Auth Cache] Clearing cache");
+  await chrome.storage.local.remove(AUTH_CACHE_KEY);
+}
+
 /**
  * Get billing info from Convex
  */
@@ -49,22 +136,56 @@ export async function getBillingInfo(clerkId: string): Promise<{
 }
 
 /**
- * Get current auth state from local storage
+ * Get current auth state - returns cached instantly, verifies in background
  */
 export async function getAuthState(): Promise<AuthState> {
+  // Try to get cached state first (instant)
+  const cached = await getCachedAuthState();
+  if (cached) {
+    console.log("[Auth] Using cached auth state");
+    return cached;
+  }
+
+  // No cache - fetch fresh state
+  console.log("[Auth] No cache, fetching fresh auth state");
+  const freshState = await getAuthStateFromServer();
+
+  // Cache the fresh state
+  if (freshState.isAuthenticated) {
+    await setCachedAuthState(freshState);
+  }
+
+  return freshState;
+}
+
+/**
+ * Get auth state from server (network call)
+ */
+async function getAuthStateFromServer(): Promise<AuthState> {
+  console.log("[Auth] Getting session from IndexedDB...");
   const session = await getSession();
+
+  console.log("[Auth] Session retrieved:", {
+    found: !!session,
+    userId: session?.userId,
+    email: session?.email,
+    expiresAt: session?.expiresAt ? new Date(session.expiresAt).toISOString() : null,
+    expired: session ? session.expiresAt < Date.now() : null,
+  });
 
   if (!session || session.expiresAt < Date.now()) {
     // Try to refresh if we have a refresh token
     if (session?.refreshToken) {
+      console.log("[Auth] Session expired, attempting refresh...");
       const refreshed = await api.refreshToken();
       if (refreshed) {
         const newSession = await getSession();
         if (newSession) {
           // Fetch billing info from Convex
+          console.log("[Auth] Fetching billing info after refresh...");
           const billing = await getBillingInfo(newSession.userId);
 
-          return {
+          const authState = {
             isAuthenticated: true,
             user: {
               id: newSession.userId,
@@ -74,17 +195,65 @@ export async function getAuthState(): Promise<AuthState> {
             entitlements: newSession.entitlements,
             billing: billing || undefined,
           };
+
+          return authState;
         }
       }
     }
 
+    // No IndexedDB session - check if user is logged in on web
+    console.log("[Auth] No extension session, checking web auth status...");
+    const webAuth = await api.checkWebAuthStatus();
+    console.log("[Auth] Web auth status:", webAuth);
+
+    if (webAuth?.isAuthenticated && webAuth.user) {
+      console.log("[Auth] User is authenticated on web, fetching billing info...");
+      // User is logged in on web, get their billing info
+      const billing = await getBillingInfo(webAuth.user.id);
+      console.log("[Auth] Billing info received:", {
+        found: !!billing,
+        isPro: billing?.isPro,
+        plan: billing?.plan,
+      });
+
+      const authState: AuthState = {
+        isAuthenticated: true,
+        user: {
+          id: webAuth.user.id,
+          email: webAuth.user.email,
+          tier: (billing?.plan === "pro" ? "paid" : "free") as "free" | "paid",
+        },
+        entitlements: {
+          promptLimit: billing?.isPro ? 40 : 10,
+          loadedPackLimit: billing?.isPro ? 999999 : 0,
+        },
+        billing: billing || undefined,
+      };
+
+      console.log("[Auth] Returning web auth state:", {
+        isAuthenticated: authState.isAuthenticated,
+        userId: authState.user?.id,
+        tier: authState.user?.tier,
+        hasBilling: !!authState.billing,
+      });
+
+      return authState;
+    }
+
+    console.log("[Auth] No valid session anywhere, returning unauthenticated");
     return { isAuthenticated: false };
   }
 
   // Fetch billing info from Convex
+  console.log("[Auth] Valid session found, fetching billing info...");
   const billing = await getBillingInfo(session.userId);
+  console.log("[Auth] Billing info received:", {
+    found: !!billing,
+    isPro: billing?.isPro,
+    plan: billing?.plan,
+  });
 
-  return {
+  const authState = {
     isAuthenticated: true,
     user: {
       id: session.userId,
@@ -94,6 +263,44 @@ export async function getAuthState(): Promise<AuthState> {
     entitlements: session.entitlements,
     billing: billing || undefined,
   };
+
+  console.log("[Auth] Returning extension session auth state:", {
+    isAuthenticated: authState.isAuthenticated,
+    userId: authState.user?.id,
+    tier: authState.user?.tier,
+    hasBilling: !!authState.billing,
+  });
+
+  return authState;
+}
+
+/**
+ * Verify auth state in background and update cache if changed
+ */
+export async function verifyAuthStateBackground(currentState: AuthState): Promise<AuthState | null> {
+  try {
+    const freshState = await getAuthStateFromServer();
+
+    // Compare states
+    if (JSON.stringify(freshState) !== JSON.stringify(currentState)) {
+      console.log("[Auth] State changed, updating cache");
+
+      // Update cache
+      if (freshState.isAuthenticated) {
+        await setCachedAuthState(freshState);
+      } else {
+        await clearCachedAuthState();
+      }
+
+      return freshState; // Return new state
+    }
+
+    console.log("[Auth] State unchanged");
+    return null; // No change
+  } catch (error) {
+    console.error("[Auth] Background verification failed:", error);
+    return null;
+  }
 }
 
 /**
@@ -224,13 +431,31 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
   await chrome.storage.local.remove("pp_auth_state");
 
   try {
-    console.log("Exchanging code for token...");
+    console.log("[Auth Callback] Exchanging code for token...");
     // Exchange code for token
     await api.exchangeCodeForToken(code);
-    console.log("Token exchange successful!");
+    console.log("[Auth Callback] Token exchange successful!");
+
+    // Fetch fresh auth state and cache it
+    console.log("[Auth Callback] Fetching fresh auth state...");
+    const freshState = await getAuthStateFromServer();
+    console.log("[Auth Callback] Fresh state received:", {
+      isAuthenticated: freshState.isAuthenticated,
+      userId: freshState.user?.id,
+      hasBilling: !!freshState.billing,
+    });
+
+    if (freshState.isAuthenticated) {
+      console.log("[Auth Callback] Caching auth state...");
+      await setCachedAuthState(freshState);
+      console.log("[Auth Callback] Auth state cached successfully");
+    } else {
+      console.log("[Auth Callback] User not authenticated, not caching");
+    }
+
     return true;
   } catch (e) {
-    console.error("Token exchange failed:", e);
+    console.error("[Auth Callback] Token exchange failed:", e);
     return false;
   }
 }
@@ -240,6 +465,7 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
  */
 export async function logout(): Promise<void> {
   await api.logout();
+  await clearCachedAuthState();
 }
 
 /**

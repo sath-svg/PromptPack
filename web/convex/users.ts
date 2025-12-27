@@ -313,3 +313,111 @@ export const testSetGracePeriod = mutation({
     };
   },
 });
+
+/**
+ * Diagnostic: Check if webhook secret is configured
+ * Returns masked version of the secret (first/last 4 chars only)
+ */
+export const checkWebhookSecret = query({
+  handler: async () => {
+    const secret = process.env.CLERK_WEBHOOK_SECRET;
+
+    if (!secret) {
+      return {
+        configured: false,
+        message: "CLERK_WEBHOOK_SECRET is not set in Convex environment",
+        fix: "Run: npx convex env set CLERK_WEBHOOK_SECRET whsec_xxx",
+      };
+    }
+
+    // Mask the secret (show first 8 and last 4 chars only)
+    const masked = secret.length > 12
+      ? `${secret.substring(0, 8)}...${secret.substring(secret.length - 4)}`
+      : "***";
+
+    return {
+      configured: true,
+      masked,
+      length: secret.length,
+      startsWithWhsec: secret.startsWith("whsec_"),
+      message: "Webhook secret is configured",
+    };
+  },
+});
+
+/**
+ * Admin utility: Manually sync user plan from Clerk
+ * Use this when webhooks fail or for manual plan updates
+ *
+ * Usage from Convex Dashboard:
+ * 1. Go to Functions → users → syncPlanFromClerk
+ * 2. Pass arguments: { "clerkId": "user_xxx", "plan": "pro" }
+ * 3. Or from your Clerk user ID: { "clerkId": "user_2abc123", "plan": "free" }
+ */
+export const syncPlanFromClerk = mutation({
+  args: {
+    clerkId: v.string(),
+    plan: v.union(v.literal("free"), v.literal("pro")),
+  },
+  handler: async (ctx, { clerkId, plan }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User with clerkId ${clerkId} not found in database`);
+    }
+
+    const oldPlan = user.plan;
+
+    // Handle downgrade from pro to free
+    if (oldPlan === "pro" && plan === "free") {
+      console.log(`[Manual Sync] User ${clerkId} downgraded to free - starting grace period`);
+
+      // Set grace period: 1 day (24 hours) from now
+      const gracePeriodMs = 24 * 60 * 60 * 1000;
+      const packDeletionAt = Date.now() + gracePeriodMs;
+
+      await ctx.db.patch(user._id, {
+        plan,
+        packDeletionAt,
+      });
+
+      console.log(`[Manual Sync] Grace period set: packs will be deleted at ${new Date(packDeletionAt).toISOString()}`);
+      return {
+        success: true,
+        message: `User downgraded from ${oldPlan} to ${plan}. Grace period started: 24 hours.`,
+        packDeletionAt,
+        oldPlan,
+        newPlan: plan,
+      };
+    }
+    // Handle upgrade from free to pro
+    else if (oldPlan === "free" && plan === "pro") {
+      console.log(`[Manual Sync] User ${clerkId} upgraded to pro - clearing grace period`);
+
+      await ctx.db.patch(user._id, {
+        plan,
+        packDeletionAt: undefined,
+      });
+
+      return {
+        success: true,
+        message: `User upgraded from ${oldPlan} to ${plan}. Grace period cleared.`,
+        oldPlan,
+        newPlan: plan,
+      };
+    }
+    // Same plan, just update (no actual change)
+    else {
+      await ctx.db.patch(user._id, { plan });
+      return {
+        success: true,
+        message: `Plan set to ${plan} (no change from ${oldPlan})`,
+        oldPlan,
+        newPlan: plan,
+      };
+    }
+  },
+});

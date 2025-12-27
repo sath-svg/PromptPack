@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .claude/*
+.wrangler
 
 # Editor directories and files
 .vscode/*

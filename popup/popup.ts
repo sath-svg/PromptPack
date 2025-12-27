@@ -2,8 +2,7 @@ import "./popup.css";
 import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, type AuthState } from "./shared/auth";
-import { clearSession } from "./shared/db";
+import { getAuthState, verifyAuthStateBackground, canSavePrompt, type AuthState } from "./shared/auth";
 
 // SVG Icons
 const ICON = {
@@ -19,6 +18,25 @@ const ICON = {
 // Auth state
 let authState: AuthState = { isAuthenticated: false };
 let isSyncing = false;
+
+// Pro status tracking (persisted to detect downgrades)
+const PRO_STATUS_KEY = "pp_last_pro_status";
+async function getLastProStatus(): Promise<boolean | null> {
+  const result = await chrome.storage.local.get(PRO_STATUS_KEY);
+  const value = result[PRO_STATUS_KEY];
+  return value === true || value === false ? value : null;
+}
+async function setLastProStatus(isPro: boolean): Promise<void> {
+  await chrome.storage.local.set({ [PRO_STATUS_KEY]: isPro });
+}
+
+// Cached prompts for instant rendering
+let cachedPrompts: PromptItem[] | null = null;
+
+// Helper to invalidate cache when prompts change
+function invalidateCache() {
+  cachedPrompts = null;
+}
 
 // Undo state
 type UndoAction = {
@@ -43,12 +61,14 @@ async function performUndo() {
     // Restore deleted prompts
     const restored = [...action.prompts, ...existing];
     await chrome.storage.local.set({ [KEY]: restored });
+    invalidateCache();
     toast(`Restored ${action.prompts.length} prompt${action.prompts.length !== 1 ? "s" : ""}`);
   } else if (action.type === "import") {
     // Remove imported prompts
     const importedIds = new Set(action.prompts.map(p => p.id));
     const filtered = existing.filter(p => !importedIds.has(p.id));
     await chrome.storage.local.set({ [KEY]: filtered });
+    invalidateCache();
     toast(`Removed ${action.prompts.length} imported prompt${action.prompts.length !== 1 ? "s" : ""}`);
   }
 
@@ -69,6 +89,11 @@ async function importPmtpk(file: File) {
       console.log("[Import] Import blocked - pack limit reached");
       return;
     }
+
+    // Check if user can accommodate more prompts (40 prompt limit for pro)
+    const currentPromptCount = items.length;
+    const promptLimitCheck = await canSavePrompt(currentPromptCount);
+    console.log("[Import] Current prompts:", currentPromptCount, "Limit:", promptLimitCheck.limit, "Remaining:", promptLimitCheck.remaining);
 
     const buffer = await file.arrayBuffer();
     const bytes = new Uint8Array(buffer);
@@ -134,6 +159,16 @@ async function importPmtpk(file: File) {
     const packTitle = data.title || file.name.replace(/\.pmtpk$/, "");
     console.log("[Import] Source:", source, "Title:", packTitle, "Prompt count:", data.prompts.length);
 
+    // Check if importing this pack would exceed the prompt limit
+    const packPromptCount = data.prompts.length;
+    const newTotalPrompts = currentPromptCount + packPromptCount;
+
+    if (newTotalPrompts > promptLimitCheck.limit) {
+      toast(`Cannot import: would exceed ${promptLimitCheck.limit} prompt limit (${currentPromptCount} + ${packPromptCount} = ${newTotalPrompts})`);
+      console.log("[Import] Import blocked - would exceed prompt limit");
+      return;
+    }
+
     const KEY = "promptpack_prompts";
     const res = await chrome.storage.local.get(KEY);
     const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
@@ -154,6 +189,7 @@ async function importPmtpk(file: File) {
 
     const merged = [...imported, ...existing];
     await chrome.storage.local.set({ [KEY]: merged });
+    invalidateCache();
     console.log("[Import] Saved to storage. Total prompts:", merged.length);
 
     // Push to undo stack
@@ -429,6 +465,7 @@ function setupEventDelegation() {
         undoStack.push({ type: "delete", prompts: [prompt] });
       }
       await deletePrompt(id);
+      invalidateCache();
       toast("Deleted");
       await render();
       return;
@@ -450,6 +487,7 @@ function setupEventDelegation() {
 
       undoStack.push({ type: "delete-folder", prompts: sourcePrompts, source });
       await deletePromptsBySource(source);
+      invalidateCache();
       toast(`Deleted ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""}`);
       await render();
       return;
@@ -478,6 +516,7 @@ function setupEventDelegation() {
       const existing = (res[KEY] as PromptItem[] | undefined) ?? [];
       const filtered = existing.filter(p => !(p.packName === packName && p.source === source));
       await chrome.storage.local.set({ [KEY]: filtered });
+      invalidateCache();
 
       toast(`Deleted "${packName}" pack (${packPrompts.length} prompts)`);
       await render();
@@ -810,78 +849,7 @@ function setupEventDelegation() {
   });
 }
 
-async function syncAuthState(): Promise<AuthState> {
-  // Check if we have a pending auth check from button navigation
-  const checkResult = await chrome.storage.local.get("pp_auth_check_needed");
-  if (checkResult.pp_auth_check_needed) {
-    // Clear the flag
-    await chrome.storage.local.remove("pp_auth_check_needed");
-
-    // Update auth state based on where the user landed
-    if (checkResult.pp_auth_check_needed === "logged_out") {
-      // User clicked button but landed on sign-in, so they're logged out
-      await clearSession();
-      return { isAuthenticated: false };
-    } else if (checkResult.pp_auth_check_needed === "logged_in") {
-      // User clicked button but landed on dashboard, so they're logged in
-      // Get the full auth state from local session or web API
-      return await getAuthState();
-    }
-  }
-
-  // Check auth state by making a lightweight request
-  // This runs every time popup opens to verify against Clerk's session
-  try {
-    // Fetch both auth status and billing status in parallel
-    const [authResponse, billingResponse] = await Promise.all([
-      fetch("http://localhost:3000/api/auth/status", {
-        method: "GET",
-        credentials: "include", // Include cookies for Clerk session
-      }),
-      fetch("http://localhost:3000/api/auth/billing-status", {
-        method: "GET",
-        credentials: "include", // Include cookies for Clerk session
-      }).catch(() => null), // Billing status is optional
-    ]);
-
-    const authData = await authResponse.json() as {
-      isAuthenticated: boolean;
-      user?: {
-        id: string;
-        email: string;
-      };
-    };
-
-    // Try to get billing data if available
-    let billingData: { plan: "free" | "pro"; isPro: boolean } | null = null;
-    if (billingResponse && billingResponse.ok) {
-      billingData = await billingResponse.json() as { plan: "free" | "pro"; isPro: boolean };
-    }
-
-    if (authData.isAuthenticated && authData.user) {
-      // User is logged in on web - return auth state with user info from API
-      return {
-        isAuthenticated: true,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          tier: billingData?.isPro ? "paid" : "free",
-        },
-        billing: billingData || undefined,
-      };
-    } else {
-      // User is logged out on web
-      await clearSession();
-      return { isAuthenticated: false };
-    }
-  } catch (error) {
-    console.error("Auth check failed:", error);
-    // Fallback to local session check
-    return await getAuthState();
-  }
-}
-
-async function render() {
+async function render(forceRefresh = false) {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
 
@@ -891,17 +859,51 @@ async function render() {
   const app = document.getElementById("app");
   if (!app) throw new Error("Missing #app in popup index.html");
 
-  const items = await listPrompts();
+  let items: PromptItem[];
 
-  // Remove imported packs from storage if user is not pro
-  if (!isPro) {
+  // Instant render with cache, background sync for updates
+  if (cachedPrompts && !forceRefresh) {
+    // Use cached data for instant render
+    items = cachedPrompts;
+
+    // Background sync
+    listPrompts().then(freshItems => {
+      // Only re-render if data actually changed
+      if (JSON.stringify(freshItems) !== JSON.stringify(cachedPrompts)) {
+        console.log("[Render] Data changed, updating cache and re-rendering");
+        cachedPrompts = freshItems;
+        render(true); // Force refresh with new data
+      }
+    });
+  } else {
+    // First render or forced refresh - fetch data
+    items = await listPrompts();
+    cachedPrompts = items;
+  }
+
+  // Remove imported packs from storage if user transitioned from pro to non-pro
+  // Only run this cleanup when pro status actually changes (genuine downgrade)
+  const lastProStatus = await getLastProStatus();
+
+  // Only cleanup if:
+  // 1. We have a recorded previous pro status (user was definitely pro before)
+  // 2. User is now NOT pro
+  // 3. User is authenticated (not just logged out)
+  if (lastProStatus === true && !isPro && isLoggedIn) {
     const packPrompts = items.filter(p => p.packName);
     if (packPrompts.length > 0) {
       const KEY = "promptpack_prompts";
       const nonPackPrompts = items.filter(p => !p.packName);
       await chrome.storage.local.set({ [KEY]: nonPackPrompts });
-      console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user is not pro)`);
+      console.log(`[Render] Removed ${packPrompts.length} imported pack prompts (user downgraded from pro)`);
+      // Invalidate cache after removing prompts
+      invalidateCache();
     }
+  }
+
+  // Update last pro status (but only if authenticated)
+  if (isLoggedIn) {
+    await setLastProStatus(isPro);
   }
 
   const groups = groupPrompts(items.filter(p => isPro || !p.packName));
@@ -990,25 +992,23 @@ async function render() {
   setupEventDelegation();
 }
 
-// Initial render with local state
-render();
-
-// Sync auth state in background
+// Get initial auth state (uses cache if available)
 (async () => {
-  isSyncing = true;
-  await render(); // Show syncing indicator
+  console.log("[Popup] Initializing popup...");
+  authState = await getAuthState();
+  console.log("[Popup] Auth state loaded:", {
+    isAuthenticated: authState.isAuthenticated,
+    userId: authState.user?.id,
+  });
+  await render(); // Initial render with cached or fresh auth
 
-  const newAuthState = await syncAuthState();
-  const stateChanged = newAuthState.isAuthenticated !== authState.isAuthenticated;
-
-  authState = newAuthState;
-  isSyncing = false;
-
-  // Only re-render if state actually changed
-  if (stateChanged) {
-    await render();
-  } else {
-    // Just remove sync indicator
-    await render();
-  }
+  // Background verification: check if auth state changed on server
+  verifyAuthStateBackground(authState).then(async (newState) => {
+    if (newState) {
+      // Auth state changed - update and re-render
+      console.log("[Popup] Auth state changed, re-rendering");
+      authState = newState;
+      await render();
+    }
+  });
 })();

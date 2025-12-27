@@ -305,6 +305,36 @@ class ApiClient {
   }
 
   /**
+   * Check auth status from web app (if user is logged in via Clerk on web)
+   */
+  async checkWebAuthStatus(): Promise<{
+    isAuthenticated: boolean;
+    user?: {
+      id: string;
+      email: string;
+      name?: string;
+    };
+  } | null> {
+    try {
+      // Use localhost:3000 for dev, will be pmtpk.ai in production
+      const webUrl = "http://localhost:3000";
+      const response = await fetch(`${webUrl}/api/auth/status`, {
+        method: "GET",
+        credentials: "include", // Include Clerk session cookies
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("[API] Failed to check web auth status:", error);
+      return null;
+    }
+  }
+
+  /**
    * Get billing status from Convex - checks user's current plan
    */
   async getBillingStatus(clerkId: string): Promise<{
