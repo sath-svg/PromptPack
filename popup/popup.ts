@@ -38,6 +38,7 @@ const ICON = {
 // Auth state
 let authState: AuthState = { isAuthenticated: false };
 let isSyncing = false;
+let isLoadingAuth = true; // Show loading screen until auth is verified
 
 // Pro status tracking (persisted to detect downgrades)
 const PRO_STATUS_KEY = "pp_last_pro_status";
@@ -881,11 +882,24 @@ async function render(forceRefresh = false) {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
 
-  const isLoggedIn = authState.isAuthenticated;
-  const isPro = authState.billing?.isPro ?? false;
-
   const app = document.getElementById("app");
   if (!app) throw new Error("Missing #app in popup index.html");
+
+  // Show loading screen while auth is being verified
+  if (isLoadingAuth) {
+    app.innerHTML = `
+      <div class="pp-wrap pp-loading">
+        <div class="pp-loading-content">
+          <div class="pp-loading-spinner"></div>
+          <div class="pp-loading-text">Loading...</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  const isLoggedIn = authState.isAuthenticated;
+  const isPro = authState.billing?.isPro ?? false;
 
   let items: PromptItem[];
 
@@ -1024,8 +1038,15 @@ async function render(forceRefresh = false) {
 
 // Get initial auth state (uses cache if available)
 (async () => {
+  // Show loading screen first
+  await render();
+
+  // Get auth state (cached or fresh)
   authState = await getAuthState();
-  await render(); // Initial render with cached or fresh auth
+  isLoadingAuth = false;
+
+  // Re-render with actual content
+  await render();
 
   // Background verification: check if auth state changed on server
   verifyAuthStateBackground(authState).then(async (newState) => {

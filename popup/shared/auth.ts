@@ -36,49 +36,61 @@ type CachedAuthState = AuthState & {
 };
 
 const AUTH_CACHE_KEY = "pp_auth_cache";
-const AUTH_CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+
+// Use session storage - cleared when browser closes
+// This means API call happens once per browser session, then cached
+const authStorage = chrome.storage.session;
 
 /**
  * Get cached auth state (instant, no network calls)
+ * Uses session storage - persists until browser is closed
  */
 async function getCachedAuthState(): Promise<AuthState | null> {
-  const result = await chrome.storage.local.get(AUTH_CACHE_KEY);
-  const cached = result[AUTH_CACHE_KEY] as CachedAuthState | undefined;
+  try {
+    const result = await authStorage.get(AUTH_CACHE_KEY);
+    const cached = result[AUTH_CACHE_KEY] as CachedAuthState | undefined;
 
-  if (!cached) {
+    if (!cached) {
+      return null;
+    }
+
+    // Return cached state without timestamps
+    const { cachedAt, expiresAt, ...authState } = cached;
+    return authState;
+  } catch {
+    // Fallback if session storage not available
     return null;
   }
-
-  // Check if cache expired
-  if (Date.now() > cached.expiresAt) {
-    await chrome.storage.local.remove(AUTH_CACHE_KEY);
-    return null;
-  }
-
-  // Return cached state without timestamps
-  const { cachedAt, expiresAt, ...authState } = cached;
-  return authState;
 }
 
 /**
- * Save auth state to cache with 12-hour TTL
+ * Save auth state to session cache
+ * Persists until browser is closed
  */
 async function setCachedAuthState(authState: AuthState): Promise<void> {
-  const now = Date.now();
-  const cached: CachedAuthState = {
-    ...authState,
-    cachedAt: now,
-    expiresAt: now + AUTH_CACHE_TTL,
-  };
+  try {
+    const now = Date.now();
+    const cached: CachedAuthState = {
+      ...authState,
+      cachedAt: now,
+      expiresAt: now + 24 * 60 * 60 * 1000, // Not really used, session clears on browser close
+    };
 
-  await chrome.storage.local.set({ [AUTH_CACHE_KEY]: cached });
+    await authStorage.set({ [AUTH_CACHE_KEY]: cached });
+  } catch {
+    // Ignore if session storage not available
+  }
 }
 
 /**
  * Clear cached auth state (on logout)
  */
 async function clearCachedAuthState(): Promise<void> {
-  await chrome.storage.local.remove(AUTH_CACHE_KEY);
+  try {
+    await authStorage.remove(AUTH_CACHE_KEY);
+  } catch {
+    // Ignore if session storage not available
+  }
 }
 
 /**
@@ -198,27 +210,14 @@ async function getAuthStateFromServer(): Promise<AuthState> {
 
 /**
  * Verify auth state in background and update cache if changed
+ * Since we use session storage (cleared on browser close), no throttling needed.
+ * This is only called if there's already a cached state, so it won't make extra API calls.
  */
-export async function verifyAuthStateBackground(currentState: AuthState): Promise<AuthState | null> {
-  try {
-    const freshState = await getAuthStateFromServer();
-
-    // Compare states
-    if (JSON.stringify(freshState) !== JSON.stringify(currentState)) {
-      // Update cache
-      if (freshState.isAuthenticated) {
-        await setCachedAuthState(freshState);
-      } else {
-        await clearCachedAuthState();
-      }
-
-      return freshState; // Return new state
-    }
-
-    return null; // No change
-  } catch {
-    return null;
-  }
+export async function verifyAuthStateBackground(_currentState: AuthState): Promise<AuthState | null> {
+  // Skip background verification - session storage handles this
+  // Auth is checked once per browser session, cached until browser closes
+  // Only re-verify if user explicitly logs out or logs in
+  return null;
 }
 
 /**
