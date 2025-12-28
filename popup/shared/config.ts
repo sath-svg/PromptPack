@@ -48,7 +48,7 @@ export const MAX_IMPORTED_PACKS = 2;
 // ============================================================================
 // SESSION & CACHE CONFIGURATION
 // ============================================================================
-export const SESSION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const SESSION_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 export const AUTH_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 export const AUTH_CACHE_KEY = "pp_auth_cache";
 export const PRO_STATUS_KEY = "pp_last_pro_status";
