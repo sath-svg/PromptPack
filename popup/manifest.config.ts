@@ -1,22 +1,16 @@
 import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
-// ============================================================================
-// TODO-PRODUCTION: Update host_permissions before deploying extension
-// Remove localhost, add production domain
-// ============================================================================
-
 const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack",
-  version: "0.0.1",
+  version: "1.0.0",
   permissions: ["storage", "unlimitedStorage", "tabs", "identity"],
   host_permissions: [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
-    "http://localhost:3000/*", // REMOVE in production
-    // PRODUCTION: Add "https://pmtpk.ai/*"
+    "https://pmtpk.com/*",
   ],
   action: {
     default_popup: "index.html",

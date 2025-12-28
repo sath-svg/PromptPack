@@ -415,7 +415,7 @@ class ApiClient {
    *
    * NOTE: This only works in development (localhost) where cookies can be shared.
    * In production, cross-origin cookie sharing doesn't work between chrome-extension://
-   * and pmtpk.ai, so this will return null. Users must use the explicit login flow.
+   * and pmtpk.com, so this will return null. Users must use the explicit login flow.
    */
   async checkWebAuthStatus(): Promise<{
     isAuthenticated: boolean;
@@ -427,7 +427,7 @@ class ApiClient {
   } | null> {
     try {
       // In production, cross-origin cookie sharing doesn't work between chrome-extension://
-      // and pmtpk.ai, so skip the API call entirely to save costs.
+      // and pmtpk.com, so skip the API call entirely to save costs.
       // Users must use the explicit login flow in production.
       if (IS_PRODUCTION) {
         return null;

@@ -6,22 +6,16 @@
 // ============================================================================
 
 // ============================================================================
-// TODO-PRODUCTION: Update these URLs before deploying
+// PRODUCTION CONFIGURATION
 // ============================================================================
 
 // Base URLs
-export const BASE_URL = "http://localhost:3000"; // Web app URL
-// PRODUCTION: export const BASE_URL = "https://pmtpk.ai";
-
-export const API_BASE = "http://localhost:8787"; // Cloudflare Workers R2 API
-// PRODUCTION: export const API_BASE = "https://your-worker.workers.dev";
-
-export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex HTTP endpoint
-// PRODUCTION: Update if using different Convex deployment
+export const BASE_URL = "https://pmtpk.com";
+export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
+export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site";
 
 // Feature flag for production mode
-export const IS_PRODUCTION = false;
-// PRODUCTION: export const IS_PRODUCTION = true;
+export const IS_PRODUCTION = true;
 
 // ============================================================================
 // URL Endpoints (derived from base URLs)
@@ -30,7 +24,7 @@ export const AUTH_URL = `${BASE_URL}/extension-auth`;
 export const DASHBOARD_URL = `${BASE_URL}/dashboard`;
 export const PRICING_URL = `${BASE_URL}/pricing`;
 export const SIGN_IN_URL = `${BASE_URL}/sign-in`;
-export const MARKETPLACE_URL = IS_PRODUCTION ? "https://pmtpk.ai/marketplace" : `${BASE_URL}/marketplace`;
+export const MARKETPLACE_URL = IS_PRODUCTION ? "https://pmtpk.com/marketplace" : `${BASE_URL}/marketplace`;
 export const PACKS_CREATE_API = `${BASE_URL}/api/packs/create`;
 
 // ============================================================================
@@ -72,7 +66,21 @@ export const PROMPTS_STORAGE_KEY = "promptpack_prompts";
 // ============================================================================
 // PASSWORD & ENCRYPTION REQUIREMENTS
 // ============================================================================
-export const PASSWORD_LENGTH = 5;
+export const PASSWORD_MIN_LENGTH = 1;
+export const PASSWORD_MAX_LENGTH = 14;
+export const PASSWORD_REGEX = /^[a-zA-Z0-9]+$/; // Only letters and numbers, case sensitive
+
+// Helper function to validate password
+export function isValidPassword(password: string): boolean {
+  return (
+    password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH &&
+    PASSWORD_REGEX.test(password)
+  );
+}
+
+// Legacy constant for backwards compatibility
+export const PASSWORD_LENGTH = PASSWORD_MAX_LENGTH;
 
 // ============================================================================
 // UI CONFIGURATION

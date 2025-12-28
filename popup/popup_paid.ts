@@ -32,7 +32,8 @@ import { api } from "./shared/api";
 import {
   FREE_PROMPT_LIMIT,
   PRO_PROMPT_LIMIT,
-  PASSWORD_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  isValidPassword,
   TOAST_DURATION_MS,
   MARKETPLACE_URL,
 } from "./shared/config";
@@ -190,13 +191,13 @@ async function importPmtpk(file: File) {
     let jsonString: string;
 
     if (encrypted) {
-      const password = prompt(`Enter password (${PASSWORD_LENGTH} characters):`);
+      const password = prompt(`Enter password (letters and numbers only, max ${PASSWORD_MAX_LENGTH} characters):`);
       if (!password) {
         toast("Import cancelled");
         return;
       }
-      if (password.length !== PASSWORD_LENGTH) {
-        toast(`Password must be ${PASSWORD_LENGTH} characters`);
+      if (!isValidPassword(password)) {
+        toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
       jsonString = await decryptPmtpk(bytes, password);
@@ -604,10 +605,10 @@ function setupEventDelegation() {
         return;
       }
 
-      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
+      const password = prompt(`Enter a password to encrypt (letters/numbers only, max ${PASSWORD_MAX_LENGTH} chars, or leave empty):`);
       if (password === null) return;
-      if (password && password.length !== PASSWORD_LENGTH) {
-        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+      if (password && !isValidPassword(password)) {
+        toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
 
