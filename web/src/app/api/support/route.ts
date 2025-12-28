@@ -1,8 +1,20 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
+export const runtime = "edge";
+
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
+
+// Helper to convert ArrayBuffer to base64 (edge-compatible)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 export async function POST(request: Request) {
   try {
@@ -20,13 +32,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert file attachments to base64 for Resend
+    // Convert file attachments to base64 for Resend (edge-compatible)
     const emailAttachments = await Promise.all(
       attachments.map(async (file) => {
         const buffer = await file.arrayBuffer();
         return {
           filename: file.name,
-          content: Buffer.from(buffer),
+          content: arrayBufferToBase64(buffer),
         };
       })
     );

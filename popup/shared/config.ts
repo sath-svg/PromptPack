@@ -12,7 +12,7 @@
 // Base URLs
 export const BASE_URL = "https://pmtpk.com";
 export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
-export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site";
+export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
 
 // Feature flag for production mode
 export const IS_PRODUCTION = true;
@@ -93,7 +93,7 @@ export const AUTH_TAB_TIMEOUT_MS = 10000; // Timeout for auth tab listener
 // ============================================================================
 // PRO USER CONFIGURATION
 // ============================================================================
-export const UNLIMITED_PACK_LIMIT = 999999; // Effectively unlimited for pro users
+export const UNLIMITED_PACK_LIMIT = 2; // 2 loaded packs for pro users
 
 // ============================================================================
 // FALLBACK VALUES
