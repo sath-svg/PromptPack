@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-export const runtime = "edge";
-
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
 
 // Helper to convert ArrayBuffer to base64 (edge-compatible)

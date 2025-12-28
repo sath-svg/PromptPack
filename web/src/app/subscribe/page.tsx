@@ -2,8 +2,6 @@ import { PricingTable } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
-export const runtime = "edge";
-
 export default async function SubscribePage() {
   const { userId } = await auth();
 
