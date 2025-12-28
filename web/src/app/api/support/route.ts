@@ -3,7 +3,6 @@ import { Resend } from "resend";
 
 export const runtime = "edge";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
 
 // Helper to convert ArrayBuffer to base64 (edge-compatible)
@@ -42,6 +41,9 @@ export async function POST(request: Request) {
         };
       })
     );
+
+    // Initialize Resend client at runtime (not build time)
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Send email via Resend
     const { data, error } = await resend.emails.send({
