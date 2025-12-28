@@ -132,7 +132,7 @@ bucket_name = "your-production-bucket"
 Deploy:
 ```bash
 cd api
-npm run deploy
+bun run deploy
 ```
 
 ### Step 5: Deploy Web App
@@ -140,14 +140,14 @@ npm run deploy
 ```bash
 cd web
 # Build and deploy to Vercel/Netlify/etc
-npm run build
+bun run build
 ```
 
 ### Step 6: Build Extension
 
 ```bash
 cd popup
-npm run build
+bun run build
 # Upload dist/ folder to Chrome Web Store
 ```
 
