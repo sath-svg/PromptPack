@@ -23,14 +23,16 @@ export default clerkMiddleware(async (auth, request) => {
   // This is required because process.env is empty in Cloudflare Workers
   get secretKey() {
     try {
-      return getRequestContext().env.CLERK_SECRET_KEY as string;
+      const env = getRequestContext().env as Record<string, string>;
+      return env.CLERK_SECRET_KEY;
     } catch {
       return process.env.CLERK_SECRET_KEY || "";
     }
   },
   get publishableKey() {
     try {
-      return getRequestContext().env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY as string;
+      const env = getRequestContext().env as Record<string, string>;
+      return env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
     } catch {
       return process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
     }
