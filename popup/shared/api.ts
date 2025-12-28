@@ -1,18 +1,19 @@
 // API client for PromptPack cloud backend
 // Handles authenticated requests to Cloudflare Workers API
 
-// ============================================================================
-// TODO-PRODUCTION: Update these URLs before deploying to production
-// ============================================================================
-const API_BASE = "http://localhost:8787"; // Cloudflare Workers R2 API
-// PRODUCTION: const API_BASE = "https://your-worker.workers.dev";
-
-const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex HTTP endpoint
-// PRODUCTION: Update if using different Convex deployment
-// ============================================================================
-
 import { getSession, saveSession, clearSession, type LocalPrompt, type LocalPack } from "./db";
-import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT } from "./promptStore";
+import {
+  API_BASE,
+  CONVEX_API_URL,
+  BASE_URL,
+  IS_PRODUCTION,
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  SESSION_EXPIRY_MS,
+  UNLIMITED_PACK_LIMIT,
+  FALLBACK_PROMPT_LIMIT,
+  PRICING_URL,
+} from "./config";
 
 export type ApiError = {
   code: string;
@@ -145,10 +146,10 @@ class ApiClient {
       tier: data.user.plan === "pro" ? "paid" : "free",
       accessToken: data.token, // Clerk session token
       refreshToken: data.token, // Use same token for now
-      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+      expiresAt: Date.now() + SESSION_EXPIRY_MS,
       entitlements: {
         promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
-        loadedPackLimit: data.user.plan === "pro" ? 999999 : 0,
+        loadedPackLimit: data.user.plan === "pro" ? UNLIMITED_PACK_LIMIT : 0,
       },
     });
   }
@@ -322,13 +323,13 @@ class ApiClient {
 
       if (!response.ok) {
         // If check fails, assume allowed (fail open for better UX)
-        return { allowed: true, limit: 40, currentTotal: 0 };
+        return { allowed: true, limit: FALLBACK_PROMPT_LIMIT, currentTotal: 0 };
       }
 
       return await response.json();
     } catch {
       // If check fails, assume allowed
-      return { allowed: true, limit: 40, currentTotal: 0 };
+      return { allowed: true, limit: FALLBACK_PROMPT_LIMIT, currentTotal: 0 };
     }
   }
 
@@ -405,7 +406,7 @@ class ApiClient {
   async getUpgradeUrl(): Promise<{ url: string }> {
     // This returns a URL to redirect the user to the web app's pricing page
     // where Clerk's billing handles the upgrade flow
-    return { url: "https://pmtpk.ai/pricing" };
+    return { url: PRICING_URL };
   }
 
   /**
@@ -425,12 +426,6 @@ class ApiClient {
     };
   } | null> {
     try {
-      // TODO-PRODUCTION: Change to production URL and set IS_PRODUCTION to true
-      const webUrl = "http://localhost:3000";
-      const IS_PRODUCTION = false; // Set to true when deploying to production
-      // PRODUCTION: const webUrl = "https://pmtpk.ai";
-      // PRODUCTION: const IS_PRODUCTION = true;
-
       // In production, cross-origin cookie sharing doesn't work between chrome-extension://
       // and pmtpk.ai, so skip the API call entirely to save costs.
       // Users must use the explicit login flow in production.
@@ -438,7 +433,7 @@ class ApiClient {
         return null;
       }
 
-      const response = await fetch(`${webUrl}/api/auth/status`, {
+      const response = await fetch(`${BASE_URL}/api/auth/status`, {
         method: "GET",
         credentials: "include",
       });

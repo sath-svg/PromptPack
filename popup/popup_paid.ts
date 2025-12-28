@@ -28,8 +28,14 @@ import {
   refreshEntitlements,
   type AuthState,
 } from "./shared/auth";
-import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT } from "./shared/promptStore";
 import { api } from "./shared/api";
+import {
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  PASSWORD_LENGTH,
+  TOAST_DURATION_MS,
+  MARKETPLACE_URL,
+} from "./shared/config";
 
 // Helper to get prompt limit based on auth state
 function getPromptLimit(state: AuthState): number {
@@ -102,7 +108,7 @@ function toast(msg: string) {
   }
   el.textContent = msg;
   el.style.opacity = "1";
-  setTimeout(() => (el!.style.opacity = "0"), 900);
+  setTimeout(() => (el!.style.opacity = "0"), TOAST_DURATION_MS);
 }
 
 function groupBySource(items: LocalPrompt[]) {
@@ -184,13 +190,13 @@ async function importPmtpk(file: File) {
     let jsonString: string;
 
     if (encrypted) {
-      const password = prompt("Enter password (5 characters):");
+      const password = prompt(`Enter password (${PASSWORD_LENGTH} characters):`);
       if (!password) {
         toast("Import cancelled");
         return;
       }
-      if (password.length !== 5) {
-        toast("Password must be 5 characters");
+      if (password.length !== PASSWORD_LENGTH) {
+        toast(`Password must be ${PASSWORD_LENGTH} characters`);
         return;
       }
       jsonString = await decryptPmtpk(bytes, password);
@@ -526,7 +532,7 @@ function setupEventDelegation() {
 
     // Marketplace
     if (btn.id === "pp-browse-marketplace-btn") {
-      await chrome.tabs.create({ url: "https://pmtpk.ai/marketplace" });
+      await chrome.tabs.create({ url: MARKETPLACE_URL });
       return;
     }
 
@@ -598,10 +604,10 @@ function setupEventDelegation() {
         return;
       }
 
-      const password = prompt("Enter a 5-character password to encrypt (or leave empty for no encryption):");
+      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
       if (password === null) return;
-      if (password && password.length !== 5) {
-        toast("Password must be exactly 5 characters");
+      if (password && password.length !== PASSWORD_LENGTH) {
+        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
         return;
       }
 

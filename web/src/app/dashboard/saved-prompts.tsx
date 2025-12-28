@@ -13,9 +13,7 @@ import {
   isObfuscated,
   SCHEMA_VERSION,
 } from "../../lib/crypto";
-
-// Workers API URL for fetching from R2
-const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "http://localhost:8787";
+import { WORKERS_API_URL } from "../../lib/constants";
 
 type SavedPromptsProps = {
   userId: Id<"users">;

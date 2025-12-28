@@ -1,16 +1,10 @@
-// ============================================================================
-// TODO-PRODUCTION: Set R2_API_URL in .env.local before deploying
-// Local: R2_API_URL=http://localhost:8787
-// Production: R2_API_URL=https://your-worker.workers.dev
-// ============================================================================
-
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
+import { R2_API_URL } from "../../../../lib/constants";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-const R2_API_URL = process.env.R2_API_URL || "http://localhost:8787";
 
 export async function POST(request: Request) {
   try {
@@ -68,7 +62,7 @@ export async function POST(request: Request) {
     // Step 1: Upload file to R2
     // Generate unique pack ID for R2 key
     const packId = `pack_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const r2Key = `packs/${userId}/${packId}.pmtpk`;
+    const r2Key = `users/${userId}/userpacks/${packId}.pmtpk`;
 
     // Calculate file size from base64
     const fileSize = Math.ceil((fileData.length * 3) / 4); // Approximate size in bytes

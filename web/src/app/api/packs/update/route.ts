@@ -1,17 +1,11 @@
-// ============================================================================
-// TODO-PRODUCTION: Set R2_API_URL in .env.local before deploying
-// Local: R2_API_URL=http://localhost:8787
-// Production: R2_API_URL=https://your-worker.workers.dev
-// ============================================================================
-
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
+import { R2_API_URL } from "../../../../lib/constants";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-const R2_API_URL = process.env.R2_API_URL || "http://localhost:8787";
 
 export async function POST(request: Request) {
   try {
@@ -36,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     // Get the existing pack to verify ownership and get r2Key
-    const pack = await convex.query(api.packs.get, { id: id as Id<"packs"> });
+    const pack = await convex.query(api.packs.get, { id: id as Id<"userPacks"> });
 
     if (!pack) {
       return NextResponse.json(
@@ -105,7 +99,7 @@ export async function POST(request: Request) {
 
     // Update metadata in Convex
     await convex.mutation(api.packs.update, {
-      id: id as Id<"packs">,
+      id: id as Id<"userPacks">,
       promptCount,
       fileSize,
     });

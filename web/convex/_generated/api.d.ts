@@ -11,8 +11,8 @@
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as packs from "../packs.js";
+import type * as purchasedPacks from "../purchasedPacks.js";
 import type * as savedPacks from "../savedPacks.js";
-import type * as userPacks from "../userPacks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -25,8 +25,8 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   packs: typeof packs;
+  purchasedPacks: typeof purchasedPacks;
   savedPacks: typeof savedPacks;
-  userPacks: typeof userPacks;
   users: typeof users;
 }>;
 

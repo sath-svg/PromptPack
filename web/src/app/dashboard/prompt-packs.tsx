@@ -13,6 +13,16 @@ import {
   isObfuscated,
   SCHEMA_VERSION,
 } from "../../lib/crypto";
+import {
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  MAX_PRO_PACKS,
+  WEB_PACK_FORMAT,
+  WEB_PACK_VERSION,
+  PASSWORD_LENGTH,
+  TOAST_DURATION_MS,
+  R2_API_URL,
+} from "../../lib/constants";
 
 type PromptPacksProps = {
   userId: Id<"users">;
@@ -22,7 +32,7 @@ type PromptPacksProps = {
 };
 
 type WebPackData = {
-  format: "web-pack-v1";
+  format: typeof WEB_PACK_FORMAT;
   version: number;
   prompts: Array<{
     text: string;
@@ -31,7 +41,7 @@ type WebPackData = {
 };
 
 type SelectedPack = {
-  id: Id<"packs">;
+  id: Id<"userPacks">;
   title: string;
   fileData: string;
   prompts: WebPackData["prompts"];
@@ -42,20 +52,16 @@ type SelectedPack = {
 // Undo/Redo action types
 type HistoryAction = {
   type: "delete-prompt" | "delete-pack";
-  packId: Id<"packs">;
+  packId: Id<"userPacks">;
   title: string;
   prompts: WebPackData["prompts"];
   promptIndex?: number;
 };
 
-const MAX_PRO_PACKS = 2;
-const FREE_PROMPT_LIMIT = 10;
-const PRO_PROMPT_LIMIT = 40;
-
 function buildPackData(prompts: WebPackData["prompts"]): string {
   const payload: WebPackData = {
-    format: "web-pack-v1",
-    version: 1,
+    format: WEB_PACK_FORMAT,
+    version: WEB_PACK_VERSION,
     prompts,
   };
   return JSON.stringify(payload);
@@ -64,7 +70,7 @@ function buildPackData(prompts: WebPackData["prompts"]): string {
 function parsePackData(fileData: string): WebPackData | null {
   try {
     const parsed = JSON.parse(fileData) as WebPackData;
-    if (parsed.format !== "web-pack-v1" || !Array.isArray(parsed.prompts)) {
+    if (parsed.format !== WEB_PACK_FORMAT || !Array.isArray(parsed.prompts)) {
       return null;
     }
     return parsed;
@@ -99,7 +105,7 @@ async function decodeObfuscatedFile(bytes: Uint8Array): Promise<WebPackData["pro
   const data = JSON.parse(jsonString);
 
   // Handle both old web-pack-v1 format and new shared format
-  if (data.format === "web-pack-v1" && Array.isArray(data.prompts)) {
+  if (data.format === WEB_PACK_FORMAT && Array.isArray(data.prompts)) {
     return data.prompts;
   }
 
@@ -120,7 +126,7 @@ async function decodeEncryptedFile(bytes: Uint8Array, password: string): Promise
   const data = JSON.parse(jsonString);
 
   // Handle both old web-pack-v1 format and new shared format
-  if (data.format === "web-pack-v1" && Array.isArray(data.prompts)) {
+  if (data.format === WEB_PACK_FORMAT && Array.isArray(data.prompts)) {
     return data.prompts;
   }
 
@@ -193,7 +199,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   };
 
   // Helper function to update pack via API (uploads to R2)
-  const updatePackViaAPI = async (id: Id<"packs">, fileData: string, promptCount: number) => {
+  const updatePackViaAPI = async (id: Id<"userPacks">, fileData: string, promptCount: number) => {
     const response = await fetch("/api/packs/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -211,7 +217,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   const [selectedPack, setSelectedPack] = useState<SelectedPack | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPack, setPendingPack] = useState<{ id: Id<"packs">; title: string; fileData: string } | null>(null);
+  const [pendingPack, setPendingPack] = useState<{ id: Id<"userPacks">; title: string; fileData: string } | null>(null);
   const [packName, setPackName] = useState("");
   const [firstPrompt, setFirstPrompt] = useState("");
   const [createPassword, setCreatePassword] = useState("");
@@ -230,7 +236,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   // Toast helper
   const showToast = useCallback((message: string) => {
     setToast(message);
-    setTimeout(() => setToast(null), 2000);
+    setTimeout(() => setToast(null), TOAST_DURATION_MS);
   }, []);
 
   // All packs are now stored in R2 with metadata in Convex
@@ -249,7 +255,6 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
     try {
       // Fetch file from R2 using the Cloudflare Workers API
-      const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || 'https://promptpack-api.dksathvik.workers.dev';
       const response = await fetch(`${R2_API_URL}/storage/fetch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -292,8 +297,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   };
 
   const handleDecrypt = async () => {
-    if (!pendingPack || password.length !== 5) {
-      setError("Password must be exactly 5 characters");
+    if (!pendingPack || password.length !== PASSWORD_LENGTH) {
+      setError(`Password must be exactly ${PASSWORD_LENGTH} characters`);
       return;
     }
 
@@ -363,8 +368,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). Delete some prompts to add more.`);
       return;
     }
-    if (createPassword && createPassword.length !== 5) {
-      setError("Password must be exactly 5 characters.");
+    if (createPassword && createPassword.length !== PASSWORD_LENGTH) {
+      setError(`Password must be exactly ${PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -553,8 +558,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     if (!selectedPack) return;
 
     try {
-      if (exportPassword && exportPassword.length !== 5) {
-        showToast("Password must be exactly 5 characters");
+      if (exportPassword && exportPassword.length !== PASSWORD_LENGTH) {
+        showToast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
         return;
       }
 
@@ -810,8 +815,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 type="password"
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
-                placeholder="Password (optional, 5 chars)"
-                maxLength={5}
+                placeholder={`Password (optional, ${PASSWORD_LENGTH} chars)`}
+                maxLength={PASSWORD_LENGTH}
                 disabled={isSaving}
                 className="form-input"
               />
@@ -851,14 +856,14 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                maxLength={5}
+                maxLength={PASSWORD_LENGTH}
                 className="password-input"
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleDecrypt()}
               />
               <button
                 onClick={handleDecrypt}
-                disabled={password.length !== 5 || isDecrypting}
+                disabled={password.length !== PASSWORD_LENGTH || isDecrypting}
                 className="btn btn-primary unlock-btn"
               >
                 {isDecrypting ? "Decrypting..." : "Unlock"}
@@ -917,8 +922,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 type="password"
                 value={exportPassword}
                 onChange={(e) => setExportPassword(e.target.value)}
-                placeholder="Export password (optional, 5 chars)"
-                maxLength={5}
+                placeholder={`Export password (optional, ${PASSWORD_LENGTH} chars)`}
+                maxLength={PASSWORD_LENGTH}
                 className="form-input form-input-sm"
               />
             </div>

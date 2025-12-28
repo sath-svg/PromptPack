@@ -1,4 +1,14 @@
 import { safeGet, safeSet, atomicUpdate } from "./safeStorage";
+import {
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  MAX_PROMPTS,
+  MAX_IMPORTED_PACKS,
+  PROMPTS_STORAGE_KEY,
+} from "./config";
+
+// Re-export for backwards compatibility
+export { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, MAX_PROMPTS, MAX_IMPORTED_PACKS };
 
 export type PromptSource = "chatgpt" | "claude" | "gemini";
 
@@ -11,15 +21,7 @@ export type PromptItem = {
   packName?: string; // Optional: name of imported pack (e.g., "Funny", "Work Tips")
 };
 
-const KEY = "promptpack_prompts";
-
-// Prompt limits by tier
-export const FREE_PROMPT_LIMIT = 10;
-export const PRO_PROMPT_LIMIT = 40;
-
-// Legacy constant for backwards compatibility (uses free tier limit)
-export const MAX_PROMPTS = FREE_PROMPT_LIMIT;
-export const MAX_IMPORTED_PACKS = 2; // Max number of imported packs for pro users
+const KEY = PROMPTS_STORAGE_KEY;
 
 export async function listPrompts(): Promise<PromptItem[]> {
   const arr = await safeGet<PromptItem[]>(KEY);

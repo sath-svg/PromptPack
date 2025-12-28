@@ -292,8 +292,8 @@ export default {
         }
 
         // Security: Verify the r2Key pattern for packs
-        // packs/{userId}/pack_{timestamp}_{random}.pmtpk
-        if (!body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/)) {
+        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk
+        if (!body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/)) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
@@ -335,9 +335,9 @@ export default {
         }
 
         // Security: Verify the r2Key pattern matches expected formats
-        // users/{userId}/saved/{source}.pmtpk OR packs/{userId}/pack_{id}.pmtpk
+        // users/{userId}/saved/{source}.pmtpk OR users/{userId}/userpacks/pack_{id}.pmtpk
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/);
-        const isValidUserPack = body.r2Key.match(/^packs\/[^/]+\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
+        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
 
         if (!isValidSavedPack && !isValidUserPack) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {

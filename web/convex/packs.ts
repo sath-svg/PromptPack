@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-// Get all public packs for marketplace
+// Get all public user packs for marketplace
 export const listPublic = query({
   args: {
     category: v.optional(v.string()),
@@ -9,22 +9,22 @@ export const listPublic = query({
   handler: async (ctx, { category }) => {
     if (category) {
       return await ctx.db
-        .query("packs")
+        .query("userPacks")
         .withIndex("by_category", (q) =>
           q.eq("category", category).eq("isPublic", true)
         )
         .collect();
     }
     return await ctx.db
-      .query("packs")
+      .query("userPacks")
       .withIndex("by_public", (q) => q.eq("isPublic", true))
       .collect();
   },
 });
 
-// Get pack by ID
+// Get user pack by ID
 export const get = query({
-  args: { id: v.id("packs") },
+  args: { id: v.id("userPacks") },
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
@@ -35,20 +35,20 @@ export const listByAuthor = query({
   args: { authorId: v.id("users") },
   handler: async (ctx, { authorId }) => {
     return await ctx.db
-      .query("packs")
+      .query("userPacks")
       .withIndex("by_author", (q) => q.eq("authorId", authorId))
       .collect();
   },
 });
 
-// Create a new pack (file must be uploaded to R2 first)
+// Create a new user pack (file must be uploaded to R2 first)
 export const create = mutation({
   args: {
     authorId: v.id("users"),
     title: v.string(),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
-    r2Key: v.string(), // R2 object key (e.g., "packs/user123/pack456.pmtpk")
+    r2Key: v.string(), // R2 object key (e.g., "users/user123/userpacks/pack456.pmtpk")
     promptCount: v.number(),
     fileSize: v.number(), // Size in bytes
     version: v.string(),
@@ -57,7 +57,7 @@ export const create = mutation({
     isEncrypted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("packs", {
+    return await ctx.db.insert("userPacks", {
       ...args,
       downloads: 0,
       createdAt: Date.now(),
@@ -66,10 +66,10 @@ export const create = mutation({
   },
 });
 
-// Update a pack
+// Update a user pack
 export const update = mutation({
   args: {
-    id: v.id("packs"),
+    id: v.id("userPacks"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
@@ -95,7 +95,7 @@ export const update = mutation({
 
 // Increment download count
 export const incrementDownloads = mutation({
-  args: { id: v.id("packs") },
+  args: { id: v.id("userPacks") },
   handler: async (ctx, { id }) => {
     const pack = await ctx.db.get(id);
     if (!pack) throw new Error("Pack not found");
@@ -103,9 +103,9 @@ export const incrementDownloads = mutation({
   },
 });
 
-// Delete a pack
+// Delete a user pack
 export const remove = mutation({
-  args: { id: v.id("packs") },
+  args: { id: v.id("userPacks") },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id);
   },

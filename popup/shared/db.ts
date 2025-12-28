@@ -1,6 +1,8 @@
 // IndexedDB wrapper for PromptPack local storage
 // Stores prompts and packs locally with sync status tracking
 
+import { DB_NAME, DB_VERSION, PROMPTS_STORAGE_KEY } from "./config";
+
 export type PromptSource = "chatgpt" | "claude" | "gemini";
 
 export type LocalPrompt = {
@@ -48,9 +50,6 @@ export type UserSession = {
     loadedPackLimit: number;
   };
 };
-
-const DB_NAME = "promptpack";
-const DB_VERSION = 1;
 
 let dbInstance: IDBDatabase | null = null;
 
@@ -367,9 +366,8 @@ export async function isAuthenticated(): Promise<boolean> {
 // ============ Migrations from chrome.storage ============
 
 export async function migrateFromChromeStorage(): Promise<number> {
-  const KEY = "promptpack_prompts";
-  const res = await chrome.storage.local.get(KEY);
-  const oldPrompts = res[KEY] as Array<{
+  const res = await chrome.storage.local.get(PROMPTS_STORAGE_KEY);
+  const oldPrompts = res[PROMPTS_STORAGE_KEY] as Array<{
     id: string;
     text: string;
     source: PromptSource;
@@ -402,7 +400,7 @@ export async function migrateFromChromeStorage(): Promise<number> {
 
     tx.oncomplete = async () => {
       // Clear old storage after migration
-      await chrome.storage.local.remove(KEY);
+      await chrome.storage.local.remove(PROMPTS_STORAGE_KEY);
       resolve(migrated);
     };
     tx.onerror = () => reject(tx.error);

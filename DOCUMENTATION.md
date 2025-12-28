@@ -295,17 +295,24 @@ Payload:
 ### R2 Storage Structure
 
 ```
-packs/
-  {userId}/
-    pack_{timestamp}_{random}.pmtpk    # User-created packs
-
 users/
   {userId}/
     saved/
-      chatgpt.pmtpk                    # Saved prompts from ChatGPT
-      claude.pmtpk                     # Saved prompts from Claude
-      gemini.pmtpk                     # Saved prompts from Gemini
+      chatgpt.pmtpk                        # Saved prompts from ChatGPT
+      claude.pmtpk                         # Saved prompts from Claude
+      gemini.pmtpk                         # Saved prompts from Gemini
+    userpacks/
+      pack_{timestamp}_{random}.pmtpk      # User-created packs
 ```
+
+### Convex Database Schema
+
+| Table | Purpose | Key Fields |
+|-------|---------|------------|
+| `users` | User accounts synced from Clerk | `clerkId`, `email`, `plan`, `packDeletionAt` |
+| `userPacks` | User-created prompt packs (metadata) | `authorId`, `title`, `r2Key`, `promptCount`, `isEncrypted` |
+| `purchasedPacks` | Purchased marketplace packs | `userId`, `packId`, `purchasedAt` |
+| `savedPacks` | Extension-synced prompts by source | `userId`, `source`, `r2Key`, `promptCount` |
 
 ### Sync Status
 
@@ -321,7 +328,7 @@ Prompts have a `syncStatus` field:
 | Limit | Free | Pro |
 |-------|------|-----|
 | Prompts per source | 10 | 40 |
-| Imported packs | 2 | Unlimited |
+| Imported packs | 0 | 2 |
 | Created packs (dashboard) | 0 | 2 |
 | Loaded pack slots | 0 | 5 |
 | Cloud sync | Yes (if signed in) | Yes |

@@ -14,13 +14,13 @@ export default defineSchema({
     packDeletionAt: v.optional(v.number()),
   }).index("by_clerk_id", ["clerkId"]),
 
-  // Marketplace packs (metadata only - files stored in R2)
-  packs: defineTable({
+  // User-created packs (metadata only - files stored in R2)
+  userPacks: defineTable({
     authorId: v.id("users"),
     title: v.string(),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
-    // R2 object key where the .pmtpk file is stored (e.g., "packs/user123/pack456.pmtpk")
+    // R2 object key where the .pmtpk file is stored (e.g., "users/user123/userpacks/pack456.pmtpk")
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(), // Size in bytes for display
@@ -36,10 +36,10 @@ export default defineSchema({
     .index("by_public", ["isPublic"])
     .index("by_category", ["category", "isPublic"]),
 
-  // User purchased packs (what shows in their "Purchased" section)
-  userPacks: defineTable({
+  // Purchased marketplace packs (what shows in their "Purchased" section)
+  purchasedPacks: defineTable({
     userId: v.id("users"),
-    packId: v.id("packs"),
+    packId: v.id("userPacks"),
     purchasedAt: v.number(),
   })
     .index("by_user", ["userId"])

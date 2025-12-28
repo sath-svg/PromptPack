@@ -3,9 +3,12 @@
  * Bulletproof against silent failures, quota limits, and race conditions
  */
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 100;
-const BACKUP_PREFIX = "_backup_";
+import {
+  MAX_RETRIES,
+  RETRY_DELAY_MS,
+  BACKUP_PREFIX,
+  DEFAULT_STORAGE_BYTES,
+} from "./config";
 
 type StorageResult<T> =
   | { ok: true; data: T }
@@ -140,7 +143,7 @@ export async function getStorageStats(): Promise<{
   return new Promise((resolve) => {
     chrome.storage.local.getBytesInUse(null, (bytesUsed) => {
       // Default quota is ~5MB, with unlimitedStorage it's much higher
-      const bytesTotal = 5 * 1024 * 1024; // 5MB default
+      const bytesTotal = DEFAULT_STORAGE_BYTES;
       resolve({
         bytesUsed,
         bytesTotal,

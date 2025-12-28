@@ -1,10 +1,20 @@
 import "./popup.css";
-import { listPrompts, deletePrompt, deletePromptsBySource, MAX_IMPORTED_PACKS, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { listPrompts, deletePrompt, deletePromptsBySource, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { isStorageLow } from "./shared/safeStorage";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
 import { getAuthState, verifyAuthStateBackground, type AuthState } from "./shared/auth";
 import { api } from "./shared/api";
+import {
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  MAX_IMPORTED_PACKS,
+  PASSWORD_LENGTH,
+  TOAST_DURATION_MS,
+  DASHBOARD_URL,
+  SIGN_IN_URL,
+  PACKS_CREATE_API,
+} from "./shared/config";
 
 // Helper to get prompt limit based on auth state
 function getPromptLimit(state: AuthState): number {
@@ -128,13 +138,13 @@ async function importPmtpk(file: File) {
 
     if (encrypted) {
       // Encrypted file - prompt for password
-      const password = prompt("Enter password (5 characters):");
+      const password = prompt(`Enter password (${PASSWORD_LENGTH} characters):`);
       if (!password) {
         toast("Import cancelled");
         return;
       }
-      if (password.length !== 5) {
-        toast("Password must be 5 characters");
+      if (password.length !== PASSWORD_LENGTH) {
+        toast(`Password must be ${PASSWORD_LENGTH} characters`);
         return;
       }
       jsonString = await decryptPmtpk(bytes, password);
@@ -257,7 +267,7 @@ function toast(msg: string) {
   }
   el.textContent = msg;
   el.style.opacity = "1";
-  setTimeout(() => (el!.style.opacity = "0"), 900);
+  setTimeout(() => (el!.style.opacity = "0"), TOAST_DURATION_MS);
 }
 
 type GroupedPrompts = {
@@ -530,7 +540,7 @@ function setupEventDelegation() {
       }
 
       // Ask if user wants to encrypt
-      const password = prompt("Enter a 5-character password to encrypt (or leave empty for no encryption):");
+      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
 
       // User cancelled
       if (password === null) {
@@ -538,8 +548,8 @@ function setupEventDelegation() {
       }
 
       // Validate password if provided
-      if (password && password.length !== 5) {
-        toast("Password must be exactly 5 characters");
+      if (password && password.length !== PASSWORD_LENGTH) {
+        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
         return;
       }
 
@@ -602,7 +612,7 @@ function setupEventDelegation() {
       }
 
       // Ask if user wants to encrypt
-      const password = prompt("Enter a 5-character password to encrypt (or leave empty for no encryption):");
+      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
 
       // User cancelled
       if (password === null) {
@@ -610,8 +620,8 @@ function setupEventDelegation() {
       }
 
       // Validate password if provided
-      if (password && password.length !== 5) {
-        toast("Password must be exactly 5 characters");
+      if (password && password.length !== PASSWORD_LENGTH) {
+        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
         return;
       }
 
@@ -670,8 +680,8 @@ function setupEventDelegation() {
     // After opening, we'll detect where they land and update auth state
     if (btn.id === "pp-dashboard-btn" || btn.id === "pp-login-btn") {
       const targetUrl = btn.id === "pp-dashboard-btn"
-        ? "http://localhost:3000/dashboard"
-        : "http://localhost:3000/sign-in";
+        ? DASHBOARD_URL
+        : SIGN_IN_URL;
 
       // Open the tab
       const tab = await chrome.tabs.create({ url: targetUrl });
@@ -788,7 +798,7 @@ function setupEventDelegation() {
 
       try {
         // Ask if user wants to encrypt (optional)
-        const password = prompt("Add a 5-character password to encrypt (or leave empty for no encryption):");
+        const password = prompt(`Add a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
 
         // User cancelled
         if (password === null) {
@@ -796,8 +806,8 @@ function setupEventDelegation() {
         }
 
         // Validate password if provided
-        if (password && password.length !== 5) {
-          toast("Password must be exactly 5 characters");
+        if (password && password.length !== PASSWORD_LENGTH) {
+          toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
           return;
         }
 
@@ -836,7 +846,7 @@ function setupEventDelegation() {
         }
 
         // Call Convex API to create pack
-        const response = await fetch("http://localhost:3000/api/packs/create", {
+        const response = await fetch(PACKS_CREATE_API, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

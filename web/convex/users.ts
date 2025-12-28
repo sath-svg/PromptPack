@@ -217,12 +217,12 @@ export const cleanExpiredPacks = internalMutation({
       console.log(`[Cleanup] Processing user ${user.clerkId}`);
 
       // Delete all user-created prompt packs
-      const userPacks = await ctx.db
-        .query("packs")
+      const userPacksList = await ctx.db
+        .query("userPacks")
         .withIndex("by_author", (q) => q.eq("authorId", user._id))
         .collect();
 
-      for (const pack of userPacks) {
+      for (const pack of userPacksList) {
         await ctx.db.delete(pack._id);
         console.log(`[Cleanup] Deleted pack: ${pack.title}`);
       }
@@ -232,7 +232,7 @@ export const cleanExpiredPacks = internalMutation({
         packDeletionAt: undefined,
       });
 
-      console.log(`[Cleanup] Deleted ${userPacks.length} packs for user ${user.clerkId}`);
+      console.log(`[Cleanup] Deleted ${userPacksList.length} packs for user ${user.clerkId}`);
     }
 
     return { processedUsers: expiredUsers.length };
@@ -256,12 +256,12 @@ export const testCleanupExpiredPacks = mutation({
       console.log(`[Test Cleanup] Processing user ${user.clerkId}`);
 
       // Delete all user-created prompt packs
-      const userPacks = await ctx.db
-        .query("packs")
+      const userPacksList = await ctx.db
+        .query("userPacks")
         .withIndex("by_author", (q) => q.eq("authorId", user._id))
         .collect();
 
-      for (const pack of userPacks) {
+      for (const pack of userPacksList) {
         await ctx.db.delete(pack._id);
         console.log(`[Test Cleanup] Deleted pack: ${pack.title}`);
       }
@@ -271,7 +271,7 @@ export const testCleanupExpiredPacks = mutation({
         packDeletionAt: undefined,
       });
 
-      console.log(`[Test Cleanup] Deleted ${userPacks.length} packs for user ${user.clerkId}`);
+      console.log(`[Test Cleanup] Deleted ${userPacksList.length} packs for user ${user.clerkId}`);
     }
 
     return { processedUsers: expiredUsers.length };

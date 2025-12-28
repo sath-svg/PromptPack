@@ -1,17 +1,19 @@
 // Auth module for PromptPack
 // Handles Clerk authentication via extension auth flow
 
-// ============================================================================
-// TODO-PRODUCTION: Update BASE_URL before deploying to production
-// ============================================================================
-const BASE_URL = "http://localhost:3000"; // Local dev
-// PRODUCTION: const BASE_URL = "https://pmtpk.ai";
-const AUTH_URL = `${BASE_URL}/extension-auth`;
-// ============================================================================
-
 import { getSession, isAuthenticated, saveSession } from "./db";
 import { api } from "./api";
-import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT } from "./promptStore";
+import {
+  AUTH_URL,
+  DASHBOARD_URL,
+  PRICING_URL,
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  UNLIMITED_PACK_LIMIT,
+  AUTH_CACHE_KEY,
+  AUTH_CACHE_EXPIRY_MS,
+  FALLBACK_LOADED_PACK_LIMIT,
+} from "./config";
 
 export type AuthState = {
   isAuthenticated: boolean;
@@ -34,8 +36,6 @@ type CachedAuthState = AuthState & {
   cachedAt: number;
   expiresAt: number;
 };
-
-const AUTH_CACHE_KEY = "pp_auth_cache";
 
 // Use session storage - cleared when browser closes
 // This means API call happens once per browser session, then cached
@@ -73,7 +73,7 @@ async function setCachedAuthState(authState: AuthState): Promise<void> {
     const cached: CachedAuthState = {
       ...authState,
       cachedAt: now,
-      expiresAt: now + 24 * 60 * 60 * 1000, // Not really used, session clears on browser close
+      expiresAt: now + AUTH_CACHE_EXPIRY_MS, // Not really used, session clears on browser close
     };
 
     await authStorage.set({ [AUTH_CACHE_KEY]: cached });
@@ -180,7 +180,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
         },
         entitlements: {
           promptLimit: billing?.isPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
-          loadedPackLimit: billing?.isPro ? 999999 : 0,
+          loadedPackLimit: billing?.isPro ? UNLIMITED_PACK_LIMIT : 0,
         },
         billing: billing || undefined,
       };
@@ -277,7 +277,7 @@ export async function login(): Promise<boolean> {
 
             if (success) {
               // Navigate to dashboard instead of closing tab
-              await chrome.tabs.update(authTabId, { url: "http://localhost:3000/dashboard" });
+              await chrome.tabs.update(authTabId, { url: DASHBOARD_URL });
             } else {
               // Close tab on failure
               await chrome.tabs.remove(authTabId);
@@ -413,7 +413,7 @@ export async function canLoadPack(currentLoaded: number): Promise<{
   remaining: number;
 }> {
   const session = await getSession();
-  const limit = session?.entitlements?.loadedPackLimit ?? 2; // Free tier default
+  const limit = session?.entitlements?.loadedPackLimit ?? FALLBACK_LOADED_PACK_LIMIT;
   const remaining = Math.max(0, limit - currentLoaded);
 
   return {
@@ -428,8 +428,7 @@ export async function canLoadPack(currentLoaded: number): Promise<{
  */
 export async function openUpgradePage(): Promise<void> {
   // Clerk handles billing through the web app's pricing page
-  // TODO: Update to production URL when deployed
-  await chrome.tabs.create({ url: "http://localhost:3000/pricing" });
+  await chrome.tabs.create({ url: PRICING_URL });
 }
 
 /**
@@ -437,6 +436,5 @@ export async function openUpgradePage(): Promise<void> {
  */
 export async function openBillingPortal(): Promise<void> {
   // Clerk manages subscriptions through the dashboard
-  // TODO: Update to production URL when deployed
-  await chrome.tabs.create({ url: "http://localhost:3000/dashboard" });
+  await chrome.tabs.create({ url: DASHBOARD_URL });
 }
