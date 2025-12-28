@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 import { SignUpButton, SignedIn, SignedOut, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";

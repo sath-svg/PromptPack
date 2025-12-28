@@ -1,6 +1,8 @@
 import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import Link from "next/link";
 
+export const runtime = "edge";
+
 export default function Home() {
   return (
     <div className="hero">
