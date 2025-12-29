@@ -4,17 +4,11 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { R2_API_URL } from "../../../../lib/constants";
 
-export const runtime = "edge";
-
-// Lazy initialization to avoid build-time errors
-function getConvexClient() {
-  return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-}
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
-    const convex = getConvexClient();
 
     if (!userId) {
       return NextResponse.json(

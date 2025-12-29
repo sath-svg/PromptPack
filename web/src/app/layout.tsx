@@ -13,8 +13,6 @@ import { UserButtonWithExtensionSync } from "@/components/user-button-with-exten
 import { SupportButton } from "@/components/support-button";
 import "./globals.css";
 
-export const runtime = "edge";
-
 export const metadata: Metadata = {
   title: "PromptPack - Save, Organize & Share AI Prompts",
   description:

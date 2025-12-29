@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-export const runtime = "edge";
-
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
-
-// Helper to convert ArrayBuffer to base64 (edge-compatible)
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request: Request) {
   try {
@@ -31,19 +20,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Convert file attachments to base64 for Resend (edge-compatible)
+    // Convert file attachments to base64 for Resend
     const emailAttachments = await Promise.all(
       attachments.map(async (file) => {
         const buffer = await file.arrayBuffer();
         return {
           filename: file.name,
-          content: arrayBufferToBase64(buffer),
+          content: Buffer.from(buffer).toString("base64"),
         };
       })
     );
-
-    // Initialize Resend client at runtime (not build time)
-    const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Send email via Resend
     const { data, error } = await resend.emails.send({
