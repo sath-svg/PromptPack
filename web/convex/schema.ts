@@ -9,10 +9,14 @@ export default defineSchema({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro")),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
     createdAt: v.number(),
     // Grace period for downgraded users (timestamp when packs will be deleted)
     packDeletionAt: v.optional(v.number()),
-  }).index("by_clerk_id", ["clerkId"]),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_stripe_customer_id", ["stripeCustomerId"]),
 
   // User-created packs (metadata only - files stored in R2)
   userPacks: defineTable({

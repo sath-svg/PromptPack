@@ -1,27 +1,28 @@
 "use client";
 
-import { useClerk } from "@clerk/nextjs";
+import { useState } from "react";
+import { openStripeCustomerPortal } from "@/lib/billing-client";
 
 export function ManageSubscriptionButton() {
-  const clerk = useClerk();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleManage = async () => {
-    // Open Clerk's subscription management portal
-    await clerk.openUserProfile({
-      appearance: {
-        elements: {
-          rootBox: {
-            width: "100%",
-          },
-        },
-      },
-    });
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      await openStripeCustomerPortal();
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "Failed to open billing portal");
+      setIsLoading(false);
+    }
   };
 
   return (
     <p>
       <button
         onClick={handleManage}
+        disabled={isLoading}
         style={{
           background: "none",
           border: "none",
@@ -32,7 +33,7 @@ export function ManageSubscriptionButton() {
           font: "inherit",
         }}
       >
-        Manage subscription
+        {isLoading ? "Opening portal..." : "Manage subscription"}
       </button>
     </p>
   );

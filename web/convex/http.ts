@@ -1,9 +1,119 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { api, components, internal } from "./_generated/api";
+import { registerRoutes } from "@convex-dev/stripe";
 import { Webhook } from "svix";
+import type Stripe from "stripe";
 
 const http = httpRouter();
+
+const resolveClerkId = (metadata?: Stripe.Metadata): string | undefined => {
+  if (!metadata) return undefined;
+  const userId = metadata.userId ?? metadata.clerkId ?? metadata.clerkUserId;
+  return userId || undefined;
+};
+
+const resolvePlanFromStatus = (status: Stripe.Subscription.Status): "free" | "pro" => {
+  if (status === "active" || status === "trialing" || status === "past_due") {
+    return "pro";
+  }
+  return "free";
+};
+
+const resolveCancelledAt = (subscription: Stripe.Subscription): number | undefined => {
+  if (subscription.canceled_at) return subscription.canceled_at * 1000;
+  if (subscription.ended_at) return subscription.ended_at * 1000;
+  if (subscription.cancel_at_period_end && subscription.current_period_end) {
+    return subscription.current_period_end * 1000;
+  }
+  return undefined;
+};
+
+registerRoutes(http, components.stripe, {
+  webhookPath: "/stripe/webhook",
+  events: {
+    "customer.created": async (ctx, event: Stripe.CustomerCreatedEvent) => {
+      const customer = event.data.object;
+      const clerkId = resolveClerkId(customer.metadata);
+      if (!clerkId) return;
+
+      await ctx.runMutation(internal.users.setStripeCustomerIdByClerkId, {
+        clerkId,
+        stripeCustomerId: customer.id,
+      });
+    },
+    "customer.updated": async (ctx, event: Stripe.CustomerUpdatedEvent) => {
+      const customer = event.data.object;
+      const clerkId = resolveClerkId(customer.metadata);
+      if (!clerkId) return;
+
+      await ctx.runMutation(internal.users.setStripeCustomerIdByClerkId, {
+        clerkId,
+        stripeCustomerId: customer.id,
+      });
+    },
+    "customer.subscription.created": async (
+      ctx,
+      event: Stripe.CustomerSubscriptionCreatedEvent
+    ) => {
+      const subscription = event.data.object;
+      const clerkId = resolveClerkId(subscription.metadata);
+      if (!clerkId) return;
+
+      const stripeCustomerId = typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer?.id;
+
+      await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
+        clerkId,
+        plan: resolvePlanFromStatus(subscription.status),
+        stripeCustomerId,
+        stripeSubscriptionId: subscription.id,
+        subscriptionCancelledAt: resolveCancelledAt(subscription),
+      });
+    },
+    "customer.subscription.updated": async (
+      ctx,
+      event: Stripe.CustomerSubscriptionUpdatedEvent
+    ) => {
+      const subscription = event.data.object;
+      const clerkId = resolveClerkId(subscription.metadata);
+      if (!clerkId) return;
+
+      const stripeCustomerId = typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer?.id;
+
+      await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
+        clerkId,
+        plan: resolvePlanFromStatus(subscription.status),
+        stripeCustomerId,
+        stripeSubscriptionId: subscription.id,
+        subscriptionCancelledAt: resolveCancelledAt(subscription),
+      });
+    },
+    "customer.subscription.deleted": async (
+      ctx,
+      event: Stripe.CustomerSubscriptionDeletedEvent
+    ) => {
+      const subscription = event.data.object;
+      const clerkId = resolveClerkId(subscription.metadata);
+      if (!clerkId) return;
+
+      const stripeCustomerId = typeof subscription.customer === "string"
+        ? subscription.customer
+        : subscription.customer?.id;
+
+      await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
+        clerkId,
+        plan: "free",
+        stripeCustomerId,
+        stripeSubscriptionId: subscription.id,
+        subscriptionCancelledAt: resolveCancelledAt(subscription),
+      });
+    },
+  },
+});
 
 // Clerk webhook handler for user and subscription events
 http.route({

@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { SignedIn, SignedOut, SignUpButton, useUser } from "@clerk/nextjs";
-import { CheckoutButton } from "@clerk/nextjs/experimental";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
-
-const PRO_PLAN_ID = "cplan_37Cn3oopuz5AzG1NlC0clKTt0MQ";
+import { startStripeCheckout } from "@/lib/billing-client";
 
 export function ProCard() {
   const [isAnnual, setIsAnnual] = useState(true);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const { user } = useUser();
   const convexUser = useQuery(
     api.users.getByClerkId,
@@ -22,6 +21,18 @@ export function ProCard() {
   const monthlyPrice = 9;
   const annualMonthlyPrice = 8.33;
   const savePct = Math.ceil((monthlyPrice * 12 - annualMonthlyPrice * 12) / (monthlyPrice * 12) * 100);
+
+  const handleCheckout = async () => {
+    if (isCheckoutLoading) return;
+    setIsCheckoutLoading(true);
+    try {
+      await startStripeCheckout(isAnnual ? "annual" : "month");
+    } catch (error) {
+      console.error(error);
+      alert(error instanceof Error ? error.message : "Checkout failed");
+      setIsCheckoutLoading(false);
+    }
+  };
 
   return (
     <div
@@ -163,14 +174,14 @@ export function ProCard() {
             </button>
           </Link>
         ) : (
-          <CheckoutButton
-            planId={PRO_PLAN_ID}
-            planPeriod={isAnnual ? "annual" : "month"}
+          <button
+            className="btn btn-primary"
+            style={{ width: "100%" }}
+            onClick={handleCheckout}
+            disabled={isCheckoutLoading}
           >
-            <button className="btn btn-primary" style={{ width: "100%" }}>
-              Start 3-day free trial
-            </button>
-          </CheckoutButton>
+            {isCheckoutLoading ? "Starting checkout..." : "Start 3-day free trial"}
+          </button>
         )}
       </SignedIn>
     </div>

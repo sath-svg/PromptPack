@@ -1,6 +1,6 @@
-import { PricingTable } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import { ProCard } from "../pricing/pro-card";
 
 export default async function SubscribePage() {
   const { userId } = await auth();
@@ -19,7 +19,9 @@ export default async function SubscribePage() {
         Get more prompts, more packs, and cloud sync
       </p>
 
-      <PricingTable />
+      <div style={{ maxWidth: "420px", margin: "0 auto" }}>
+        <ProCard />
+      </div>
     </div>
   );
 }
