@@ -44,8 +44,9 @@ export const upsert = mutation({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+    stripeCustomerId: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan }) => {
+  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -57,6 +58,7 @@ export const upsert = mutation({
         name,
         imageUrl,
         ...(plan && { plan }),
+        ...(stripeCustomerId && { stripeCustomerId }),
       });
       return existing._id;
     }
@@ -67,8 +69,50 @@ export const upsert = mutation({
       name,
       imageUrl,
       plan: plan ?? "free",
+      stripeCustomerId,
       createdAt: Date.now(),
     });
+  },
+});
+
+// Store Stripe customer ID for a user
+export const setStripeCustomerId = mutation({
+  args: {
+    clerkId: v.string(),
+    stripeCustomerId: v.string(),
+  },
+  handler: async (ctx, { clerkId, stripeCustomerId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      return null;
+    }
+
+    await ctx.db.patch(user._id, { stripeCustomerId });
+    return user._id;
+  },
+});
+
+// Internal mutation: set Stripe customer ID by Clerk ID (no-op if missing)
+export const setStripeCustomerIdByClerkId = internalMutation({
+  args: {
+    clerkId: v.string(),
+    stripeCustomerId: v.string(),
+  },
+  handler: async (ctx, { clerkId, stripeCustomerId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      return;
+    }
+
+    await ctx.db.patch(user._id, { stripeCustomerId });
   },
 });
 
@@ -108,8 +152,9 @@ export const upsertFromWebhook = internalMutation({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro")),
+    stripeCustomerId: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan }) => {
+  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -121,6 +166,7 @@ export const upsertFromWebhook = internalMutation({
         name,
         imageUrl,
         plan,
+        ...(stripeCustomerId && { stripeCustomerId }),
       });
       return existing._id;
     }
@@ -131,6 +177,7 @@ export const upsertFromWebhook = internalMutation({
       name,
       imageUrl,
       plan,
+      stripeCustomerId,
       createdAt: Date.now(),
     });
   },
@@ -197,6 +244,64 @@ export const updatePlanByClerkId = internalMutation({
     else {
       await ctx.db.patch(user._id, { plan });
     }
+  },
+});
+
+// Internal mutation: update plan from Stripe webhook events
+export const updatePlanFromStripeEvent = internalMutation({
+  args: {
+    clerkId: v.string(),
+    plan: v.union(v.literal("free"), v.literal("pro")),
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    subscriptionCancelledAt: v.optional(v.number()),
+  },
+  handler: async (ctx, {
+    clerkId,
+    plan,
+    stripeCustomerId,
+    stripeSubscriptionId,
+    subscriptionCancelledAt,
+  }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) return;
+
+    const oldPlan = user.plan;
+    const nextPatch = {
+      plan,
+      ...(stripeCustomerId && { stripeCustomerId }),
+      ...(stripeSubscriptionId && { stripeSubscriptionId }),
+    };
+
+    if (oldPlan === "pro" && plan === "free") {
+      console.log(`User ${clerkId} downgraded to free via Stripe - starting grace period`);
+
+      const gracePeriodMs = 24 * 60 * 60 * 1000;
+      const cancelTime = subscriptionCancelledAt || Date.now();
+      const packDeletionAt = cancelTime + gracePeriodMs;
+
+      await ctx.db.patch(user._id, {
+        ...nextPatch,
+        packDeletionAt,
+      });
+      return;
+    }
+
+    if (oldPlan === "free" && plan === "pro") {
+      console.log(`User ${clerkId} upgraded to pro via Stripe - clearing grace period`);
+
+      await ctx.db.patch(user._id, {
+        ...nextPatch,
+        packDeletionAt: undefined,
+      });
+      return;
+    }
+
+    await ctx.db.patch(user._id, nextPatch);
   },
 });
 
