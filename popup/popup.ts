@@ -387,7 +387,6 @@ function renderPromptRow(p: PromptItem) {
 
 let storageListenerRegistered = false;
 let delegationSetup = false;
-
 function ensureThemeListenerOnce() {
   if (storageListenerRegistered) return;
   storageListenerRegistered = true;
@@ -407,19 +406,19 @@ function ensureThemeListenerOnce() {
   });
 }
 
-async function detectActiveSource(): Promise<PromptItem["source"]> {
+async function detectActiveSource(): Promise<PromptItem["source"] | null> {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.url) return "chatgpt";
+    if (!tab?.url) return null;
 
     const url = tab.url.toLowerCase();
     if (url.includes("claude.ai")) return "claude";
     if (url.includes("gemini.google.com")) return "gemini";
     if (url.includes("chatgpt.com") || url.includes("chat.openai.com")) return "chatgpt";
 
-    return "chatgpt"; // default
+    return null;
   } catch {
-    return "chatgpt"; // fallback
+    return null;
   }
 }
 
@@ -886,6 +885,8 @@ function setupEventDelegation() {
       input.value = "";
     }
   });
+
+  // Keybind handled in content scripts (website focus), not in popup.
 }
 
 async function render(forceRefresh = false) {
@@ -964,7 +965,11 @@ async function render(forceRefresh = false) {
   const activeSource = await detectActiveSource();
 
   // Set active source on root element for styling
-  document.documentElement.dataset.activeSource = activeSource;
+  if (activeSource) {
+    document.documentElement.dataset.activeSource = activeSource;
+  } else {
+    delete document.documentElement.dataset.activeSource;
+  }
 
   // Render auth button based on state
   const syncIndicator = isSyncing ? `<span class="pp-sync-hint" title="Syncing...">•</span>` : "";
@@ -987,7 +992,10 @@ async function render(forceRefresh = false) {
   app.innerHTML = `
     <div class="pp-wrap">
       <div class="pp-header">
-        <div class="pp-title">PromptPack${syncIndicator}</div>
+        <div class="pp-title">
+          <img class="pp-logo" src="img/logo_no_text.png" alt="PromptPack" />
+          PromptPack${syncIndicator}
+        </div>
         <div class="pp-header-actions">
           ${importButton}
           <button class="pp-icon-btn" id="pp-undo-btn" title="Undo">${ICON.undo}</button>
@@ -999,7 +1007,7 @@ async function render(forceRefresh = false) {
 
       ${groups
         .map((group) => {
-          const openAttr = group.source === activeSource && group.type === "source" ? "open" : "";
+          const openAttr = activeSource && group.source === activeSource && group.type === "source" ? "open" : "";
           const isPack = group.type === "pack";
 
           // For both packs and sources: show save/export based on login status

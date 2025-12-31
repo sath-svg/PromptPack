@@ -211,6 +211,31 @@ function ensureButton() {
   return btn;
 }
 
+function setupSaveKeybind() {
+  document.addEventListener("keydown", (e) => {
+    if (!e.altKey) return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.key.toLowerCase() !== "s") return;
+    if (e.repeat) return;
+
+    const composer = findComposer();
+    if (composer) currentComposer = composer;
+
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      if (!composer || (target !== composer && !composer.contains(target))) {
+        return;
+      }
+    }
+
+    const btn = ensureButton();
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    btn.click();
+  });
+}
+
 function isGenerating(): boolean {
   const selectors = [
     'button[data-testid="stop-button"]',
@@ -311,6 +336,8 @@ function boot() {
   // Handle resize and scroll
   window.addEventListener("resize", scheduleTick);
   window.addEventListener("scroll", scheduleTick, { passive: true });
+
+  setupSaveKeybind();
 
   // Handle SPA navigation via History API
   const originalPushState = history.pushState.bind(history);
