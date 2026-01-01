@@ -2,7 +2,7 @@ import type { ManifestV3Export } from "@crxjs/vite-plugin";
 
 const manifest: ManifestV3Export = {
   manifest_version: 3,
-  name: "PromptPack",
+  name: "PromptPack – Save & Organize AI Prompts",
   version: "1.0.0",
   icons: {
     "16": "img/logo_no_text.png",
