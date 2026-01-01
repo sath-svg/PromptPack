@@ -12,7 +12,7 @@ export default function PrivacyPolicy() {
         <section>
           <h2>1. Introduction</h2>
           <p>
-            Welcome to PromptPack ("we," "our," or "us"). We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Chrome extension and web application.
+            Welcome to PromptPack. We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our Chrome extension and web application.
           </p>
           <p>
             By using PromptPack, you agree to the collection and use of information in accordance with this policy. If you do not agree with our policies and practices, please do not use our services.
@@ -153,7 +153,7 @@ export default function PrivacyPolicy() {
           <h3>7.2 Modification and Deletion</h3>
           <ul>
             <li><strong>Edit Prompts:</strong> You can modify or delete individual prompts at any time</li>
-            <li><strong>Delete Account:</strong> You can delete your account by contacting support at <a href="mailto:sathvik.work@gmail.com">sathvik.work@gmail.com</a></li>
+            <li><strong>Delete Account:</strong> You can delete your account by contacting support using the support button at the bottom right of the screen</li>
             <li><strong>Revoke Access:</strong> You can uninstall the extension to stop data collection</li>
           </ul>
 
@@ -187,14 +187,14 @@ export default function PrivacyPolicy() {
           </ul>
 
           <p>
-            To exercise any of these rights, please contact us at <a href="mailto:sathvik.work@gmail.com">sathvik.work@gmail.com</a>.
+            To exercise any of these rights, please contact us using the support button at the bottom right of the screen.
           </p>
         </section>
 
         <section>
           <h2>8. Children's Privacy</h2>
           <p>
-            PromptPack is not intended for use by children under the age of 13 (or 16 in the EU). We do not knowingly collect personal information from children. If you believe we have collected information from a child, please contact us immediately at <a href="mailto:sathvik.work@gmail.com">sathvik.work@gmail.com</a>, and we will delete the information.
+            PromptPack is not intended for use by children under the age of 13 (or 16 in the EU). We do not knowingly collect personal information from children. If you believe we have collected information from a child, please contact us immediately using the support button at the bottom right of the screen, and we will delete the information.
           </p>
         </section>
 
@@ -229,7 +229,7 @@ export default function PrivacyPolicy() {
             If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:
           </p>
           <ul className="contact-info">
-            <li><strong>Email:</strong> <a href="mailto:sathvik.work@gmail.com">sathvik.work@gmail.com</a></li>
+            <li><strong>Support:</strong> Click the support button at the bottom right of the screen</li>
             <li><strong>Website:</strong> <a href="https://pmtpk.com" target="_blank" rel="noopener noreferrer">https://pmtpk.com</a></li>
             <li><strong>Response Time:</strong> We aim to respond to all inquiries within 48 hours</li>
           </ul>
@@ -248,7 +248,6 @@ export default function PrivacyPolicy() {
             <li>Comply with all applicable data breach notification laws</li>
           </ul>
         </section>
-
         <section className="summary">
           <h2>Summary</h2>
           <p>
