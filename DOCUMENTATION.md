@@ -88,10 +88,10 @@ Each platform has a dedicated content script that detects the input textarea and
 
 1. Click the import button in the popup
 2. Select a `.pmtpk` file
-3. If encrypted, enter the 5-character password
+3. If encrypted, enter the password (exactly 5 characters)
 4. Prompts are imported with the pack name as metadata
-5. **Free tier**: Limited to 2 imported packs total
-6. **Pro tier**: Unlimited imported packs
+5. **Free tier**: Cannot import packs
+6. **Pro tier**: Limited to 2 imported packs total
 
 Import validation:
 - Checks pack limit before importing
@@ -109,7 +109,7 @@ All users (free and pro) can export prompts:
 
 Export options:
 - **Without password**: Creates obfuscated file (XOR-based, not cryptographic)
-- **With password**: Creates AES-GCM encrypted file
+- **With password**: Creates AES-GCM encrypted file (exactly 5 characters)
 
 ### Deleting Prompts
 
@@ -156,7 +156,7 @@ Pro users can create up to **2 prompt packs** on the dashboard:
 1. Click "+ New Pack"
 2. Enter pack name
 3. Add first prompt
-4. Optionally set 5-character encryption password
+4. Optionally set encryption password (exactly 5 characters)
 5. Pack is stored in R2 with metadata in Convex
 
 Pack management:
