@@ -109,7 +109,7 @@ All users (free and pro) can export prompts:
 
 Export options:
 - **Without password**: Creates obfuscated file (XOR-based, not cryptographic)
-- **With password**: Creates AES-GCM encrypted file
+- **With password**: Creates AES-GCM encrypted file (exactly 5 characters)
 
 ### Deleting Prompts
 

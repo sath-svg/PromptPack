@@ -4,10 +4,19 @@ const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack – Save & Organize AI Prompts",
   version: "1.0.0",
+  description: "Stop losing your best prompts. Save, organize, and reuse AI prompts across ChatGPT, Claude, and Gemini with one click.",
+
+  // Icons - Chrome Web Store requires 16x16, 48x48, and 128x128
   icons: {
-    "16": "img/logo_no_text.png",
+    "16": "img/icon-16.png",
+    "48": "img/icon-48.png",
+    "128": "img/icon-128.png",
   },
+
+  // Permissions
   permissions: ["storage", "unlimitedStorage", "tabs", "identity"],
+
+  // Host permissions for LLM websites and web app
   host_permissions: [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
@@ -15,12 +24,19 @@ const manifest: ManifestV3Export = {
     "https://gemini.google.com/*",
     "https://pmtpk.com/*",
   ],
+
+  // Extension action (popup)
   action: {
     default_popup: "index.html",
+    default_title: "PromptPack",
     default_icon: {
-      "16": "img/logo_no_text.png"
+      "16": "img/icon-16.png",
+      "48": "img/icon-48.png",
+      "128": "img/icon-128.png",
     }
   },
+
+  // Content scripts for each LLM platform
   content_scripts: [
     {
       matches: ["https://chatgpt.com/", "https://chatgpt.com/*", "https://chat.openai.com/*"],
@@ -38,6 +54,37 @@ const manifest: ManifestV3Export = {
       run_at: "document_idle",
     },
   ],
+
+  // Background service worker (optional, add if needed)
+  // background: {
+  //   service_worker: "background.ts",
+  //   type: "module",
+  // },
+
+  // Web accessible resources (if needed for content scripts)
+  // web_accessible_resources: [
+  //   {
+  //     resources: ["img/*"],
+  //     matches: ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+  //   },
+  // ],
+
+  // Commands for keyboard shortcuts
+  commands: {
+    "save-prompt": {
+      suggested_key: {
+        default: "Ctrl+Alt+S",
+        mac: "Command+Alt+S",
+      },
+      description: "Save current prompt to PromptPack",
+    },
+  },
+
+  // Homepage and author info
+  homepage_url: "https://pmtpk.com",
+  author: {
+    email: "sathvik.work@gmail.com",
+  },
 };
 
 export default manifest;

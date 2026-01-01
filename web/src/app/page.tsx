@@ -224,11 +224,11 @@ export default function Home() {
       </section>
 
       <footer className="site-footer">
+        <div className="footer-links">
+          <Link href="/privacy" className="footer-link">Privacy Policy</Link>
+        </div>
         <p className="footer-note">
-          Powered by.{" "}
-          <a className="footer-link" target="_blank" rel="noreferrer">
-            pmtpk.ai
-          </a>
+          Powered by pmtpk.ai
         </p>
       </footer>
     </>

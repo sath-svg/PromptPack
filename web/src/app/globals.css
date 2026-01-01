@@ -546,6 +546,7 @@ h4.hero-hook {
 
 .footer-note {
   font-size: 0.9rem;
+  
 }
 
 .footer-link {
@@ -557,6 +558,19 @@ h4.hero-hook {
 .footer-link:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.footer-separator {
+  color: var(--muted-foreground);
+  opacity: 0.5;
 }
 
 /* Pro upsell section */
