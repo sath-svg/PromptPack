@@ -1,9 +1,6 @@
-import Link from "next/link";
+"use client";
 
-export const metadata = {
-  title: "Privacy Policy - PromptPack",
-  description: "Privacy policy for PromptPack - Learn how we collect, use, and protect your data",
-};
+import Link from "next/link";
 
 export default function PrivacyPolicy() {
   return (
