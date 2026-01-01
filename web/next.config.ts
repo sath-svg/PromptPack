@@ -23,6 +23,18 @@ const nextConfig: NextConfig = {
       fullUrl: false,
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "pub-49b572bd58734fa9bccbda52d7f46f55.r2.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "storage.pmtpk.com",
+      },
+    ],
+  },
 };
 
 export default nextConfig;

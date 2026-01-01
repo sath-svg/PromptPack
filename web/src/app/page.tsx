@@ -1,6 +1,7 @@
 import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
+import { assetUrl } from "@/lib/constants";
 import './globals.css';
 
 export default function Home() {
@@ -8,7 +9,7 @@ export default function Home() {
     <>
       <div className="hero">
         <Image
-          src="/img/promptpack_logo_horizontal.png"
+          src={assetUrl("/img/promptpack_logo_horizontal.png")}
           alt="PromptPack"
           width={720}
           height={165}
@@ -22,10 +23,10 @@ export default function Home() {
         <p>
           Build your own <span className="gradient-text">PromptPacks</span> for ChatGPT, Claude, and Gemini - organized like playlists.
           <br />
-          Save your prompts. Reuse workflows. Work faster.
+          Save your prompts. Turn them into repeatable workflows.
         </p>
 
-        <h4 className="hero-hook">Make your Prompts Sing!</h4>
+        <h4 className="hero-hook">Work faster with a library of your proven prompts.</h4>
 
         <div className="hero-cta">
           <SignedOut>
@@ -106,25 +107,25 @@ export default function Home() {
         <div className="demo-grid">
           <div className="demo-card">
             <div className="demo-media" aria-label="ChatGPT save flow">
-              <img src="/img/chatgpt-recording.gif" alt="ChatGPT save flow" loading="lazy" />
+              <img src={assetUrl("/img/chatgpt-recording.gif")} alt="ChatGPT save flow" loading="lazy" />
             </div>
             <p className="demo-caption">ChatGPT save flow</p>
           </div>
           <div className="demo-card">
             <div className="demo-media" aria-label="Claude save flow">
-              <img src="/img/claude-recording.gif" alt="Claude save flow" loading="lazy" />
+              <img src={assetUrl("/img/claude-recording.gif")} alt="Claude save flow" loading="lazy" />
             </div>
             <p className="demo-caption">Claude save flow</p>
           </div>
           <div className="demo-card">
             <div className="demo-media" aria-label="Gemini save flow">
-              <img src="/img/gemini-recording.gif" alt="Gemini save flow" loading="lazy" />
+              <img src={assetUrl("/img/gemini-recording.gif")} alt="Gemini save flow" loading="lazy" />
             </div>
             <p className="demo-caption">Gemini save flow</p>
           </div>
           <div className="demo-card">
             <div className="demo-media" aria-label="Dashboard walkthrough">
-              <img src="/img/dashboard.gif" alt="Dashboard walkthrough" loading="lazy" />
+              <img src={assetUrl("/img/dashboard.gif")} alt="Dashboard walkthrough" loading="lazy" />
             </div>
             <p className="demo-caption">Dashboard walkthrough</p>
           </div>

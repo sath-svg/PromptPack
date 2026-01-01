@@ -12,6 +12,7 @@ import Image from "next/image";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import { SupportButton } from "@/components/support-button";
+import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -32,7 +33,7 @@ export default function RootLayout({
           <header className="header">
             <Link href="/" className="header-logo">
             <Image
-              src="/img/logo_text.png"
+              src={assetUrl("/img/logo_text.png")}
               alt="PromptPack"
               width={200}
               height={40}
