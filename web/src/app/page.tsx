@@ -21,12 +21,15 @@ export default function Home() {
           Stop losing your best prompts.
         </h1>
         <p>
-          Build your own <span className="gradient-text">PromptPacks</span> for ChatGPT, Claude, and Gemini - organized like playlists.
+          ChatGPT alone sees 2.5 – 3 billion prompts a day.
           <br />
-          Save your prompts. Turn them into repeatable workflows.
+          The best ones shouldn’t disappear into chat history. Save your winners.
+          <br />
+          Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
-
-        <h4 className="hero-hook">Work faster with a library of your proven prompts.</h4>
+        <h4 className="hero-hook">
+          <a className="hero-hook-link" href="#faq">What is a PromptPack?</a>
+        </h4>
 
         <div className="hero-cta">
           <SignedOut>
@@ -47,7 +50,7 @@ export default function Home() {
 
 <section className="how-section">
   <div className="how-inner">
-    <h2 className="how-title">How it works</h2>
+    <h2 className="how-title demo-title">How it works.</h2>
     <p className="how-subtitle">
       From a “good prompt” to reusable workflow — in under a minute.
     </p>
@@ -102,51 +105,132 @@ export default function Home() {
     </p>
   </div>
 </section>
-
+     
       <section className="demo-section">
-        <div className="demo-grid">
-          <div className="demo-card">
-            <div className="demo-media" aria-label="ChatGPT save flow">
-              <img src={assetUrl("/img/chatgpt-recording.gif")} alt="ChatGPT save flow" loading="lazy" />
+        <h2 className="how-title demo-title">Works flawlessly with ChatGPT, Gemini and Claude.</h2>
+        <div className="llm-tabs" role="tablist" aria-label="LLM demos">
+          <input
+            className="llm-tab-input"
+            type="radio"
+            name="llm-demo"
+            id="llm-chatgpt"
+            defaultChecked
+          />
+          <label className="llm-tab" htmlFor="llm-chatgpt" role="tab" aria-controls="llm-panel-chatgpt">
+            ChatGPT
+          </label>
+          <input
+            className="llm-tab-input"
+            type="radio"
+            name="llm-demo"
+            id="llm-claude"
+          />
+          <label className="llm-tab" htmlFor="llm-claude" role="tab" aria-controls="llm-panel-claude">
+            Claude
+          </label>
+          <input
+            className="llm-tab-input"
+            type="radio"
+            name="llm-demo"
+            id="llm-gemini"
+          />
+          <label className="llm-tab" htmlFor="llm-gemini" role="tab" aria-controls="llm-panel-gemini">
+            Gemini
+          </label>
+          <div className="llm-panels">
+            <div className="llm-panel" id="llm-panel-chatgpt" role="tabpanel" data-panel="chatgpt">
+              <div className="demo-card demo-card-wide">
+                <div className="demo-media" aria-label="ChatGPT save flow">
+                  <img src={assetUrl("/img/chatgpt-recording.gif")} alt="ChatGPT save flow" loading="lazy" />
+                </div>
+                <p className="demo-caption">ChatGPT</p>
+              </div>
             </div>
-            <p className="demo-caption">ChatGPT save flow</p>
-          </div>
-          <div className="demo-card">
-            <div className="demo-media" aria-label="Claude save flow">
-              <img src={assetUrl("/img/claude-recording.gif")} alt="Claude save flow" loading="lazy" />
+            <div className="llm-panel" id="llm-panel-claude" role="tabpanel" data-panel="claude">
+              <div className="demo-card demo-card-wide">
+                <div className="demo-media" aria-label="Claude save flow">
+                  <img src={assetUrl("/img/claude-recording.gif")} alt="Claude save flow" loading="lazy" />
+                </div>
+                <p className="demo-caption">Claude</p>
+              </div>
             </div>
-            <p className="demo-caption">Claude save flow</p>
-          </div>
-          <div className="demo-card">
-            <div className="demo-media" aria-label="Gemini save flow">
-              <img src={assetUrl("/img/gemini-recording.gif")} alt="Gemini save flow" loading="lazy" />
+            <div className="llm-panel" id="llm-panel-gemini" role="tabpanel" data-panel="gemini">
+              <div className="demo-card demo-card-wide">
+                <div className="demo-media" aria-label="Gemini save flow">
+                  <img src={assetUrl("/img/gemini-recording.gif")} alt="Gemini save flow" loading="lazy" />
+                </div>
+                <p className="demo-caption">Gemini</p>
+              </div>
             </div>
-            <p className="demo-caption">Gemini save flow</p>
-          </div>
-          <div className="demo-card">
-            <div className="demo-media" aria-label="Dashboard walkthrough">
-              <img src={assetUrl("/img/dashboard.gif")} alt="Dashboard walkthrough" loading="lazy" />
-            </div>
-            <p className="demo-caption">Dashboard walkthrough</p>
           </div>
         </div>
       </section>
 
       <section className="pro-section">
         <div className="pro-inner">
-          <h2 className="pro-title">Turn your best prompts into products.</h2>
+          <h2 className="pro-title"><Link className="pro-link" href="/pricing">Pro</Link> is for creators.</h2>
           <p className="pro-copy">
-            Your best ideas shouldn&rsquo;t live in a chat history. With{" "}
-            <Link className="pro-link" href="/pricing">Pro</Link>, you can create your own PromptPacks
+            Your best ideas shouldn&rsquo;t live in a chat history. Unlock {" "}
+            <Link className="pro-link" href="/pricing">Pro</Link> to create your own PromptPacks
             and export them as <span className="gradient-text">.pmtpk</span> — a purpose-built format for sharing and distribution.
             <br />
             <span className="pro-break" aria-hidden="true"></span>
-            Add optional encryption so that your packs are secure, then distribute with
+            Add encryption so that your packs are secure, then distribute with
             confidence and license your work like a real digital asset.
           </p>
           <p className="pro-tagline">Pack your ideas. Monetize your prompts.</p>
         </div>
       </section>
+
+      <section className="demo-section dashboard-section">
+        <div className="demo-card demo-card-wide">
+          <div className="demo-media demo-media-wide" aria-label="Dashboard walkthrough">
+            <img src={assetUrl("/img/dashboard.gif")} alt="Dashboard walkthrough" loading="lazy" />
+          </div>
+          <p className="demo-caption">Save your prompts to dashboard and create your own PromptPacks.</p>
+        </div>
+      </section>
+
+      <section className="faq-section" id="faq">
+        <div className="faq-inner">
+          <h2 className="faq-title">FAQ</h2>
+          <div className="faq-list">
+            <div className="faq-item">
+              <h3>1) What is a <span className="gradient-text">PromptPack</span>, and how is it different from a folder of saved prompts?</h3>
+              <p>
+                A <span className="gradient-text">PromptPack</span> is a curated set of prompts grouped into a reusable workflow — like a playlist. Save in one click while you are chatting,
+                then reuse the packs <span className="faq-highlight">seamlessly</span> across ChatGPT, Claude, and Gemini with no dragging to copy and paste or tab switching.
+              </p>
+            </div>
+            <div className="faq-item">
+              <h3>2) Why not just use Google Docs, or Notepad to store prompts?</h3>
+              <p>
+                Documents get messy fast: prompts get buried, duplicated, and scattered across files. <span className="gradient-text">PromptPack</span> keeps everything organized into reusable packs you can access <span className="faq-highlight">instantly</span>.
+                <br/>
+                <span className="pro-break" aria-hidden="true"></span>
+                What’s next: Beyond storage, <span className="gradient-text">PromptPacks</span> will evolve into agent-ready workflows — drag-and-drop modules you can plug into an LLM to get various forms of work done, while keeping your data sandboxed to that agent.
+              </p>
+            </div>
+            <div className="faq-item">
+              <h3>3) How does <span className="gradient-text">.pmtpk</span> and security help me share, distribute, or license PromptPacks safely?</h3>
+              <p>
+                <span className="gradient-text">.pmtpk</span> is a dedicated format that does not open like a normal text file, so your prompts are not casually readable
+                in Notepad,etc. With optional encryption, these packs stay accessible to you and only the people you share with, ideal for
+                distributing and licensing your <span className="gradient-text">PromptPacks</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer className="site-footer">
+        <p className="footer-note">
+          Powered by.{" "}
+          <a className="footer-link" target="_blank" rel="noreferrer">
+            pmtpk.ai
+          </a>
+        </p>
+      </footer>
     </>
   );
 }

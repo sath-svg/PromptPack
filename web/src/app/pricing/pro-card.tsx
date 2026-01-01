@@ -153,7 +153,10 @@ export function ProCard() {
         }}
       >
         <li>✓ 40 saved prompts</li>
-        <li>✓ 5 loaded packs</li>
+        <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
+        <li>✓ <span className="faq-highlight">2</span> custom <span className="gradient-text">PromptPacks</span></li>
+        <li>✓ Chrome extension</li>
+        <li>✓ Local storage</li>
         <li>✓ Cloud sync</li>
         <li>✓ Priority support</li>
         <li>✓ Early access to features</li>
