@@ -16,10 +16,10 @@ All parameters, limits, and URLs are now centralized in config files. **Update t
 
 | Parameter | Current Value | Description | Can Update |
 |-----------|---------------|-------------|------------|
-| `BASE_URL` | `http://localhost:3000` | Web app URL → `https://pmtpk.ai` | **YES - UPDATE** |
-| `API_BASE` | `http://localhost:8787` | Cloudflare Workers API | **YES - UPDATE** |
-| `CONVEX_API_URL` | `https://brilliant-sandpiper-173.convex.site` | Convex HTTP endpoint | OPTIONAL |
-| `IS_PRODUCTION` | `false` | Feature flag | **YES - UPDATE** |
+| `BASE_URL` | `https://pmtpk.com` | Web app URL | ✅ UPDATED |
+| `API_BASE` | `https://promptpack-api.dksathvik.workers.dev` | Cloudflare Workers API | ✅ UPDATED |
+| `CONVEX_API_URL` | `https://determined-lark-313.convex.site` | Convex HTTP endpoint | ✅ UPDATED |
+| `IS_PRODUCTION` | `true` | Feature flag | ✅ UPDATED |
 | `FREE_PROMPT_LIMIT` | `10` | Free tier prompt limit | YES |
 | `PRO_PROMPT_LIMIT` | `40` | Pro tier prompt limit | YES |
 | `FREE_PACK_LIMIT` | `2` | Free tier pack limit | YES |
@@ -39,8 +39,8 @@ All parameters, limits, and URLs are now centralized in config files. **Update t
 
 | Parameter | Current Value | Description | Can Update |
 |-----------|---------------|-------------|------------|
-| `R2_API_URL` | `http://localhost:8787` | R2 Workers API (via env) | **YES - UPDATE** |
-| `WORKERS_API_URL` | `http://localhost:8787` | Same as R2 API | **YES - UPDATE** |
+| `R2_API_URL` | `https://promptpack-api.dksathvik.workers.dev` | R2 Workers API (via env) | ✅ UPDATED |
+| `WORKERS_API_URL` | `https://promptpack-api.dksathvik.workers.dev` | Same as R2 API | ✅ UPDATED |
 | `SUPPORT_EMAIL` | `sathvik.work@gmail.com` | Support email (via env) | YES |
 | `FREE_PROMPT_LIMIT` | `10` | Free tier prompt limit | YES |
 | `PRO_PROMPT_LIMIT` | `40` | Pro tier prompt limit | YES |
@@ -60,26 +60,26 @@ All URLs are now in `popup/shared/config.ts` for extension and `web/src/lib/cons
 
 | File | Current (Dev) | Production | Status |
 |------|---------------|------------|--------|
-| `popup/shared/config.ts` | `BASE_URL = "http://localhost:3000"` | `"https://pmtpk.ai"` | **UPDATE** |
-| `popup/shared/config.ts` | `API_BASE = "http://localhost:8787"` | `"https://your-worker.workers.dev"` | **UPDATE** |
-| `popup/shared/config.ts` | `IS_PRODUCTION = false` | `true` | **UPDATE** |
-| `popup/manifest.config.ts` | `http://localhost:3000/*` | Remove & add `https://pmtpk.ai/*` | **UPDATE** |
+| `popup/shared/config.ts` | `BASE_URL = "http://localhost:3000"` | `"https://pmtpk.com"` | ✅ UPDATED |
+| `popup/shared/config.ts` | `API_BASE = "http://localhost:8787"` | `"https://promptpack-api.dksathvik.workers.dev"` | ✅ UPDATED |
+| `popup/shared/config.ts` | `IS_PRODUCTION = false` | `true` | ✅ UPDATED |
+| `popup/manifest.config.ts` | `http://localhost:3000/*` | Remove & add `https://pmtpk.com/*` | ⚠️ VERIFY |
 
 ### Web App Files
 
 | File | Current (Dev) | Production | Status |
 |------|---------------|------------|--------|
-| `web/.env.local` | `NEXT_PUBLIC_R2_API_URL=http://localhost:8787` | `https://your-worker.workers.dev` | **UPDATE** |
-| `web/.env.local` | `NEXT_PUBLIC_WORKERS_API_URL=http://localhost:8787` | `https://your-worker.workers.dev` | **UPDATE** |
+| `web/.env.local` | `NEXT_PUBLIC_R2_API_URL=http://localhost:8787` | `https://promptpack-api.dksathvik.workers.dev` | ✅ UPDATED |
+| `web/.env.local` | `NEXT_PUBLIC_WORKERS_API_URL=http://localhost:8787` | `https://promptpack-api.dksathvik.workers.dev` | ✅ UPDATED |
 
 ### Cloudflare Workers
 
 | File | Setting | Production Value | Status |
 |------|---------|------------------|--------|
-| `api/src/index.ts` | `ENVIRONMENT` | `"production"` | **UPDATE wrangler.toml** |
-| `api/src/index.ts` | `BUCKET` | Your R2 bucket binding | **UPDATE wrangler.toml** |
-| `api/src/index.ts` | `CONVEX_URL` | Your Convex site URL | **UPDATE wrangler.toml** |
-| `api/src/index.ts` | `ALLOWED_ORIGINS` | `https://pmtpk.ai,chrome-extension://*` | **UPDATE wrangler.toml** |
+| `api/wrangler.toml` | `ENVIRONMENT` | `"production"` | ✅ UPDATED |
+| `api/wrangler.toml` | `BUCKET` | `promptpack-files-prod` | ✅ UPDATED |
+| `api/wrangler.toml` | `CONVEX_URL` | `https://brilliant-sandpiper-173.convex.site` | ✅ UPDATED |
+| `api/wrangler.toml` | `ALLOWED_ORIGINS` | `https://pmtpk.com,chrome-extension://*` | ✅ UPDATED |
 
 ---
 
@@ -89,8 +89,8 @@ All URLs are now in `popup/shared/config.ts` for extension and `web/src/lib/cons
 
 **File: `popup/shared/config.ts`**
 ```typescript
-// Change these values:
-export const BASE_URL = "https://pmtpk.ai";
+// ✅ These values are already set:
+export const BASE_URL = "https://pmtpk.com";
 export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
 export const IS_PRODUCTION = true;
 ```
@@ -99,40 +99,42 @@ export const IS_PRODUCTION = true;
 
 **File: `web/.env.local`**
 ```bash
+# ✅ These values are already set:
 NEXT_PUBLIC_R2_API_URL=https://promptpack-api.dksathvik.workers.dev
 NEXT_PUBLIC_WORKERS_API_URL=https://promptpack-api.dksathvik.workers.dev
 ```
 
 ### Step 3: Update Extension Manifest
 
-**File: `popup/manifest.config.ts` (line 18-19)**
+**File: `popup/manifest.config.ts`**
 ```typescript
+// ⚠️ Verify this change has been made:
 // Remove:
 "http://localhost:3000/*", // REMOVE in production
 // Add:
-"https://pmtpk.ai/*"
+"https://pmtpk.com/*"
 ```
 
 ### Step 4: Deploy Cloudflare Worker
 
 **File: `api/wrangler.toml`**
 
-Update the bindings section:
+✅ Already configured for production:
 ```toml
 [vars]
 ENVIRONMENT = "production"
-CONVEX_URL = "https://your-project.convex.site"
-ALLOWED_ORIGINS = "https://pmtpk.ai,chrome-extension://*"
+CONVEX_URL = "https://brilliant-sandpiper-173.convex.site"
+ALLOWED_ORIGINS = "https://pmtpk.com,chrome-extension://*"
 
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "your-production-bucket"
+bucket_name = "promptpack-files-prod"
 ```
 
 Deploy:
 ```bash
 cd api
-bun run deploy
+bun run deploy  # ✅ Deployed
 ```
 
 ### Step 5: Deploy Web App
@@ -140,7 +142,7 @@ bun run deploy
 ```bash
 cd web
 # Build and deploy to Vercel/Netlify/etc
-bun run build
+bun run build  # ⚠️ Verify deployment status
 ```
 
 ### Step 6: Build Extension
@@ -149,6 +151,7 @@ bun run build
 cd popup
 bun run build
 # Upload dist/ folder to Chrome Web Store
+# ⚠️ Chrome Web Store submission pending
 ```
 
 ---
@@ -328,15 +331,28 @@ If issues occur in production:
 
 ---
 
-## Status: Development
+## Status: Production-Ready
 
-**Ready for Production:** No
+**Ready for Production:** Yes (with minor verification needed)
 
-**Blockers:**
-- Update `popup/shared/config.ts` with production URLs
-- Update `web/.env.local` with production environment variables
-- Update `popup/manifest.config.ts` host permissions
-- Deploy Cloudflare Worker to production
-- Configure production R2 bucket
-- Set up production Clerk instance
-- Create Chrome Web Store listing
+**✅ Completed:**
+- ✅ Updated `popup/shared/config.ts` with production URLs (`https://pmtpk.com`)
+- ✅ Updated `web/.env.local` with production environment variables
+- ✅ Deployed Cloudflare Worker to production (`promptpack-api.dksathvik.workers.dev`)
+- ✅ Configured production R2 bucket (`promptpack-files-prod`)
+- ✅ Convex backend deployed (`brilliant-sandpiper-173.convex.site`)
+
+**⚠️ Remaining Items:**
+- ⚠️ Verify `popup/manifest.config.ts` has `https://pmtpk.com/*` (not localhost)
+- ⚠️ Set up production Clerk instance (or verify existing)
+- ⚠️ Create Chrome Web Store listing and submit extension
+- ⚠️ Verify web app deployment (Vercel/Netlify)
+- ⚠️ Configure production webhooks (Clerk, Stripe)
+- ⚠️ Add monitoring/analytics
+
+**🔒 Security Improvements (Recommended):**
+- JWT validation for API requests
+- Rate limiting on Cloudflare Workers
+- Error tracking (Sentry/Rollbar)
+- Usage analytics
+- Production Clerk configuration
