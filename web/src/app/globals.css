@@ -83,6 +83,11 @@ a {
   font-weight: 700;
 }
 
+.header-logo-image {
+  height: 28px;
+  width: auto;
+}
+
 .header-nav {
   display: flex;
   gap: 1.5rem;
@@ -149,13 +154,13 @@ a {
 
 /* Hero section */
 .hero {
-  max-width: 800px;
+  max-width: 720px;
   margin: 4rem auto;
   text-align: center;
 }
 
 .hero h1 {
-  font-size: 3rem;
+  font-size: 2rem;
   font-weight: 700;
   margin-bottom: 1rem;
   background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
@@ -164,16 +169,300 @@ a {
   background-clip: text;
 }
 
+.hero-subhead {
+  margin-bottom: 0.75rem;
+  font-size: 1.00rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
 .hero p {
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   color: var(--muted-foreground);
   margin-bottom: 2rem;
+}
+
+.hero-logo {
+  max-width: 640px;
+  width: 100%;
+  height: auto;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+h4.hero-hook {
+  margin-top: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  opacity: 0.8;
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #7C5CFF, #A78BFA);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .hero-cta {
   display: flex;
   gap: 1rem;
   justify-content: center;
+}
+
+/* How it works section */
+.how-section {
+  padding: 4rem 0 2rem;
+  margin: 4rem auto 0;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08) 0%, rgba(10, 10, 10, 0) 60%);
+}
+
+.how-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.how-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.how-subtitle {
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  text-align: left;
+}
+
+.how-step {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+}
+
+.how-step h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.how-step p {
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.tooltip-wrap {
+  display: inline-flex;
+  align-items: left;
+  vertical-align: baseline;
+}
+
+.tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: left;
+  justify-content: left;
+  width: 18px;
+  height: 18px;
+  margin-left: 0.00rem;
+  border-radius: 50%;
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: help;
+}
+
+.tooltip-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.35);
+}
+
+.tooltip-trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 12px);
+  max-width: 360px;
+  min-width: 240px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+}
+
+.tooltip-trigger::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  bottom: calc(100% + 6px);
+  width: 8px;
+  height: 8px;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 4;
+}
+
+.tooltip-trigger:hover::after,
+.tooltip-trigger:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tooltip-trigger:hover::before,
+.tooltip-trigger:focus-visible::before {
+  opacity: 1;
+}
+
+.how-footnote {
+  margin-top: 2rem;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+/* Demo section */
+.demo-section {
+  max-width: none;
+  width: 100%;
+  margin: 5rem 0 6rem;
+  padding: 0 clamp(1rem, 4vw, 4rem);
+  text-align: center;
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin-bottom: 2.5rem;
+}
+
+.demo-card {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+}
+
+.demo-card-wide {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+}
+
+.demo-media {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.demo-media img,
+.demo-media video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.demo-media-wide {
+  aspect-ratio: 16 / 9;
+}
+
+.demo-caption {
+  font-size: 0.95rem;
+  color: var(--muted-foreground);
+}
+
+/* Pro upsell section */
+.pro-section {
+  margin: 4rem 0 6rem;
+  padding: 3.5rem 0;
+  background: radial-gradient(circle at top, rgba(124, 92, 255, 0.18) 0%, rgba(10, 10, 10, 0) 60%);
+}
+
+.pro-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.pro-title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.pro-copy {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin-bottom: 1.25rem;
+}
+
+.pro-break {
+  display: block;
+  height: 1.5rem;
+}
+
+.pro-link {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: linear-gradient(90deg, #7C5CFF, #A78BFA);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+
+.pro-tagline {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+@media (max-width: 900px) {
+  .how-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Dashboard */
@@ -779,6 +1068,7 @@ a {
 .add-prompt-form .btn {
   align-self: flex-end;
 }
+
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

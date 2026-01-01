@@ -8,9 +8,11 @@ import {
 } from "@clerk/nextjs";
 import { dark } from "@clerk/themes";
 import Link from "next/link";
+import Image from "next/image";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import { SupportButton } from "@/components/support-button";
+import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -30,9 +32,20 @@ export default function RootLayout({
         <body>
           <header className="header">
             <Link href="/" className="header-logo">
-              PromptPack
+            <Image
+              src={assetUrl("/img/logo_text.png")}
+              alt="PromptPack"
+              width={200}
+              height={40}
+              priority
+              className="header-logo-image"
+              style={{ 
+                display: "block", 
+                marginRight: "auto",
+                marginLeft: "0" 
+              }}
+            />
             </Link>
-
             <nav className="header-nav">
               <Link href="/marketplace" className="header-link">
                 Marketplace

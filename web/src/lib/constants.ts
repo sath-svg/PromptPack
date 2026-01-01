@@ -56,3 +56,17 @@ export const PASSWORD_LENGTH = PASSWORD_MAX_LENGTH;
 // UI CONFIGURATION
 // ============================================================================
 export const TOAST_DURATION_MS = 2000;
+
+// ============================================================================
+// ASSET CONFIGURATION
+// ============================================================================
+export const ASSET_BASE_URL = process.env.NEXT_PUBLIC_ASSET_BASE_URL || "";
+
+export const assetUrl = (path: string): string => {
+  if (!ASSET_BASE_URL) {
+    return path;
+  }
+  const base = ASSET_BASE_URL.endsWith("/") ? ASSET_BASE_URL.slice(0, -1) : ASSET_BASE_URL;
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${suffix}`;
+};
