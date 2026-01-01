@@ -18,10 +18,10 @@ export default function PricingPage() {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
-        Simple Pricing
+        Choose a plan that fits your needs.
       </h1>
       <p style={{ color: "var(--muted)", marginBottom: "3rem" }}>
-        Start free, upgrade when you need more
+        Start free, upgrade for creative access.
       </p>
 
       <div
@@ -62,7 +62,7 @@ export default function PricingPage() {
             }}
           >
             <li>✓ 10 saved prompts</li>
-            <li>✓ 2 loaded packs</li>
+            <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
             <li>✓ Chrome extension</li>
             <li>✓ Local storage</li>
           </ul>
