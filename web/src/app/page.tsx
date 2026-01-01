@@ -226,11 +226,9 @@ export default function Home() {
       <footer className="site-footer">
         <div className="footer-links">
           <Link href="/privacy" className="footer-link">Privacy Policy</Link>
-          <span className="footer-separator">•</span>
-          <a href="mailto:sathvik.work@gmail.com" className="footer-link">Contact</a>
         </div>
         <p className="footer-note">
-          Powered by pmtpk.com
+          Powered by pmtpk.ai
         </p>
       </footer>
     </>

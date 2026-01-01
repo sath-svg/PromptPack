@@ -251,7 +251,7 @@ export default function PrivacyPolicy() {
         <section className="summary">
           <h2>Summary</h2>
           <p>
-            <strong>In simple terms:</strong> PromptPack collects only the information necessary to provide our service. We store your prompts securely, don't sell your data, and give you full control over your information. Free tier data stays on your device; Pro tier data is synced to secure cloud storage. You can export or delete your data at any time.
+            <strong>In simple terms:</strong> PromptPack collects only the information necessary to provide our service. We store your prompts securely, don't sell your data, and give you full control over your information. Unsigned stays on your device; You can sync to cloud storage when signed-in. You can export or delete your data at any time.
           </p>
         </section>
 
@@ -356,6 +356,10 @@ export default function PrivacyPolicy() {
           padding: 1.5rem;
           border-radius: 8px;
           border-left: 4px solid var(--primary, #8b5cf6);
+        }
+
+        .summary h2 {
+          margin-top: 0.0rem;
         }
 
         .summary p {
