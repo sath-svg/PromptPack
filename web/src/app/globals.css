@@ -559,6 +559,19 @@ h4.hero-hook {
   text-underline-offset: 3px;
 }
 
+.footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.footer-separator {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+}
+
 /* Pro upsell section */
 .pro-section {
   margin: 4rem 0 6rem;
