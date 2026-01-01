@@ -43,23 +43,24 @@ Create these icon files in `popup/img/`:
 - Use your PromptPack logo/branding
 - Test at all sizes to ensure clarity
 
-#### 2. Store Listing Screenshots **ACTION REQUIRED**
+#### 2. Store Listing Screenshots ✅ **COMPLETED**
 Upload 1-5 screenshots showing your extension in action:
-- [ ] **Size:** 1280x800 or 640x400 pixels
-- [ ] **Format:** PNG or JPEG
-- [ ] **Quality:** High resolution, clear text
+- [x] **Size:** 1280x800 or 640x400 pixels ✅
+- [x] **Format:** 24-bit PNG (no alpha) ✅
+- [x] **Quality:** High resolution, clear text ✅
 
-**Suggested Screenshots:**
-1. Extension popup showing saved prompts organized by source
-2. ChatGPT with PromptPack save button visible
-3. Claude with PromptPack save button visible
-4. Gemini with PromptPack save button visible
-5. Dashboard view (optional - can link to web)
+**Screenshots Created:**
+1. ✅ Extension popup - `popup/img/screenshots/promptpack-extension-1280x800.png`
+2. ✅ ChatGPT integration - `popup/img/screenshots/chatgpt-1280x800.png`
+3. ✅ Claude integration - `popup/img/screenshots/claude-1280x800.png`
+4. ✅ Gemini integration - `popup/img/screenshots/gemini-1280x800.png`
 
-#### 3. Promotional Images (Optional but Recommended)
-- [ ] **Small Tile:** 440x280 pixels (shows in Chrome Web Store)
-- [ ] **Large Tile:** 920x680 pixels (featured promotions)
-- [ ] **Marquee:** 1400x560 pixels (top of store page)
+All screenshots are also available in 640x400 format in the same directory.
+
+#### 3. Promotional Images ✅ **COMPLETED**
+- [x] **Small Tile:** 440x280 pixels ✅ `popup/img/promo-tile-440x280.jpg`
+- [ ] **Large Tile:** 920x680 pixels (optional - not created)
+- [x] **Marquee:** 1400x560 pixels ✅ `popup/img/marquee-promo-1400x560.jpg`
 
 **Design Tips:**
 - Include your logo and tagline: "Stop losing your best prompts"
