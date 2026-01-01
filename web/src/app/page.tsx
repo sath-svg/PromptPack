@@ -205,7 +205,7 @@ export default function Home() {
             <div className="faq-item">
               <h3>2) Why not just use Google Docs, or Notepad to store prompts?</h3>
               <p>
-                Documents get messy fast: prompts get buried, duplicated, and scattered across files. <span className="gradient-text">PromptPack</span> keeps everything organized into reusable packs you can access <span className="faq-highlight">instantly</span>.
+                Documents get messy fast: prompts get buried, duplicated, and scattered across files. A <span className="gradient-text">PromptPack</span> keeps everything organized into reusable packs you can access <span className="faq-highlight">instantly</span>.
                 <br/>
                 <span className="pro-break" aria-hidden="true"></span>
                 What’s next: Beyond storage, <span className="gradient-text">PromptPacks</span> will evolve into agent-ready workflows — drag-and-drop modules you can plug into an LLM to get various forms of work done, while keeping your data sandboxed to that agent.
