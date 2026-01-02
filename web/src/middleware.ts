@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/pricing",
+  "/privacy", // Privacy policy must be public
   "/marketplace",
   "/marketplace/(.*)",
   "/api/webhooks/(.*)",
