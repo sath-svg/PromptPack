@@ -1,3 +1,0 @@
-[install.lockfile]
-# Use text-based lockfile for better compatibility across Bun versions
-print = "yarn"
