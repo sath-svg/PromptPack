@@ -1,6 +1,9 @@
 [phases.setup]
 nixPkgs = ["bun"]
 
+[variables]
+BUN_VERSION = "1.3.5"
+
 [phases.install]
 cmds = ["bun install"]
 
