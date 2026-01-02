@@ -8,7 +8,7 @@ BUN_VERSION = "1.3.5"
 cmds = ["bun install"]
 
 [phases.build]
-cmds = ['bunx convex deploy --cmd="bun run build"']
+cmds = ['npx convex deploy --cmd="bun run build"']
 
 
 [watch]
