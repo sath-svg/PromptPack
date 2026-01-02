@@ -1,0 +1,24 @@
+[phases.setup]
+nixPkgs = ["bun"]
+
+[variables]
+BUN_VERSION = "1.3.5"
+
+[phases.install]
+cmds = ["bun install"]
+
+[phases.build]
+cmds = ['bunx convex deploy --preview-create=$COOLIFY_BRANCH --cmd="bun run build"']
+
+
+[watch]
+# Watch paths for auto-redeployment when changes are detected
+paths = [
+  "src/**/*",
+  "convex/**/*",
+  "public/**/*",
+  "package.json",
+  "next.config.ts",
+  "tsconfig.json",
+  "middleware.ts"
+]
