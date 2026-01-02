@@ -8,7 +8,8 @@ BUN_VERSION = "1.3.5"
 cmds = ["bun install"]
 
 [phases.build]
-cmds = ["bunx convex deploy --cmd=bun\\ run\\ build"]
+cmds = ["bunx convex deploy --preview-create=dev--cmd=bun\ run\ build
+"]
 
 [watch]
 # Watch paths for auto-redeployment when changes are detected
