@@ -5,8 +5,44 @@ import { assetUrl } from "@/lib/constants";
 import './globals.css';
 
 export default function Home() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "PromptPack",
+    "applicationCategory": "BrowserApplication",
+    "operatingSystem": "Chrome",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "5",
+      "ratingCount": "1"
+    },
+    "description": "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries, create PromptPacks, and discover community prompts.",
+    "url": "https://pmtpk.com",
+    "image": "https://pmtpk.com/img/promptpack_logo_horizontal.png",
+    "publisher": {
+      "@type": "Organization",
+      "name": "PromptPack"
+    },
+    "featureList": [
+      "Save prompts from ChatGPT, Claude, and Gemini",
+      "Organize prompts into reusable packs",
+      "Chrome extension for quick access",
+      "Share prompts with community",
+      "Export and encrypt prompt packs"
+    ]
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="hero">
         <Image
           src={assetUrl("/img/promptpack_logo_horizontal.png")}

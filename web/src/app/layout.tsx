@@ -17,31 +17,81 @@ import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PromptPack - Save, Organize & Share AI Prompts",
+  metadataBase: new URL('https://pmtpk.com'),
+  title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
   description:
-    "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+    "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries, create PromptPacks, and discover community prompts. Free Chrome extension.",
+  keywords: [
+    "PromptPack",
+    "AI prompts",
+    "ChatGPT prompts",
+    "Claude prompts",
+    "Gemini prompts",
+    "prompt library",
+    "prompt management",
+    "save prompts",
+    "AI prompt organizer",
+    "prompt pack",
+    "LLM prompts",
+    "AI tools",
+    "prompt sharing",
+    "ChatGPT extension",
+    "Claude extension",
+    "Gemini extension"
+  ],
+  authors: [{ name: "PromptPack" }],
+  creator: "PromptPack",
+  publisher: "PromptPack",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
-    title: "PromptPack - Save, Organize & Share AI Prompts",
-    description: "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+    title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
+    description: "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries and discover community prompts.",
     url: "https://pmtpk.com",
     siteName: "PromptPack",
+    locale: "en_US",
+    type: "website",
     images: [
       {
         url: assetUrl('/img/promptpack_logo_horizontal.png'),
         width: 1200,
         height: 630,
+        alt: "PromptPack - AI Prompt Management Tool",
       },
     ],
-    type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PromptPack - Save, Organize & Share AI Prompts",
-    description: "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+    title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
+    description: "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries and discover community prompts.",
     images: [assetUrl('/img/promptpack_logo_horizontal.png')],
   },
   icons: {
-    icon: assetUrl('/img/icon-16.png'),
+    icon: [
+      { url: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
+      { url: assetUrl('/img/icon-16.png'), sizes: '16x16', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: assetUrl('/img/icon-16.png'),
+  },
+  manifest: '/manifest.json',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    // Add your verification codes here when you set up Google Search Console
+    // google: 'your-google-verification-code',
   },
 };
 
