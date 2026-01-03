@@ -15,7 +15,7 @@ export default function Home() {
           height={165}
           priority
           className="hero-logo"
-          style={{ marginTop: "10rem", marginBottom: "2.5rem" }}
+          style={{ marginTop: "clamp(3rem, 15vh, 10rem)", marginBottom: "2.5rem" }}
         />
         <h1 className="hero-subhead">
           Stop losing your best prompts.
