@@ -73,7 +73,7 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  padding: 1rem clamp(1rem, 3vw, 2rem);
   border-bottom: 1px solid var(--border);
   position: relative;
 }
@@ -81,6 +81,7 @@ a {
 .header-logo {
   font-size: 1.25rem;
   font-weight: 700;
+  z-index: 10;
 }
 
 .header-logo-image {
@@ -101,6 +102,7 @@ a {
   color: var(--muted-foreground);
   font-size: 0.875rem;
   transition: color 0.15s;
+  white-space: nowrap;
 }
 
 .header-link:hover {
@@ -111,6 +113,55 @@ a {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  z-index: 10;
+}
+
+/* Mobile navigation */
+.mobile-nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 1001;
+}
+
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.mobile-nav-menu {
+  display: none;
+  position: fixed;
+  top: 65px;
+  left: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0 0 0.75rem 0;
+  padding: 1rem 0;
+  min-width: 200px;
+  z-index: 1000;
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-nav-link {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  color: var(--foreground);
+  font-size: 1rem;
+  transition: background 0.15s;
+}
+
+.mobile-nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Button styles */
@@ -149,7 +200,7 @@ a {
 /* Main content */
 .main {
   min-height: calc(100vh - 65px);
-  padding: 2rem;
+  padding: clamp(1rem, 3vw, 2rem);
 }
 
 /* Hero section */
@@ -220,6 +271,7 @@ h4.hero-hook {
   display: flex;
   gap: 1rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* FAQ section */
@@ -356,8 +408,8 @@ h4.hero-hook {
   position: absolute;
   left: 0;
   bottom: calc(100% + 12px);
-  max-width: 360px;
-  min-width: 240px;
+  max-width: clamp(200px, 90vw, 360px);
+  min-width: clamp(150px, 60vw, 240px);
   padding: 0.55rem 0.7rem;
   border-radius: 0.6rem;
   border: 1px solid var(--border);
@@ -508,13 +560,13 @@ h4.hero-hook {
 .demo-media video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: inherit;
 }
 
 .llm-panel .demo-media {
   aspect-ratio: auto;
-  height: clamp(340px, 70vh, 720px);
+  height: clamp(200px, 50vh, 720px);
 }
 
 .demo-media-wide {
@@ -622,6 +674,9 @@ h4.hero-hook {
   color: var(--foreground);
 }
 
+/* Mobile-first responsive breakpoints */
+
+/* Tablets and below (900px) */
 @media (max-width: 900px) {
   .how-steps {
     grid-template-columns: 1fr;
@@ -629,6 +684,155 @@ h4.hero-hook {
 
   .demo-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Small tablets and large phones (768px) */
+@media (max-width: 768px) {
+  .header-nav {
+    display: none;
+  }
+
+  .mobile-nav-toggle {
+    display: block;
+  }
+
+  .mobile-nav-overlay {
+    display: block;
+  }
+
+  .mobile-nav-menu {
+    display: block;
+  }
+
+  .hero h1 {
+    font-size: 1.75rem;
+  }
+
+  .hero p {
+    font-size: 1rem;
+  }
+
+  .how-title,
+  .demo-title {
+    font-size: 1.5rem;
+  }
+
+  .pro-title {
+    font-size: 1.6rem;
+  }
+
+  .faq-title {
+    font-size: 1.5rem;
+  }
+
+  .faq-inner,
+  .how-inner,
+  .pro-inner {
+    padding: 0 1rem;
+  }
+
+  .demo-section {
+    padding: 0 1rem;
+  }
+}
+
+/* Small phones (480px) */
+@media (max-width: 480px) {
+  .header {
+    padding: 0.75rem 1rem;
+  }
+
+  .header-auth {
+    gap: 0.5rem;
+  }
+
+  .btn {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.8125rem;
+  }
+
+  .hero {
+    margin: 2rem auto;
+  }
+
+  .hero h1 {
+    font-size: 1.5rem;
+  }
+
+  .hero p {
+    font-size: 0.95rem;
+  }
+
+  .how-title,
+  .demo-title {
+    font-size: 1.35rem;
+  }
+
+  .pro-title {
+    font-size: 1.4rem;
+  }
+
+  .faq-title {
+    font-size: 1.35rem;
+  }
+
+  .how-section,
+  .pro-section {
+    padding: 3rem 0 1.5rem;
+  }
+
+  .llm-tab {
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+  }
+
+  .modal-content,
+  .modal-large {
+    padding: 1rem;
+  }
+
+  .dashboard h1 {
+    font-size: 1.35rem;
+  }
+}
+
+/* Extra small phones (360px) */
+@media (max-width: 360px) {
+  .header {
+    padding: 0.75rem 0.75rem;
+  }
+
+  .main {
+    padding: 1rem 0.75rem;
+  }
+
+  .btn {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+  }
+
+  .hero h1 {
+    font-size: 1.35rem;
+  }
+
+  .hero-cta {
+    gap: 0.75rem;
+  }
+
+  .llm-tab {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .faq-inner,
+  .how-inner,
+  .pro-inner {
+    padding: 0 0.75rem;
+  }
+
+  .demo-section {
+    padding: 0 0.75rem;
   }
 }
 
@@ -645,7 +849,7 @@ h4.hero-hook {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 1.5rem;
 }
 
@@ -733,6 +937,7 @@ h4.hero-hook {
   gap: 1rem;
   align-items: baseline;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .saved-prompts-summary .total-count {
@@ -904,7 +1109,7 @@ h4.hero-hook {
   border-radius: 0.75rem;
   border: 1px solid var(--border);
   padding: 1.5rem;
-  max-width: 400px;
+  max-width: min(400px, calc(100vw - 2rem));
   width: 100%;
   text-align: center;
 }
@@ -961,7 +1166,7 @@ h4.hero-hook {
 
 /* Large modal for prompts viewer */
 .modal-large {
-  max-width: 700px;
+  max-width: min(700px, calc(100vw - 2rem));
   max-height: 80vh;
   display: flex;
   flex-direction: column;
