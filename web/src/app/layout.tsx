@@ -72,14 +72,14 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '16x16', type: 'image/x-icon' },
-      { url: assetUrl('/img/icon-16.png'), sizes: '16x16', type: 'image/png' },
-      { url: assetUrl('/img/icon-48.png'), sizes: '48x48', type: 'image/png' },
-      { url: assetUrl('/img/icon-128.png'), sizes: '128x128', type: 'image/png' },
+      { url: '/img/icon-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/img/icon-48.png', sizes: '48x48', type: 'image/png' },
+      { url: '/img/icon-128.png', sizes: '128x128', type: 'image/png' },
     ],
     shortcut: ['/favicon.ico'],
     apple: [
-      { url: assetUrl('/img/icon-48.png'), sizes: '48x48', type: 'image/png' },
-      { url: assetUrl('/img/icon-128.png'), sizes: '128x128', type: 'image/png' },
+      { url: '/img/icon-48.png', sizes: '48x48', type: 'image/png' },
+      { url: '/img/icon-128.png', sizes: '128x128', type: 'image/png' },
     ],
   },
   manifest: '/manifest.json',
@@ -109,7 +109,8 @@ export default function RootLayout({
     <ClerkProvider appearance={{ baseTheme: dark }}>
       <html lang="en">
         <head>
-          <link rel="icon" type="image/png" sizes="16x16" href={assetUrl('/img/icon-16.png')} />
+          <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16.png" />
+          <link rel="icon" type="image/png" sizes="48x48" href="/img/icon-48.png" />
           <link rel="shortcut icon" href="/favicon.ico" />
         </head>
         <body>
