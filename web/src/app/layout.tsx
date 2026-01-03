@@ -20,6 +20,26 @@ export const metadata: Metadata = {
   title: "PromptPack - Save, Organize & Share AI Prompts",
   description:
     "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+  openGraph: {
+    title: "PromptPack - Save, Organize & Share AI Prompts",
+    description: "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+    url: "https://pmtpk.com",
+    siteName: "PromptPack",
+    images: [
+      {
+        url: assetUrl('/img/promptpack_logo_horizontal.png'),
+        width: 1200,
+        height: 630,
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PromptPack - Save, Organize & Share AI Prompts",
+    description: "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+    images: [assetUrl('/img/promptpack_logo_horizontal.png')],
+  },
   icons: {
     icon: assetUrl('/img/icon-16.png'),
   },
