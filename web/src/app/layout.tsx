@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   title: "PromptPack - Save, Organize & Share AI Prompts",
   description:
     "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
