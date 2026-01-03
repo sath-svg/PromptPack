@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   description:
     "Save your best prompts from ChatGPT, Claude, and Gemini. Organize them into packs and share with the community.",
   icons: {
-    icon: '/favicon.ico',
+    icon: assetUrl('/img/icon-16.png'),
   },
 };
 
