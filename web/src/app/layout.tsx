@@ -12,6 +12,7 @@ import Image from "next/image";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import { SupportButton } from "@/components/support-button";
+import { MobileNav } from "@/components/mobile-nav";
 import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
@@ -31,6 +32,8 @@ export default function RootLayout({
       <html lang="en">
         <body>
           <header className="header">
+            <MobileNav />
+
             <Link href="/" className="header-logo">
             <Image
               src={assetUrl("/img/logo_text.png")}
@@ -39,10 +42,10 @@ export default function RootLayout({
               height={40}
               priority
               className="header-logo-image"
-              style={{ 
-                display: "block", 
+              style={{
+                display: "block",
                 marginRight: "auto",
-                marginLeft: "0" 
+                marginLeft: "0"
               }}
             />
             </Link>

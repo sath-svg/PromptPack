@@ -116,6 +116,54 @@ a {
   z-index: 10;
 }
 
+/* Mobile navigation */
+.mobile-nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 1001;
+}
+
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.mobile-nav-menu {
+  display: none;
+  position: fixed;
+  top: 65px;
+  left: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0 0 0.75rem 0;
+  padding: 1rem 0;
+  min-width: 200px;
+  z-index: 1000;
+  box-shadow: 4px 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.mobile-nav-link {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  color: var(--foreground);
+  font-size: 1rem;
+  transition: background 0.15s;
+}
+
+.mobile-nav-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 /* Button styles */
 .btn {
   display: inline-flex;
@@ -512,7 +560,7 @@ h4.hero-hook {
 .demo-media video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: inherit;
 }
 
@@ -643,6 +691,18 @@ h4.hero-hook {
 @media (max-width: 768px) {
   .header-nav {
     display: none;
+  }
+
+  .mobile-nav-toggle {
+    display: block;
+  }
+
+  .mobile-nav-overlay {
+    display: block;
+  }
+
+  .mobile-nav-menu {
+    display: block;
   }
 
   .hero h1 {
