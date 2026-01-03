@@ -565,8 +565,7 @@ h4.hero-hook {
 }
 
 .llm-panel .demo-media {
-  aspect-ratio: auto;
-  height: clamp(200px, 50vh, 720px);
+  aspect-ratio: 16 / 9;
 }
 
 .demo-media-wide {
