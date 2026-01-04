@@ -993,7 +993,7 @@ async function render(forceRefresh = false) {
     <div class="pp-wrap">
       <div class="pp-header">
         <div class="pp-title">
-          <img class="pp-logo" src="img/logo_no_text.png" alt="PromptPack" />
+          <img class="pp-logo" src="img/icon-48.png" alt="PromptPack" />
           PromptPack${syncIndicator}
         </div>
         <div class="pp-header-actions">
