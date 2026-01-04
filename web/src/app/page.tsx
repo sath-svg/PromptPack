@@ -215,30 +215,23 @@ export default function Home() {
             confidence and license your work like a real digital asset.
           </p>
           <p className="pro-tagline">Pack your ideas. Monetize your prompts.</p>
-        </div>
-      </section>
 
-      <section className="demo-section dashboard-section">
-        <div className="demo-card demo-card-wide">
-          <div className="demo-media demo-media-wide dashboard-signin-prompt" aria-label="Dashboard access">
-            <div style={{ textAlign: 'center', padding: '2rem' }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: '1.5rem' }}>Ready to organize your prompts?</h3>
-              <p style={{ marginBottom: '1.5rem', color: 'var(--muted-foreground)' }}>
-                Sign in to access your dashboard and create your own PromptPacks.
-              </p>
-              <SignedOut>
-                <SignUpButton mode="modal">
-                  <button className="btn btn-primary">Sign In to View Dashboard</button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <Link href="/dashboard">
-                  <button className="btn btn-primary">Go to Dashboard</button>
-                </Link>
-              </SignedIn>
-            </div>
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <SignedOut>
+              <SignUpButton mode="modal">
+                <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
+                  Sign In to Access Dashboard
+                </button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <Link href="/dashboard">
+                <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
+                  Go to Dashboard
+                </button>
+              </Link>
+            </SignedIn>
           </div>
-          <p className="demo-caption">Save your prompts to dashboard and create your own PromptPacks.</p>
         </div>
       </section>
 
