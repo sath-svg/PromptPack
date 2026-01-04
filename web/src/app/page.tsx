@@ -217,9 +217,6 @@ export default function Home() {
           <p className="pro-tagline">Pack your ideas. Monetize your prompts.</p>
 
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
-            <p style={{ marginBottom: '1rem', color: 'var(--muted-foreground)', fontSize: '0.95rem' }}>
-              Create your PromptPacks in the dashboard after sign-in
-            </p>
             <SignedOut>
               <Link href="/pricing">
                 <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
@@ -234,6 +231,9 @@ export default function Home() {
                 </button>
               </Link>
             </SignedIn>
+            <p style={{ marginTop: '1rem', color: 'var(--muted-foreground)', fontSize: '0.90rem' }}>
+              Create your PromptPacks in the dashboard after sign-in
+            </p>
           </div>
         </div>
       </section>
