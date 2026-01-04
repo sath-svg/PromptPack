@@ -70,7 +70,7 @@ export default function Home() {
         <div className="hero-cta">
           <SignedOut>
             <SignUpButton mode="modal">
-              <button className="btn btn-primary">Sign In to Access Dashboard</button>
+              <button className="btn btn-primary">Sign In</button>
             </SignUpButton>
           </SignedOut>
           <SignedIn>
@@ -217,17 +217,20 @@ export default function Home() {
           <p className="pro-tagline">Pack your ideas. Monetize your prompts.</p>
 
           <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <p style={{ marginBottom: '1rem', color: 'var(--muted-foreground)', fontSize: '0.95rem' }}>
+              Create your PromptPacks in the dashboard after sign-in
+            </p>
             <SignedOut>
-              <SignUpButton mode="modal">
+              <Link href="/pricing">
                 <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
-                  Sign In to Access Dashboard
+                  Purchase Pro Plan
                 </button>
-              </SignUpButton>
+              </Link>
             </SignedOut>
             <SignedIn>
-              <Link href="/dashboard">
+              <Link href="/pricing">
                 <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
-                  Go to Dashboard
+                  Purchase Pro Plan
                 </button>
               </Link>
             </SignedIn>
