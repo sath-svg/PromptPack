@@ -70,7 +70,7 @@ export default function Home() {
         <div className="hero-cta">
           <SignedOut>
             <SignUpButton mode="modal">
-              <button className="btn btn-primary">Get Started Free</button>
+              <button className="btn btn-primary">Dashboard</button>
             </SignUpButton>
           </SignedOut>
           <SignedIn>
@@ -78,8 +78,8 @@ export default function Home() {
               <button className="btn btn-primary">Go to Dashboard</button>
             </Link>
           </SignedIn>
-          <Link href="/marketplace">
-            <button className="btn btn-secondary">Browse Marketplace</button>
+          <Link href="/pricing">
+            <button className="btn btn-secondary">See Plans</button>
           </Link>
         </div>
       </div>
@@ -110,8 +110,8 @@ export default function Home() {
           <span className="tooltip-wrap">
             <span
               className="tooltip-trigger"
-              data-tooltip="You can also use Ctrl+Alt+S (Cmd+Opt+S on Mac) while in the prompt box to save it to the extension."
-              aria-label="You can also use Ctrl+Alt+S (Cmd+Opt+S on Mac) while in the prompt box to save it to the extension."
+              data-tooltip="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
+              aria-label="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
               tabIndex={0}
             >
               ℹ️
@@ -177,7 +177,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-chatgpt" role="tabpanel" data-panel="chatgpt">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="ChatGPT save flow">
-                  <img src={assetUrl("/img/chatgpt-recording.gif")} alt="ChatGPT save flow" loading="lazy" />
+                  <video src={assetUrl("/img/chatgpt.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">ChatGPT</p>
               </div>
@@ -185,7 +185,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-claude" role="tabpanel" data-panel="claude">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="Claude save flow">
-                  <img src={assetUrl("/img/claude-recording.gif")} alt="Claude save flow" loading="lazy" />
+                  <video src={assetUrl("/img/claude.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">Claude</p>
               </div>
@@ -193,7 +193,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-gemini" role="tabpanel" data-panel="gemini">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="Gemini save flow">
-                  <img src={assetUrl("/img/gemini-recording.gif")} alt="Gemini save flow" loading="lazy" />
+                  <video src={assetUrl("/img/gemini.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">Gemini</p>
               </div>
@@ -215,15 +215,26 @@ export default function Home() {
             confidence and license your work like a real digital asset.
           </p>
           <p className="pro-tagline">Pack your ideas. Monetize your prompts.</p>
-        </div>
-      </section>
 
-      <section className="demo-section dashboard-section">
-        <div className="demo-card demo-card-wide">
-          <div className="demo-media demo-media-wide" aria-label="Dashboard walkthrough">
-            <img src={assetUrl("/img/dashboard.gif")} alt="Dashboard walkthrough" loading="lazy" />
+          <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+            <SignedOut>
+              <Link href="/pricing">
+                <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
+                  Purchase Pro Plan
+                </button>
+              </Link>
+            </SignedOut>
+            <SignedIn>
+              <Link href="/pricing">
+                <button className="btn btn-primary" style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}>
+                  Purchase Pro Plan
+                </button>
+              </Link>
+            </SignedIn>
+            <p style={{ marginTop: '1rem', color: 'var(--muted-foreground)', fontSize: '0.90rem' }}>
+              Create your PromptPacks in the dashboard after sign-in
+            </p>
           </div>
-          <p className="demo-caption">Save your prompts to dashboard and create your own PromptPacks.</p>
         </div>
       </section>
 

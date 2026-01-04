@@ -144,6 +144,13 @@ export default function RootLayout({
                   Dashboard
                 </Link>
               </SignedIn>
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <span className="header-link" style={{ cursor: 'pointer' }}>
+                    Dashboard
+                  </span>
+                </SignInButton>
+              </SignedOut>
             </nav>
 
             <div className="header-auth">
