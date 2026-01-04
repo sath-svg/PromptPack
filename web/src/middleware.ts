@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/marketplace",
   "/marketplace/(.*)",
   "/privacy",
+  "/manifest.json",
   "/sitemap.xml",
   "/robots.txt",
   "/api/webhooks/(.*)",
