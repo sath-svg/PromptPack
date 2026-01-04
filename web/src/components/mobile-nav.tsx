@@ -1,6 +1,6 @@
 "use client";
 
-import { SignedIn } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -71,6 +71,17 @@ export function MobileNav() {
                 Dashboard
               </Link>
             </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <span
+                  className="mobile-nav-link"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setIsOpen(false)}
+                >
+                  Dashboard
+                </span>
+              </SignInButton>
+            </SignedOut>
           </nav>
         </>
       )}
