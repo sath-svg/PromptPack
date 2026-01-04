@@ -70,7 +70,7 @@ export default function Home() {
         <div className="hero-cta">
           <SignedOut>
             <SignUpButton mode="modal">
-              <button className="btn btn-primary">Sign In</button>
+              <button className="btn btn-primary">Dashboard</button>
             </SignUpButton>
           </SignedOut>
           <SignedIn>
@@ -79,7 +79,7 @@ export default function Home() {
             </Link>
           </SignedIn>
           <Link href="/pricing">
-            <button className="btn btn-secondary">Purchase Pro</button>
+            <button className="btn btn-secondary">See Plans</button>
           </Link>
         </div>
       </div>
