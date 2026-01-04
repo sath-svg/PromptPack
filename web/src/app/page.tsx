@@ -110,8 +110,8 @@ export default function Home() {
           <span className="tooltip-wrap">
             <span
               className="tooltip-trigger"
-              data-tooltip="You can also use Ctrl+Alt+S (Cmd+Opt+S on Mac) while in the prompt box to save it to the extension."
-              aria-label="You can also use Ctrl+Alt+S (Cmd+Opt+S on Mac) while in the prompt box to save it to the extension."
+              data-tooltip="You can also use Ctrl+Shift+S (Cmd+Shift+S on Mac) while in the prompt box to save it to the extension."
+              aria-label="You can also use Ctrl+Shift+S (Cmd+Shift+S on Mac) while in the prompt box to save it to the extension."
               tabIndex={0}
             >
               ℹ️

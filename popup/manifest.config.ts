@@ -73,8 +73,8 @@ const manifest: ManifestV3Export = {
   commands: {
     "save-prompt": {
       suggested_key: {
-        default: "Ctrl+Alt+S",
-        mac: "Command+Alt+S",
+        default: "Ctrl+Shift+S",
+        mac: "Command+Shift+S",
       },
       description: "Save current prompt to PromptPack",
     },
