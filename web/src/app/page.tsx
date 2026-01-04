@@ -339,17 +339,14 @@ export default function Home() {
             <div className="faq-item">
               <h3>2) Why not just use Google Docs, or Notepad to store prompts?</h3>
               <p>
-                Documents get messy fast: prompts get buried, duplicated, and scattered across files. A <span className="gradient-text">PromptPack</span> keeps everything organized into reusable packs you can access <span className="faq-highlight">instantly</span>.
-                <br/>
-                <span className="pro-break" aria-hidden="true"></span>
-                What’s next: Beyond storage, <span className="gradient-text">PromptPacks</span> will evolve into agent-ready workflows — drag-and-drop modules you can plug into an LLM to get various forms of work done, while keeping your data sandboxed to that agent.
+                Documents get messy fast: prompts get buried, duplicated, and scattered across files — often left exposed for others to see. <span className="gradient-text">PromptPack</span> organizes them into reusable, encryptable packs you can access <span className="faq-highlight">instantly</span>.
               </p>
             </div>
             <div className="faq-item">
               <h3>3) How does <span className="gradient-text">.pmtpk</span> and security help me share, distribute, or license PromptPacks safely?</h3>
               <p>
                 <span className="gradient-text">.pmtpk</span> is a dedicated format that does not open like a normal text file, so your prompts are not casually readable
-                in Notepad,etc. With optional encryption, these packs stay accessible to you and only the people you share with, ideal for
+                in Notepad, Word etc. With added encryption, these packs will stay accessible to you and only the people you share with, ideal for
                 distributing and licensing your <span className="gradient-text">PromptPacks</span>.
               </p>
             </div>
