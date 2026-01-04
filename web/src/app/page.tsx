@@ -64,7 +64,7 @@ export default function Home() {
           Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
         <h4 className="hero-hook">
-          <a className="hero-hook-link" href="#faq">What is a PromptPack?</a>
+          <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
 
         <div className="hero-cta">
@@ -83,6 +83,93 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      <section className="workflow-section">
+        <div className="workflow-inner">
+          <h2 className="workflow-hero-title">What is a PromptPack?</h2>
+          <p className="workflow-hero-subtitle">
+            Save individual prompts, then organize them into a PromptPack — a reusable workflow you can run in any LLM or agent.
+          </p>
+
+          <div className="workflow-demo">
+            <div className="workflow-prompts">
+              <div className="workflow-prompt-card">
+                <div className="workflow-prompt-header">
+                  <span className="workflow-prompt-number">1</span>
+                  <span className="workflow-prompt-title">Executive Summary</span>
+                </div>
+                <p className="workflow-prompt-preview">
+                  Analyze [████████] using ████████████. Use only verifiable, factual information. Be concise, analytical...
+                </p>
+              </div>
+
+              <div className="workflow-arrow">→</div>
+
+              <div className="workflow-prompt-card">
+                <div className="workflow-prompt-header">
+                  <span className="workflow-prompt-number">2</span>
+                  <span className="workflow-prompt-title">Revenue Model</span>
+                </div>
+                <p className="workflow-prompt-preview">
+                  Explain the revenue model and ████████. Clarify whether revenues are ████████, recurring...
+                </p>
+              </div>
+
+              <div className="workflow-arrow">→</div>
+
+              <div className="workflow-prompt-card">
+                <div className="workflow-prompt-header">
+                  <span className="workflow-prompt-number">3</span>
+                  <span className="workflow-prompt-title">Competitive Edge</span>
+                </div>
+                <p className="workflow-prompt-preview">
+                  Identify what protects the company's ████████ from competition, such as brand, ████████...
+                </p>
+              </div>
+
+              <div className="workflow-arrow">→</div>
+
+              <div className="workflow-prompt-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.05)' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--primary)' }}>+9</div>
+                  <div style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', marginTop: '0.25rem' }}>more prompts</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="workflow-arrow-down">↓</div>
+
+            <div className="workflow-pack">
+              <div className="workflow-pack-icon">📦</div>
+              <h3 className="workflow-pack-title">Stock Analyzer PromptPack</h3>
+              <p className="workflow-pack-description">
+                13-point framework • Investment Analysis
+              </p>
+              <div className="workflow-pack-badge">
+                <span className="gradient-text">.pmtpk</span>
+              </div>
+            </div>
+
+            <details className="workflow-future">
+              <summary className="workflow-future-title">
+                <div>
+                  <div className="workflow-future-main">The Vision</div>
+                  <div className="workflow-future-badge">Coming Soon</div>
+                </div>
+              </summary>
+              <p className="workflow-future-text">
+                LLMs will be able to run PromptPacks — multi-step workflows — with a single command.
+                <br />
+                <span className="workflow-future-example">
+                  "Run Stock Analyzer PromptPack for NVDA"
+                </span>
+                <br />
+                One command. Same workflow. Zero copy-paste.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
 
 <section className="how-section">
   <div className="how-inner">
@@ -141,7 +228,7 @@ export default function Home() {
     </p>
   </div>
 </section>
-     
+
       <section className="demo-section">
         <h2 className="how-title demo-title">Works flawlessly with ChatGPT, Gemini and Claude.</h2>
         <div className="llm-tabs" role="tablist" aria-label="LLM demos">
