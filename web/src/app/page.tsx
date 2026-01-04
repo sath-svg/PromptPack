@@ -177,7 +177,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-chatgpt" role="tabpanel" data-panel="chatgpt">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="ChatGPT save flow">
-                  <img src={assetUrl("/img/chatgpt-recording.gif")} alt="ChatGPT save flow" loading="lazy" />
+                  <video src={assetUrl("/img/chatgpt.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">ChatGPT</p>
               </div>
@@ -185,7 +185,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-claude" role="tabpanel" data-panel="claude">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="Claude save flow">
-                  <img src={assetUrl("/img/claude-recording.gif")} alt="Claude save flow" loading="lazy" />
+                  <video src={assetUrl("/img/claude.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">Claude</p>
               </div>
@@ -193,7 +193,7 @@ export default function Home() {
             <div className="llm-panel" id="llm-panel-gemini" role="tabpanel" data-panel="gemini">
               <div className="demo-card demo-card-wide">
                 <div className="demo-media" aria-label="Gemini save flow">
-                  <img src={assetUrl("/img/gemini-recording.gif")} alt="Gemini save flow" loading="lazy" />
+                  <video src={assetUrl("/img/gemini.webm")} autoPlay loop muted playsInline />
                 </div>
                 <p className="demo-caption">Gemini</p>
               </div>
@@ -220,8 +220,23 @@ export default function Home() {
 
       <section className="demo-section dashboard-section">
         <div className="demo-card demo-card-wide">
-          <div className="demo-media demo-media-wide" aria-label="Dashboard walkthrough">
-            <img src={assetUrl("/img/dashboard.gif")} alt="Dashboard walkthrough" loading="lazy" />
+          <div className="demo-media demo-media-wide dashboard-signin-prompt" aria-label="Dashboard access">
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.5rem' }}>Ready to organize your prompts?</h3>
+              <p style={{ marginBottom: '1.5rem', color: 'var(--muted-foreground)' }}>
+                Sign in to access your dashboard and create your own PromptPacks.
+              </p>
+              <SignedOut>
+                <SignUpButton mode="modal">
+                  <button className="btn btn-primary">Sign In to View Dashboard</button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <Link href="/dashboard">
+                  <button className="btn btn-primary">Go to Dashboard</button>
+                </Link>
+              </SignedIn>
+            </div>
           </div>
           <p className="demo-caption">Save your prompts to dashboard and create your own PromptPacks.</p>
         </div>
