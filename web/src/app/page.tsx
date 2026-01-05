@@ -4,7 +4,9 @@ import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
 import './globals.css';
 
-export default function Home() {
+export default function Home({ searchParams }: { searchParams: { beta?: string } }) {
+  const betaStatus = searchParams?.beta;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -66,6 +68,90 @@ export default function Home() {
         <h4 className="hero-hook">
           <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
+
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          borderRadius: '12px',
+          padding: '1.5rem 2rem',
+          marginBottom: '2rem',
+          maxWidth: '600px',
+          margin: '0 auto 2rem auto'
+        }}>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            marginBottom: '0.5rem',
+            background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent'
+          }}>
+            🚀 Looking for Beta Testers
+          </h3>
+          <p style={{
+            fontSize: '0.95rem',
+            color: 'var(--muted-foreground)',
+            marginBottom: '1rem',
+            lineHeight: '1.5'
+          }}>
+            Get early access to new features and discounted rates. Help shape the future of PromptPack!
+          </p>
+          {betaStatus === 'success' && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              background: 'rgba(34, 197, 94, 0.1)',
+              border: '1px solid rgba(34, 197, 94, 0.3)',
+              borderRadius: '8px',
+              color: '#22c55e',
+              fontSize: '0.9rem',
+              marginBottom: '1rem'
+            }}>
+              ✓ Thanks for signing up! We'll be in touch soon.
+            </div>
+          )}
+          {betaStatus === 'error' && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px',
+              color: '#ef4444',
+              fontSize: '0.9rem',
+              marginBottom: '1rem'
+            }}>
+              Something went wrong. Please try again.
+            </div>
+          )}
+          <form
+            action="/api/beta-signup"
+            method="POST"
+            style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}
+          >
+            <input
+              type="email"
+              name="email"
+              placeholder="your@email.com"
+              required
+              style={{
+                flex: '1',
+                minWidth: '200px',
+                padding: '0.625rem 1rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(99, 102, 241, 0.3)',
+                background: 'rgba(0, 0, 0, 0.2)',
+                color: 'var(--foreground)',
+                fontSize: '0.95rem'
+              }}
+            />
+            <button
+              type="submit"
+              className="btn btn-primary"
+              style={{ minWidth: '120px' }}
+            >
+              Join Beta
+            </button>
+          </form>
+        </div>
 
         <div className="hero-cta">
           <SignedOut>
@@ -197,8 +283,8 @@ export default function Home() {
           <span className="tooltip-wrap">
             <span
               className="tooltip-trigger"
-              data-tooltip="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
-              aria-label="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
+              data-tooltip="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
+              aria-label="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
               tabIndex={0}
             >
               ℹ️
