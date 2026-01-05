@@ -133,6 +133,7 @@ let tickScheduled = false;
 let observer: MutationObserver | null = null;
 let wasGenerating = false;
 let lastPromptText = "";
+let bubbleShown = false; // Prevent showing bubble multiple times
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -222,18 +223,25 @@ function setupSaveKeybind() {
     if (e.key.toLowerCase() !== "s") return;
     if (e.repeat) return;
 
+    console.log("[PromptPack] Alt+Shift+S pressed");
+
     const composer = findComposer();
     if (composer) currentComposer = composer;
 
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
       if (!composer || (target !== composer && !composer.contains(target))) {
+        console.log("[PromptPack] Not in composer, ignoring");
         return;
       }
     }
 
     const btn = ensureButton();
-    if (!btn) return;
+    if (!btn) {
+      console.log("[PromptPack] No button found");
+      return;
+    }
+    console.log("[PromptPack] Triggering save");
     e.preventDefault();
     e.stopPropagation();
     btn.click();
@@ -311,6 +319,7 @@ function tick() {
     if (btn) btn.remove();
     wasGenerating = false;
     lastPromptText = "";
+    bubbleShown = false; // Reset for new conversation
   }
 
   const composer = findComposer();
@@ -334,9 +343,11 @@ function tick() {
 
   // Detect when generation stops
   const generating = isGenerating();
-  if (wasGenerating && !generating) {
-    // Generation just finished
+  if (wasGenerating && !generating && !bubbleShown) {
+    // Generation just finished and bubble not shown yet
+    console.log("[PromptPack] Generation completed, showing bubble");
     wasGenerating = false;
+    bubbleShown = true; // Mark as shown
 
     // Show suggestion bubble after response completes
     handleSuggestionBubble();
@@ -344,6 +355,7 @@ function tick() {
     // Store the prompt text before it gets cleared
     if (text && !wasGenerating) {
       lastPromptText = text;
+      console.log("[PromptPack] Started generating, stored prompt");
     }
     wasGenerating = true;
   }

@@ -47,7 +47,7 @@ export async function showSuggestionBubble(
   // Get a random suggestion
   const suggestionText = getRandomSuggestion();
 
-  // Create bubble container
+  // Create bubble container - now clickable
   const bubble = document.createElement("div");
   bubble.className = "promptpack-suggestion-bubble";
   bubble.style.cssText = `
@@ -66,7 +66,30 @@ export async function showSuggestionBubble(
     animation: slideInUp 0.3s ease-out;
     max-width: 400px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    cursor: pointer;
+    transition: all 0.2s ease;
   `;
+
+  // Make entire bubble clickable to save
+  bubble.onclick = (e) => {
+    // Don't trigger if clicking the close button
+    if ((e.target as HTMLElement).classList.contains('promptpack-close-btn')) {
+      return;
+    }
+    console.log("[PromptPack] Bubble clicked, saving prompt");
+    onSave();
+    hideBubble(bubble);
+  };
+
+  // Hover effect
+  bubble.onmouseenter = () => {
+    bubble.style.transform = "scale(1.02)";
+    bubble.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.2)";
+  };
+  bubble.onmouseleave = () => {
+    bubble.style.transform = "scale(1)";
+    bubble.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.15)";
+  };
 
   // Add animation keyframes
   if (!document.querySelector("#promptpack-bubble-styles")) {
@@ -100,56 +123,29 @@ export async function showSuggestionBubble(
     document.head.appendChild(style);
   }
 
-  // Suggestion text
+  // Suggestion text (clickable to save)
   const text = document.createElement("span");
-  text.textContent = suggestionText;
+  text.textContent = suggestionText + " Click to save!";
   text.style.cssText = `
     color: #333;
     font-size: 14px;
     font-weight: 500;
     flex: 1;
+    user-select: none;
   `;
 
-  // Save button
-  const saveButton = document.createElement("button");
-  saveButton.textContent = "Save";
-  saveButton.title = "Save this prompt";
-  saveButton.style.cssText = `
-    background: ${config.primaryColor};
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    color: white;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  `;
-  saveButton.onmouseenter = () => {
-    saveButton.style.background = config.hoverColor;
-    saveButton.style.transform = "scale(1.05)";
-  };
-  saveButton.onmouseleave = () => {
-    saveButton.style.background = config.primaryColor;
-    saveButton.style.transform = "scale(1)";
-  };
-  saveButton.onclick = () => {
-    onSave();
-    hideBubble(bubble);
-  };
-
-  // Close button (X)
+  // Close button (X) - small and subtle
   const closeButton = document.createElement("button");
   closeButton.innerHTML = "×";
   closeButton.title = "Dismiss";
+  closeButton.className = "promptpack-close-btn";
   closeButton.style.cssText = `
     background: transparent;
     border: none;
-    padding: 4px 8px;
-    font-size: 24px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
     line-height: 1;
     color: #999;
     cursor: pointer;
@@ -157,23 +153,21 @@ export async function showSuggestionBubble(
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: 8px;
+    flex-shrink: 0;
   `;
   closeButton.onmouseenter = () => {
-    closeButton.style.color = "#333";
-    closeButton.style.transform = "scale(1.1)";
+    closeButton.style.color = "#666";
   };
   closeButton.onmouseleave = () => {
     closeButton.style.color = "#999";
-    closeButton.style.transform = "scale(1)";
   };
-  closeButton.onclick = () => {
+  closeButton.onclick = (e) => {
+    e.stopPropagation(); // Prevent bubble click from triggering
     hideBubble(bubble);
   };
 
   // Assemble bubble
   bubble.appendChild(text);
-  bubble.appendChild(saveButton);
   bubble.appendChild(closeButton);
 
   // Add to page
