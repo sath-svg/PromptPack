@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     // Store in Convex database
     const result = await convex.mutation(api.betaSignups.create, { email });
 
-    return NextResponse.json({ success: true, ...result });
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Beta signup error:", error);
     return NextResponse.json(
