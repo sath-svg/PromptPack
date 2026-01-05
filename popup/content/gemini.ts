@@ -1,6 +1,7 @@
 // src/content/gemini.ts
 import { savePrompt } from "../shared/promptStore";
 import { startThemeSync, detectThemeFromPage, geminiTheme, type ThemeMode } from "../shared/theme";
+import { showSuggestionBubble, initializeSuggestions } from "./bubble";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 
@@ -139,6 +140,8 @@ let currentTheme: ThemeMode = detectThemeFromPage();
 let lastUrl = location.href;
 let tickScheduled = false;
 let observer: MutationObserver | null = null;
+let wasGenerating = false;
+let lastPromptText = "";
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -260,6 +263,40 @@ function isGenerating(): boolean {
 }
 
 /**
+ * Show suggestion bubble after response generation completes
+ */
+async function handleSuggestionBubble() {
+  const colors = currentTheme === "dark" ? geminiTheme.dark : geminiTheme.light;
+
+  await showSuggestionBubble(
+    {
+      primaryColor: colors.buttonBg,
+      hoverColor: colors.border,
+      textColor: colors.text,
+    },
+    async () => {
+      // Save the last prompt when user clicks thumbs up
+      if (!currentComposer) return;
+
+      const text = lastPromptText || getComposerText(currentComposer).trim();
+      if (!text) return;
+
+      const result = await savePrompt({
+        text,
+        source: "gemini",
+        url: location.href,
+      });
+
+      if (result.ok) {
+        toast(`Saved! (${result.count}/${result.max})`);
+      } else if (result.reason === "limit") {
+        toast("Limit reached");
+      }
+    }
+  );
+}
+
+/**
  * Throttled tick function to prevent excessive updates
  */
 function scheduleTick() {
@@ -278,6 +315,8 @@ function tick() {
     // Force button recreation on route change
     const btn = document.getElementById("pp-save-btn");
     if (btn) btn.remove();
+    wasGenerating = false;
+    lastPromptText = "";
   }
 
   const composer = findComposer();
@@ -299,8 +338,22 @@ function tick() {
     return;
   }
 
+  // Detect when generation stops
+  const generating = isGenerating();
+  if (wasGenerating && !generating) {
+    // Generation just finished, show suggestion bubble
+    wasGenerating = false;
+    handleSuggestionBubble();
+  } else if (generating) {
+    // Store the prompt text before it gets cleared
+    if (text && !wasGenerating) {
+      lastPromptText = text;
+    }
+    wasGenerating = true;
+  }
+
   // Hide while Gemini is generating a response
-  if (isGenerating()) {
+  if (generating) {
     btn.style.display = "none";
     return;
   }
@@ -312,6 +365,9 @@ function tick() {
 }
 
 function boot() {
+  // Initialize suggestion prompts in background
+  initializeSuggestions();
+
   // Theme sync
   startThemeSync({
     onChange: (t) => {
