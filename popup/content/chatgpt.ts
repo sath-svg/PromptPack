@@ -212,9 +212,10 @@ function ensureButton() {
 }
 
 function setupSaveKeybind() {
+  // Listen for Alt+Shift+S keyboard shortcut
   document.addEventListener("keydown", (e) => {
     if (!e.altKey) return;
-    if (!(e.ctrlKey || e.metaKey)) return;
+    if (!e.shiftKey) return;
     if (e.key.toLowerCase() !== "s") return;
     if (e.repeat) return;
 
