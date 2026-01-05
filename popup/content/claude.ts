@@ -270,8 +270,8 @@ async function handleSuggestionBubble() {
 
   await showSuggestionBubble(
     {
-      primaryColor: colors.buttonBg,
-      hoverColor: colors.border,
+      primaryColor: colors.accent,
+      hoverColor: colors.accent,
       textColor: colors.text,
     },
     async () => {
