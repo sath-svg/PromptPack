@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/robots.txt",
   "/api/webhooks/(.*)",
   "/api/auth/status", // Extension auth status check
+  "/api/beta-signup", // Beta tester signup
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
