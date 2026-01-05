@@ -56,18 +56,18 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: assetUrl('/img/icon-512.png'),
-        width: 512,
-        height: 512,
+        url: assetUrl('/img/promptpack_twitter.jpg'),
+        width: 1200,
+        height: 630,
         alt: "PromptPack - AI Prompt Management Tool",
       },
     ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
     description: "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries and discover community prompts.",
-    images: [assetUrl('/img/icon-512.png')],
+    images: [assetUrl('/img/promptpack_twitter.jpg')],
   },
   icons: {
     icon: [
