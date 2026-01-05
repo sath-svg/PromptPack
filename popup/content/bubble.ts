@@ -1,14 +1,7 @@
 /**
  * Suggestion Bubble for prompting users to save good prompts
- * Uses Ollama API to generate varied suggestion messages
+ * Uses randomized pre-written suggestions
  */
-
-const OLLAMA_API_URL = "http://localhost:11434/api/generate";
-const OLLAMA_MODEL = "llama3.2:1b";
-const SUGGESTIONS_COUNT = 10;
-
-// Session storage key for cached suggestions
-const SUGGESTIONS_CACHE_KEY = "promptpack_suggestions_cache";
 
 interface BubbleConfig {
   primaryColor: string;
@@ -16,121 +9,26 @@ interface BubbleConfig {
   textColor: string;
 }
 
-/**
- * Generate 10 suggestion prompts using Ollama API
- */
-async function generateSuggestions(): Promise<string[]> {
-  try {
-    const response = await fetch(OLLAMA_API_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OLLAMA_MODEL,
-        prompt: `Generate exactly 10 short, friendly variations of the question "How good was the prompt?". Each variation should:
-- Be conversational and engaging
-- Ask if the user found the prompt helpful/good/useful
-- Be 5-10 words long
-- Sound natural and varied
-- NOT include numbering or bullet points
-
-Format: Return only the 10 questions, one per line, nothing else.
-
-Examples:
-Did you find that prompt helpful?
-Was this prompt useful to you?
-How well did that prompt work?
-Found the prompt effective?
-Did this prompt hit the mark?`,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const text = data.response || "";
-
-    // Parse the response into individual suggestions
-    const suggestions = text
-      .split("\n")
-      .map((line: string) => line.trim())
-      .filter((line: string) => line.length > 0 && line.length < 100)
-      .slice(0, SUGGESTIONS_COUNT);
-
-    // Fallback if we don't get enough suggestions
-    if (suggestions.length < SUGGESTIONS_COUNT) {
-      return [
-        ...suggestions,
-        "How good was the prompt?",
-        "Did you find this prompt helpful?",
-        "Was this prompt useful?",
-        "Did the prompt work well?",
-        "Found the prompt effective?",
-        "How well did that prompt perform?",
-        "Did this prompt hit the mark?",
-        "Was the prompt what you needed?",
-        "Did the prompt deliver results?",
-        "Found the prompt valuable?",
-      ].slice(0, SUGGESTIONS_COUNT);
-    }
-
-    return suggestions;
-  } catch (error) {
-    console.warn("Failed to generate suggestions from Ollama, using fallbacks:", error);
-    // Fallback suggestions if Ollama is not available
-    return [
-      "How good was the prompt?",
-      "Did you find this prompt helpful?",
-      "Was this prompt useful to you?",
-      "Did the prompt work well for you?",
-      "Found the prompt effective?",
-      "How well did that prompt perform?",
-      "Did this prompt hit the mark?",
-      "Was the prompt what you needed?",
-      "Did the prompt deliver results?",
-      "Found the prompt valuable?",
-    ];
-  }
-}
+// Pre-written suggestion prompts - varied and friendly
+const SUGGESTION_PROMPTS = [
+  "How good was the prompt?",
+  "Did you find this prompt helpful?",
+  "Was this prompt useful to you?",
+  "Did the prompt work well for you?",
+  "Found the prompt effective?",
+  "How well did that prompt perform?",
+  "Did this prompt hit the mark?",
+  "Was the prompt what you needed?",
+  "Did the prompt deliver results?",
+  "Found the prompt valuable?",
+];
 
 /**
- * Get suggestions from session cache or generate new ones
+ * Get a random suggestion from the predefined list
  */
-async function getSuggestions(): Promise<string[]> {
-  try {
-    const cached = sessionStorage.getItem(SUGGESTIONS_CACHE_KEY);
-    if (cached) {
-      const suggestions = JSON.parse(cached);
-      if (Array.isArray(suggestions) && suggestions.length === SUGGESTIONS_COUNT) {
-        return suggestions;
-      }
-    }
-  } catch (error) {
-    console.warn("Failed to read cached suggestions:", error);
-  }
-
-  // Generate new suggestions and cache them for this session
-  const suggestions = await generateSuggestions();
-  try {
-    sessionStorage.setItem(SUGGESTIONS_CACHE_KEY, JSON.stringify(suggestions));
-  } catch (error) {
-    console.warn("Failed to cache suggestions:", error);
-  }
-
-  return suggestions;
-}
-
-/**
- * Get a random suggestion from the cached pool
- */
-async function getRandomSuggestion(): Promise<string> {
-  const suggestions = await getSuggestions();
-  const randomIndex = Math.floor(Math.random() * suggestions.length);
-  return suggestions[randomIndex];
+function getRandomSuggestion(): string {
+  const randomIndex = Math.floor(Math.random() * SUGGESTION_PROMPTS.length);
+  return SUGGESTION_PROMPTS[randomIndex];
 }
 
 /**
@@ -147,7 +45,7 @@ export async function showSuggestionBubble(
   }
 
   // Get a random suggestion
-  const suggestionText = await getRandomSuggestion();
+  const suggestionText = getRandomSuggestion();
 
   // Create bubble container
   const bubble = document.createElement("div");
@@ -298,17 +196,8 @@ function hideBubble(bubble: HTMLElement): void {
 }
 
 /**
- * Pre-generate suggestions for the session (call this on extension load)
+ * Initialize suggestions (no-op since we use static prompts)
  */
-export async function initializeSuggestions(): Promise<void> {
-  // Check if we already have suggestions for this session
-  try {
-    const cached = sessionStorage.getItem(SUGGESTIONS_CACHE_KEY);
-    if (!cached) {
-      // Generate suggestions in the background
-      await getSuggestions();
-    }
-  } catch (error) {
-    console.warn("Failed to initialize suggestions:", error);
-  }
+export function initializeSuggestions(): void {
+  // No initialization needed - we use static prompts
 }
