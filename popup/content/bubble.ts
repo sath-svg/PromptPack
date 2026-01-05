@@ -110,67 +110,71 @@ export async function showSuggestionBubble(
     flex: 1;
   `;
 
-  // Thumbs up button
-  const thumbsUp = document.createElement("button");
-  thumbsUp.innerHTML = "👍";
-  thumbsUp.title = "Save this prompt";
-  thumbsUp.style.cssText = `
+  // Save button
+  const saveButton = document.createElement("button");
+  saveButton.textContent = "Save";
+  saveButton.title = "Save this prompt";
+  saveButton.style.cssText = `
     background: ${config.primaryColor};
     border: none;
     border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 18px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
   `;
-  thumbsUp.onmouseenter = () => {
-    thumbsUp.style.background = config.hoverColor;
-    thumbsUp.style.transform = "scale(1.1)";
+  saveButton.onmouseenter = () => {
+    saveButton.style.background = config.hoverColor;
+    saveButton.style.transform = "scale(1.05)";
   };
-  thumbsUp.onmouseleave = () => {
-    thumbsUp.style.background = config.primaryColor;
-    thumbsUp.style.transform = "scale(1)";
+  saveButton.onmouseleave = () => {
+    saveButton.style.background = config.primaryColor;
+    saveButton.style.transform = "scale(1)";
   };
-  thumbsUp.onclick = () => {
+  saveButton.onclick = () => {
     onSave();
     hideBubble(bubble);
   };
 
-  // Thumbs down button
-  const thumbsDown = document.createElement("button");
-  thumbsDown.innerHTML = "👎";
-  thumbsDown.title = "Dismiss";
-  thumbsDown.style.cssText = `
-    background: #f0f0f0;
+  // Close button (X)
+  const closeButton = document.createElement("button");
+  closeButton.innerHTML = "×";
+  closeButton.title = "Dismiss";
+  closeButton.style.cssText = `
+    background: transparent;
     border: none;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-size: 18px;
+    padding: 4px 8px;
+    font-size: 24px;
+    line-height: 1;
+    color: #999;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
+    margin-left: 8px;
   `;
-  thumbsDown.onmouseenter = () => {
-    thumbsDown.style.background = "#e0e0e0";
-    thumbsDown.style.transform = "scale(1.1)";
+  closeButton.onmouseenter = () => {
+    closeButton.style.color = "#333";
+    closeButton.style.transform = "scale(1.1)";
   };
-  thumbsDown.onmouseleave = () => {
-    thumbsDown.style.background = "#f0f0f0";
-    thumbsDown.style.transform = "scale(1)";
+  closeButton.onmouseleave = () => {
+    closeButton.style.color = "#999";
+    closeButton.style.transform = "scale(1)";
   };
-  thumbsDown.onclick = () => {
+  closeButton.onclick = () => {
     hideBubble(bubble);
   };
 
   // Assemble bubble
   bubble.appendChild(text);
-  bubble.appendChild(thumbsUp);
-  bubble.appendChild(thumbsDown);
+  bubble.appendChild(saveButton);
+  bubble.appendChild(closeButton);
 
   // Add to page
   document.body.appendChild(bubble);

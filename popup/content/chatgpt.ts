@@ -335,8 +335,10 @@ function tick() {
   // Detect when generation stops
   const generating = isGenerating();
   if (wasGenerating && !generating) {
-    // Generation just finished, show suggestion bubble
+    // Generation just finished
     wasGenerating = false;
+
+    // Show suggestion bubble after response completes
     handleSuggestionBubble();
   } else if (generating) {
     // Store the prompt text before it gets cleared
