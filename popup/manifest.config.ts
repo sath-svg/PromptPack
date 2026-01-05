@@ -14,7 +14,7 @@ const manifest: ManifestV3Export = {
   },
 
   // Permissions
-  permissions: ["storage", "unlimitedStorage", "tabs", "identity"],
+  permissions: ["storage", "unlimitedStorage", "tabs"],
 
   // Host permissions for LLM websites and web app
   host_permissions: [
@@ -73,8 +73,8 @@ const manifest: ManifestV3Export = {
   commands: {
     "save-prompt": {
       suggested_key: {
-        default: "Ctrl+Alt+S",
-        mac: "Command+Alt+S",
+        default: "Alt+Shift+S",
+        mac: "Alt+Shift+S",
       },
       description: "Save current prompt to PromptPack",
     },
