@@ -6,20 +6,25 @@ const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const email = formData.get("email") as string;
+    const body = await req.json();
+    const email = body.email;
 
     if (!email || !email.includes("@")) {
-      return NextResponse.redirect(new URL("/?beta=invalid", req.url));
+      return NextResponse.json(
+        { error: "Valid email required" },
+        { status: 400 }
+      );
     }
 
     // Store in Convex database
-    await convex.mutation(api.betaSignups.create, { email });
+    const result = await convex.mutation(api.betaSignups.create, { email });
 
-    // Redirect back to homepage with success message
-    return NextResponse.redirect(new URL("/?beta=success", req.url));
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
     console.error("Beta signup error:", error);
-    return NextResponse.redirect(new URL("/?beta=error", req.url));
+    return NextResponse.json(
+      { error: "Failed to sign up" },
+      { status: 500 }
+    );
   }
 }
