@@ -63,4 +63,11 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_user_source", ["userId", "source"]),
+
+  // Beta tester signups
+  betaSignups: defineTable({
+    email: v.string(),
+    signedUpAt: v.number(),
+  })
+    .index("by_email", ["email"]),
 });

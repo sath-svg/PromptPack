@@ -2,9 +2,11 @@ import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
+import { BetaSignupForm } from "@/components/beta-signup-form";
 import './globals.css';
 
 export default function Home() {
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -66,6 +68,8 @@ export default function Home() {
         <h4 className="hero-hook">
           <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
+
+        <BetaSignupForm />
 
         <div className="hero-cta">
           <SignedOut>
@@ -197,8 +201,8 @@ export default function Home() {
           <span className="tooltip-wrap">
             <span
               className="tooltip-trigger"
-              data-tooltip="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
-              aria-label="You can also use Ctrl+Alt+S (Cmd+Alt+S on Mac) while in the prompt box to save it to the extension."
+              data-tooltip="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
+              aria-label="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
               tabIndex={0}
             >
               ℹ️

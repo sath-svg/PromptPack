@@ -17,6 +17,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/auth/status", // Extension auth status check
   "/api/health", // Health check endpoint
   "/api/support", // Support form must be accessible to all users
+  "/api/beta-signup", // Beta tester signup
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
