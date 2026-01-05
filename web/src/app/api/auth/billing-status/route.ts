@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 
-const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -15,6 +13,8 @@ export async function GET() {
         isPro: false,
       });
     }
+
+    const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
     // Fetch user from Convex to get their billing plan
     const user = await convexClient.query(api.users.getByClerkId, {

@@ -13,7 +13,7 @@ import {
   isObfuscated,
   SCHEMA_VERSION,
 } from "../../lib/crypto";
-import { WORKERS_API_URL } from "../../lib/constants";
+import { WORKERS_API_URL, PASSWORD_MAX_LENGTH, isValidPassword } from "../../lib/constants";
 
 type SavedPromptsProps = {
   userId: Id<"users">;
@@ -161,8 +161,8 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
   };
 
   const handleDecrypt = async () => {
-    if (!selectedPack || !selectedPack.fileData || password.length !== 5) {
-      setError("Password must be exactly 5 characters");
+    if (!selectedPack || !selectedPack.fileData || !isValidPassword(password)) {
+      setError(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
       return;
     }
 
@@ -555,7 +555,7 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Unlock {getSourceTitle(selectedPack.source)} Pack</h3>
             <p className="modal-subtitle">
-              Enter your 5-character password to view {selectedPack.promptCount} prompts
+              Enter your password to view {selectedPack.promptCount} prompts
             </p>
 
             <div className="password-input-group">
@@ -564,14 +564,14 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                maxLength={5}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="password-input"
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleDecrypt()}
               />
               <button
                 onClick={handleDecrypt}
-                disabled={password.length !== 5 || isDecrypting}
+                disabled={!isValidPassword(password) || isDecrypting}
                 className="btn btn-primary unlock-btn"
               >
                 {isDecrypting ? "Decrypting..." : "Unlock"}

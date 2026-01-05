@@ -5,8 +5,7 @@ export async function GET(request: Request) {
   // Add CORS headers for extension
   const origin = request.headers.get("origin");
   const allowedOrigins = [
-    "http://localhost:3000",
-    "https://pmtpk.ai",
+    "https://pmtpk.com",
   ];
 
   // Allow chrome-extension:// origins for browser extensions
@@ -68,7 +67,7 @@ export async function OPTIONS(request: Request) {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      "Access-Control-Allow-Origin": isExtension ? origin || "*" : "http://localhost:3000",
+      "Access-Control-Allow-Origin": isExtension ? origin || "*" : "https://pmtpk.com",
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",

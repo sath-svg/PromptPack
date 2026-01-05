@@ -2,6 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { ProCard } from "../pricing/pro-card";
 
+export const dynamic = "force-dynamic";
+
 export default async function SubscribePage() {
   const { userId } = await auth();
 

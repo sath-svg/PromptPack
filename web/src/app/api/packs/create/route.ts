@@ -4,8 +4,6 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { R2_API_URL } from "../../../../lib/constants";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -27,6 +25,8 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
     // Get user from Convex by Clerk ID
     let convexUser = await convex.query(api.users.getByClerkId, {

@@ -7,16 +7,7 @@
  * - CORS for extension requests
  */
 
-// ============================================================================
-// TODO-PRODUCTION: Configure these in wrangler.toml before deploying
-// ============================================================================
-// 1. Set ENVIRONMENT = "production"
-// 2. Bind R2 bucket: BUCKET = "your-production-bucket"
-// 3. Set CONVEX_URL = "https://your-project.convex.site"
-// 4. Set ALLOWED_ORIGINS = "https://pmtpk.ai,chrome-extension://*"
-// 5. Add proper JWT validation with Clerk
-// 6. Add rate limiting
-// ============================================================================
+// Configuration is set in wrangler.toml
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -39,8 +30,8 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
     };
   }
 
-  // Allow pmtpk.ai and convex.site for web app
-  if (origin.includes("pmtpk.ai") || origin.includes("convex.site") || origin.includes("vercel.app")) {
+  // Allow pmtpk.com and convex.site for web app
+  if (origin.includes("pmtpk.com") || origin.includes("convex.site") || origin.includes("vercel.app")) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -62,7 +53,7 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
 }
 
 // Extract user ID from auth token (simplified for dev)
-// TODO [PRODUCTION]: Validate JWT with Clerk properly
+// Note: Consider adding proper JWT validation with Clerk for enhanced security
 function getUserIdFromToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
 

@@ -104,7 +104,7 @@ Import validation:
 All users (free and pro) can export prompts:
 
 1. Click the export button on any source folder or imported pack
-2. Optionally set a 5-character password for encryption
+2. Optionally set a password for encryption (exactly 5 characters)
 3. Downloads as `{source}_{timestamp}.pmtpk` or `{packname}_{timestamp}.pmtpk`
 
 Export options:
@@ -236,7 +236,7 @@ Payload:
 - Iterations: 100,000
 - Salt: 16 bytes (random)
 - IV: 12 bytes (random)
-- Password requirement: **exactly 5 characters**
+- Password requirement: **exactly 5 characters** (alphanumeric)
 
 ### Security Properties
 
@@ -329,7 +329,7 @@ Prompts have a `syncStatus` field:
 |-------|------|-----|
 | Prompts per source | 10 | 40 |
 | Imported packs | 0 | 2 |
-| Created packs (dashboard) | 0 | 2 |
-| Loaded pack slots | 0 | 5 |
+| Created packs (dashboard) | 0 | 0 |
+| Loaded pack slots | 3 | 3 |
 | Cloud sync | Yes (if signed in) | Yes |
 | Password length | 5 chars | 5 chars |
