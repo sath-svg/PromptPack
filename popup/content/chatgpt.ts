@@ -5,19 +5,16 @@ import { showSuggestionBubble, initializeSuggestions } from "./bubble";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 
-function toast(msg: string) {
+function toast(msg: string, type: "success" | "error" = "success") {
   let el = document.getElementById("pp-toast");
   if (!el) {
     el = document.createElement("div");
     el.id = "pp-toast";
     el.style.cssText = `
-      position: fixed;
-      right: 16px;
-      bottom: 140px;
+      position: absolute;
       z-index: 999999;
       padding: 10px 12px;
       border-radius: 12px;
-      background: rgba(220, 38, 38, 0.92);
       color: white;
       font-size: 13px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.25);
@@ -25,9 +22,39 @@ function toast(msg: string) {
       transform: translateY(6px);
       transition: opacity 140ms ease, transform 140ms ease;
       font-family: "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      pointer-events: none;
     `;
     document.body.appendChild(el);
   }
+
+  // Set color based on type
+  el.style.background = type === "error"
+    ? "rgba(220, 38, 38, 0.92)"  // Red for errors
+    : "rgba(59, 130, 246, 0.92)"; // Blue for success
+
+  // Position next to composer
+  const composer = findComposer();
+  if (composer) {
+    const rect = composer.getBoundingClientRect();
+    const toastWidth = 200; // Approximate width
+    const gap = 80; // Increased gap to avoid overlap with bubble
+
+    // Position to the right of the composer
+    el.style.position = "fixed";
+    el.style.left = `${rect.right + gap}px`;
+    el.style.top = `${rect.top}px`;
+
+    // If toast would overflow right edge, position on the left instead
+    if (rect.right + gap + toastWidth > window.innerWidth) {
+      el.style.left = `${rect.left - toastWidth - gap}px`;
+    }
+  } else {
+    // Fallback to fixed position if no composer found
+    el.style.position = "fixed";
+    el.style.right = "16px";
+    el.style.bottom = "140px";
+  }
+
   el.textContent = msg;
   el.style.opacity = "1";
   el.style.transform = "translateY(0)";
@@ -133,7 +160,7 @@ let tickScheduled = false;
 let observer: MutationObserver | null = null;
 let wasGenerating = false;
 let lastPromptText = "";
-let bubbleShown = false; // Prevent showing bubble multiple times
+let isFirstPrompt = true; // Skip bubble for first prompt only
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -204,8 +231,8 @@ function ensureButton() {
         }, 900);
         return;
       }
-      if (result.reason === "limit") return toast("Limit reached");
-      if (result.reason === "empty") return toast("Nothing to save");
+      if (result.reason === "limit") return toast("Limit reached", "error");
+      if (result.reason === "empty") return toast("Nothing to save", "error");
     });
 
     document.body.appendChild(btn);
@@ -275,6 +302,7 @@ async function handleSuggestionBubble() {
       primaryColor: colors.buttonBg,
       hoverColor: colors.border,
       textColor: colors.text,
+      composer: currentComposer as HTMLElement | undefined,
     },
     async () => {
       // Save the last prompt when user clicks thumbs up
@@ -290,9 +318,9 @@ async function handleSuggestionBubble() {
       });
 
       if (result.ok) {
-        toast(`Saved! (${result.count}/${result.max})`);
+        toast(`Saved! (${result.count}/${result.max})`, "success");
       } else if (result.reason === "limit") {
-        toast("Limit reached");
+        toast("Limit reached", "error");
       }
     }
   );
@@ -319,7 +347,7 @@ function tick() {
     if (btn) btn.remove();
     wasGenerating = false;
     lastPromptText = "";
-    bubbleShown = false; // Reset for new conversation
+    isFirstPrompt = true; // Reset for new conversation
   }
 
   const composer = findComposer();
@@ -343,19 +371,28 @@ function tick() {
 
   // Detect when generation stops
   const generating = isGenerating();
-  if (wasGenerating && !generating && !bubbleShown) {
-    // Generation just finished and bubble not shown yet
-    console.log("[PromptPack] Generation completed, showing bubble");
+  if (wasGenerating && !generating) {
+    // Generation just finished
+    console.log("[PromptPack] Generation completed");
     wasGenerating = false;
-    bubbleShown = true; // Mark as shown
 
-    // Show suggestion bubble after response completes
-    handleSuggestionBubble();
+    // Show bubble only if NOT the first prompt
+    if (!isFirstPrompt) {
+      console.log("[PromptPack] Showing bubble (not first prompt)");
+      handleSuggestionBubble();
+    } else {
+      console.log("[PromptPack] Skipping bubble (first prompt)");
+    }
   } else if (generating) {
     // Store the prompt text before it gets cleared
     if (text && !wasGenerating) {
       lastPromptText = text;
       console.log("[PromptPack] Started generating, stored prompt");
+
+      // Mark first prompt as done when we START generating, not after
+      if (isFirstPrompt) {
+        isFirstPrompt = false;
+      }
     }
     wasGenerating = true;
   }

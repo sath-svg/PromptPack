@@ -7,20 +7,21 @@ interface BubbleConfig {
   primaryColor: string;
   hoverColor: string;
   textColor: string;
+  composer?: HTMLElement; // Optional composer element for positioning
 }
 
 // Pre-written suggestion prompts - varied and friendly
 const SUGGESTION_PROMPTS = [
-  "How good was the prompt?",
-  "Did you find this prompt helpful?",
-  "Was this prompt useful to you?",
-  "Did the prompt work well for you?",
-  "Found the prompt effective?",
-  "How well did that prompt perform?",
-  "Did this prompt hit the mark?",
-  "Was the prompt what you needed?",
-  "Did the prompt deliver results?",
-  "Found the prompt valuable?",
+  "How good was the last prompt?",
+  "Did you find the previous prompt helpful?",
+  "Was the last prompt useful to you?",
+  "Did the previous prompt work well for you?",
+  "Found the last prompt effective?",
+  "How well did the previous prompt perform?",
+  "Did the last prompt hit the mark?",
+  "Was the previous prompt what you needed?",
+  "Did the last prompt deliver results?",
+  "Found the previous prompt valuable?",
 ];
 
 /**
@@ -50,10 +51,36 @@ export async function showSuggestionBubble(
   // Create bubble container - now clickable
   const bubble = document.createElement("div");
   bubble.className = "promptpack-suggestion-bubble";
+
+  // Position bubble next to composer if provided
+  let positionStyle = "";
+  if (config.composer) {
+    const rect = config.composer.getBoundingClientRect();
+    const bubbleWidth = 400; // max-width
+    const gap = 60; // Increased gap to move bubble further right
+
+    // Try to position to the right of composer first
+    let left = rect.right + gap;
+    let top = rect.top;
+
+    // If it would overflow right edge, position on the left instead
+    if (left + bubbleWidth > window.innerWidth) {
+      left = rect.left - bubbleWidth - gap;
+    }
+
+    // Ensure it doesn't go off screen
+    left = Math.max(gap, Math.min(window.innerWidth - bubbleWidth - gap, left));
+    top = Math.max(gap, top);
+
+    positionStyle = `left: ${left}px; top: ${top}px;`;
+  } else {
+    // Fallback to bottom-right if no composer provided
+    positionStyle = "bottom: 20px; right: 20px;";
+  }
+
   bubble.style.cssText = `
     position: fixed;
-    bottom: 20px;
-    right: 20px;
+    ${positionStyle}
     background: white;
     border: 2px solid ${config.primaryColor};
     border-radius: 12px;
