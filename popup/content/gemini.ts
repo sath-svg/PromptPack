@@ -1,7 +1,6 @@
 // src/content/gemini.ts
 import { savePrompt } from "../shared/promptStore";
 import { startThemeSync, detectThemeFromPage, geminiTheme, type ThemeMode } from "../shared/theme";
-import { showSuggestionBubble, initializeSuggestions } from "./bubble";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 
@@ -170,6 +169,7 @@ let observer: MutationObserver | null = null;
 let wasGenerating = false;
 let lastPromptText = "";
 let isFirstPrompt = true; // Skip bubble for first prompt only
+let processedResponses = new Set<Element>(); // Track which responses we've already added buttons to
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -292,39 +292,125 @@ function isGenerating(): boolean {
 }
 
 /**
- * Show suggestion bubble after response generation completes
+ * Create a save button for response action bars
+ * @param promptText The user's prompt text to save
  */
-async function handleSuggestionBubble() {
-  const colors = currentTheme === "dark" ? geminiTheme.dark : geminiTheme.light;
+function createResponseSaveButton(promptText: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.className = "pp-response-save-btn";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Save prompt to PromptPack");
 
-  await showSuggestionBubble(
-    {
-      primaryColor: colors.buttonBg,
-      hoverColor: colors.border,
-      textColor: colors.text,
-      composer: currentComposer as HTMLElement | undefined,
-    },
-    async () => {
-      // Save the last prompt when user clicks thumbs up
-      if (!currentComposer) return;
+  // Store the prompt text on the button element
+  (btn as any).__promptText = promptText;
 
-      const text = lastPromptText || getComposerText(currentComposer).trim();
-      if (!text) return;
+  // Match Gemini's action button styling with proper contrast
+  btn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+    border: 1px solid ${currentTheme === "dark" ? "rgba(255, 255, 255, 0.12)" : "rgba(0, 0, 0, 0.12)"};
+    background: transparent;
+    color: ${currentTheme === "dark" ? "rgba(255, 255, 255, 0.75)" : "rgba(0, 0, 0, 0.65)"};
+    font-family: Google Sans, Roboto, ui-sans-serif, system-ui, -apple-system, Arial;
+    gap: 6px;
+    opacity: 0.9;
+  `;
 
-      const result = await savePrompt({
-        text,
-        source: "gemini",
-        url: location.href,
-      });
+  // Add hover effect
+  btn.addEventListener("mouseenter", () => {
+    btn.style.background = currentTheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.04)";
+    btn.style.opacity = "1";
+  });
 
-      if (result.ok) {
-        toast(`Saved! (${result.count}/${result.max})`, "success");
-      } else if (result.reason === "limit") {
-        toast("Limit reached", "error");
-      }
+  btn.addEventListener("mouseleave", () => {
+    btn.style.background = "transparent";
+    btn.style.opacity = "0.9";
+  });
+
+  // Use PromptPack logo
+  const iconUrl = chrome.runtime.getURL("img/icon-16.png");
+  btn.innerHTML = `
+    <img src="${iconUrl}" width="16" height="16" style="opacity: 0.9;" alt="PromptPack">
+    <span>Save</span>
+  `;
+
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+
+    // Get the prompt text stored on this button
+    const text = (e.currentTarget as any).__promptText;
+    if (!text) {
+      toast("No prompt to save", "error");
+      return;
     }
-  );
+
+    const result = await savePrompt({
+      text,
+      source: "gemini",
+      url: location.href,
+    });
+
+    if (result.ok) {
+      // Update button to show saved state
+      const span = btn.querySelector("span");
+      if (span) {
+        const originalText = span.textContent;
+        span.textContent = "Saved!";
+        setTimeout(() => {
+          if (span) span.textContent = originalText || "Save";
+        }, 2000);
+      }
+      toast(`Saved! (${result.count}/${result.max})`, "success");
+    } else if (result.reason === "limit") {
+      toast("Limit reached", "error");
+    } else if (result.reason === "empty") {
+      toast("Nothing to save", "error");
+    }
+  });
+
+  return btn;
 }
+
+/**
+ * Inject save button into response action bars
+ */
+function injectResponseSaveButtons() {
+  // Only inject if we have a prompt to save
+  if (!lastPromptText) return;
+
+  // Find all Copy buttons in Gemini responses
+  const copyButtons = document.querySelectorAll('button[aria-label*="Copy"]');
+
+  copyButtons.forEach((copyBtn) => {
+    // Get the parent container of the copy button
+    const container = copyBtn.parentElement;
+
+    if (!container) return;
+
+    // Skip if already processed
+    if (processedResponses.has(container)) return;
+
+    // Mark as processed
+    processedResponses.add(container);
+
+    // Check if we already have a save button in this container
+    if (container.querySelector(".pp-response-save-btn")) return;
+
+    // Create and inject save button with the current prompt text
+    const saveBtn = createResponseSaveButton(lastPromptText);
+
+    // Insert before the copy button (so it appears first)
+    container.insertBefore(saveBtn, copyBtn);
+  });
+}
+
 
 /**
  * Throttled tick function to prevent excessive updates
@@ -348,6 +434,7 @@ function tick() {
     wasGenerating = false;
     lastPromptText = "";
     isFirstPrompt = true; // Reset for new conversation
+    processedResponses.clear(); // Clear processed responses on navigation
   }
 
   const composer = findComposer();
@@ -375,10 +462,12 @@ function tick() {
     // Generation just finished
     wasGenerating = false;
 
-    // Show bubble only if NOT the first prompt
-    if (!isFirstPrompt) {
-      handleSuggestionBubble();
-    }
+    // Inject save buttons into response action bars with delays
+    // Gemini renders the copy button asynchronously, so retry a few times
+    injectResponseSaveButtons();
+    setTimeout(() => injectResponseSaveButtons(), 100);
+    setTimeout(() => injectResponseSaveButtons(), 300);
+    setTimeout(() => injectResponseSaveButtons(), 600);
   } else if (generating) {
     // Store the prompt text before it gets cleared
     if (text && !wasGenerating) {
@@ -391,6 +480,9 @@ function tick() {
     }
     wasGenerating = true;
   }
+
+  // Always try to inject save buttons into existing responses
+  injectResponseSaveButtons();
 
   // Hide while Gemini is generating a response
   if (generating) {
@@ -405,9 +497,6 @@ function tick() {
 }
 
 function boot() {
-  // Initialize suggestion prompts in background
-  initializeSuggestions();
-
   // Theme sync
   startThemeSync({
     onChange: (t) => {

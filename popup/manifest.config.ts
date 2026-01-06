@@ -61,13 +61,13 @@ const manifest: ManifestV3Export = {
   //   type: "module",
   // },
 
-  // Web accessible resources (if needed for content scripts)
-  // web_accessible_resources: [
-  //   {
-  //     resources: ["img/*"],
-  //     matches: ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
-  //   },
-  // ],
+  // Web accessible resources - icons need to be accessible from content scripts
+  web_accessible_resources: [
+    {
+      resources: ["img/icon-16.png"],
+      matches: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+    },
+  ],
 
   // Commands for keyboard shortcuts
   commands: {

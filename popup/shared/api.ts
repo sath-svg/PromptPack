@@ -413,9 +413,9 @@ class ApiClient {
    * Check auth status from web app (if user is logged in via Clerk on web)
    * Calls Next.js API which checks Clerk session cookies.
    *
-   * NOTE: This only works in development (localhost) where cookies can be shared.
-   * In production, cross-origin cookie sharing doesn't work between chrome-extension://
-   * and pmtpk.com, so this will return null. Users must use the explicit login flow.
+   * NOTE: Cross-origin cookie sharing doesn't work between chrome-extension://
+   * and pmtpk.com in production, so this returns null. Users must use the
+   * explicit login flow via the extension popup.
    */
   async checkWebAuthStatus(): Promise<{
     isAuthenticated: boolean;
@@ -426,9 +426,9 @@ class ApiClient {
     };
   } | null> {
     try {
-      // In production, cross-origin cookie sharing doesn't work between chrome-extension://
-      // and pmtpk.com, so skip the API call entirely to save costs.
-      // Users must use the explicit login flow in production.
+      // Cross-origin cookie sharing doesn't work between chrome-extension://
+      // and pmtpk.com in production, so skip the API call to save costs.
+      // Users authenticate via the explicit login flow in the extension.
       if (IS_PRODUCTION) {
         return null;
       }

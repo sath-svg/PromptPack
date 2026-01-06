@@ -1,7 +1,6 @@
 // src/content/chatgpt.ts
 import { savePrompt } from "../shared/promptStore";
 import { startThemeSync, detectThemeFromPage, chatgptTheme, type ThemeMode } from "../shared/theme";
-import { showSuggestionBubble, initializeSuggestions } from "./bubble";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 
@@ -37,7 +36,7 @@ function toast(msg: string, type: "success" | "error" = "success") {
   if (composer) {
     const rect = composer.getBoundingClientRect();
     const toastWidth = 200; // Approximate width
-    const gap = 80; // Increased gap to avoid overlap with bubble
+    const gap = 80; // Gap to avoid overlap
 
     // Position to the right of the composer
     el.style.position = "fixed";
@@ -159,8 +158,8 @@ let lastUrl = location.href;
 let tickScheduled = false;
 let observer: MutationObserver | null = null;
 let wasGenerating = false;
-let lastPromptText = "";
 let isFirstPrompt = true; // Skip bubble for first prompt only
+let processedUserBubbles = new Set<Element>(); // Track which user message bubbles we've added save icons to
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -292,38 +291,118 @@ function isGenerating(): boolean {
 }
 
 /**
- * Show suggestion bubble after response generation completes
+ * Create a save icon button for user message bubbles
  */
-async function handleSuggestionBubble() {
-  const colors = currentTheme === "dark" ? chatgptTheme.dark : chatgptTheme.light;
+function createBubbleSaveIcon(promptText: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.className = "pp-bubble-save-icon";
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Save prompt to PromptPack");
+  btn.title = "Save to PromptPack";
 
-  await showSuggestionBubble(
-    {
-      primaryColor: colors.buttonBg,
-      hoverColor: colors.border,
-      textColor: colors.text,
-      composer: currentComposer as HTMLElement | undefined,
-    },
-    async () => {
-      // Save the last prompt when user clicks thumbs up
-      if (!currentComposer) return;
+  // Store the prompt text on the button
+  (btn as any).__promptText = promptText;
 
-      const text = lastPromptText || getComposerText(currentComposer).trim();
-      if (!text) return;
+  // Simple icon-only styling
+  btn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+    border: none;
+    background: transparent;
+    opacity: 0.5;
+    margin-left: 8px;
+    vertical-align: middle;
+  `;
 
-      const result = await savePrompt({
-        text,
-        source: "chatgpt",
-        url: location.href,
-      });
+  // Hover effect
+  btn.addEventListener("mouseenter", () => {
+    btn.style.background = currentTheme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)";
+    btn.style.opacity = "1";
+  });
+  btn.addEventListener("mouseleave", () => {
+    btn.style.background = "transparent";
+    btn.style.opacity = "0.5";
+  });
 
-      if (result.ok) {
-        toast(`Saved! (${result.count}/${result.max})`, "success");
-      } else if (result.reason === "limit") {
-        toast("Limit reached", "error");
-      }
+  // Use PromptPack logo as icon
+  const iconUrl = chrome.runtime.getURL("img/icon-16.png");
+  btn.innerHTML = `<img src="${iconUrl}" width="16" height="16" alt="Save">`;
+
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const text = (e.currentTarget as any).__promptText;
+    if (!text) {
+      toast("No prompt to save", "error");
+      return;
     }
-  );
+
+    const result = await savePrompt({
+      text,
+      source: "chatgpt",
+      url: location.href,
+    });
+
+    if (result.ok) {
+      // Brief visual feedback
+      btn.style.opacity = "1";
+      toast(`Saved! (${result.count}/${result.max})`, "success");
+    } else if (result.reason === "limit") {
+      toast("Limit reached", "error");
+    } else if (result.reason === "empty") {
+      toast("Nothing to save", "error");
+    }
+  });
+
+  return btn;
+}
+
+/**
+ * Find and inject save icons next to user message bubbles
+ */
+function injectBubbleSaveIcons() {
+  // Find all user message bubbles - they have data-message-author-role="user"
+  const userMessages = document.querySelectorAll('[data-message-author-role="user"]');
+
+  userMessages.forEach((msg) => {
+    // Skip if already processed
+    if (processedUserBubbles.has(msg)) return;
+
+    // Find the text content container within the user message
+    const textContainer = msg.querySelector('[data-message-id]') || msg;
+
+    // Get the prompt text
+    const promptText = textContainer.textContent?.trim() || "";
+    if (!promptText) return;
+
+    // Mark as processed
+    processedUserBubbles.add(msg);
+
+    // Find the bubble element (the rounded container with the text)
+    // Look for the element that contains the user's text
+    const bubble = msg.querySelector('.whitespace-pre-wrap') ||
+                   msg.querySelector('[class*="break-words"]') ||
+                   textContainer;
+
+    if (!bubble || !bubble.parentElement) return;
+
+    // Check if we already added an icon here
+    if (bubble.parentElement.querySelector('.pp-bubble-save-icon')) return;
+
+    // Create and insert the save icon after the bubble
+    const saveIcon = createBubbleSaveIcon(promptText);
+    bubble.parentElement.style.display = "flex";
+    bubble.parentElement.style.alignItems = "center";
+    bubble.parentElement.appendChild(saveIcon);
+  });
 }
 
 /**
@@ -346,9 +425,12 @@ function tick() {
     const btn = document.getElementById("pp-save-btn");
     if (btn) btn.remove();
     wasGenerating = false;
-    lastPromptText = "";
     isFirstPrompt = true; // Reset for new conversation
+    processedUserBubbles.clear(); // Clear processed bubbles on navigation
   }
+
+  // Always inject save icons next to user message bubbles (regardless of composer state)
+  injectBubbleSaveIcons();
 
   const composer = findComposer();
   currentComposer = composer;
@@ -373,26 +455,11 @@ function tick() {
   const generating = isGenerating();
   if (wasGenerating && !generating) {
     // Generation just finished
-    console.log("[PromptPack] Generation completed");
     wasGenerating = false;
-
-    // Show bubble only if NOT the first prompt
-    if (!isFirstPrompt) {
-      console.log("[PromptPack] Showing bubble (not first prompt)");
-      handleSuggestionBubble();
-    } else {
-      console.log("[PromptPack] Skipping bubble (first prompt)");
-    }
   } else if (generating) {
-    // Store the prompt text before it gets cleared
-    if (text && !wasGenerating) {
-      lastPromptText = text;
-      console.log("[PromptPack] Started generating, stored prompt");
-
-      // Mark first prompt as done when we START generating, not after
-      if (isFirstPrompt) {
-        isFirstPrompt = false;
-      }
+    // Mark first prompt as done when we START generating, not after
+    if (text && !wasGenerating && isFirstPrompt) {
+      isFirstPrompt = false;
     }
     wasGenerating = true;
   }
@@ -410,9 +477,6 @@ function tick() {
 }
 
 function boot() {
-  // Initialize suggestion prompts in background
-  initializeSuggestions();
-
   // Theme sync
   startThemeSync({
     onChange: (t) => {
