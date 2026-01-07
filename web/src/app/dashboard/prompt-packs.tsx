@@ -268,15 +268,34 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
       const { fileData } = await response.json();
 
+      const isBinary = isBinaryFormat(fileData);
+      if (!isBinary) {
+        const parsed = parsePackData(fileData);
+        if (!parsed) {
+          throw new Error("Invalid pack format");
+        }
+
+        setSelectedPack({
+          id: pack._id,
+          title: pack.title,
+          fileData,
+          prompts: parsed.prompts,
+          isEncrypted: false,
+        });
+        return;
+      }
+
+      const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+      const encrypted = isEncrypted(bytes);
+
       // Check if it's encrypted or obfuscated
-      if (pack.isEncrypted) {
+      if (encrypted) {
         // Need password
         setPendingPack({ id: pack._id, title: pack.title, fileData });
         setShowPasswordModal(true);
         setPassword("");
       } else {
         // Obfuscated - decode directly
-        const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
         const prompts = await decodeObfuscatedFile(bytes);
         setSelectedPack({
           id: pack._id,

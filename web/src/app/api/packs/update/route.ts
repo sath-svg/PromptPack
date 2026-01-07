@@ -5,6 +5,19 @@ import { api } from "../../../../../convex/_generated/api";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 import { R2_API_URL } from "../../../../lib/constants";
 
+function inferIsEncrypted(fileData: string): boolean {
+  if (!fileData.startsWith("UFBLA")) {
+    return false;
+  }
+
+  const buffer = Buffer.from(fileData, "base64");
+  if (buffer.length < 4) {
+    return false;
+  }
+
+  return buffer[0] === 0x50 && buffer[1] === 0x50 && buffer[2] === 0x4B && buffer[3] === 0x01;
+}
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -28,6 +41,7 @@ export async function POST(request: Request) {
     }
 
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const resolvedIsEncrypted = inferIsEncrypted(fileData);
 
     // Get the existing pack to verify ownership and get r2Key
     const pack = await convex.query(api.packs.get, { id: id as Id<"userPacks"> });
@@ -72,7 +86,7 @@ export async function POST(request: Request) {
             authorId: userId,
             promptCount: promptCount.toString(),
             version: pack.version || "1.0",
-            isEncrypted: pack.isEncrypted ? "true" : "false",
+            isEncrypted: resolvedIsEncrypted ? "true" : "false",
           },
         }),
       });
@@ -102,6 +116,7 @@ export async function POST(request: Request) {
       id: id as Id<"userPacks">,
       promptCount,
       fileSize,
+      isEncrypted: resolvedIsEncrypted,
     });
 
     return NextResponse.json({

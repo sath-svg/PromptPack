@@ -4,6 +4,19 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 import { R2_API_URL } from "../../../../lib/constants";
 
+function inferIsEncrypted(fileData: string): boolean {
+  if (!fileData.startsWith("UFBLA")) {
+    return false;
+  }
+
+  const buffer = Buffer.from(fileData, "base64");
+  if (buffer.length < 4) {
+    return false;
+  }
+
+  return buffer[0] === 0x50 && buffer[1] === 0x50 && buffer[2] === 0x4B && buffer[3] === 0x01;
+}
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -27,6 +40,7 @@ export async function POST(request: Request) {
     }
 
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    const resolvedIsEncrypted = typeof isEncrypted === "boolean" ? isEncrypted : inferIsEncrypted(fileData);
 
     // Get user from Convex by Clerk ID
     let convexUser = await convex.query(api.users.getByClerkId, {
@@ -82,7 +96,7 @@ export async function POST(request: Request) {
             authorId: userId,
             promptCount: promptCount.toString(),
             version: version || "1.0",
-            isEncrypted: isEncrypted ? "true" : "false",
+            isEncrypted: resolvedIsEncrypted ? "true" : "false",
           },
         }),
       });
@@ -117,7 +131,7 @@ export async function POST(request: Request) {
       version: version || "1.0",
       price: price || 0,
       isPublic: isPublic || false,
-      isEncrypted: isEncrypted || false,
+      isEncrypted: resolvedIsEncrypted,
     });
 
     return NextResponse.json({

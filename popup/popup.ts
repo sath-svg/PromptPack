@@ -827,10 +827,11 @@ function setupEventDelegation() {
         };
 
         const jsonString = JSON.stringify(exportData);
+        const shouldEncrypt = !!password;
         let fileData: Uint8Array;
 
         // Encrypt or obfuscate based on password
-        if (password) {
+        if (shouldEncrypt) {
           fileData = await encryptPmtpk(jsonString, password);
         } else {
           fileData = await encodePmtpk(jsonString);
@@ -859,6 +860,7 @@ function setupEventDelegation() {
             version: "1.0",
             price: 0,
             isPublic: false,
+            isEncrypted: shouldEncrypt,
           }),
         });
 
