@@ -167,9 +167,8 @@ let lastUrl = location.href;
 let tickScheduled = false;
 let observer: MutationObserver | null = null;
 let wasGenerating = false;
-let lastPromptText = "";
 let isFirstPrompt = true; // Skip bubble for first prompt only
-let processedResponses = new Set<Element>(); // Track which responses we've already added buttons to
+let processedUserBubbles = new Set<Element>(); // Track which user message bubbles we've added save icons to
 
 /**
  * Validates that our save button still exists in the DOM and is properly attached.
@@ -292,59 +291,54 @@ function isGenerating(): boolean {
 }
 
 /**
- * Create a save button for response action bars
- * @param promptText The user's prompt text to save
+ * Create a save icon button for user message bubbles
  */
-function createResponseSaveButton(promptText: string): HTMLButtonElement {
+function createBubbleSaveIcon(promptText: string): HTMLButtonElement {
   const btn = document.createElement("button");
-  btn.className = "pp-response-save-btn";
+  btn.className = "pp-bubble-save-icon";
   btn.type = "button";
   btn.setAttribute("aria-label", "Save prompt to PromptPack");
+  btn.title = "Save to PromptPack";
 
-  // Store the prompt text on the button element
+  // Store the prompt text on the button
   (btn as any).__promptText = promptText;
 
-  // Match Claude's action button styling with proper contrast
+  // Simple icon-only styling
   btn.style.cssText = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 500;
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    border-radius: 4px;
     cursor: pointer;
-    transition: background-color 0.2s ease, opacity 0.2s ease;
-    border: 1px solid ${currentTheme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.1)"};
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+    border: none;
     background: transparent;
-    color: ${currentTheme === "dark" ? "rgba(255, 255, 255, 0.7)" : "rgba(0, 0, 0, 0.6)"};
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    gap: 6px;
-    opacity: 0.85;
+    opacity: 0.5;
+    margin-left: 8px;
+    vertical-align: middle;
   `;
 
-  // Add hover effect
+  // Hover effect
   btn.addEventListener("mouseenter", () => {
-    btn.style.background = currentTheme === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.05)";
+    btn.style.background = currentTheme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)";
     btn.style.opacity = "1";
   });
-
   btn.addEventListener("mouseleave", () => {
     btn.style.background = "transparent";
-    btn.style.opacity = "0.85";
+    btn.style.opacity = "0.5";
   });
 
-  // Use PromptPack logo
+  // Use PromptPack logo as icon
   const iconUrl = chrome.runtime.getURL("img/icon-16.png");
-  btn.innerHTML = `
-    <img src="${iconUrl}" width="16" height="16" style="opacity: 0.9;" alt="PromptPack">
-    <span>Save</span>
-  `;
+  btn.innerHTML = `<img src="${iconUrl}" width="16" height="16" alt="Save">`;
 
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
+    e.preventDefault();
 
-    // Get the prompt text stored on this button
     const text = (e.currentTarget as any).__promptText;
     if (!text) {
       toast("No prompt to save", "error");
@@ -358,15 +352,8 @@ function createResponseSaveButton(promptText: string): HTMLButtonElement {
     });
 
     if (result.ok) {
-      // Update button to show saved state
-      const span = btn.querySelector("span");
-      if (span) {
-        const originalText = span.textContent;
-        span.textContent = "Saved!";
-        setTimeout(() => {
-          if (span) span.textContent = originalText || "Save";
-        }, 2000);
-      }
+      // Brief visual feedback
+      btn.style.opacity = "1";
       toast(`Saved! (${result.count}/${result.max})`, "success");
     } else if (result.reason === "limit") {
       toast("Limit reached", "error");
@@ -379,38 +366,38 @@ function createResponseSaveButton(promptText: string): HTMLButtonElement {
 }
 
 /**
- * Inject save button into response action bars
+ * Find and inject save icons next to user message bubbles
  */
-function injectResponseSaveButtons() {
-  // Only inject if we have a prompt to save
-  if (!lastPromptText) return;
+function injectBubbleSaveIcons() {
+  // Find all user message containers - Claude uses data-testid="user-message"
+  const userMessages = document.querySelectorAll('div[data-testid="user-message"]');
 
-  // Find all Copy buttons in Claude responses
-  const copyButtons = document.querySelectorAll('button[aria-label*="Copy"]');
-
-  copyButtons.forEach((copyBtn) => {
-    // Get the parent container of the copy button
-    const container = copyBtn.parentElement;
-
-    if (!container) return;
-
+  userMessages.forEach((msg) => {
     // Skip if already processed
-    if (processedResponses.has(container)) return;
+    if (processedUserBubbles.has(msg)) return;
+
+    // Get the prompt text from the <p> tag inside
+    const textElement = msg.querySelector('p.whitespace-pre-wrap');
+    const promptText = textElement?.textContent?.trim() || "";
+    if (!promptText || promptText.length < 2) return;
 
     // Mark as processed
-    processedResponses.add(container);
+    processedUserBubbles.add(msg);
 
-    // Check if we already have a save button in this container
-    if (container.querySelector(".pp-response-save-btn")) return;
+    // Check if we already added an icon here
+    if (msg.querySelector('.pp-bubble-save-icon')) return;
 
-    // Create and inject save button with the current prompt text
-    const saveBtn = createResponseSaveButton(lastPromptText);
+    // Create and insert the save icon
+    const saveIcon = createBubbleSaveIcon(promptText);
 
-    // Insert before the copy button (so it appears first)
-    container.insertBefore(saveBtn, copyBtn);
+    // Add the icon to the message container
+    const msgEl = msg as HTMLElement;
+    msgEl.style.display = "flex";
+    msgEl.style.alignItems = "flex-start";
+    msgEl.style.gap = "8px";
+    msgEl.appendChild(saveIcon);
   });
 }
-
 
 /**
  * Throttled tick function to prevent excessive updates
@@ -432,10 +419,12 @@ function tick() {
     const btn = document.getElementById("pp-save-btn");
     if (btn) btn.remove();
     wasGenerating = false;
-    lastPromptText = "";
     isFirstPrompt = true; // Reset for new conversation
-    processedResponses.clear(); // Clear processed responses on navigation
+    processedUserBubbles.clear(); // Clear processed bubbles on navigation
   }
+
+  // Always inject save icons next to user message bubbles (regardless of composer state)
+  injectBubbleSaveIcons();
 
   const composer = findComposer();
   currentComposer = composer;
@@ -461,28 +450,13 @@ function tick() {
   if (wasGenerating && !generating) {
     // Generation just finished
     wasGenerating = false;
-
-    // Inject save buttons into response action bars with delays
-    // Claude renders the copy button asynchronously, so retry a few times
-    injectResponseSaveButtons();
-    setTimeout(() => injectResponseSaveButtons(), 100);
-    setTimeout(() => injectResponseSaveButtons(), 300);
-    setTimeout(() => injectResponseSaveButtons(), 600);
   } else if (generating) {
-    // Store the prompt text before it gets cleared
-    if (text && !wasGenerating) {
-      lastPromptText = text;
-
-      // Mark first prompt as done when we START generating, not after
-      if (isFirstPrompt) {
-        isFirstPrompt = false;
-      }
+    // Mark first prompt as done when we START generating, not after
+    if (text && !wasGenerating && isFirstPrompt) {
+      isFirstPrompt = false;
     }
     wasGenerating = true;
   }
-
-  // Always try to inject save buttons into existing responses
-  injectResponseSaveButtons();
 
   // Hide while Claude is generating a response
   if (generating) {
