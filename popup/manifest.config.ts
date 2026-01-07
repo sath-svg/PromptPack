@@ -22,7 +22,7 @@ const manifest: ManifestV3Export = {
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
-    "https://pmtpk.com/*",
+    "http://localhost:3000/*",
   ],
 
   // Extension action (popup)
@@ -81,7 +81,7 @@ const manifest: ManifestV3Export = {
   },
 
   // Homepage and author info
-  homepage_url: "https://pmtpk.com",
+  homepage_url: "http://localhost:3000",
   author: {
     email: "sathvik.work@gmail.com",
   },

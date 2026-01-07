@@ -1,5 +1,5 @@
 // src/content/chatgpt.ts
-import { savePrompt } from "../shared/promptStore";
+import { savePrompt, listPromptsBySourceGrouped } from "../shared/promptStore";
 import { startThemeSync, detectThemeFromPage, chatgptTheme, type ThemeMode } from "../shared/theme";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
@@ -305,6 +305,9 @@ function createBubbleSaveIcon(promptText: string): HTMLButtonElement {
 
   // Simple icon-only styling
   btn.style.cssText = `
+    position: absolute;
+    top: 6px;
+    right: 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -317,8 +320,7 @@ function createBubbleSaveIcon(promptText: string): HTMLButtonElement {
     border: none;
     background: transparent;
     opacity: 0.5;
-    margin-left: 8px;
-    vertical-align: middle;
+    z-index: 1;
   `;
 
   // Hover effect
@@ -399,9 +401,16 @@ function injectBubbleSaveIcons() {
 
     // Create and insert the save icon after the bubble
     const saveIcon = createBubbleSaveIcon(promptText);
-    bubble.parentElement.style.display = "flex";
-    bubble.parentElement.style.alignItems = "center";
-    bubble.parentElement.appendChild(saveIcon);
+    const parent = bubble.parentElement as HTMLElement;
+    const computed = window.getComputedStyle(parent);
+    if (computed.position === "static") {
+      parent.style.position = "relative";
+    }
+    const paddingRight = parseFloat(computed.paddingRight || "0");
+    if (paddingRight < 28) {
+      parent.style.paddingRight = "28px";
+    }
+    parent.appendChild(saveIcon);
   });
 }
 
@@ -526,6 +535,226 @@ function boot() {
   };
 
   window.addEventListener("popstate", scheduleTick);
+
+  // Setup context menu for promptbox
+  setupContextMenu();
+}
+
+/**
+ * Create and show the PromptPack context menu
+ */
+let contextMenu: HTMLElement | null = null;
+
+function createContextMenu(): HTMLElement {
+  const menu = document.createElement("div");
+  menu.id = "pp-context-menu";
+  menu.style.cssText = `
+    position: fixed;
+    z-index: 999999;
+    background: ${currentTheme === "dark" ? "#2d2d2d" : "#ffffff"};
+    border: 1px solid ${currentTheme === "dark" ? "#444" : "#ddd"};
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    min-width: 200px;
+    max-width: 300px;
+    max-height: 400px;
+    overflow: hidden;
+    overflow-y: auto;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 13px;
+    display: none;
+  `;
+  document.body.appendChild(menu);
+  return menu;
+}
+
+function hideContextMenu() {
+  if (contextMenu) {
+    contextMenu.style.display = "none";
+  }
+}
+
+async function showContextMenu(x: number, y: number) {
+  if (!contextMenu) {
+    contextMenu = createContextMenu();
+  }
+
+  // Fetch prompts grouped by pack for ChatGPT
+  const groups = await listPromptsBySourceGrouped("chatgpt");
+  const totalPrompts = groups.reduce((sum, g) => sum + g.prompts.length, 0);
+
+  // Build menu content
+  const colors = currentTheme === "dark"
+    ? { bg: "#2d2d2d", border: "#444", text: "#e5e5e5", hover: "#3d3d3d", secondary: "#999" }
+    : { bg: "#ffffff", border: "#ddd", text: "#333", hover: "#f5f5f5", secondary: "#666" };
+
+  contextMenu.style.background = colors.bg;
+  contextMenu.style.borderColor = colors.border;
+  contextMenu.style.color = colors.text;
+
+  if (totalPrompts === 0) {
+    contextMenu.innerHTML = `
+      <div style="padding: 12px 16px; color: ${colors.secondary}; text-align: center;">
+        No saved ChatGPT prompts yet
+      </div>
+    `;
+  } else {
+    const visibleGroups = groups
+      .map((group, index) => ({ group, index }))
+      .filter(({ group }) => group.prompts.length > 0);
+
+    // Build expandable sections for each group
+    contextMenu.innerHTML = `
+      <div style="padding: 8px 12px; font-weight: 600; border-bottom: 1px solid ${colors.border}; display: flex; align-items: center; gap: 8px;">
+        <img src="${chrome.runtime.getURL("img/icon-16.png")}" width="16" height="16">
+        PromptPack
+      </div>
+      ${visibleGroups.map(({ group, index }, visibleIndex) => {
+        const isLastGroup = visibleIndex === visibleGroups.length - 1;
+        const headerBorder = isLastGroup ? "none" : `1px solid ${colors.border}`;
+        return `
+          <div class="pp-group" data-group-index="${index}">
+            <div class="pp-group-header" data-group-index="${index}" style="
+              padding: 8px 12px;
+              cursor: pointer;
+              border-bottom: ${headerBorder};
+              font-weight: 500;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            ">
+              <span class="pp-arrow" style="transition: transform 0.2s;">▶</span>
+              ${group.displayName} (${group.prompts.length})
+            </div>
+            <div class="pp-group-items" data-group-index="${index}" style="display: none;">
+              ${group.prompts.map((p, i) => `
+                <div class="pp-menu-item" data-group-index="${index}" data-prompt-index="${i}" style="
+                  padding: 8px 12px 8px 28px;
+                  cursor: pointer;
+                  border-bottom: ${i < group.prompts.length - 1 ? `1px solid ${colors.border}` : "none"};
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                " title="${p.text.replace(/"/g, '&quot;')}">
+                  ${p.text.length > 50 ? p.text.substring(0, 50) + "..." : p.text}
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }).join("")}
+    `;
+
+    // Add click handlers for group headers (expand/collapse)
+    const headers = contextMenu.querySelectorAll(".pp-group-header");
+    headers.forEach((header) => {
+      const el = header as HTMLElement;
+      el.addEventListener("mouseenter", () => {
+        el.style.background = colors.hover;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.background = "transparent";
+      });
+      el.addEventListener("click", () => {
+        const groupIndex = el.dataset.groupIndex;
+        const itemsContainer = contextMenu!.querySelector(`.pp-group-items[data-group-index="${groupIndex}"]`) as HTMLElement;
+        const arrow = el.querySelector(".pp-arrow") as HTMLElement;
+        if (itemsContainer) {
+          const isOpen = itemsContainer.style.display !== "none";
+          itemsContainer.style.display = isOpen ? "none" : "block";
+          if (arrow) {
+            arrow.style.transform = isOpen ? "rotate(0deg)" : "rotate(90deg)";
+          }
+        }
+      });
+    });
+
+    // Add hover effects and click handlers for prompt items
+    const items = contextMenu.querySelectorAll(".pp-menu-item");
+    items.forEach((item) => {
+      const el = item as HTMLElement;
+      const groupIndex = parseInt(el.dataset.groupIndex || "0", 10);
+      const promptIndex = parseInt(el.dataset.promptIndex || "0", 10);
+      el.addEventListener("mouseenter", () => {
+        el.style.background = colors.hover;
+      });
+      el.addEventListener("mouseleave", () => {
+        el.style.background = "transparent";
+      });
+      el.addEventListener("click", () => {
+        const group = groups[groupIndex];
+        if (group && group.prompts[promptIndex]) {
+          insertPromptIntoComposer(group.prompts[promptIndex].text);
+          hideContextMenu();
+        }
+      });
+    });
+  }
+
+  // Position the menu
+  const menuRect = { width: 250, height: 300 };
+  let left = x;
+  let top = y;
+
+  // Adjust if menu would go off screen
+  if (left + menuRect.width > window.innerWidth) {
+    left = window.innerWidth - menuRect.width - 10;
+  }
+  if (top + menuRect.height > window.innerHeight) {
+    top = window.innerHeight - menuRect.height - 10;
+  }
+
+  contextMenu.style.left = `${left}px`;
+  contextMenu.style.top = `${top}px`;
+  contextMenu.style.display = "block";
+}
+
+function insertPromptIntoComposer(text: string) {
+  const composer = findComposer();
+  if (!composer) return;
+
+  if (composer instanceof HTMLTextAreaElement) {
+    composer.value = text;
+    composer.dispatchEvent(new Event("input", { bubbles: true }));
+  } else if (composer.isContentEditable) {
+    composer.innerText = text;
+    composer.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  // Focus the composer
+  composer.focus();
+}
+
+function setupContextMenu() {
+  // Listen for right-click on composer
+  document.addEventListener("contextmenu", (e) => {
+    const target = e.target as HTMLElement;
+    const composer = findComposer();
+
+    // Check if right-click is on or inside the composer
+    if (composer && (target === composer || composer.contains(target))) {
+      e.preventDefault();
+      showContextMenu(e.clientX, e.clientY);
+    }
+  });
+
+  // Hide menu when clicking elsewhere
+  document.addEventListener("click", (e) => {
+    if (contextMenu && !contextMenu.contains(e.target as Node)) {
+      hideContextMenu();
+    }
+  });
+
+  // Hide menu on escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hideContextMenu();
+    }
+  });
+
+  // Hide menu on scroll
+  document.addEventListener("scroll", hideContextMenu, { passive: true });
 }
 
 // Initialize

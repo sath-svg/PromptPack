@@ -6,16 +6,24 @@
 // ============================================================================
 
 // ============================================================================
-// PRODUCTION CONFIGURATION
+// DEVELOPMENT CONFIGURATION
 // ============================================================================
 
 // Base URLs
-export const BASE_URL = "https://pmtpk.com";
-export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
-export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
+export const BASE_URL = "http://localhost:3000";
+export const API_BASE = "http://localhost:8787";
+export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site";
 
 // Feature flag for production mode
-export const IS_PRODUCTION = true;
+export const IS_PRODUCTION = false;
+
+// ============================================================================
+// PRODUCTION CONFIGURATION (commented for quick toggling)
+// ============================================================================
+// export const BASE_URL = "https://pmtpk.com";
+// export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
+// export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
+// export const IS_PRODUCTION = true;
 
 // ============================================================================
 // URL Endpoints (derived from base URLs)

@@ -29,6 +29,79 @@ export async function listPrompts(): Promise<PromptItem[]> {
   return (arr ?? []).slice().sort((a, b) => b.createdAt - a.createdAt);
 }
 
+export async function listPromptsBySource(source: PromptSource): Promise<PromptItem[]> {
+  const all = await listPrompts();
+  return all.filter((p) => p.source === source);
+}
+
+export type PromptGroup = {
+  name: string;
+  displayName: string;
+  prompts: PromptItem[];
+};
+
+/**
+ * Check if user is pro from cached auth state
+ */
+export async function isProUser(): Promise<boolean> {
+  try {
+    // Content scripts use chrome.storage.local, popup uses chrome.storage.session
+    // Try session first (popup cache), then local (content script cache)
+    const sessionResult = await chrome.storage.session?.get("pp_auth_cache");
+    const cached = sessionResult?.["pp_auth_cache"] as CachedAuthState | undefined;
+    if (cached) {
+      if (cached.billing?.isPro) return true;
+      if (cached.user?.tier === "paid") return true;
+    }
+  } catch {
+    // Ignore errors
+  }
+  return false;
+}
+
+/**
+ * Get prompts for a source, grouped by pack (for pro users) or flat (for free users)
+ * Returns: regular prompts (no packName) + imported packs (with packName)
+ */
+export async function listPromptsBySourceGrouped(source: PromptSource): Promise<PromptGroup[]> {
+  const all = await listPrompts();
+  const sourcePrompts = all.filter((p) => p.source === source);
+
+  // Separate regular prompts from imported packs
+  const regular = sourcePrompts.filter((p) => !p.packName);
+  const packsMap = new Map<string, PromptItem[]>();
+
+  // Group imported packs across all sources (always show if present)
+  for (const p of all) {
+    if (p.packName) {
+      const existing = packsMap.get(p.packName) || [];
+      existing.push(p);
+      packsMap.set(p.packName, existing);
+    }
+  }
+
+  const groups: PromptGroup[] = [];
+
+  // Add regular prompts group
+  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+  groups.push({
+    name: source,
+    displayName: `${sourceTitle} Prompts`,
+    prompts: regular,
+  });
+
+  // Add imported pack groups
+  for (const [packName, prompts] of packsMap) {
+    groups.push({
+      name: packName,
+      displayName: `"${packName}" Prompts`,
+      prompts,
+    });
+  }
+
+  return groups;
+}
+
 // Type for cached auth state (matches auth.ts CachedAuthState structure)
 type CachedAuthState = {
   billing?: { isPro?: boolean };
