@@ -16,9 +16,41 @@ export interface Env {
   ALLOWED_ORIGINS: string;
 }
 
+function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function matchesOriginPattern(origin: string, pattern: string): boolean {
+  if (pattern === "*") return true;
+  if (!pattern.includes("*")) return origin === pattern;
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+  const regex = new RegExp(`^${escaped}$`);
+  return regex.test(origin);
+}
+
+function isOriginAllowed(origin: string, allowed: string[]): boolean {
+  if (!origin || allowed.length === 0) return false;
+  return allowed.some((pattern) => matchesOriginPattern(origin, pattern));
+}
+
 // CORS headers for extension and web requests
 function corsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get("Origin") || "";
+  const allowedOrigins = parseAllowedOrigins(env.ALLOWED_ORIGINS);
+
+  // Use configured allowlist when present
+  if (allowedOrigins.length > 0 && isOriginAllowed(origin, allowedOrigins)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    };
+  }
 
   // Allow chrome-extension:// origins
   if (origin.startsWith("chrome-extension://")) {
