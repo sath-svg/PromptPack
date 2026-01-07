@@ -38,8 +38,10 @@ type CachedAuthState = AuthState & {
 };
 
 // Use session storage - cleared when browser closes
-// This means API call happens once per browser session, then cached
+// Also enforce a 24h TTL to avoid stale sessions in long-running browsers.
 const authStorage = chrome.storage.session;
+const AUTH_CHECK_FLAG_KEY = "pp_auth_check_needed";
+type AuthCheckFlag = "logged_in" | "logged_out";
 
 /**
  * Get cached auth state (instant, no network calls)
@@ -51,6 +53,11 @@ async function getCachedAuthState(): Promise<AuthState | null> {
     const cached = result[AUTH_CACHE_KEY] as CachedAuthState | undefined;
 
     if (!cached) {
+      return null;
+    }
+
+    if (!cached.expiresAt || cached.expiresAt <= Date.now()) {
+      await authStorage.remove(AUTH_CACHE_KEY);
       return null;
     }
 
@@ -73,7 +80,7 @@ async function setCachedAuthState(authState: AuthState): Promise<void> {
     const cached: CachedAuthState = {
       ...authState,
       cachedAt: now,
-      expiresAt: now + AUTH_CACHE_EXPIRY_MS, // Not really used, session clears on browser close
+      expiresAt: now + AUTH_CACHE_EXPIRY_MS,
     };
 
     await authStorage.set({ [AUTH_CACHE_KEY]: cached });
@@ -91,6 +98,22 @@ async function clearCachedAuthState(): Promise<void> {
   } catch {
     // Ignore if session storage not available
   }
+}
+
+async function consumeAuthCheckFlag(): Promise<AuthCheckFlag | null> {
+  try {
+    const result = await chrome.storage.local.get(AUTH_CHECK_FLAG_KEY);
+    const value = result[AUTH_CHECK_FLAG_KEY];
+
+    if (value === "logged_in" || value === "logged_out") {
+      await chrome.storage.local.remove(AUTH_CHECK_FLAG_KEY);
+      return value;
+    }
+  } catch {
+    // Ignore if local storage not available
+  }
+
+  return null;
 }
 
 /**
@@ -115,6 +138,27 @@ export async function getBillingInfo(clerkId: string): Promise<{
  * Get current auth state - returns cached instantly, verifies in background
  */
 export async function getAuthState(): Promise<AuthState> {
+  const authCheckFlag = await consumeAuthCheckFlag();
+  if (authCheckFlag === "logged_out") {
+    await clearCachedAuthState();
+    return { isAuthenticated: false };
+  }
+
+  if (authCheckFlag === "logged_in") {
+    const freshState = await getAuthStateFromServer();
+    if (freshState.isAuthenticated) {
+      await setCachedAuthState(freshState);
+      return freshState;
+    }
+
+    const cachedFallback = await getCachedAuthState();
+    if (cachedFallback) {
+      return cachedFallback;
+    }
+
+    return { isAuthenticated: false };
+  }
+
   // Try to get cached state first (instant)
   const cached = await getCachedAuthState();
   if (cached) {
