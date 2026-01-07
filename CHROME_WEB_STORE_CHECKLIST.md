@@ -96,7 +96,7 @@ PromptPack helps you capture, organize, and reuse your best AI prompts across Ch
 ✓ Keyboard Shortcut – Press Ctrl+Alt+S (Cmd+Opt+S on Mac) to save prompts instantly
 ✓ Automatic Organization – Prompts are organized by source (ChatGPT, Claude, Gemini)
 ✓ Encrypted Export – Export prompts as password-protected .pmtpk files
-✓ Cloud Sync – Pro users get automatic sync across devices
+✓ Cloud Sync – Pro users get automatic sync across devices (requires sign-in + Pro)
 
 📦 WHAT IS A PROMPTPACK?
 
@@ -120,9 +120,9 @@ A PromptPack is a curated set of prompts grouped into a reusable workflow — li
 💎 PRO TIER ($9/month)
 
 • Save up to 40 prompts per source (120 total)
-• Cloud sync across devices
+• Cloud sync across devices (requires sign-in + Pro)
 • Import up to 2 custom PromptPacks
-• Create custom packs from the web dashboard
+• Create custom packs from the web dashboard (requires sign-in + Pro)
 • AES-GCM encryption with password protection
 • Turn prompts into shareable, licensable digital assets
 
