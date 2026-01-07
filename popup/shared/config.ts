@@ -11,7 +11,7 @@
 
 // Base URLs
 export const BASE_URL = "https://pmtpk.com";
-export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
+export const API_BASE = "https://api.pmtpk.com";
 export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
 
 // Feature flag for production mode
