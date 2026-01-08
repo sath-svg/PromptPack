@@ -6,12 +6,12 @@
 // ============================================================================
 
 // ============================================================================
-// TODO-PRODUCTION: Update these URLs before deploying
+// API CONFIGURATION
 // ============================================================================
 
 // R2 API URL (Cloudflare Workers)
 export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "http://localhost:8787";
-// PRODUCTION: Set NEXT_PUBLIC_R2_API_URL=https://promptpack-api.dksathvik.workers.dev in .env
+// PRODUCTION: Set NEXT_PUBLIC_R2_API_URL=https://api.pmtpk.com in .env
 
 // Workers API URL (same as R2 for now)
 export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "http://localhost:8787";
@@ -37,7 +37,21 @@ export const WEB_PACK_VERSION = 1;
 // ============================================================================
 // PASSWORD REQUIREMENTS
 // ============================================================================
-export const PASSWORD_LENGTH = 5;
+export const PASSWORD_MIN_LENGTH = 1;
+export const PASSWORD_MAX_LENGTH = 14;
+export const PASSWORD_REGEX = /^[a-zA-Z0-9]+$/; // Only letters and numbers, case sensitive
+
+// Helper function to validate password
+export function isValidPassword(password: string): boolean {
+  return (
+    password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH &&
+    PASSWORD_REGEX.test(password)
+  );
+}
+
+// Legacy constant for backwards compatibility
+export const PASSWORD_LENGTH = PASSWORD_MAX_LENGTH;
 
 // ============================================================================
 // UI CONFIGURATION

@@ -9,7 +9,7 @@ compatibility_date = "2024-01-01"
 ENVIRONMENT = "development"
 # TODO [PRODUCTION]: Update to production URLs
 CONVEX_URL = "https://brillian-sandpiper-173.convex.cloud"
-ALLOWED_ORIGINS = "chrome-extension://*"
+ALLOWED_ORIGINS = "http://localhost:3000,chrome-extension://*"
 
 # R2 bucket binding
 [[r2_buckets]]

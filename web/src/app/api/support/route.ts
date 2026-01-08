@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
 
 export async function POST(request: Request) {
@@ -26,10 +25,12 @@ export async function POST(request: Request) {
         const buffer = await file.arrayBuffer();
         return {
           filename: file.name,
-          content: Buffer.from(buffer),
+          content: Buffer.from(buffer).toString("base64"),
         };
       })
     );
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     // Send email via Resend
     const { data, error } = await resend.emails.send({

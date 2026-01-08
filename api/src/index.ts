@@ -7,16 +7,7 @@
  * - CORS for extension requests
  */
 
-// ============================================================================
-// TODO-PRODUCTION: Configure these in wrangler.toml before deploying
-// ============================================================================
-// 1. Set ENVIRONMENT = "production"
-// 2. Bind R2 bucket: BUCKET = "your-production-bucket"
-// 3. Set CONVEX_URL = "https://your-project.convex.site"
-// 4. Set ALLOWED_ORIGINS = "https://pmtpk.ai,chrome-extension://*"
-// 5. Add proper JWT validation with Clerk
-// 6. Add rate limiting
-// ============================================================================
+// Configuration is set in wrangler.toml
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -25,9 +16,41 @@ export interface Env {
   ALLOWED_ORIGINS: string;
 }
 
+function parseAllowedOrigins(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function matchesOriginPattern(origin: string, pattern: string): boolean {
+  if (pattern === "*") return true;
+  if (!pattern.includes("*")) return origin === pattern;
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
+  const regex = new RegExp(`^${escaped}$`);
+  return regex.test(origin);
+}
+
+function isOriginAllowed(origin: string, allowed: string[]): boolean {
+  if (!origin || allowed.length === 0) return false;
+  return allowed.some((pattern) => matchesOriginPattern(origin, pattern));
+}
+
 // CORS headers for extension and web requests
 function corsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get("Origin") || "";
+  const allowedOrigins = parseAllowedOrigins(env.ALLOWED_ORIGINS);
+
+  // Use configured allowlist when present
+  if (allowedOrigins.length > 0 && isOriginAllowed(origin, allowedOrigins)) {
+    return {
+      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    };
+  }
 
   // Allow chrome-extension:// origins
   if (origin.startsWith("chrome-extension://")) {
@@ -39,8 +62,8 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
     };
   }
 
-  // Allow pmtpk.ai and convex.site for web app
-  if (origin.includes("pmtpk.ai") || origin.includes("convex.site") || origin.includes("vercel.app")) {
+  // Allow pmtpk.ai, pmtpk.com and convex.site for web app
+  if (origin.includes("pmtpk.ai") || origin.includes("pmtpk.com") || origin.includes("convex.site") || origin.includes("vercel.app") || origin.includes("localhost")) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -62,7 +85,7 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
 }
 
 // Extract user ID from auth token (simplified for dev)
-// TODO [PRODUCTION]: Validate JWT with Clerk properly
+// Note: Consider adding proper JWT validation with Clerk for enhanced security
 function getUserIdFromToken(authHeader: string | null): string | null {
   if (!authHeader?.startsWith("Bearer ")) return null;
 

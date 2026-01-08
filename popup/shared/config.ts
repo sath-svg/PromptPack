@@ -6,18 +6,18 @@
 // ============================================================================
 
 // ============================================================================
-// TODO-PRODUCTION: Update these URLs before deploying
+// DEVELOPMENT CONFIGURATION
 // ============================================================================
 
 // Base URLs
 export const BASE_URL = "http://localhost:3000"; // Web app URL
-// PRODUCTION: export const BASE_URL = "https://pmtpk.ai";
+// PRODUCTION: export const BASE_URL = "https://pmtpk.com";
 
 export const API_BASE = "http://localhost:8787"; // Cloudflare Workers R2 API
-// PRODUCTION: export const API_BASE = "https://your-worker.workers.dev";
+// PRODUCTION: export const API_BASE = "https://api.pmtpk.com";
 
 export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site"; // Convex HTTP endpoint
-// PRODUCTION: Update if using different Convex deployment
+// PRODUCTION: export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
 
 // Feature flag for production mode
 export const IS_PRODUCTION = false;
@@ -72,7 +72,21 @@ export const PROMPTS_STORAGE_KEY = "promptpack_prompts";
 // ============================================================================
 // PASSWORD & ENCRYPTION REQUIREMENTS
 // ============================================================================
-export const PASSWORD_LENGTH = 5;
+export const PASSWORD_MIN_LENGTH = 1;
+export const PASSWORD_MAX_LENGTH = 14;
+export const PASSWORD_REGEX = /^[a-zA-Z0-9]+$/; // Only letters and numbers, case sensitive
+
+// Helper function to validate password
+export function isValidPassword(password: string): boolean {
+  return (
+    password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH &&
+    PASSWORD_REGEX.test(password)
+  );
+}
+
+// Legacy constant for backwards compatibility
+export const PASSWORD_LENGTH = PASSWORD_MAX_LENGTH;
 
 // ============================================================================
 // UI CONFIGURATION
@@ -85,7 +99,7 @@ export const AUTH_TAB_TIMEOUT_MS = 10000; // Timeout for auth tab listener
 // ============================================================================
 // PRO USER CONFIGURATION
 // ============================================================================
-export const UNLIMITED_PACK_LIMIT = 999999; // Effectively unlimited for pro users
+export const UNLIMITED_PACK_LIMIT = 2; // 2 loaded packs for pro users
 
 // ============================================================================
 // FALLBACK VALUES

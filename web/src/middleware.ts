@@ -6,6 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/pricing",
+  "/privacy", // Privacy policy must be public
   "/marketplace",
   "/marketplace/(.*)",
   "/privacy",
@@ -14,6 +15,8 @@ const isPublicRoute = createRouteMatcher([
   "/robots.txt",
   "/api/webhooks/(.*)",
   "/api/auth/status", // Extension auth status check
+  "/api/health", // Health check endpoint
+  "/api/support", // Support form must be accessible to all users
   "/api/beta-signup", // Beta tester signup
 ]);
 

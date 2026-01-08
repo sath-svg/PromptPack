@@ -9,7 +9,8 @@ import {
   FREE_PROMPT_LIMIT,
   PRO_PROMPT_LIMIT,
   MAX_IMPORTED_PACKS,
-  PASSWORD_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  isValidPassword,
   TOAST_DURATION_MS,
   DASHBOARD_URL,
   SIGN_IN_URL,
@@ -138,13 +139,13 @@ async function importPmtpk(file: File) {
 
     if (encrypted) {
       // Encrypted file - prompt for password
-      const password = prompt(`Enter password (${PASSWORD_LENGTH} characters):`);
+      const password = prompt(`Enter password (letters and numbers only, max ${PASSWORD_MAX_LENGTH} characters):`);
       if (!password) {
         toast("Import cancelled");
         return;
       }
-      if (password.length !== PASSWORD_LENGTH) {
-        toast(`Password must be ${PASSWORD_LENGTH} characters`);
+      if (!isValidPassword(password)) {
+        toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
       jsonString = await decryptPmtpk(bytes, password);
@@ -539,7 +540,7 @@ function setupEventDelegation() {
       }
 
       // Ask if user wants to encrypt
-      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
+      const password = prompt(`Enter a password to encrypt (letters/numbers only, max ${PASSWORD_MAX_LENGTH} chars, or leave empty):`);
 
       // User cancelled
       if (password === null) {
@@ -547,8 +548,8 @@ function setupEventDelegation() {
       }
 
       // Validate password if provided
-      if (password && password.length !== PASSWORD_LENGTH) {
-        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+      if (password && !isValidPassword(password)) {
+        toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
 
@@ -611,7 +612,7 @@ function setupEventDelegation() {
       }
 
       // Ask if user wants to encrypt
-      const password = prompt(`Enter a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
+      const password = prompt(`Enter a password to encrypt (letters/numbers only, max ${PASSWORD_MAX_LENGTH} chars, or leave empty):`);
 
       // User cancelled
       if (password === null) {
@@ -619,8 +620,8 @@ function setupEventDelegation() {
       }
 
       // Validate password if provided
-      if (password && password.length !== PASSWORD_LENGTH) {
-        toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+      if (password && !isValidPassword(password)) {
+        toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
 
@@ -797,7 +798,7 @@ function setupEventDelegation() {
 
       try {
         // Ask if user wants to encrypt (optional)
-        const password = prompt(`Add a ${PASSWORD_LENGTH}-character password to encrypt (or leave empty for no encryption):`);
+        const password = prompt(`Add a password to encrypt (letters/numbers only, max ${PASSWORD_MAX_LENGTH} chars, or leave empty):`);
 
         // User cancelled
         if (password === null) {
@@ -805,8 +806,8 @@ function setupEventDelegation() {
         }
 
         // Validate password if provided
-        if (password && password.length !== PASSWORD_LENGTH) {
-          toast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+        if (password && !isValidPassword(password)) {
+          toast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
           return;
         }
 
@@ -826,10 +827,11 @@ function setupEventDelegation() {
         };
 
         const jsonString = JSON.stringify(exportData);
+        const shouldEncrypt = !!password;
         let fileData: Uint8Array;
 
         // Encrypt or obfuscate based on password
-        if (password) {
+        if (shouldEncrypt) {
           fileData = await encryptPmtpk(jsonString, password);
         } else {
           fileData = await encodePmtpk(jsonString);
@@ -858,6 +860,7 @@ function setupEventDelegation() {
             version: "1.0",
             price: 0,
             isPublic: false,
+            isEncrypted: shouldEncrypt,
           }),
         });
 

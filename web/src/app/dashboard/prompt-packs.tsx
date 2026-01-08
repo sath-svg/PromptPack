@@ -19,7 +19,8 @@ import {
   MAX_PRO_PACKS,
   WEB_PACK_FORMAT,
   WEB_PACK_VERSION,
-  PASSWORD_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  isValidPassword,
   TOAST_DURATION_MS,
   R2_API_URL,
 } from "../../lib/constants";
@@ -267,15 +268,34 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
       const { fileData } = await response.json();
 
+      const isBinary = isBinaryFormat(fileData);
+      if (!isBinary) {
+        const parsed = parsePackData(fileData);
+        if (!parsed) {
+          throw new Error("Invalid pack format");
+        }
+
+        setSelectedPack({
+          id: pack._id,
+          title: pack.title,
+          fileData,
+          prompts: parsed.prompts,
+          isEncrypted: false,
+        });
+        return;
+      }
+
+      const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+      const encrypted = isEncrypted(bytes);
+
       // Check if it's encrypted or obfuscated
-      if (pack.isEncrypted) {
+      if (encrypted) {
         // Need password
         setPendingPack({ id: pack._id, title: pack.title, fileData });
         setShowPasswordModal(true);
         setPassword("");
       } else {
         // Obfuscated - decode directly
-        const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
         const prompts = await decodeObfuscatedFile(bytes);
         setSelectedPack({
           id: pack._id,
@@ -297,8 +317,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   };
 
   const handleDecrypt = async () => {
-    if (!pendingPack || password.length !== PASSWORD_LENGTH) {
-      setError(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+    if (!pendingPack || !isValidPassword(password)) {
+      setError(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
       return;
     }
 
@@ -368,8 +388,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). Delete some prompts to add more.`);
       return;
     }
-    if (createPassword && createPassword.length !== PASSWORD_LENGTH) {
-      setError(`Password must be exactly ${PASSWORD_LENGTH} characters.`);
+    if (createPassword && !isValidPassword(createPassword)) {
+      setError(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only.`);
       return;
     }
 
@@ -558,8 +578,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     if (!selectedPack) return;
 
     try {
-      if (exportPassword && exportPassword.length !== PASSWORD_LENGTH) {
-        showToast(`Password must be exactly ${PASSWORD_LENGTH} characters`);
+      if (exportPassword && !isValidPassword(exportPassword)) {
+        showToast(`Password must be 1-${PASSWORD_MAX_LENGTH} characters, letters and numbers only`);
         return;
       }
 
@@ -815,12 +835,12 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 type="password"
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
-                placeholder={`Password (optional, ${PASSWORD_LENGTH} chars)`}
-                maxLength={PASSWORD_LENGTH}
+                placeholder={`Password (optional, max ${PASSWORD_MAX_LENGTH} chars)`}
+                maxLength={PASSWORD_MAX_LENGTH}
                 disabled={isSaving}
                 className="form-input"
               />
-              <p className="form-hint">Leave empty for no encryption</p>
+              <p className="form-hint">Letters and numbers only. Leave empty for no encryption</p>
             </div>
 
             {error && <p className="error-message">{error}</p>}
@@ -847,7 +867,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Unlock {pendingPack.title}</h3>
             <p className="modal-subtitle">
-              Enter your 5-character password to view this pack
+              Enter your password to view this pack
             </p>
 
             <div className="password-input-group">
@@ -856,14 +876,14 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
-                maxLength={PASSWORD_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="password-input"
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleDecrypt()}
               />
               <button
                 onClick={handleDecrypt}
-                disabled={password.length !== PASSWORD_LENGTH || isDecrypting}
+                disabled={!isValidPassword(password) || isDecrypting}
                 className="btn btn-primary unlock-btn"
               >
                 {isDecrypting ? "Decrypting..." : "Unlock"}
@@ -922,8 +942,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 type="password"
                 value={exportPassword}
                 onChange={(e) => setExportPassword(e.target.value)}
-                placeholder={`Export password (optional, ${PASSWORD_LENGTH} chars)`}
-                maxLength={PASSWORD_LENGTH}
+                placeholder={`Export password (optional, max ${PASSWORD_MAX_LENGTH} chars)`}
+                maxLength={PASSWORD_MAX_LENGTH}
                 className="form-input form-input-sm"
               />
             </div>
