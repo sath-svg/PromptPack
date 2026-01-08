@@ -59,6 +59,29 @@ type HistoryAction = {
   promptIndex?: number;
 };
 
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
+
+function base64ToBytes(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function encodeStringToBase64(value: string): string {
+  return bytesToBase64(textEncoder.encode(value));
+}
+
+function decodeBase64ToString(value: string): string {
+  return textDecoder.decode(base64ToBytes(value));
+}
+
 function buildPackData(prompts: WebPackData["prompts"]): string {
   const payload: WebPackData = {
     format: WEB_PACK_FORMAT,
@@ -68,9 +91,9 @@ function buildPackData(prompts: WebPackData["prompts"]): string {
   return JSON.stringify(payload);
 }
 
-function parsePackData(fileData: string): WebPackData | null {
+function parsePackJson(value: string): WebPackData | null {
   try {
-    const parsed = JSON.parse(fileData) as WebPackData;
+    const parsed = JSON.parse(value) as WebPackData;
     if (parsed.format !== WEB_PACK_FORMAT || !Array.isArray(parsed.prompts)) {
       return null;
     }
@@ -80,10 +103,23 @@ function parsePackData(fileData: string): WebPackData | null {
   }
 }
 
+function parsePackData(fileData: string): WebPackData | null {
+  const direct = parsePackJson(fileData);
+  if (direct) {
+    return direct;
+  }
+
+  try {
+    return parsePackJson(decodeBase64ToString(fileData));
+  } catch {
+    return null;
+  }
+}
+
 // Check if fileData is base64 encoded binary (encrypted/obfuscated)
 function isBinaryFormat(fileData: string): boolean {
   try {
-    const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+    const bytes = base64ToBytes(fileData);
     return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x50 && bytes[2] === 0x4B;
   } catch {
     return false;
@@ -93,7 +129,7 @@ function isBinaryFormat(fileData: string): boolean {
 // Check if binary file is encrypted
 function isEncryptedBinary(fileData: string): boolean {
   try {
-    const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+    const bytes = base64ToBytes(fileData);
     return isEncrypted(bytes);
   } catch {
     return false;
@@ -267,16 +303,34 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       }
 
       const { fileData } = await response.json();
+      const isBinary = isBinaryFormat(fileData);
+      if (!isBinary) {
+        const parsed = parsePackData(fileData);
+        if (!parsed) {
+          throw new Error("Invalid pack format");
+        }
 
+        setSelectedPack({
+          id: pack._id,
+          title: pack.title,
+          fileData,
+          prompts: parsed.prompts,
+          isEncrypted: false,
+        });
+        return;
+      }
+
+      const bytes = base64ToBytes(fileData);
+      const encrypted = isEncrypted(bytes);
       // Check if it's encrypted or obfuscated
-      if (pack.isEncrypted) {
+      if (encrypted) {
         // Need password
         setPendingPack({ id: pack._id, title: pack.title, fileData });
         setShowPasswordModal(true);
         setPassword("");
       } else {
         // Obfuscated - decode directly
-        const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+        const bytes = base64ToBytes(fileData);
         const prompts = await decodeObfuscatedFile(bytes);
         setSelectedPack({
           id: pack._id,
@@ -307,7 +361,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     setError(null);
 
     try {
-      const bytes = Uint8Array.from(atob(pendingPack.fileData), (c) => c.charCodeAt(0));
+      const bytes = base64ToBytes(pendingPack.fileData);
       const prompts = await decodeEncryptedFile(bytes, password);
       setSelectedPack({
         id: pendingPack.id,
@@ -383,10 +437,10 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       if (createPassword) {
         // Create encrypted binary format
         const encoded = await encodePrompts(prompts, true, createPassword, title);
-        fileData = btoa(String.fromCharCode(...encoded));
+        fileData = bytesToBase64(encoded);
       } else {
         // Create plain JSON format
-        fileData = buildPackData(prompts);
+        fileData = encodeStringToBase64(buildPackData(prompts));
       }
 
       // Upload to R2 via API route (which handles R2 upload + Convex metadata)
@@ -454,12 +508,12 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
         const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
-        fileData = btoa(String.fromCharCode(...encoded));
+        fileData = bytesToBase64(encoded);
       } else if (isBinaryFormat(selectedPack.fileData)) {
         const encoded = await encodePrompts(updatedPrompts, false, undefined, selectedPack.title);
-        fileData = btoa(String.fromCharCode(...encoded));
+        fileData = bytesToBase64(encoded);
       } else {
-        fileData = buildPackData(updatedPrompts);
+        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
       }
 
       await updatePackViaAPI(selectedPack.id, fileData, updatedPrompts.length);
@@ -511,12 +565,12 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       let fileData: string;
       if (selectedPack.isEncrypted && selectedPack.password) {
         const encoded = await encodePrompts(newPrompts, true, selectedPack.password, selectedPack.title);
-        fileData = btoa(String.fromCharCode(...encoded));
+        fileData = bytesToBase64(encoded);
       } else if (isBinaryFormat(selectedPack.fileData)) {
         const encoded = await encodePrompts(newPrompts, false, undefined, selectedPack.title);
-        fileData = btoa(String.fromCharCode(...encoded));
+        fileData = bytesToBase64(encoded);
       } else {
-        fileData = buildPackData(newPrompts);
+        fileData = encodeStringToBase64(buildPackData(newPrompts));
       }
 
       await updatePackViaAPI(selectedPack.id, fileData, newPrompts.length);
@@ -570,7 +624,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       if (selectedPack.isEncrypted || !exportPassword) {
         // Use the original stored binary data (base64 decode it)
         const base64 = selectedPack.fileData;
-        fileData = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+        fileData = base64ToBytes(base64);
       } else {
         // User wants to add encryption to an unencrypted pack
         fileData = await encodePrompts(selectedPack.prompts, true, exportPassword, selectedPack.title);
@@ -608,11 +662,11 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
     try {
       if (action.type === "delete-pack") {
-        const fileData = buildPackData(action.prompts);
+        const fileData = encodeStringToBase64(buildPackData(action.prompts));
         await createPackViaAPI(action.title, fileData, action.prompts.length);
         showToast("Pack restored");
       } else if (action.type === "delete-prompt") {
-        const fileData = buildPackData(action.prompts);
+        const fileData = encodeStringToBase64(buildPackData(action.prompts));
         await updatePackViaAPI(action.packId, fileData, action.prompts.length);
         if (selectedPack && selectedPack.id === action.packId) {
           setSelectedPack({
@@ -653,7 +707,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
             setSelectedPack(null);
           }
         } else {
-          const fileData = buildPackData(newPrompts);
+          const fileData = encodeStringToBase64(buildPackData(newPrompts));
           await updatePackViaAPI(action.packId, fileData, newPrompts.length);
           if (selectedPack && selectedPack.id === action.packId) {
             setSelectedPack({
