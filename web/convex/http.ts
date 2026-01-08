@@ -112,6 +112,64 @@ registerRoutes(http, components.stripe, {
         subscriptionCancelledAt: resolveCancelledAt(subscription),
       });
     },
+    // Handle one-time pack purchases
+    "checkout.session.completed": async (
+      ctx,
+      event: Stripe.CheckoutSessionCompletedEvent
+    ) => {
+      const session = event.data.object;
+      const metadata = session.metadata;
+
+      // Only process pack purchases, not subscriptions
+      if (metadata?.type !== "pack_purchase") {
+        return;
+      }
+
+      console.log("=== Pack Purchase Webhook ===");
+      console.log("Session ID:", session.id);
+      console.log("Metadata:", metadata);
+
+      const { listingId, packId, buyerUserId, authorId, priceInCents } = metadata;
+
+      if (!listingId || !packId || !buyerUserId || !priceInCents) {
+        console.error("Missing required metadata for pack purchase");
+        return;
+      }
+
+      // Get buyer's Convex user ID
+      const buyer = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId: buyerUserId,
+      });
+
+      if (!buyer) {
+        console.error("Buyer not found:", buyerUserId);
+        return;
+      }
+
+      // Calculate fees
+      const amountPaid = parseInt(priceInCents);
+      const platformFee = Math.floor(amountPaid * 0.15); // 15%
+      const creatorEarnings = amountPaid - platformFee;
+
+      // Record the purchase
+      try {
+        await ctx.runMutation(api.purchasedPacks.recordMarketplacePurchase, {
+          userId: buyer._id,
+          packId: packId as import("./_generated/dataModel").Id<"userPacks">,
+          listingId: listingId as import("./_generated/dataModel").Id<"marketplaceListings">,
+          amountPaid,
+          platformFee,
+          creatorEarnings,
+          stripePaymentIntentId: typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id || session.id,
+        });
+
+        console.log("Pack purchase recorded successfully");
+      } catch (err) {
+        console.error("Failed to record pack purchase:", err);
+      }
+    },
   },
 });
 

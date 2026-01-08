@@ -24,9 +24,18 @@ export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.co
 // ============================================================================
 export const FREE_PROMPT_LIMIT = 10;
 export const PRO_PROMPT_LIMIT = 40;
+export const STUDIO_PROMPT_LIMIT = 100;
 export const FREE_PACK_LIMIT = 2;
 export const PRO_PACK_LIMIT = 5;
+export const STUDIO_PACK_LIMIT = -1; // Unlimited for Studio tier
 export const MAX_PRO_PACKS = 2; // Maximum packs for Pro tier on web
+
+// ============================================================================
+// MARKETPLACE CONFIGURATION
+// ============================================================================
+export const PLATFORM_FEE_PERCENT = 15;
+export const REFUND_WINDOW_DAYS = 7;
+export const MIN_PAYOUT_CENTS = 1000; // $10 minimum for payouts
 
 // ============================================================================
 // PACK FORMAT CONFIGURATION

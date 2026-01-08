@@ -38,8 +38,10 @@ export const PACKS_CREATE_API = `${BASE_URL}/api/packs/create`;
 // ============================================================================
 export const FREE_PROMPT_LIMIT = 10;
 export const PRO_PROMPT_LIMIT = 40;
+export const STUDIO_PROMPT_LIMIT = 100;
 export const FREE_PACK_LIMIT = 2;
 export const PRO_PACK_LIMIT = 5;
+export const STUDIO_PACK_LIMIT = -1; // Unlimited for Studio tier
 
 // Legacy constants for backwards compatibility
 export const MAX_PROMPTS = FREE_PROMPT_LIMIT;

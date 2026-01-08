@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { ProCard } from "./pro-card";
+import { StudioCard } from "./studio-card";
 
 export default function PricingPage() {
   const { user } = useUser();
@@ -13,21 +14,21 @@ export default function PricingPage() {
     user?.id ? { clerkId: user.id } : "skip"
   );
 
-  const isPro = convexUser?.plan === "pro";
+  const isFree = convexUser?.plan === "free" || !convexUser?.plan;
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
+    <div style={{ maxWidth: "1200px", margin: "0 auto", textAlign: "center" }}>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
         Choose a plan that fits your needs.
       </h1>
       <p style={{ color: "var(--muted)", marginBottom: "3rem" }}>
-        Start free, upgrade for creative access.
+        Start free, upgrade for creative access, or publish to the marketplace.
       </p>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(300px, 100%), 1fr))",
           gap: "1.5rem",
         }}
       >
@@ -62,7 +63,9 @@ export default function PricingPage() {
             }}
           >
             <li>✓ 10 saved prompts</li>
-            <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
+            <li>
+              ✓ 3 loaded <span className="gradient-text">PromptPacks</span>
+            </li>
             <li>✓ Chrome extension</li>
             <li>✓ Local storage</li>
           </ul>
@@ -75,8 +78,7 @@ export default function PricingPage() {
             </SignUpButton>
           </SignedOut>
           <SignedIn>
-            {/* Show "Current Plan" only if user does NOT have pro plan */}
-            {!isPro ? (
+            {isFree ? (
               <Link href="/dashboard">
                 <button className="btn btn-secondary" style={{ width: "100%" }}>
                   Current Plan
@@ -94,6 +96,9 @@ export default function PricingPage() {
 
         {/* Pro Plan */}
         <ProCard />
+
+        {/* Studio Plan */}
+        <StudioCard />
       </div>
     </div>
   );
