@@ -12,6 +12,7 @@ import type * as authStatus from "../authStatus.js";
 import type * as betaSignups from "../betaSignups.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
+import type * as listings from "../listings.js";
 import type * as packs from "../packs.js";
 import type * as purchasedPacks from "../purchasedPacks.js";
 import type * as savedPacks from "../savedPacks.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   betaSignups: typeof betaSignups;
   crons: typeof crons;
   http: typeof http;
+  listings: typeof listings;
   packs: typeof packs;
   purchasedPacks: typeof purchasedPacks;
   savedPacks: typeof savedPacks;
