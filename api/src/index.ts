@@ -63,7 +63,7 @@ function corsHeaders(request: Request, env: Env): HeadersInit {
   }
 
   // Allow pmtpk.ai, pmtpk.com and convex.site for web app
-  if (origin.includes("pmtpk.ai") || origin.includes("pmtpk.com") || origin.includes("convex.site") || origin.includes("vercel.app") || origin.includes("localhost")) {
+  if (origin.includes("pmtpk.com") || origin.includes("convex.site") || origin.includes("localhost")) {
     return {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
