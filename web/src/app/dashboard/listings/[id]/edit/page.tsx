@@ -618,11 +618,12 @@ export default function EditListingPage() {
   );
 }
 
-function StatusBadge({ status }: { status: "draft" | "published" | "suspended" }) {
+function StatusBadge({ status }: { status: "draft" | "published" | "suspended" | "archived" }) {
   const colors = {
     draft: { bg: "rgba(128,128,128,0.2)", text: "#9ca3af" },
     published: { bg: "rgba(34,197,94,0.2)", text: "#22c55e" },
     suspended: { bg: "rgba(239,68,68,0.2)", text: "#ef4444" },
+    archived: { bg: "rgba(107,114,128,0.2)", text: "#6b7280" },
   };
 
   return (

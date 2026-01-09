@@ -326,3 +326,155 @@ export const markRefunded = mutation({
     return purchaseId;
   },
 });
+
+// Purchase a paid listing using user balance
+export const purchaseWithBalance = mutation({
+  args: {
+    userId: v.id("users"),
+    listingId: v.id("marketplaceListings"),
+  },
+  handler: async (ctx, { userId, listingId }) => {
+    // Get listing
+    const listing = await ctx.db.get(listingId);
+    if (!listing) {
+      throw new Error("Listing not found");
+    }
+
+    if (listing.status !== "published") {
+      throw new Error("Listing is not available for purchase");
+    }
+
+    if (listing.pricingModel === "free") {
+      throw new Error("Use recordFreePurchase for free packs");
+    }
+
+    // Check if already purchased
+    const existing = await ctx.db
+      .query("purchasedPacks")
+      .withIndex("by_user_pack", (q) =>
+        q.eq("userId", userId).eq("packId", listing.packId)
+      )
+      .first();
+
+    if (existing) {
+      throw new Error("You already own this pack");
+    }
+
+    // Get user balance
+    const balance = await ctx.db
+      .query("userBalances")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .first();
+
+    const currentBalance = balance?.balanceInCents || 0;
+
+    // Check if user has enough balance
+    if (currentBalance < listing.priceInCents) {
+      throw new Error(
+        `Insufficient balance. You need $${(listing.priceInCents / 100).toFixed(2)} but have $${(currentBalance / 100).toFixed(2)}`
+      );
+    }
+
+    // Calculate fees (15% platform fee)
+    const platformFee = Math.floor(listing.priceInCents * 0.15);
+    const creatorEarnings = listing.priceInCents - platformFee;
+
+    const now = Date.now();
+    const refundableUntil = now + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    // Record purchase
+    const purchaseId = await ctx.db.insert("purchasedPacks", {
+      userId,
+      packId: listing.packId,
+      listingId,
+      amountPaid: listing.priceInCents,
+      platformFee,
+      creatorEarnings,
+      status: "completed",
+      refundableUntil,
+      purchasedAt: now,
+    });
+
+    // Update buyer balance
+    const newBuyerBalance = currentBalance - listing.priceInCents;
+    if (balance) {
+      await ctx.db.patch(balance._id, {
+        balanceInCents: newBuyerBalance,
+        totalSpentInCents: balance.totalSpentInCents + listing.priceInCents,
+        updatedAt: now,
+      });
+    } else {
+      // Create balance record
+      await ctx.db.insert("userBalances", {
+        userId,
+        balanceInCents: newBuyerBalance,
+        totalEarnedInCents: 0,
+        totalSpentInCents: listing.priceInCents,
+        updatedAt: now,
+      });
+    }
+
+    // Record buyer transaction
+    await ctx.db.insert("balanceTransactions", {
+      userId,
+      type: "purchase",
+      amountInCents: -listing.priceInCents,
+      balanceAfter: newBuyerBalance,
+      description: `Purchased: ${listing.title}`,
+      relatedListingId: listingId,
+      relatedPurchaseId: purchaseId,
+      createdAt: now,
+    });
+
+    // Update creator balance
+    const creatorBalance = await ctx.db
+      .query("userBalances")
+      .withIndex("by_user", (q) => q.eq("userId", listing.authorId))
+      .first();
+
+    const newCreatorBalance = (creatorBalance?.balanceInCents || 0) + creatorEarnings;
+
+    if (creatorBalance) {
+      await ctx.db.patch(creatorBalance._id, {
+        balanceInCents: newCreatorBalance,
+        totalEarnedInCents: creatorBalance.totalEarnedInCents + creatorEarnings,
+        updatedAt: now,
+      });
+    } else {
+      // Create balance record for creator
+      await ctx.db.insert("userBalances", {
+        userId: listing.authorId,
+        balanceInCents: newCreatorBalance,
+        totalEarnedInCents: creatorEarnings,
+        totalSpentInCents: 0,
+        updatedAt: now,
+      });
+    }
+
+    // Record creator transaction
+    await ctx.db.insert("balanceTransactions", {
+      userId: listing.authorId,
+      type: "sale",
+      amountInCents: creatorEarnings,
+      balanceAfter: newCreatorBalance,
+      description: `Sale: ${listing.title}`,
+      relatedListingId: listingId,
+      relatedPurchaseId: purchaseId,
+      createdAt: now,
+    });
+
+    // Increment listing stats
+    await ctx.db.patch(listingId, {
+      salesCount: listing.salesCount + 1,
+      downloads: listing.downloads + 1,
+    });
+
+    // Increment pack downloads
+    const pack = await ctx.db.get(listing.packId);
+    if (pack) {
+      await ctx.db.patch(listing.packId, { downloads: pack.downloads + 1 });
+    }
+
+    return purchaseId;
+  },
+});

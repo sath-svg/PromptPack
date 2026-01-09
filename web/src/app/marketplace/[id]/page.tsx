@@ -28,7 +28,13 @@ export default function ListingDetailPage() {
       : "skip"
   );
 
+  const userBalance = useQuery(
+    api.balances.getBalance,
+    convexUser?._id ? { userId: convexUser._id } : "skip"
+  );
+
   const recordFreePurchase = useMutation(api.purchasedPacks.recordFreePurchase);
+  const purchaseWithBalance = useMutation(api.purchasedPacks.purchaseWithBalance);
 
   const [isReporting, setIsReporting] = useState(false);
   const [reportReason, setReportReason] = useState<string>("");
@@ -79,8 +85,22 @@ export default function ListingDetailPage() {
   };
 
   const handleBuy = async () => {
-    // Navigate to checkout page
-    router.push(`/marketplace/${listingId}/checkout`);
+    if (!convexUser?._id) return;
+
+    setIsSubmitting(true);
+    try {
+      await purchaseWithBalance({
+        userId: convexUser._id,
+        listingId,
+      });
+      // Refresh to show download button
+      router.refresh();
+      alert("Purchase successful!");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Purchase failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReport = async () => {
@@ -109,7 +129,7 @@ export default function ListingDetailPage() {
       <div style={{ marginBottom: "1.5rem" }}>
         <Link
           href="/marketplace"
-          style={{ color: "var(--muted)", fontSize: "0.9rem" }}
+          style={{ color: "#959199", fontSize: "0.9rem" }}
         >
           &larr; Back to Marketplace
         </Link>
@@ -120,7 +140,7 @@ export default function ListingDetailPage() {
         <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
           {listing.title}
         </h1>
-        <p style={{ color: "var(--muted)", fontSize: "1.1rem", marginBottom: "1rem" }}>
+        <p style={{ color: "#959199", fontSize: "1.1rem", marginBottom: "1rem" }}>
           {listing.tagline}
         </p>
 
@@ -156,7 +176,7 @@ export default function ListingDetailPage() {
                 }}
               />
             )}
-            <span style={{ color: "var(--muted)" }}>
+            <span style={{ color: "#959199" }}>
               by {listing.author.name || "Anonymous"}
             </span>
           </div>
@@ -192,7 +212,7 @@ export default function ListingDetailPage() {
               <h2 style={{ fontSize: "1.25rem", marginBottom: "1rem" }}>Example</h2>
               {listing.exampleInput && (
                 <div style={{ marginBottom: "1rem" }}>
-                  <h3 style={{ fontSize: "0.9rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+                  <h3 style={{ fontSize: "0.9rem", color: "#959199", marginBottom: "0.5rem" }}>
                     Input
                   </h3>
                   <div
@@ -212,7 +232,7 @@ export default function ListingDetailPage() {
               )}
               {listing.exampleOutput && (
                 <div>
-                  <h3 style={{ fontSize: "0.9rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+                  <h3 style={{ fontSize: "0.9rem", color: "#959199", marginBottom: "0.5rem" }}>
                     Output
                   </h3>
                   <div
@@ -258,7 +278,7 @@ export default function ListingDetailPage() {
                   ? "Free"
                   : `$${(listing.priceInCents / 100).toFixed(2)}`}
               </div>
-              <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+              <div style={{ color: "#959199", fontSize: "0.9rem" }}>
                 {listing.license.charAt(0).toUpperCase() + listing.license.slice(1)} License
               </div>
             </div>
@@ -275,15 +295,33 @@ export default function ListingDetailPage() {
             >
               <div>
                 <div style={{ fontWeight: "600" }}>{listing.downloads}</div>
-                <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Downloads</div>
+                <div style={{ color: "#959199", fontSize: "0.85rem" }}>Downloads</div>
               </div>
               {listing.pack && (
                 <div>
                   <div style={{ fontWeight: "600" }}>{listing.pack.promptCount}</div>
-                  <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>Prompts</div>
+                  <div style={{ color: "#959199", fontSize: "0.85rem" }}>Prompts</div>
                 </div>
               )}
             </div>
+
+            {/* User balance (for paid listings) */}
+            {clerkUser && !isOwner && listing.pricingModel === "paid" && (
+              <div
+                style={{
+                  marginBottom: "1rem",
+                  padding: "0.75rem",
+                  background: "rgba(99,102,241,0.05)",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <div style={{ color: "#959199", marginBottom: "0.25rem" }}>Your Balance</div>
+                <div style={{ fontWeight: "600" }}>
+                  ${((userBalance?.balanceInCents || 0) / 100).toFixed(2)}
+                </div>
+              </div>
+            )}
 
             {/* Action button */}
             {!clerkUser ? (
@@ -312,13 +350,31 @@ export default function ListingDetailPage() {
                 {isSubmitting ? "Getting..." : "Get for Free"}
               </button>
             ) : (
-              <button
-                className="btn btn-primary"
-                style={{ width: "100%" }}
-                onClick={handleBuy}
-              >
-                Buy Now
-              </button>
+              <>
+                <button
+                  className="btn btn-primary"
+                  style={{ width: "100%" }}
+                  onClick={handleBuy}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Processing..." : "Buy Now"}
+                </button>
+                {(userBalance?.balanceInCents || 0) < listing.priceInCents && (
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.5rem",
+                      background: "rgba(239,68,68,0.1)",
+                      borderRadius: "0.5rem",
+                      fontSize: "0.85rem",
+                      color: "#ef4444",
+                      textAlign: "center",
+                    }}
+                  >
+                    Insufficient balance
+                  </div>
+                )}
+              </>
             )}
 
             {/* Report button */}
@@ -329,7 +385,7 @@ export default function ListingDetailPage() {
                   marginTop: "1rem",
                   background: "none",
                   border: "none",
-                  color: "var(--muted)",
+                  color: "#959199",
                   cursor: "pointer",
                   fontSize: "0.85rem",
                   width: "100%",
@@ -385,7 +441,7 @@ export default function ListingDetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 style={{ marginBottom: "1rem" }}>Report Listing</h2>
-            <p style={{ color: "var(--muted)", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
+            <p style={{ color: "#959199", marginBottom: "1.5rem", fontSize: "0.9rem" }}>
               Help us keep the marketplace safe by reporting inappropriate content.
             </p>
 

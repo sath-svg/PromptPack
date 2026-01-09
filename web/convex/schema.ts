@@ -124,7 +124,8 @@ export default defineSchema({
     status: v.union(
       v.literal("draft"),
       v.literal("published"),
-      v.literal("suspended")
+      v.literal("suspended"),
+      v.literal("archived")
     ),
     suspendedReason: v.optional(v.string()), // Why suspended (for creator)
     publishedAt: v.optional(v.number()),
@@ -162,4 +163,34 @@ export default defineSchema({
   })
     .index("by_listing", ["listingId"])
     .index("by_status", ["status"]),
+
+  // User balances for marketplace transactions
+  userBalances: defineTable({
+    userId: v.id("users"),
+    balanceInCents: v.number(), // Current balance in cents
+    totalEarnedInCents: v.number(), // Lifetime earnings from sales
+    totalSpentInCents: v.number(), // Lifetime spending on purchases
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  // Transaction history for balance changes
+  balanceTransactions: defineTable({
+    userId: v.id("users"),
+    type: v.union(
+      v.literal("purchase"), // User bought something
+      v.literal("sale"), // User sold something
+      v.literal("refund"), // Refund given
+      v.literal("topup") // Manual balance topup (for testing)
+    ),
+    amountInCents: v.number(), // Positive for credits, negative for debits
+    balanceAfter: v.number(), // Balance after this transaction
+    description: v.string(),
+    // References
+    relatedPurchaseId: v.optional(v.id("purchasedPacks")),
+    relatedListingId: v.optional(v.id("marketplaceListings")),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_type", ["type"])
+    .index("by_user_created", ["userId", "createdAt"]),
 });

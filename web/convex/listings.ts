@@ -358,6 +358,29 @@ export const unpublish = mutation({
   },
 });
 
+// Archive a listing (hide from creator's active listings)
+export const archive = mutation({
+  args: { id: v.id("marketplaceListings") },
+  handler: async (ctx, { id }) => {
+    const listing = await ctx.db.get(id);
+    if (!listing) {
+      throw new Error("Listing not found");
+    }
+
+    // Can archive from any status except suspended
+    if (listing.status === "suspended") {
+      throw new Error("Cannot archive a suspended listing. Contact support.");
+    }
+
+    await ctx.db.patch(id, {
+      status: "archived",
+      updatedAt: Date.now(),
+    });
+
+    return id;
+  },
+});
+
 // Admin only: Unsuspend a listing
 export const unsuspend = mutation({
   args: {

@@ -8,7 +8,14 @@ import { SavedPrompts } from "./saved-prompts";
 import { ManageSubscriptionButton } from "./manage-subscription-button";
 import { useEffect } from "react";
 import { PromptPacks } from "./prompt-packs";
-import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT } from "@/lib/constants";
+import {
+  FREE_PROMPT_LIMIT,
+  PRO_PROMPT_LIMIT,
+  STUDIO_PROMPT_LIMIT,
+  FREE_PACK_LIMIT,
+  PRO_PACK_LIMIT,
+  STUDIO_PACK_LIMIT,
+} from "@/lib/constants";
 
 export function DashboardContent() {
   const { user: clerkUser, isLoaded } = useUser();
@@ -20,6 +27,10 @@ export function DashboardContent() {
   const savedPacks = useQuery(
     api.savedPacks.listByUser,
     convexUser?._id ? { userId: convexUser._id } : "skip"
+  );
+  const userPacks = useQuery(
+    api.packs.listByAuthor,
+    convexUser?._id ? { authorId: convexUser._id } : "skip"
   );
 
   // Auto-sync Clerk user to Convex if not exists
@@ -46,15 +57,30 @@ export function DashboardContent() {
     return <div className="loading">Setting up your account...</div>;
   }
 
-  // Check if user has Pro plan (via Clerk metadata or Convex)
-  const hasPro = convexUser?.plan === "pro";
+  const plan = convexUser?.plan ?? "free";
+  const isPro = plan === "pro";
+  const isStudio = plan === "studio";
+  const hasPaid = isPro || isStudio;
+  const planLabel = isStudio ? "studio" : isPro ? "pro" : "free";
+  const planDisplay = isStudio ? "Studio" : isPro ? "Pro" : "Free";
 
   // Set limits based on plan
-  const promptLimit = hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT;
-  const packLimit = hasPro ? PRO_PACK_LIMIT : FREE_PACK_LIMIT;
+  const promptLimit = isStudio
+    ? STUDIO_PROMPT_LIMIT
+    : isPro
+      ? PRO_PROMPT_LIMIT
+      : FREE_PROMPT_LIMIT;
+  const packLimit = isStudio
+    ? STUDIO_PACK_LIMIT
+    : isPro
+      ? PRO_PACK_LIMIT
+      : FREE_PACK_LIMIT;
+  const packLimitLabel = packLimit < 0 ? "Unlimited" : packLimit;
 
   // Calculate saved prompts count
   const savedPromptsCount = savedPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
+  const userPackPromptsCount = userPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
+  const promptsUsedCount = isStudio ? savedPromptsCount + userPackPromptsCount : savedPromptsCount;
 
   return (
     <div className="dashboard">
@@ -63,8 +89,8 @@ export function DashboardContent() {
       <div className="dashboard-grid">
         <div className="dashboard-card">
           <h2>Saved Prompts</h2>
-          <p className="stat-value">{savedPromptsCount}</p>
-          <p>of {promptLimit} {hasPro ? "pro" : "free"} prompts used</p>
+          <p className="stat-value">{promptsUsedCount}</p>
+          <p>of {promptLimit} {planLabel} prompts used</p>
           {savedPacks && savedPacks.length > 0 && (
             <div className="saved-sources">
               {savedPacks.map((pack) => (
@@ -76,17 +102,19 @@ export function DashboardContent() {
           )}
         </div>
 
-        <div className="dashboard-card">
-          <h2>Loaded Packs</h2>
-          <p className="stat-value">0</p>
-          <p>of {packLimit} {hasPro ? "pro" : "free"} pack slots used</p>
-        </div>
+        {!isStudio && (
+          <div className="dashboard-card">
+            <h2>Loaded Packs</h2>
+            <p className="stat-value">0</p>
+            <p>of {packLimitLabel} {planLabel} pack slots used</p>
+          </div>
+        )}
 
         <div className="dashboard-card">
           <h2>Current Plan</h2>
-          {hasPro ? (
+          {hasPaid ? (
             <>
-              <p className="stat-value" style={{ color: "#8b5cf6" }}>Pro</p>
+              <p className="stat-value" style={{ color: "#8b5cf6" }}>{planDisplay}</p>
               <ManageSubscriptionButton />
             </>
           ) : (
@@ -97,7 +125,7 @@ export function DashboardContent() {
                   href="/pricing"
                   style={{ color: "var(--accent)", textDecoration: "underline" }}
                 >
-                  Upgrade to Pro
+                  Upgrade plan
                 </Link>
               </p>
             </>
@@ -116,12 +144,27 @@ export function DashboardContent() {
             </Link>
           </p>
         </div>
+
+        {isStudio && (
+          <div className="dashboard-card">
+            <h2>Your Listings</h2>
+            <p className="stat-value">📦</p>
+            <p>
+              <Link
+                href="/dashboard/listings"
+                style={{ color: "var(--accent)", textDecoration: "underline" }}
+              >
+                Manage listings
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
         {convexUser?._id && clerkUser?.id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
+          <PromptPacks userId={convexUser._id} hasPro={hasPaid} clerkId={clerkUser.id} savedPromptsCount={promptsUsedCount} />
         )}
       </div>
 

@@ -1,0 +1,16 @@
+name = "promptpack-api-marketplace-dev"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# This is a dev worker for the marketplace branch
+# It won't affect your production worker
+
+[vars]
+ENVIRONMENT = "development"
+CONVEX_URL = "https://effervescent-crab-660.convex.cloud"
+ALLOWED_ORIGINS = "http://localhost:3000,chrome-extension://*"
+
+# R2 bucket binding - uses same bucket but isolated by key paths
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "promptpack-files"

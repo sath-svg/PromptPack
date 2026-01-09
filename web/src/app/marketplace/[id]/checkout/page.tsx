@@ -108,7 +108,7 @@ export default function CheckoutPage() {
       <div style={{ marginBottom: "1.5rem" }}>
         <Link
           href={`/marketplace/${listingId}`}
-          style={{ color: "var(--muted)", fontSize: "0.9rem" }}
+          style={{ color: "#959199", fontSize: "0.9rem" }}
         >
           &larr; Back to Listing
         </Link>
@@ -125,7 +125,7 @@ export default function CheckoutPage() {
           marginBottom: "1.5rem",
         }}
       >
-        <h2 style={{ fontSize: "1rem", marginBottom: "1rem", color: "var(--muted)" }}>
+        <h2 style={{ fontSize: "1rem", marginBottom: "1rem", color: "#959199" }}>
           Order Summary
         </h2>
 
@@ -140,10 +140,10 @@ export default function CheckoutPage() {
         >
           <div>
             <div style={{ fontWeight: "600" }}>{listing.title}</div>
-            <div style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+            <div style={{ color: "#959199", fontSize: "0.9rem" }}>
               {listing.pack?.promptCount} prompts
             </div>
-            <div style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+            <div style={{ color: "#959199", fontSize: "0.85rem" }}>
               {listing.license.charAt(0).toUpperCase() + listing.license.slice(1)} License
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function CheckoutPage() {
         <p style={{ marginBottom: "0.5rem" }}>
           <strong>7-day refund policy</strong>
         </p>
-        <p style={{ color: "var(--muted)" }}>
+        <p style={{ color: "#959199" }}>
           If you&apos;re not satisfied, you can request a refund within 7 days of purchase.
         </p>
       </div>
@@ -211,7 +211,7 @@ export default function CheckoutPage() {
       <p
         style={{
           textAlign: "center",
-          color: "var(--muted)",
+          color: "#959199",
           fontSize: "0.85rem",
           marginTop: "1rem",
         }}

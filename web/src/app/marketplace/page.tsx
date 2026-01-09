@@ -1,13 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function MarketplacePage() {
+  const router = useRouter();
+  const { user: clerkUser, isLoaded } = useUser();
+  const convexUser = useQuery(
+    api.users.getByClerkId,
+    clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+  );
+
   const [searchQuery, setSearchQuery] = useState("");
   const [pricingFilter, setPricingFilter] = useState<"all" | "free" | "paid">("all");
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const isStudio = convexUser?.plan === "studio";
 
   // Use search if there's a query, otherwise list all published
   const searchResults = useQuery(
@@ -32,11 +44,23 @@ export default function MarketplacePage() {
 
   const listings = searchQuery.trim() ? searchResults : allListings;
 
+  const handleListingClick = (listingId: string, e: React.MouseEvent) => {
+    // If user is not loaded yet, or is studio, allow navigation
+    if (!isLoaded || isStudio || !clerkUser) {
+      // Allow navigation for studio users or non-logged-in users
+      return;
+    }
+
+    // Non-studio logged-in users get the popup
+    e.preventDefault();
+    setShowUpgradeModal(true);
+  };
+
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
         <h1 style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>Marketplace</h1>
-        <p style={{ color: "var(--muted)" }}>
+        <p style={{ color: "#959199" }}>
           Discover prompt packs created by the community
         </p>
       </div>
@@ -101,7 +125,7 @@ export default function MarketplacePage() {
           }}
         >
           <h3 style={{ marginBottom: "0.5rem" }}>No packs found</h3>
-          <p style={{ color: "var(--muted)" }}>
+          <p style={{ color: "#959199" }}>
             {searchQuery
               ? "Try a different search term"
               : "Be the first to publish a pack!"}
@@ -116,8 +140,81 @@ export default function MarketplacePage() {
           }}
         >
           {listings.map((listing) => (
-            <ListingCard key={listing._id} listing={listing} />
+            <ListingCard
+              key={listing._id}
+              listing={listing}
+              onListingClick={handleListingClick}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            style={{
+              background: "var(--bg)",
+              padding: "2.5rem",
+              borderRadius: "1rem",
+              maxWidth: "500px",
+              width: "90%",
+              textAlign: "center",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🚀</div>
+            <h2 style={{ fontSize: "1.75rem", marginBottom: "1rem" }}>
+              Upgrade to Studio
+            </h2>
+            <p style={{ color: "#959199", marginBottom: "2rem", lineHeight: "1.6" }}>
+              Access premium prompt packs and unlock the full marketplace experience. Create and sell your own packs too!
+            </p>
+
+            <div style={{
+              background: "rgba(99,102,241,0.1)",
+              padding: "1rem",
+              borderRadius: "0.5rem",
+              marginBottom: "2rem",
+              textAlign: "left"
+            }}>
+              <div style={{ fontWeight: "600", marginBottom: "0.75rem" }}>Studio includes:</div>
+              <ul style={{ margin: 0, paddingLeft: "1.5rem", color: "#959199" }}>
+                <li>• Access to all marketplace listings !!</li>
+                <li>• Publish your own packs</li>
+                <li>• Earn 85% revenue share</li>
+                <li>• Advanced analytics</li>
+              </ul>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="btn btn-secondary"
+                style={{ flex: 1 }}
+              >
+                Maybe Later
+              </button>
+              <button
+                onClick={() => router.push("/pricing")}
+                className="btn btn-primary"
+                style={{ flex: 1 }}
+              >
+                See Pricing Plans
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -135,11 +232,16 @@ type ListingCardProps = {
     downloads: number;
     license: string;
   };
+  onListingClick: (listingId: string, e: React.MouseEvent) => void;
 };
 
-function ListingCard({ listing }: ListingCardProps) {
+function ListingCard({ listing, onListingClick }: ListingCardProps) {
   return (
-    <Link href={`/marketplace/${listing._id}`} style={{ textDecoration: "none", color: "inherit" }}>
+    <Link
+      href={`/marketplace/${listing._id}`}
+      style={{ textDecoration: "none", color: "inherit" }}
+      onClick={(e) => onListingClick(listing._id, e)}
+    >
       <div
         style={{
           padding: "1.5rem",
@@ -161,7 +263,7 @@ function ListingCard({ listing }: ListingCardProps) {
         <h3 style={{ marginBottom: "0.5rem", fontSize: "1.1rem" }}>{listing.title}</h3>
         <p
           style={{
-            color: "var(--muted)",
+            color: "#959199",
             fontSize: "0.9rem",
             marginBottom: "0.75rem",
             overflow: "hidden",
@@ -202,7 +304,7 @@ function ListingCard({ listing }: ListingCardProps) {
                 background: "rgba(128,128,128,0.1)",
                 borderRadius: "999px",
                 fontSize: "0.75rem",
-                color: "var(--muted)",
+                color: "#959199",
               }}
             >
               +{listing.tags.length - 3}
@@ -225,7 +327,7 @@ function ListingCard({ listing }: ListingCardProps) {
               ? "Free"
               : `$${(listing.priceInCents / 100).toFixed(2)}`}
           </span>
-          <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+          <span style={{ color: "#959199", fontSize: "0.85rem" }}>
             {listing.downloads} downloads
           </span>
         </div>

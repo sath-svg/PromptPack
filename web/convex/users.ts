@@ -43,7 +43,9 @@ export const upsert = mutation({
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+    plan: v.optional(
+      v.union(v.literal("free"), v.literal("pro"), v.literal("studio"))
+    ),
     stripeCustomerId: v.optional(v.string()),
   },
   handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
@@ -120,7 +122,7 @@ export const setStripeCustomerIdByClerkId = internalMutation({
 export const updatePlan = mutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
   handler: async (ctx, { clerkId, plan }) => {
     const user = await ctx.db
@@ -151,7 +153,7 @@ export const upsertFromWebhook = internalMutation({
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
   },
   handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
@@ -202,7 +204,7 @@ export const deleteByClerkId = internalMutation({
 export const updatePlanByClerkId = internalMutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     subscriptionCancelledAt: v.optional(v.number()), // Timestamp when subscription was cancelled
   },
   handler: async (ctx, { clerkId, plan, subscriptionCancelledAt }) => {
@@ -215,8 +217,11 @@ export const updatePlanByClerkId = internalMutation({
 
     const oldPlan = user.plan;
 
-    // Handle downgrade from pro to free
-    if (oldPlan === "pro" && plan === "free") {
+    const isPaidPlan = (value: string | undefined) =>
+      value === "pro" || value === "studio";
+
+    // Handle downgrade from paid plan to free
+    if (isPaidPlan(oldPlan) && plan === "free") {
       console.log(`User ${clerkId} downgraded to free - starting grace period`);
 
       // Set grace period: 1 day (24 hours) from cancellation or now
@@ -231,9 +236,9 @@ export const updatePlanByClerkId = internalMutation({
 
       console.log(`Grace period set: packs will be deleted at ${new Date(packDeletionAt).toISOString()}`);
     }
-    // Handle upgrade from free to pro
-    else if (oldPlan === "free" && plan === "pro") {
-      console.log(`User ${clerkId} upgraded to pro - clearing grace period`);
+    // Handle upgrade from free to paid
+    else if (oldPlan === "free" && isPaidPlan(plan)) {
+      console.log(`User ${clerkId} upgraded to ${plan} - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         plan,
@@ -251,7 +256,7 @@ export const updatePlanByClerkId = internalMutation({
 export const updatePlanFromStripeEvent = internalMutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     subscriptionCancelledAt: v.optional(v.number()),
@@ -277,7 +282,10 @@ export const updatePlanFromStripeEvent = internalMutation({
       ...(stripeSubscriptionId && { stripeSubscriptionId }),
     };
 
-    if (oldPlan === "pro" && plan === "free") {
+    const isPaidPlan = (value: string | undefined) =>
+      value === "pro" || value === "studio";
+
+    if (isPaidPlan(oldPlan) && plan === "free") {
       console.log(`User ${clerkId} downgraded to free via Stripe - starting grace period`);
 
       const gracePeriodMs = 24 * 60 * 60 * 1000;
@@ -291,8 +299,8 @@ export const updatePlanFromStripeEvent = internalMutation({
       return;
     }
 
-    if (oldPlan === "free" && plan === "pro") {
-      console.log(`User ${clerkId} upgraded to pro via Stripe - clearing grace period`);
+    if (oldPlan === "free" && isPaidPlan(plan)) {
+      console.log(`User ${clerkId} upgraded to ${plan} via Stripe - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         ...nextPatch,
@@ -462,7 +470,7 @@ export const checkWebhookSecret = query({
 export const syncPlanFromClerk = mutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
   handler: async (ctx, { clerkId, plan }) => {
     const user = await ctx.db
@@ -476,8 +484,11 @@ export const syncPlanFromClerk = mutation({
 
     const oldPlan = user.plan;
 
-    // Handle downgrade from pro to free
-    if (oldPlan === "pro" && plan === "free") {
+    const isPaidPlan = (value: string | undefined) =>
+      value === "pro" || value === "studio";
+
+    // Handle downgrade from paid to free
+    if (isPaidPlan(oldPlan) && plan === "free") {
       console.log(`[Manual Sync] User ${clerkId} downgraded to free - starting grace period`);
 
       // Set grace period: 1 day (24 hours) from now
@@ -498,9 +509,9 @@ export const syncPlanFromClerk = mutation({
         newPlan: plan,
       };
     }
-    // Handle upgrade from free to pro
-    else if (oldPlan === "free" && plan === "pro") {
-      console.log(`[Manual Sync] User ${clerkId} upgraded to pro - clearing grace period`);
+    // Handle upgrade from free to paid
+    else if (oldPlan === "free" && isPaidPlan(plan)) {
+      console.log(`[Manual Sync] User ${clerkId} upgraded to ${plan} - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         plan,
