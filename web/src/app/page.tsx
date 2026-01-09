@@ -184,7 +184,17 @@ export default function Home() {
 
     <div className="how-steps">
       <div className="how-step">
-        <h3>1) Download the Chrome extension</h3>
+        <h3>
+          1){" "}
+          <a
+            href="https://chromewebstore.google.com/detail/jfhgjlelmogjgblhnkbgpkchcimklcoj?utm_source=item-share-cb"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Download
+          </a>{" "}
+          the Chrome extension
+        </h3>
         <p>
           Install PromptPack once, and you’re ready to save prompts wherever you work.
           <span className="pro-break" aria-hidden="true"></span>
