@@ -19,6 +19,8 @@ export type PromptItem = {
   url: string;
   createdAt: number;
   packName?: string; // Optional: name of imported pack (e.g., "Funny", "Work Tips")
+  header?: string; // Optional: AI-generated 1-2 word header
+  headerGeneratedAt?: number; // Optional: Timestamp when header was generated
 };
 
 const KEY = PROMPTS_STORAGE_KEY;
@@ -129,6 +131,32 @@ async function getPromptLimitFromCache(): Promise<number> {
   return FREE_PROMPT_LIMIT;
 }
 
+/**
+ * Classify prompt in background (non-blocking)
+ * Called after savePrompt succeeds
+ */
+async function classifyPromptInBackground(promptId: string, promptText: string): Promise<void> {
+  try {
+    // Import api dynamically to avoid circular dependencies
+    const { api } = await import('./api');
+
+    // Call classify API
+    const result = await api.classifyPrompt(promptText);
+
+    if (result.success && result.header) {
+      // Update prompt with header
+      await updatePromptHeader(promptId, result.header);
+
+      console.log(`[PromptPack] Header generated for prompt ${promptId}: "${result.header}"`);
+    } else {
+      console.warn(`[PromptPack] Failed to classify prompt ${promptId}:`, result.error);
+    }
+  } catch (error) {
+    // Silently fail - classification is non-critical
+    console.error(`[PromptPack] Classification error for prompt ${promptId}:`, error);
+  }
+}
+
 export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
   const text = item.text.trim();
   if (!text) return { ok: false as const, reason: "empty" as const };
@@ -174,6 +202,17 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
   const existing = await listPrompts();
   if (existing.length >= promptLimit && !existing.some(p => p.text === text && p.source === item.source)) {
     return { ok: false as const, reason: "limit" as const, max: promptLimit };
+  }
+
+  // Get the saved prompt ID to trigger classification
+  const savedPrompts = result.data;
+  const savedPrompt = savedPrompts.find(p => p.text === text && p.source === item.source);
+
+  if (savedPrompt) {
+    // Trigger classification in background (non-blocking)
+    classifyPromptInBackground(savedPrompt.id, text).catch(() => {
+      // Silently fail - don't block save operation
+    });
   }
 
   return { ok: true as const, count: result.data.length, max: promptLimit };
@@ -234,6 +273,10 @@ export async function bulkSavePrompts(
       url: item.url,
       createdAt: now + i, // Slight offset to maintain order
       packName,
+      ...('header' in item && item.header && { header: item.header }),
+      ...('headerGeneratedAt' in item && item.headerGeneratedAt && {
+        headerGeneratedAt: item.headerGeneratedAt
+      }),
     });
   }
 
@@ -293,6 +336,39 @@ export async function deletePackPrompts(
 export async function restorePrompts(prompts: PromptItem[]): Promise<{ ok: boolean; error?: string }> {
   const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
     return [...prompts, ...(existing ?? [])];
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Update a prompt's header after classification
+ */
+export async function updatePromptHeader(
+  promptId: string,
+  header: string
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+    const arr = existing ?? [];
+    const index = arr.findIndex(p => p.id === promptId);
+
+    if (index === -1) {
+      return arr; // Prompt not found, no change
+    }
+
+    // Update the prompt with header
+    const updatedArr = [...arr];
+    updatedArr[index] = {
+      ...updatedArr[index],
+      header,
+      headerGeneratedAt: Date.now(),
+    };
+
+    return updatedArr;
   });
 
   if (!result.ok) {

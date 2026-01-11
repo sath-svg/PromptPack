@@ -183,10 +183,18 @@ async function importPmtpk(file: File) {
     }
 
     // Prepare prompts for bulk import
-    const promptsToImport = data.prompts.map((p: { text: string; url?: string; createdAt?: number }) => ({
+    const promptsToImport = data.prompts.map((p: {
+      text: string;
+      url?: string;
+      createdAt?: number;
+      header?: string;
+      headerGeneratedAt?: number;
+    }) => ({
       text: p.text,
       source,
       url: p.url || "",
+      ...(p.header && { header: p.header }),
+      ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
     }));
 
     // Use safe bulk save with verification and retry
@@ -354,9 +362,14 @@ function renderPromptRow(p: PromptItem) {
   const shown = preview.length > 160 ? preview.slice(0, 160) + "..." : preview;
   const long = isLongPrompt(full);
 
+  const headerHtml = p.header
+    ? `<div class="pp-header-tag">${esc(p.header)}</div>`
+    : '';
+
   if (!long) {
     return `
       <div class="pp-row">
+        ${headerHtml}
         <div class="pp-text" title="${esc(full)}">${esc(full)}</div>
         <div class="pp-actions">
           <button class="pp-btn" data-copy="${esc(p.id)}" type="button">Copy</button>
@@ -370,6 +383,7 @@ function renderPromptRow(p: PromptItem) {
     <details class="pp-item" data-id="${esc(p.id)}">
       <summary class="pp-item-sum">
         <div class="pp-item-left">
+          ${headerHtml}
           <span class="pp-item-arrow">${ICON.chevron}</span>
           <span class="pp-item-preview">${esc(shown)}</span>
         </div>
@@ -565,7 +579,9 @@ function setupEventDelegation() {
         prompts: sourcePrompts.map(p => ({
           text: p.text,
           url: p.url,
-          createdAt: p.createdAt
+          createdAt: p.createdAt,
+          ...(p.header && { header: p.header }),
+          ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
         }))
       };
 
@@ -634,7 +650,9 @@ function setupEventDelegation() {
         prompts: packPrompts.map(p => ({
           text: p.text,
           url: p.url,
-          createdAt: p.createdAt
+          createdAt: p.createdAt,
+          ...(p.header && { header: p.header }),
+          ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
         }))
       };
 

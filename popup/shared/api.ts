@@ -474,6 +474,61 @@ class ApiClient {
 
     return response.json();
   }
+
+  // ============ Classification ============
+
+  /**
+   * Classify a prompt and get an AI-generated header
+   */
+  async classifyPrompt(promptText: string): Promise<{
+    success: boolean;
+    header?: string;
+    error?: string
+  }> {
+    try {
+      const authToken = await this.getAuthToken(); // Reuse existing auth
+
+      const response = await fetch(`${API_BASE}/classify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          promptText: promptText.slice(0, 500), // Limit to 500 chars
+          maxWords: 2,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Classification failed" }));
+        return { success: false, error: error.error || "Failed to classify" };
+      }
+
+      const data = await response.json();
+      return { success: true, header: data.header };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : "Network error"
+      };
+    }
+  }
+
+  /**
+   * Get auth token for classify endpoint
+   * For unauthenticated users, generate a basic token
+   */
+  private async getAuthToken(): Promise<string> {
+    const session = await getSession();
+    if (session?.accessToken) {
+      return session.accessToken;
+    }
+
+    // For unauthenticated users, create a minimal token
+    // This allows classification even without login
+    return btoa(JSON.stringify({ userId: "anonymous" }));
+  }
 }
 
 export const api = new ApiClient();

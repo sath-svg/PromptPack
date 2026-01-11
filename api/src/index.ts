@@ -14,6 +14,7 @@ export interface Env {
   ENVIRONMENT: string;
   CONVEX_URL: string;
   ALLOWED_ORIGINS: string;
+  OLLAMA_URL: string;
 }
 
 // CORS headers for extension and web requests
@@ -430,6 +431,114 @@ export default {
         }), {
           headers: { "Content-Type": "application/json" },
         }));
+      }
+
+      // Classify prompt using Ollama (POST /classify)
+      if (path === "/classify" && method === "POST") {
+        const userId = getUserIdFromToken(request.headers.get("Authorization"));
+        if (!userId) {
+          return addCors(new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+
+        try {
+          const body = await request.json() as {
+            promptText: string;
+            maxWords?: number; // Optional, defaults to 2
+          };
+
+          if (!body.promptText || body.promptText.trim().length === 0) {
+            return addCors(new Response(JSON.stringify({ error: "Missing promptText" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Get Ollama server URL from environment variable
+          const ollamaUrl = env.OLLAMA_URL;
+          if (!ollamaUrl) {
+            return addCors(new Response(JSON.stringify({ error: "Ollama server not configured" }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Call Ollama API
+          const maxWords = body.maxWords || 2;
+          const systemPrompt = `You are a prompt classifier. Given a user's prompt, generate a concise header of ${maxWords} words maximum that describes what the prompt is asking for. Examples:
+- "Summarize how company makes money..." → "Executive Summary"
+- "Assess revenue predictability..." → "Revenue Quality"
+- "Write code to parse JSON..." → "JSON Parser"
+- "Analyze market trends in..." → "Market Analysis"
+
+Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or less.`;
+
+          const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "llama3.2",
+              prompt: `${systemPrompt}\n\nPrompt to classify:\n${body.promptText.slice(0, 500)}`, // Limit to 500 chars for performance
+              stream: false,
+              options: {
+                temperature: 0.3, // Lower temperature for more consistent results
+                num_predict: 10,  // Max 10 tokens for header
+              }
+            }),
+          });
+
+          if (!ollamaResponse.ok) {
+            const errorText = await ollamaResponse.text();
+            console.error("Ollama API error:", errorText);
+            return addCors(new Response(JSON.stringify({
+              error: "Classification failed",
+              details: errorText
+            }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const ollamaData = await ollamaResponse.json() as { response: string };
+
+          // Extract and clean the header (remove quotes, trim, limit words)
+          let header = ollamaData.response
+            .replace(/^["']|["']$/g, '') // Remove surrounding quotes
+            .trim();
+
+          // Limit to maxWords
+          const words = header.split(/\s+/);
+          if (words.length > maxWords) {
+            header = words.slice(0, maxWords).join(' ');
+          }
+
+          // Capitalize first letter of each word
+          header = header
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+          return addCors(new Response(JSON.stringify({
+            success: true,
+            header,
+          }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+
+        } catch (error) {
+          console.error("Classify error:", error);
+          return addCors(new Response(JSON.stringify({
+            error: "Internal server error",
+            message: error instanceof Error ? error.message : "Unknown error",
+          }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
       }
 
       // 404 for unknown routes

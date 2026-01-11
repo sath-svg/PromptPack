@@ -5,8 +5,9 @@ account_id = "5d400bdfa16d6cb8aceff86d50d43650"
 
 [vars]
 ENVIRONMENT = "production"
-CONVEX_URL = "https://brilliant-sandpiper-173.convex.site"
+CONVEX_URL = "https://determined-lark-313.convex.site"
 ALLOWED_ORIGINS = "https://pmtpk.com,chrome-extension://*"
+OLLAMA_URL = "http://localhost:11434"
 
 # R2 bucket binding (production)
 [[r2_buckets]]
