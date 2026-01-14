@@ -6,7 +6,27 @@ async function main() {
   const title = document.getElementById("title");
   const message = document.getElementById("message");
 
+  // Read params from search params (code and state should be in query string from extension redirect)
   const params = new URLSearchParams(window.location.search);
+  
+  // Fallback: also check hash if params are missing (shouldn't normally happen, but defensive)
+  if ((!params.get("code") || !params.get("state")) && window.location.hash) {
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    
+    if (!params.get("state")) {
+      const hashState = hashParams.get("state");
+      if (hashState) {
+        params.set("state", hashState);
+      }
+    }
+    
+    if (!params.get("code")) {
+      const hashCode = hashParams.get("code");
+      if (hashCode) {
+        params.set("code", hashCode);
+      }
+    }
+  }
 
   try {
     const success = await handleAuthCallback(params);

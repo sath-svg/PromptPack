@@ -1,19 +1,19 @@
 import "./popup.css";
-import { listPrompts, deletePrompt, deletePromptsBySource, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, type PromptItem, type PromptSource } from "./shared/promptStore";
+import { listPrompts, deletePrompt, deletePromptsBySource, bulkSavePrompts, removePromptsByIds, restorePrompts, deletePackPrompts, updatePromptHeader, updatePromptText, requeueStaleClassifications, requeueMissingHeaders, type PromptItem, type PromptSource } from "./shared/promptStore";
 import { isStorageLow } from "./shared/safeStorage";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, verifyAuthStateBackground, type AuthState } from "./shared/auth";
+import { getAuthState, verifyAuthStateBackground, type AuthState, login, logout } from "./shared/auth";
 import { api } from "./shared/api";
 import {
   FREE_PROMPT_LIMIT,
   PRO_PROMPT_LIMIT,
+  PROMPTS_STORAGE_KEY,
   MAX_IMPORTED_PACKS,
   PASSWORD_MAX_LENGTH,
   isValidPassword,
   TOAST_DURATION_MS,
   DASHBOARD_URL,
-  SIGN_IN_URL,
   PACKS_CREATE_API,
 } from "./shared/config";
 
@@ -38,10 +38,11 @@ function getPromptLimit(state: AuthState): number {
 // SVG Icons
 const ICON = {
   import: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
-  undo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>`,
+  undo: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10H4"/></svg>`,
   export: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
   save: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>`,
   delete: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
   chevron: `<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="2,0 10,5 2,10"/></svg>`,
   user: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
 };
@@ -50,6 +51,9 @@ const ICON = {
 let authState: AuthState = { isAuthenticated: false };
 let isSyncing = false;
 let isLoadingAuth = true; // Show loading screen until auth is verified
+const STALE_CLASSIFY_RETRY_MS = 30 * 1000;
+const REQUEUE_ON_SIGNIN_KEY = "pp_header_requeue_user";
+let storageListenerAttached = false;
 
 // Pro status tracking (persisted to detect downgrades)
 const PRO_STATUS_KEY = "pp_last_pro_status";
@@ -68,6 +72,45 @@ let cachedPrompts: PromptItem[] | null = null;
 // Helper to invalidate cache when prompts change
 function invalidateCache() {
   cachedPrompts = null;
+}
+
+let editingPromptId: string | null = null;
+let promptDraft = "";
+
+function ensureStorageListenerOnce() {
+  if (storageListenerAttached) return;
+  storageListenerAttached = true;
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
+    if (changes[PROMPTS_STORAGE_KEY]) {
+      console.log("[PromptPack] Prompt storage updated, refreshing popup view");
+      invalidateCache();
+      void render(true);
+    }
+  });
+}
+
+async function retryStaleClassifications(): Promise<void> {
+  const queued = await requeueStaleClassifications({
+    staleMs: STALE_CLASSIFY_RETRY_MS,
+    max: 5,
+  });
+  if (queued > 0) {
+    await render(true);
+  }
+}
+
+async function maybeRequeueMissingHeadersOnSignin(state: AuthState): Promise<void> {
+  if (!state.isAuthenticated || !state.user?.id) return;
+  const stored = await chrome.storage.local.get(REQUEUE_ON_SIGNIN_KEY);
+  const lastUserId = stored[REQUEUE_ON_SIGNIN_KEY] as string | undefined;
+  if (lastUserId === state.user.id) return;
+
+  await chrome.storage.local.set({ [REQUEUE_ON_SIGNIN_KEY]: state.user.id });
+  const queued = await requeueMissingHeaders({ max: 5 });
+  if (queued > 0) {
+    await render(true);
+  }
 }
 
 // Undo state
@@ -183,10 +226,18 @@ async function importPmtpk(file: File) {
     }
 
     // Prepare prompts for bulk import
-    const promptsToImport = data.prompts.map((p: { text: string; url?: string; createdAt?: number }) => ({
+    const promptsToImport = data.prompts.map((p: {
+      text: string;
+      url?: string;
+      createdAt?: number;
+      header?: string;
+      headerGeneratedAt?: number;
+    }) => ({
       text: p.text,
       source,
       url: p.url || "",
+      ...(p.header && { header: p.header }),
+      ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
     }));
 
     // Use safe bulk save with verification and retry
@@ -353,13 +404,48 @@ function renderPromptRow(p: PromptItem) {
   const preview = full.replace(/\s+/g, " ").trim();
   const shown = preview.length > 160 ? preview.slice(0, 160) + "..." : preview;
   const long = isLongPrompt(full);
+  const isEditing = editingPromptId === p.id;
+  const editValue = isEditing ? promptDraft || p.text : p.text;
+
+    const headerHtml = p.header
+    ? `<div class="pp-header-wrapper">
+         <div class="pp-header-tag" data-prompt-id="${esc(p.id)}">${esc(p.header)}</div>
+         <button class="pp-header-edit-btn" data-edit-header="${esc(p.id)}" type="button" title="Edit header">✎</button>
+       </div>`
+    : p.classifying
+      ? `<div class="pp-header-wrapper">
+           <div class="pp-header-loading">
+             <span class="pp-header-spinner"></span>
+             <span class="pp-header-loading-text">Generating header...</span>
+           </div>
+         </div>`
+      : `<div class="pp-header-wrapper">
+           <button class="pp-add-header-btn" data-edit-header="${esc(p.id)}" type="button">+ Add header</button>
+         </div>`;
+
+  if (isEditing) {
+    return `
+      <div class="pp-row">
+        ${headerHtml}
+        <div class="pp-edit">
+          <textarea class="pp-edit-text" data-edit-input="${esc(p.id)}">${esc(editValue)}</textarea>
+          <div class="pp-edit-actions">
+            <button class="pp-btn" data-save-prompt="${esc(p.id)}" type="button">Save</button>
+            <button class="pp-btn" data-cancel-edit="${esc(p.id)}" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   if (!long) {
     return `
       <div class="pp-row">
+        ${headerHtml}
         <div class="pp-text" title="${esc(full)}">${esc(full)}</div>
         <div class="pp-actions">
           <button class="pp-btn" data-copy="${esc(p.id)}" type="button">Copy</button>
+          <button class="pp-icon-btn" data-edit-prompt="${esc(p.id)}" type="button" aria-label="Edit" title="Edit">${ICON.edit}</button>
           <button class="pp-icon-btn" data-del="${esc(p.id)}" type="button" aria-label="Delete" title="Delete">${ICON.delete}</button>
         </div>
       </div>
@@ -369,13 +455,17 @@ function renderPromptRow(p: PromptItem) {
   return `
     <details class="pp-item" data-id="${esc(p.id)}">
       <summary class="pp-item-sum">
-        <div class="pp-item-left">
-          <span class="pp-item-arrow">${ICON.chevron}</span>
-          <span class="pp-item-preview">${esc(shown)}</span>
-        </div>
-        <div class="pp-actions">
-          <button class="pp-btn" data-copy="${esc(p.id)}" type="button">Copy</button>
-          <button class="pp-icon-btn" data-del="${esc(p.id)}" type="button" aria-label="Delete" title="Delete">${ICON.delete}</button>
+        ${headerHtml}
+        <div class="pp-item-content">
+          <div class="pp-item-left">
+            <span class="pp-item-arrow">${ICON.chevron}</span>
+            <span class="pp-item-preview">${esc(shown)}</span>
+          </div>
+          <div class="pp-actions">
+            <button class="pp-btn" data-copy="${esc(p.id)}" type="button">Copy</button>
+            <button class="pp-icon-btn" data-edit-prompt="${esc(p.id)}" type="button" aria-label="Edit" title="Edit">${ICON.edit}</button>
+            <button class="pp-icon-btn" data-del="${esc(p.id)}" type="button" aria-label="Delete" title="Delete">${ICON.delete}</button>
+          </div>
         </div>
       </summary>
 
@@ -394,16 +484,23 @@ function ensureThemeListenerOnce() {
 
   chrome.storage.onChanged.addListener(async (changes, area) => {
     if (area !== "local") return;
-    const c = changes[THEME_KEY];
-    if (!c) return;
 
-    const newTheme = (c.newValue as ThemeMode) ?? getSystemTheme();
+    // Re-render on theme changes
+    const themeChange = changes[THEME_KEY];
+    if (themeChange) {
+      const newTheme = (themeChange.newValue as ThemeMode) ?? getSystemTheme();
+      document.documentElement.dataset.theme = newTheme;
+      await render();
+      return;
+    }
 
-    // Update the theme attribute
-    document.documentElement.dataset.theme = newTheme;
-
-    // Also re-render to update active source in case user switched tabs
-    await render();
+    // Re-render on prompt changes (for classifying state updates)
+    const promptsChange = changes[PROMPTS_STORAGE_KEY];
+    if (promptsChange) {
+      invalidateCache();
+      await render();
+      return;
+    }
   });
 }
 
@@ -525,6 +622,103 @@ function setupEventDelegation() {
       return;
     }
 
+    // Edit prompt text
+    if (btn.dataset.editPrompt) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const promptId = btn.dataset.editPrompt;
+      const items = await listPrompts();
+      const promptItem = items.find(p => p.id === promptId);
+      if (!promptItem) return;
+
+      editingPromptId = promptId;
+      promptDraft = promptItem.text;
+      await render();
+      return;
+    }
+
+    // Save edited prompt text
+    if (btn.dataset.savePrompt) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const promptId = btn.dataset.savePrompt;
+      const trimmed = promptDraft.trim();
+      if (!trimmed) {
+        toast("Prompt cannot be empty");
+        return;
+      }
+
+      const result = await updatePromptText(promptId, trimmed);
+      if (result.ok) {
+        editingPromptId = null;
+        promptDraft = "";
+        invalidateCache();
+        toast("Prompt updated");
+        await render();
+      } else {
+        toast("Failed to update prompt");
+      }
+      return;
+    }
+
+    // Cancel prompt edit
+    if (btn.dataset.cancelEdit) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      editingPromptId = null;
+      promptDraft = "";
+      await render();
+      return;
+    }
+
+    // Edit header button
+    if (btn.dataset.editHeader) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const promptId = btn.dataset.editHeader;
+      const items = await listPrompts();
+      const promptItem = items.find(p => p.id === promptId);
+      if (!promptItem) return;
+
+      const newHeader = window.prompt("Edit header (1-2 words max):", promptItem.header || "");
+      if (newHeader === null) return; // User cancelled
+
+      const trimmedHeader = newHeader.trim();
+      if (trimmedHeader === "") {
+        // Delete header if empty
+        const result = await updatePromptHeader(promptId, "");
+        if (result.ok) {
+          invalidateCache();
+          toast("Header removed");
+          await render();
+        } else {
+          toast("Failed to remove header");
+        }
+        return;
+      }
+
+      // Validate word count
+      const words = trimmedHeader.split(/\s+/);
+      if (words.length > 2) {
+        toast("Header must be 1-2 words maximum");
+        return;
+      }
+
+      const result = await updatePromptHeader(promptId, trimmedHeader);
+      if (result.ok) {
+        invalidateCache();
+        toast("Header updated");
+        await render();
+      } else {
+        toast("Failed to update header");
+      }
+      return;
+    }
+
     // Export button
     if (btn.dataset.export) {
       e.preventDefault();
@@ -565,7 +759,9 @@ function setupEventDelegation() {
         prompts: sourcePrompts.map(p => ({
           text: p.text,
           url: p.url,
-          createdAt: p.createdAt
+          createdAt: p.createdAt,
+          ...(p.header && { header: p.header }),
+          ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
         }))
       };
 
@@ -634,7 +830,9 @@ function setupEventDelegation() {
         prompts: packPrompts.map(p => ({
           text: p.text,
           url: p.url,
-          createdAt: p.createdAt
+          createdAt: p.createdAt,
+          ...(p.header && { header: p.header }),
+          ...(p.headerGeneratedAt && { headerGeneratedAt: p.headerGeneratedAt }),
         }))
       };
 
@@ -676,49 +874,38 @@ function setupEventDelegation() {
       return;
     }
 
-    // Dashboard/Login button - opens dashboard or sign-in
-    // After opening, we'll detect where they land and update auth state
-    if (btn.id === "pp-dashboard-btn" || btn.id === "pp-login-btn") {
-      const targetUrl = btn.id === "pp-dashboard-btn"
-        ? DASHBOARD_URL
-        : SIGN_IN_URL;
+    if (btn.id === "pp-login-btn" || btn.dataset.loginLink === "true") {
+      e.preventDefault();
+      e.stopPropagation();
 
-      // Open the tab
-      const tab = await chrome.tabs.create({ url: targetUrl });
-
-      if (tab.id) {
-        // Listen for navigation to detect where they actually land
-        const listener = (tabId: number, changeInfo: { url?: string; status?: string }, tab: chrome.tabs.Tab) => {
-          if (tabId !== tab.id) return;
-
-          // Check both URL changes and when page finishes loading
-          const shouldCheck = changeInfo.url || (changeInfo.status === "complete" && tab.url);
-          if (!shouldCheck) return;
-
-          const url = (changeInfo.url || tab.url || "").toLowerCase();
-          if (!url) return;
-
-          // If any button led to sign-in page, user is logged out
-          if (url.includes("/sign-in")) {
-            chrome.tabs.onUpdated.removeListener(listener);
-            chrome.storage.local.set({ pp_auth_check_needed: "logged_out" });
-          }
-
-          // If any button led to dashboard, user is logged in
-          if (url.includes("/dashboard")) {
-            chrome.tabs.onUpdated.removeListener(listener);
-            chrome.storage.local.set({ pp_auth_check_needed: "logged_in" });
-          }
-        };
-
-        chrome.tabs.onUpdated.addListener(listener);
-
-        // Clean up listener after 10 seconds
-        setTimeout(() => {
-          chrome.tabs.onUpdated.removeListener(listener);
-        }, 10000);
+      const success = await login();
+      if (!success) {
+        toast("Login failed. Please try again.");
+        return;
       }
 
+        authState = await getAuthState();
+        await render(true);
+        if (authState.isAuthenticated) {
+          void retryStaleClassifications();
+          void maybeRequeueMissingHeadersOnSignin(authState);
+        }
+        return;
+      }
+
+      if (btn.id === "pp-logout-btn") {
+        e.preventDefault();
+        e.stopPropagation();
+
+        await logout(); // Opens sign-out tab and closes it automatically
+        await chrome.storage.local.remove(REQUEUE_ON_SIGNIN_KEY);
+        authState = await getAuthState();
+        await render(true);
+        return;
+      }
+
+    if (btn.id === "pp-dashboard-btn") {
+      await chrome.tabs.create({ url: DASHBOARD_URL });
       return;
     }
 
@@ -745,7 +932,7 @@ function setupEventDelegation() {
       try {
         toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
 
-        // Create export data for the prompts
+        // Create export data for the prompts (include headers in file for local use)
         const exportData = {
           version: SCHEMA_VERSION,
           source,
@@ -753,9 +940,18 @@ function setupEventDelegation() {
           prompts: sourcePrompts.map(p => ({
             text: p.text,
             url: p.url,
-            createdAt: p.createdAt
+            createdAt: p.createdAt,
+            ...(p.header && { header: p.header }),
           }))
         };
+
+        // Build headers map (index -> header) for prompts that have headers
+        const headers: Record<string, string> = {};
+        sourcePrompts.forEach((p, index) => {
+          if (p.header) {
+            headers[index.toString()] = p.header;
+          }
+        });
 
         // Encode the data (no encryption for saved prompts, just obfuscation)
         const jsonString = JSON.stringify(exportData);
@@ -768,6 +964,7 @@ function setupEventDelegation() {
           fileData: base64FileData,
           promptCount: sourcePrompts.length,
           clerkId: authState.user.id,
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
         });
 
         if (result.success) {
@@ -876,6 +1073,14 @@ function setupEventDelegation() {
     }
   });
 
+  app.addEventListener("input", (e) => {
+    const target = e.target as HTMLElement;
+    if (!(target instanceof HTMLTextAreaElement)) return;
+    const editId = target.dataset.editInput;
+    if (!editId || editingPromptId !== editId) return;
+    promptDraft = target.value;
+  });
+
   // File input change handler (delegated to app level)
   app.addEventListener("change", async (e) => {
     const target = e.target as HTMLElement;
@@ -895,6 +1100,7 @@ function setupEventDelegation() {
 async function render(forceRefresh = false) {
   await applyThemeFromStorageToRoot();
   ensureThemeListenerOnce();
+  ensureStorageListenerOnce();
 
   const app = document.getElementById("app");
   if (!app) throw new Error("Missing #app in popup index.html");
@@ -918,23 +1124,14 @@ async function render(forceRefresh = false) {
   let items: PromptItem[];
 
   // Instant render with cache, background sync for updates
-  if (cachedPrompts && !forceRefresh) {
-    // Use cached data for instant render
-    items = cachedPrompts;
-
-    // Background sync
-    listPrompts().then(freshItems => {
-      // Only re-render if data actually changed
-      if (JSON.stringify(freshItems) !== JSON.stringify(cachedPrompts)) {
-        cachedPrompts = freshItems;
-        render(true); // Force refresh with new data
-      }
-    });
-  } else {
-    // First render or forced refresh - fetch data
-    items = await listPrompts();
-    cachedPrompts = items;
-  }
+    if (cachedPrompts && !forceRefresh) {
+      // Use cached data for instant render
+      items = cachedPrompts;
+    } else {
+      // First render or forced refresh - fetch data
+      items = await listPrompts();
+      cachedPrompts = items;
+    }
 
   // Remove imported packs from storage if user transitioned from pro to non-pro
   // Only run this cleanup when pro status actually changes (genuine downgrade)
@@ -1006,7 +1203,7 @@ async function render(forceRefresh = false) {
         </div>
       </div>
       <input type="file" id="pp-import-input" accept=".pmtpk" style="display:none">
-      <div class="pp-sub">${isLoggedIn ? `Logged in as ${authState.user?.email}` : "Powered by PmtPk.ai. Click to expand"}</div>
+      <div class="pp-sub">${isLoggedIn ? `Logged in as ${authState.user?.email ?? "Unknown"} <button class="pp-auth-link" id="pp-logout-btn" type="button">Sign out</button>` : `Powered by PmtPk.ai.<button class="pp-auth-link pp-signin-link" type="button" data-login-link="true">Sign in</button> for AI generated headers.`}</div>
 
       ${groups
         .map((group) => {
@@ -1057,7 +1254,7 @@ async function render(forceRefresh = false) {
   setupEventDelegation();
 }
 
-// Get initial auth state (uses cache if available)
+// Get initial auth state
 (async () => {
   // Show loading screen first
   await render();
@@ -1066,15 +1263,23 @@ async function render(forceRefresh = false) {
   authState = await getAuthState();
   isLoadingAuth = false;
 
-  // Re-render with actual content
-  await render();
+    // Re-render with actual content
+    await render();
+    if (authState.isAuthenticated) {
+      void retryStaleClassifications();
+      void maybeRequeueMissingHeadersOnSignin(authState);
+    }
 
   // Background verification: check if auth state changed on server
   verifyAuthStateBackground(authState).then(async (newState) => {
     if (newState) {
       // Auth state changed - update and re-render
-      authState = newState;
-      await render();
-    }
-  });
+        authState = newState;
+        await render();
+        if (authState.isAuthenticated) {
+          void retryStaleClassifications();
+          void maybeRequeueMissingHeadersOnSignin(authState);
+        }
+      }
+    });
 })();

@@ -60,6 +60,7 @@ export const upsert = mutation({
       r2Key,
       promptCount,
       fileSize,
+      headers: {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -102,8 +103,9 @@ export const upsertByClerkId = mutation({
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),
+    headers: v.optional(v.record(v.string(), v.string())), // Map of promptId -> header
   },
-  handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize }) => {
+  handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize, headers }) => {
     // Find user by clerkId
     const user = await ctx.db
       .query("users")
@@ -121,11 +123,13 @@ export const upsertByClerkId = mutation({
       .first();
 
     if (existing) {
-      // Update existing
+      // Update existing - merge headers with existing ones
+      const mergedHeaders = { ...(existing.headers ?? {}), ...(headers ?? {}) };
       await ctx.db.patch(existing._id, {
         r2Key,
         promptCount,
         fileSize,
+        headers: mergedHeaders,
         updatedAt: Date.now(),
       });
       return { id: existing._id, updated: true };
@@ -138,9 +142,37 @@ export const upsertByClerkId = mutation({
       r2Key,
       promptCount,
       fileSize,
+      headers: headers ?? {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
     return { id, updated: false };
+  },
+});
+
+// Set or clear a prompt header override for a saved pack
+export const setHeader = mutation({
+  args: {
+    id: v.id("savedPacks"),
+    promptKey: v.string(),
+    header: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, promptKey, header }) => {
+    const pack = await ctx.db.get(id);
+    if (!pack) throw new Error("Pack not found");
+
+    const headers = { ...(pack.headers ?? {}) };
+    const nextHeader = header?.trim();
+
+    if (nextHeader) {
+      headers[promptKey] = nextHeader;
+    } else {
+      delete headers[promptKey];
+    }
+
+    await ctx.db.patch(id, {
+      headers,
+      updatedAt: Date.now(),
+    });
   },
 });

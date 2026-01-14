@@ -1,4 +1,6 @@
 import { safeGet, safeSet, atomicUpdate } from "./safeStorage";
+import { getSession, type UserSession } from "./db";
+import { api } from "./api";
 import {
   FREE_PROMPT_LIMIT,
   PRO_PROMPT_LIMIT,
@@ -19,9 +21,28 @@ export type PromptItem = {
   url: string;
   createdAt: number;
   packName?: string; // Optional: name of imported pack (e.g., "Funny", "Work Tips")
+  header?: string; // Optional: AI-generated 1-2 word header
+  headerGeneratedAt?: number; // Optional: Timestamp when header was generated
+  classifying?: boolean; // Optional: True while header is being generated
+  classifyingAt?: number; // Optional: Timestamp when classification started
 };
 
 const KEY = PROMPTS_STORAGE_KEY;
+const CLASSIFY_TIMEOUT_MS = 25 * 1000;
+const STALE_CLASSIFY_RETRY_MS = 30 * 1000;
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutId = setTimeout(() => resolve(null), timeoutMs);
+  });
+
+  const result = await Promise.race([promise, timeoutPromise]);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
+  return result as T | null;
+}
 
 export async function listPrompts(): Promise<PromptItem[]> {
   const arr = await safeGet<PromptItem[]>(KEY);
@@ -29,39 +50,226 @@ export async function listPrompts(): Promise<PromptItem[]> {
   return (arr ?? []).slice().sort((a, b) => b.createdAt - a.createdAt);
 }
 
-// Type for cached auth state (matches auth.ts CachedAuthState structure)
-type CachedAuthState = {
-  billing?: { isPro?: boolean };
-  entitlements?: { promptLimit?: number };
-  user?: { tier?: string };
+export async function listPromptsBySource(source: PromptSource): Promise<PromptItem[]> {
+  const all = await listPrompts();
+  return all.filter((p) => p.source === source);
+}
+
+export type PromptGroup = {
+  name: string;
+  displayName: string;
+  prompts: PromptItem[];
 };
 
 /**
- * Get the user's prompt limit from cached auth state
- * Returns PRO_PROMPT_LIMIT if pro, FREE_PROMPT_LIMIT otherwise
+ * Check if user is pro from the current session
  */
-async function getPromptLimitFromCache(): Promise<number> {
+export async function isProUser(): Promise<boolean> {
+  const session = await getActiveSession();
+  return session?.tier === "paid";
+}
+
+/**
+ * Get prompts for a source, grouped by pack (for pro users) or flat (for free users)
+ * Returns: regular prompts (no packName) + imported packs (with packName)
+ */
+export async function listPromptsBySourceGrouped(source: PromptSource): Promise<PromptGroup[]> {
+  const all = await listPrompts();
+  const sourcePrompts = all.filter((p) => p.source === source);
+
+  // Separate regular prompts from imported packs
+  const regular = sourcePrompts.filter((p) => !p.packName);
+  const packsMap = new Map<string, PromptItem[]>();
+
+  // Group imported packs across all sources (always show if present)
+  for (const p of all) {
+    if (p.packName) {
+      const existing = packsMap.get(p.packName) || [];
+      existing.push(p);
+      packsMap.set(p.packName, existing);
+    }
+  }
+
+  const groups: PromptGroup[] = [];
+
+  // Add regular prompts group
+  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+  groups.push({
+    name: source,
+    displayName: `${sourceTitle} Prompts`,
+    prompts: regular,
+  });
+
+  // Add imported pack groups
+  for (const [packName, prompts] of packsMap) {
+    groups.push({
+      name: packName,
+      displayName: `"${packName}" Prompts`,
+      prompts,
+    });
+  }
+
+  return groups;
+}
+
+function decodeJwtExpiry(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
   try {
-    const result = await chrome.storage.local.get("pp_auth_cache");
-    const cached = result["pp_auth_cache"] as CachedAuthState | undefined;
-    if (cached) {
-      // Check billing.isPro, then entitlements.promptLimit, then user.tier
-      if (cached.billing?.isPro) return PRO_PROMPT_LIMIT;
-      if (cached.entitlements?.promptLimit) return cached.entitlements.promptLimit;
-      if (cached.user?.tier === "paid") return PRO_PROMPT_LIMIT;
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+    const json = atob(padded);
+    const data = JSON.parse(json) as { exp?: number };
+    if (typeof data.exp === "number") {
+      return data.exp * 1000;
     }
   } catch {
-    // Ignore errors, fall back to free limit
+    // Ignore decode errors
   }
+  return null;
+}
+
+async function getActiveSession(): Promise<UserSession | null> {
+  const session = await getSession();
+  if (!session?.accessToken) return null;
+  const jwtExpiry = decodeJwtExpiry(session.accessToken);
+  if (jwtExpiry && jwtExpiry <= Date.now()) return null;
+  if (session.expiresAt <= Date.now()) return null;
+  return session;
+}
+
+/**
+ * Get the user's prompt limit from the current session
+ */
+async function getPromptLimitFromSession(): Promise<number> {
+  const session = await getActiveSession();
+  if (session?.entitlements?.promptLimit) return session.entitlements.promptLimit;
+  if (session?.tier === "paid") return PRO_PROMPT_LIMIT;
+  const backgroundLimit = await getPromptLimitViaBackground();
+  if (typeof backgroundLimit === "number") return backgroundLimit;
   return FREE_PROMPT_LIMIT;
 }
 
+async function getPromptLimitViaBackground(): Promise<number | null> {
+  if (!chrome?.runtime?.sendMessage) return null;
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "PP_GET_PROMPT_LIMIT" }, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve(null);
+        return;
+      }
+      const limit = (response as { limit?: number } | undefined)?.limit;
+      resolve(typeof limit === "number" ? limit : null);
+    });
+  });
+}
+
+/**
+ * Classify prompt in background (non-blocking)
+ * Called after savePrompt succeeds
+ */
+async function classifyPromptInBackground(promptId: string, promptText: string): Promise<void> {
+  console.log(`[PromptPack] classifyPromptInBackground called for ${promptId}`);
+  try {
+    // Set classifying flag
+    console.log(`[PromptPack] Setting classifying flag for ${promptId}`);
+    await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+      const arr = existing ?? [];
+      const index = arr.findIndex(p => p.id === promptId);
+      if (index === -1) return arr;
+      const updatedArr = [...arr];
+      updatedArr[index] = {
+        ...updatedArr[index],
+        classifying: true,
+        classifyingAt: Date.now(),
+      };
+      return updatedArr;
+    });
+
+    // Call classify API
+    console.log(`[PromptPack] Calling classify API for ${promptId}`);
+    const result = await withTimeout(api.classifyPrompt(promptText), CLASSIFY_TIMEOUT_MS);
+
+    if (!result) {
+      // Clear classifying flag on timeout
+      await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+        const arr = existing ?? [];
+        const index = arr.findIndex(p => p.id === promptId);
+        if (index === -1) return arr;
+        const updatedArr = [...arr];
+        const { classifyingAt: _classifyingAt, ...rest } = updatedArr[index];
+        updatedArr[index] = {
+          ...rest,
+          classifying: false,
+        };
+        return updatedArr;
+      });
+      console.warn(`[PromptPack] Classification timed out for prompt ${promptId}`);
+      return;
+    }
+
+    if (result.success && result.header) {
+      // Update prompt with header and clear classifying flag
+      await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+        const arr = existing ?? [];
+        const index = arr.findIndex(p => p.id === promptId);
+        if (index === -1) return arr;
+        const updatedArr = [...arr];
+        const { classifyingAt: _classifyingAt, ...rest } = updatedArr[index];
+        updatedArr[index] = {
+          ...rest,
+          header: result.header,
+          headerGeneratedAt: Date.now(),
+          classifying: false,
+        };
+        return updatedArr;
+      });
+
+      console.log(`[PromptPack] Header generated for prompt ${promptId}: "${result.header}"`);
+    } else {
+      // Clear classifying flag on error
+      await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+        const arr = existing ?? [];
+        const index = arr.findIndex(p => p.id === promptId);
+        if (index === -1) return arr;
+        const updatedArr = [...arr];
+        const { classifyingAt: _classifyingAt, ...rest } = updatedArr[index];
+        updatedArr[index] = {
+          ...rest,
+          classifying: false,
+        };
+        return updatedArr;
+      });
+      console.warn(`[PromptPack] Failed to classify prompt ${promptId}:`, result.error);
+    }
+  } catch (error) {
+    // Clear classifying flag on error
+    await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+      const arr = existing ?? [];
+      const index = arr.findIndex(p => p.id === promptId);
+      if (index === -1) return arr;
+      const updatedArr = [...arr];
+      const { classifyingAt: _classifyingAt, ...rest } = updatedArr[index];
+      updatedArr[index] = {
+        ...rest,
+        classifying: false,
+      };
+      return updatedArr;
+    });
+    // Silently fail - classification is non-critical
+    console.error(`[PromptPack] Classification error for prompt ${promptId}:`, error);
+  }
+}
+
 export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
+  console.log('[PromptPack] ===== savePrompt called =====');
+  console.log('[PromptPack] Text:', item.text.substring(0, 50));
+  console.log('[PromptPack] Source:', item.source);
   const text = item.text.trim();
   if (!text) return { ok: false as const, reason: "empty" as const };
 
-  // Get user's prompt limit from cached auth state
-  const promptLimit = await getPromptLimitFromCache();
+  // Get user's prompt limit from the current session
+  const promptLimit = await getPromptLimitFromSession();
 
   // Use atomic update to prevent race conditions
   const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
@@ -103,7 +311,87 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
     return { ok: false as const, reason: "limit" as const, max: promptLimit };
   }
 
+  // Get the saved prompt ID to trigger classification (only for authenticated users)
+  const isAuthed = await api.verifyAuthSession();
+  if (isAuthed) {
+    const savedPrompts = result.data;
+    console.log('[PromptPack] Looking for saved prompt in:', savedPrompts.length, 'prompts');
+    const savedPrompt = savedPrompts.find(p => p.text === text && p.source === item.source);
+
+    if (savedPrompt) {
+      // Trigger classification in background (non-blocking)
+      console.log(`[PromptPack] Starting classification for prompt ${savedPrompt.id}`);
+      classifyPromptInBackground(savedPrompt.id, text).catch((err) => {
+        // Silently fail - don't block save operation
+        console.error('[PromptPack] Classification failed:', err);
+      });
+    } else {
+      console.warn('[PromptPack] Could not find saved prompt to classify. Text:', text.substring(0, 50));
+    }
+  } else {
+    console.log('[PromptPack] Skipping AI header generation (user not signed in)');
+  }
+
   return { ok: true as const, count: result.data.length, max: promptLimit };
+}
+
+export async function requeueStaleClassifications(options?: {
+  staleMs?: number;
+  max?: number;
+}): Promise<number> {
+  const staleMs = options?.staleMs ?? STALE_CLASSIFY_RETRY_MS;
+  const max = options?.max ?? 5;
+  if (max <= 0) return 0;
+
+  console.log(`[PromptPack] Checking stale classifications (staleMs=${staleMs}, max=${max})`);
+  const isAuthed = await api.verifyAuthSession();
+  console.log(`[PromptPack] Auth check for stale classification: ${isAuthed ? "ok" : "not signed in"}`);
+  if (!isAuthed) return 0;
+
+  const prompts = await listPrompts();
+  const now = Date.now();
+  const stale = prompts.filter(
+    (p) =>
+      !p.packName &&
+      p.header == null &&
+      p.classifying === true &&
+      (!p.classifyingAt || now - p.classifyingAt > staleMs)
+  );
+
+  if (!stale.length) {
+    console.log("[PromptPack] No stale classifications found");
+    return 0;
+  }
+
+  console.log(`[PromptPack] Requeueing ${Math.min(max, stale.length)} stale classifications`);
+  stale.slice(0, max).forEach((prompt) => {
+    void classifyPromptInBackground(prompt.id, prompt.text);
+  });
+
+  return Math.min(max, stale.length);
+}
+
+export async function requeueMissingHeaders(options?: {
+  max?: number;
+}): Promise<number> {
+  const max = options?.max ?? 5;
+  if (max <= 0) return 0;
+
+  const isAuthed = await api.verifyAuthSession();
+  if (!isAuthed) return 0;
+
+  const prompts = await listPrompts();
+  const missing = prompts.filter(
+    (p) => !p.packName && p.header == null
+  );
+
+  if (!missing.length) return 0;
+
+  missing.slice(0, max).forEach((prompt) => {
+    void classifyPromptInBackground(prompt.id, prompt.text);
+  });
+
+  return Math.min(max, missing.length);
 }
 
 export async function deletePrompt(id: string) {
@@ -161,6 +449,10 @@ export async function bulkSavePrompts(
       url: item.url,
       createdAt: now + i, // Slight offset to maintain order
       packName,
+      ...('header' in item && item.header && { header: item.header }),
+      ...('headerGeneratedAt' in item && item.headerGeneratedAt && {
+        headerGeneratedAt: item.headerGeneratedAt
+      }),
     });
   }
 
@@ -224,6 +516,74 @@ export async function restorePrompts(prompts: PromptItem[]): Promise<{ ok: boole
 
   if (!result.ok) {
     return { ok: false, error: result.error };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Update a prompt's header after classification
+ */
+export async function updatePromptHeader(
+  promptId: string,
+  header: string
+): Promise<{ ok: boolean; error?: string }> {
+  const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+    const arr = existing ?? [];
+    const index = arr.findIndex(p => p.id === promptId);
+
+    if (index === -1) {
+      return arr; // Prompt not found, no change
+    }
+
+    // Update the prompt with header
+    const updatedArr = [...arr];
+    updatedArr[index] = {
+      ...updatedArr[index],
+      header,
+      headerGeneratedAt: Date.now(),
+    };
+
+    return updatedArr;
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  return { ok: true };
+}
+
+export async function updatePromptText(
+  promptId: string,
+  text: string
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return { ok: false, error: "empty" };
+  }
+
+  let found = false;
+  const result = await atomicUpdate<PromptItem[]>(KEY, (existing) => {
+    const arr = existing ?? [];
+    const index = arr.findIndex(p => p.id === promptId);
+    if (index === -1) {
+      return arr;
+    }
+    found = true;
+    const updatedArr = [...arr];
+    updatedArr[index] = {
+      ...updatedArr[index],
+      text: trimmed,
+    };
+    return updatedArr;
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  if (!found) {
+    return { ok: false, error: "not_found" };
   }
 
   return { ok: true };

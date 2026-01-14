@@ -1,17 +1,14 @@
 // Auth module for PromptPack
 // Handles Clerk authentication via extension auth flow
 
-import { getSession, isAuthenticated, saveSession } from "./db";
+import { getSession, isAuthenticated, saveSession, clearSession, type UserSession } from "./db";
 import { api } from "./api";
 import {
   AUTH_URL,
   DASHBOARD_URL,
   PRICING_URL,
+  SIGN_OUT_URL,
   FREE_PROMPT_LIMIT,
-  PRO_PROMPT_LIMIT,
-  UNLIMITED_PACK_LIMIT,
-  AUTH_CACHE_KEY,
-  AUTH_CACHE_EXPIRY_MS,
   FALLBACK_LOADED_PACK_LIMIT,
 } from "./config";
 
@@ -32,88 +29,44 @@ export type AuthState = {
   };
 };
 
-type CachedAuthState = AuthState & {
-  cachedAt: number;
-  expiresAt: number;
-};
+const RETURN_TAB_KEY = "pp_auth_return_tab";
+const LEGACY_AUTH_CACHE_KEY = "pp_auth_cache";
 
-// Use session storage - cleared when browser closes
-// Also enforce a 24h TTL to avoid stale sessions in long-running browsers.
-const authStorage = chrome.storage.session;
-const AUTH_CHECK_FLAG_KEY = "pp_auth_check_needed";
-type AuthCheckFlag = "logged_in" | "logged_out";
-
-/**
- * Get cached auth state (instant, no network calls)
- * Uses session storage - persists until browser is closed
- */
-async function getCachedAuthState(): Promise<AuthState | null> {
+function decodeJwtExpiry(token: string): number | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
   try {
-    const result = await authStorage.get(AUTH_CACHE_KEY);
-    const cached = result[AUTH_CACHE_KEY] as CachedAuthState | undefined;
-
-    if (!cached) {
-      return null;
-    }
-
-    if (!cached.expiresAt || cached.expiresAt <= Date.now()) {
-      await authStorage.remove(AUTH_CACHE_KEY);
-      return null;
-    }
-
-    // Return cached state without timestamps
-    const { cachedAt, expiresAt, ...authState } = cached;
-    return authState;
-  } catch {
-    // Fallback if session storage not available
-    return null;
-  }
-}
-
-/**
- * Save auth state to session cache
- * Persists until browser is closed
- */
-async function setCachedAuthState(authState: AuthState): Promise<void> {
-  try {
-    const now = Date.now();
-    const cached: CachedAuthState = {
-      ...authState,
-      cachedAt: now,
-      expiresAt: now + AUTH_CACHE_EXPIRY_MS,
-    };
-
-    await authStorage.set({ [AUTH_CACHE_KEY]: cached });
-  } catch {
-    // Ignore if session storage not available
-  }
-}
-
-/**
- * Clear cached auth state (on logout)
- */
-async function clearCachedAuthState(): Promise<void> {
-  try {
-    await authStorage.remove(AUTH_CACHE_KEY);
-  } catch {
-    // Ignore if session storage not available
-  }
-}
-
-async function consumeAuthCheckFlag(): Promise<AuthCheckFlag | null> {
-  try {
-    const result = await chrome.storage.local.get(AUTH_CHECK_FLAG_KEY);
-    const value = result[AUTH_CHECK_FLAG_KEY];
-
-    if (value === "logged_in" || value === "logged_out") {
-      await chrome.storage.local.remove(AUTH_CHECK_FLAG_KEY);
-      return value;
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+    const json = atob(padded);
+    const data = JSON.parse(json) as { exp?: number };
+    if (typeof data.exp === "number") {
+      return data.exp * 1000;
     }
   } catch {
-    // Ignore if local storage not available
+    // Ignore decode errors
   }
-
   return null;
+}
+
+function isSessionValid(session: UserSession | null | undefined): boolean {
+  if (!session || !session.accessToken) return false;
+  const jwtExpiry = decodeJwtExpiry(session.accessToken);
+  if (jwtExpiry && jwtExpiry <= Date.now()) return false;
+  return session.expiresAt > Date.now();
+}
+
+async function clearLegacyAuthCache(): Promise<void> {
+  try {
+    await chrome.storage.session.remove(LEGACY_AUTH_CACHE_KEY);
+  } catch {
+    // Ignore session cache cleanup failures
+  }
+  try {
+    await chrome.storage.local.remove(LEGACY_AUTH_CACHE_KEY);
+  } catch {
+    // Ignore local cache cleanup failures
+  }
 }
 
 /**
@@ -135,45 +88,11 @@ export async function getBillingInfo(clerkId: string): Promise<{
 }
 
 /**
- * Get current auth state - returns cached instantly, verifies in background
+ * Get current auth state from the server
  */
 export async function getAuthState(): Promise<AuthState> {
-  const authCheckFlag = await consumeAuthCheckFlag();
-  if (authCheckFlag === "logged_out") {
-    await clearCachedAuthState();
-    return { isAuthenticated: false };
-  }
-
-  if (authCheckFlag === "logged_in") {
-    const freshState = await getAuthStateFromServer();
-    if (freshState.isAuthenticated) {
-      await setCachedAuthState(freshState);
-      return freshState;
-    }
-
-    const cachedFallback = await getCachedAuthState();
-    if (cachedFallback) {
-      return cachedFallback;
-    }
-
-    return { isAuthenticated: false };
-  }
-
-  // Try to get cached state first (instant)
-  const cached = await getCachedAuthState();
-  if (cached) {
-    return cached;
-  }
-
-  // No cache - fetch fresh state
-  const freshState = await getAuthStateFromServer();
-
-  // Cache the fresh state
-  if (freshState.isAuthenticated) {
-    await setCachedAuthState(freshState);
-  }
-
-  return freshState;
+  await clearLegacyAuthCache();
+  return getAuthStateFromServer();
 }
 
 /**
@@ -182,17 +101,36 @@ export async function getAuthState(): Promise<AuthState> {
 async function getAuthStateFromServer(): Promise<AuthState> {
   const session = await getSession();
 
-  if (!session || session.expiresAt < Date.now()) {
-    // Try to refresh if we have a refresh token
-    if (session?.refreshToken) {
+  if (!session) {
+    return { isAuthenticated: false };
+  }
+
+  // Check if session is still valid (JWT not expired, session not expired)
+  if (!isSessionValid(session)) {
+    // Session expired - try to refresh if we have a refresh token
+    if (session.refreshToken) {
+      // Check if this is a legacy token (JWT used as refresh token)
+      const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
+
+      if (isLegacyToken) {
+        console.log("[PromptPack] Session expired with legacy token. Please sign in again to get new refresh token.");
+        await clearSession();
+        await clearLegacyAuthCache();
+        return { isAuthenticated: false };
+      }
+
+      console.log("[PromptPack] Session expired, attempting refresh...");
       const refreshed = await api.refreshToken();
       if (refreshed) {
         const newSession = await getSession();
-        if (newSession) {
+        // After successful refresh, trust the session's expiresAt (not JWT expiry)
+        // The refresh updated expiresAt but not the JWT itself
+        if (newSession && newSession.expiresAt > Date.now()) {
+          console.log("[PromptPack] Session refreshed successfully");
           // Fetch billing info from Convex
           const billing = await getBillingInfo(newSession.userId);
 
-          const authState = {
+          return {
             isAuthenticated: true,
             user: {
               id: newSession.userId,
@@ -202,43 +140,58 @@ async function getAuthStateFromServer(): Promise<AuthState> {
             entitlements: newSession.entitlements,
             billing: billing || undefined,
           };
+        }
+      }
+      console.log("[PromptPack] Session refresh failed - user needs to sign in again");
+    }
 
-          return authState;
+    // Refresh failed or no refresh token - clear session
+    await clearSession();
+    await clearLegacyAuthCache();
+    return { isAuthenticated: false };
+  }
+
+  // Session looks valid locally - verify with server
+  const tokenValid = await api.verifyAuthToken(session.accessToken);
+  if (!tokenValid) {
+    // Access token invalid on server - try to refresh
+    if (session.refreshToken) {
+      // Check for legacy token
+      const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
+      if (!isLegacyToken) {
+        console.log("[PromptPack] Access token invalid, attempting refresh...");
+        const refreshed = await api.refreshToken();
+        if (refreshed) {
+          const newSession = await getSession();
+          // Trust expiresAt after successful refresh
+          if (newSession && newSession.expiresAt > Date.now()) {
+            console.log("[PromptPack] Token refreshed successfully");
+            const billing = await getBillingInfo(newSession.userId);
+
+            return {
+              isAuthenticated: true,
+              user: {
+                id: newSession.userId,
+                email: newSession.email,
+                tier: newSession.tier,
+              },
+              entitlements: newSession.entitlements,
+              billing: billing || undefined,
+            };
+          }
         }
       }
     }
 
-    // No IndexedDB session - check if user is logged in on web
-    const webAuth = await api.checkWebAuthStatus();
-
-    if (webAuth?.isAuthenticated && webAuth.user) {
-      // User is logged in on web, get their billing info
-      const billing = await getBillingInfo(webAuth.user.id);
-
-      const authState: AuthState = {
-        isAuthenticated: true,
-        user: {
-          id: webAuth.user.id,
-          email: webAuth.user.email,
-          tier: (billing?.plan === "pro" ? "paid" : "free") as "free" | "paid",
-        },
-        entitlements: {
-          promptLimit: billing?.isPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
-          loadedPackLimit: billing?.isPro ? UNLIMITED_PACK_LIMIT : 0,
-        },
-        billing: billing || undefined,
-      };
-
-      return authState;
-    }
-
+    await clearSession();
+    await clearLegacyAuthCache();
     return { isAuthenticated: false };
   }
 
   // Fetch billing info from Convex
   const billing = await getBillingInfo(session.userId);
 
-  const authState = {
+  return {
     isAuthenticated: true,
     user: {
       id: session.userId,
@@ -248,19 +201,12 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     entitlements: session.entitlements,
     billing: billing || undefined,
   };
-
-  return authState;
 }
 
 /**
- * Verify auth state in background and update cache if changed
- * Since we use session storage (cleared on browser close), no throttling needed.
- * This is only called if there's already a cached state, so it won't make extra API calls.
+ * Verify auth state in background and update state if changed
  */
 export async function verifyAuthStateBackground(_currentState: AuthState): Promise<AuthState | null> {
-  // Skip background verification - session storage handles this
-  // Auth is checked once per browser session, cached until browser closes
-  // Only re-verify if user explicitly logs out or logs in
   return null;
 }
 
@@ -271,17 +217,74 @@ export async function login(): Promise<boolean> {
   // Generate a random state for CSRF protection
   const state = crypto.randomUUID();
 
-  // Store state for verification
-  await chrome.storage.local.set({ pp_auth_state: state });
+  // Store state for verification (keep a small rolling list for concurrent auth tabs)
+  try {
+    const stored = await chrome.storage.local.get("pp_auth_states");
+    const existing = Array.isArray(stored.pp_auth_states) ? stored.pp_auth_states : [];
+    const now = Date.now();
+    const normalized = existing
+      .map((item: unknown) => {
+        if (typeof item === "string") return { value: item, createdAt: now };
+        if (item && typeof item === "object") {
+          const typed = item as { value?: string; createdAt?: number };
+          if (typed.value) {
+            return {
+              value: typed.value,
+              createdAt: typeof typed.createdAt === "number" ? typed.createdAt : now,
+            };
+          }
+        }
+        return null;
+      })
+      .filter(Boolean) as Array<{ value: string; createdAt: number }>;
 
-  // Get the redirect URL from chrome.identity
-  const redirectUri = chrome.identity.getRedirectURL();
+    const next = [{ value: state, createdAt: now }, ...normalized]
+      .filter((item) => now - item.createdAt < 10 * 60 * 1000)
+      .slice(0, 5);
+
+    await chrome.storage.local.set({
+      pp_auth_state: state,
+      pp_auth_states: next,
+    });
+  } catch {
+    await chrome.storage.local.set({ pp_auth_state: state });
+  }
+
+  // Capture the active tab so we can return after auth
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (activeTab?.id) {
+      await chrome.storage.local.set({
+        [RETURN_TAB_KEY]: {
+          id: activeTab.id,
+          windowId: activeTab.windowId,
+        },
+      });
+    } else {
+      await chrome.storage.local.remove(RETURN_TAB_KEY);
+    }
+  } catch {
+    // Ignore tab capture failures
+  }
+
+  // Use extension callback page for redirect (preserve state in hash in case server drops it)
+  const redirectUriBase = chrome.runtime.getURL("auth-callback.html");
+  const redirectUriUrl = new URL(redirectUriBase);
+  redirectUriUrl.hash = `state=${state}`;
+  const redirectUri = redirectUriUrl.toString();
 
   // Build auth URL
   const authUrl = new URL(AUTH_URL);
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("client_id", "promptpack-extension");
+  // Duplicate params in hash to survive query stripping by auth routing
+  const hashParams = new URLSearchParams({
+    state,
+    redirect_uri: redirectUri,
+    client_id: "promptpack-extension",
+  });
+  authUrl.hash = hashParams.toString();
 
   try {
     // Open auth in a new tab
@@ -307,7 +310,7 @@ export async function login(): Promise<boolean> {
         if (tabId !== authTabId) return;
 
         // Check if URL has changed and contains our redirect URI
-        if (changeInfo.url && changeInfo.url.includes(redirectUri)) {
+        if (changeInfo.url && changeInfo.url.startsWith(redirectUriBase)) {
           // Remove the listener
           chrome.tabs.onUpdated.removeListener(listener);
 
@@ -315,13 +318,47 @@ export async function login(): Promise<boolean> {
             // Parse the response URL
             const url = new URL(changeInfo.url);
             const params = new URLSearchParams(url.search);
+            
+            // Also check hash for parameters (in case they're there due to routing)
+            if (url.hash) {
+              const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+              
+              // Read state from hash if not in search params
+              if (!params.get("state")) {
+                const hashState = hashParams.get("state");
+                if (hashState) {
+                  params.set("state", hashState);
+                }
+              }
+              
+              // Read code from hash if not in search params
+              if (!params.get("code")) {
+                const hashCode = hashParams.get("code");
+                if (hashCode) {
+                  params.set("code", hashCode);
+                }
+              }
+            }
 
             // Handle the callback
             const success = await handleAuthCallback(params);
 
             if (success) {
-              // Navigate to dashboard instead of closing tab
-              await chrome.tabs.update(authTabId, { url: DASHBOARD_URL });
+              try {
+                const stored = await chrome.storage.local.get(RETURN_TAB_KEY);
+                const target = stored[RETURN_TAB_KEY] as { id?: number; windowId?: number } | undefined;
+                await chrome.storage.local.remove(RETURN_TAB_KEY);
+                if (target?.id) {
+                  await chrome.tabs.update(target.id, { active: true });
+                  if (typeof target.windowId === "number") {
+                    await chrome.windows.update(target.windowId, { focused: true });
+                  }
+                }
+              } catch {
+                // Ignore failures returning to the original tab
+              }
+
+              await chrome.tabs.remove(authTabId);
             } else {
               // Close tab on failure
               await chrome.tabs.remove(authTabId);
@@ -342,11 +379,17 @@ export async function login(): Promise<boolean> {
       chrome.tabs.onRemoved.addListener((closedTabId) => {
         if (closedTabId === authTabId) {
           chrome.tabs.onUpdated.removeListener(listener);
+          chrome.storage.local.remove(RETURN_TAB_KEY).catch(() => {});
           resolve(false);
         }
       });
     });
   } catch {
+    try {
+      await chrome.storage.local.remove(RETURN_TAB_KEY);
+    } catch {
+      // Ignore cleanup failures
+    }
     return false;
   }
 }
@@ -360,46 +403,125 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
   const error = params.get("error");
 
   if (error) {
+    console.error("Auth callback error:", error);
     return false;
   }
 
   if (!code || !state) {
+    console.error("Missing required parameters in callback:", { hasCode: !!code, hasState: !!state });
     return false;
   }
 
   // Verify state
-  const stored = await chrome.storage.local.get("pp_auth_state");
+  const stored = await chrome.storage.local.get(["pp_auth_state", "pp_auth_states"]);
+  const directState = stored["pp_auth_state"];
+  const rawStates = stored["pp_auth_states"];
+  const now = Date.now();
+  const candidates = Array.isArray(rawStates)
+    ? rawStates
+        .map((item: unknown) => {
+          if (typeof item === "string") return { value: item, createdAt: now };
+          if (item && typeof item === "object") {
+            const typed = item as { value?: string; createdAt?: number };
+            if (typed.value) {
+              return {
+                value: typed.value,
+                createdAt: typeof typed.createdAt === "number" ? typed.createdAt : now,
+              };
+            }
+          }
+          return null;
+        })
+        .filter(Boolean) as Array<{ value: string; createdAt: number }>
+    : [];
 
-  if (stored["pp_auth_state"] !== state) {
-    return false;
+  const validStates = candidates.filter((item) => now - item.createdAt < 10 * 60 * 1000);
+  const matchesDirect = directState === state;
+  const matchesList = validStates.some((item) => item.value === state);
+  const hasStoredState = Boolean(directState) || validStates.length > 0;
+
+  if (!matchesDirect && !matchesList) {
+    if (!hasStoredState) {
+      console.warn("Auth state missing in storage; proceeding with callback", { state });
+    } else {
+      console.error("Auth state mismatch:", { state, hasDirect: !!directState, listSize: validStates.length });
+      return false;
+    }
   }
 
-  // Clear stored state
+  // Clear stored state(s)
+  const remaining = validStates.filter((item) => item.value !== state);
   await chrome.storage.local.remove("pp_auth_state");
+  await chrome.storage.local.set({ pp_auth_states: remaining });
 
   try {
     // Exchange code for token
     await api.exchangeCodeForToken(code);
+    await clearLegacyAuthCache();
 
-    // Fetch fresh auth state and cache it
     const freshState = await getAuthStateFromServer();
-
-    if (freshState.isAuthenticated) {
-      await setCachedAuthState(freshState);
-    }
-
-    return true;
-  } catch {
+    return freshState.isAuthenticated === true;
+  } catch (err) {
+    console.error("Auth callback exchange failed:", err);
+    await clearLegacyAuthCache();
     return false;
   }
 }
 
 /**
  * Logout and clear session
+ * Opens Clerk sign-out page in new tab, closes it when done
  */
 export async function logout(): Promise<void> {
+  // First revoke refresh token and clear local session
   await api.logout();
-  await clearCachedAuthState();
+  await clearSession();
+  await clearLegacyAuthCache();
+
+  // Open Clerk sign-out page in a new tab
+  try {
+    const tab = await chrome.tabs.create({
+      url: SIGN_OUT_URL,
+      active: false, // Open in background
+    });
+
+    if (tab.id) {
+      const signOutTabId = tab.id;
+
+      // Listen for the tab to finish loading, then close it
+      const listener = (
+        tabId: number,
+        changeInfo: { status?: string },
+      ) => {
+        if (tabId !== signOutTabId) return;
+
+        // Wait for the page to complete loading
+        if (changeInfo.status === "complete") {
+          chrome.tabs.onUpdated.removeListener(listener);
+
+          // Give Clerk a moment to process the sign-out, then close
+          setTimeout(() => {
+            chrome.tabs.remove(signOutTabId).catch(() => {
+              // Tab might already be closed
+            });
+          }, 1500);
+        }
+      };
+
+      chrome.tabs.onUpdated.addListener(listener);
+
+      // Safety timeout - close tab after 10 seconds regardless
+      setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.tabs.remove(signOutTabId).catch(() => {
+          // Tab might already be closed
+        });
+      }, 10000);
+    }
+  } catch {
+    // Ignore errors opening sign-out tab
+    // Local session is already cleared, so user is logged out locally
+  }
 }
 
 /**

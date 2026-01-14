@@ -26,6 +26,10 @@
   --toast-text: #ffffff;
 
   --shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+
+  /* Header tag accent colors */
+  --accent-bg: #e0f2fe;
+  --accent-text: #0369a1;
 }
 
 /* DARK (Match ChatGPT dark mode) - also applies as default when not on any LLM site */
@@ -52,6 +56,10 @@
   --toast-text: rgba(236, 236, 241, 0.95);
 
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+
+  /* Header tag accent colors */
+  --accent-bg: #1e3a5f;
+  --accent-text: #7dd3fc;
 }
 
 html,
@@ -100,6 +108,26 @@ body {
   margin-top: 6px;
   font-size: 12px;
   color: var(--muted);
+}
+
+.pp-auth-link {
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pp-auth-link:hover {
+  color: var(--text);
+}
+
+.pp-auth-link.pp-signin-link {
+  color: var(--text);
+  font-weight: 600;
 }
 
 details.pp-sec {
@@ -341,6 +369,127 @@ details.pp-sec[data-source="gemini"] .pp-arrow {
   border-bottom: none;
 }
 
+/* Header tag styling */
+.pp-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.pp-header-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--accent-bg);
+  color: var(--accent-text);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.pp-header-edit-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.pp-header-wrapper:hover .pp-header-edit-btn {
+  opacity: 1;
+}
+
+.pp-header-edit-btn:hover {
+  color: var(--text-primary);
+}
+
+.pp-add-header-btn {
+  background: transparent;
+  border: 1px dashed var(--row-border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.pp-header-wrapper:hover .pp-add-header-btn,
+.pp-row:hover .pp-add-header-btn,
+.pp-item:hover .pp-add-header-btn {
+  opacity: 0.7;
+}
+
+.pp-add-header-btn:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.pp-header-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  background: var(--row-bg);
+  border: 1px solid var(--row-border);
+  border-radius: 4px;
+}
+
+.pp-header-loading-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.pp-header-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--row-border);
+  border-top-color: var(--accent-bg);
+  border-radius: 50%;
+  animation: pp-spin 0.8s linear infinite;
+}
+
+@keyframes pp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Adjust row layout when header is present */
+.pp-row:has(.pp-header-wrapper) {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.pp-row:has(.pp-header-wrapper) .pp-text {
+  margin-top: 4px;
+}
+
+/* Header inside summary (for long prompts) */
+.pp-item-sum > .pp-header-wrapper {
+  margin-bottom: 4px;
+}
+
+/* For long prompts, place header inline with arrow */
+.pp-item-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .pp-text {
   flex: 1;
   font-family: var(--mono);
@@ -350,6 +499,39 @@ details.pp-sec[data-source="gemini"] .pp-arrow {
   word-break: break-word;
   color: var(--text);
   min-width: 0;
+}
+
+.pp-edit {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pp-edit-text {
+  width: 100%;
+  min-height: 90px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--row-border);
+  background: var(--row-bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.35;
+  resize: vertical;
+}
+
+.pp-edit-text:focus {
+  outline: none;
+  border-color: var(--accent-bg);
+}
+
+.pp-edit-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 details.pp-item {
@@ -365,14 +547,20 @@ details.pp-item:last-child {
   cursor: pointer;
   padding: 8px 6px;
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 4px;
   user-select: none;
 }
 
 .pp-item-sum::-webkit-details-marker {
   display: none;
+}
+
+.pp-item-content {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
 .pp-item-left {
