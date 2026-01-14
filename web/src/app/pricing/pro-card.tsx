@@ -155,8 +155,8 @@ export function ProCard() {
         <li>✓ 40 saved prompts</li>
         <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
         <li>✓ <span className="faq-highlight">2</span> custom <span className="gradient-text">PromptPacks</span></li>
-        <li>✓ <span className="faq-highlight">100</span> prompt enhances/day</li>
-        <li>✓ <span className="faq-highlight">500</span> AI headers/day</li>
+        <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
+        <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
         <li>✓ Chrome extension</li>
         <li>✓ Local storage</li>
         <li>✓ Cloud sync</li>

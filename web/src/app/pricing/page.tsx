@@ -63,8 +63,8 @@ export default function PricingPage() {
           >
             <li>✓ 10 saved prompts</li>
             <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
-            <li>✓ 10 prompt enhances/day</li>
-            <li>✓ 50 AI headers/day</li>
+            <li>✓ 10 prompt enhances per day</li>
+            <li>✓ 50 AI headers per day</li>
             <li>✓ Chrome extension</li>
             <li>✓ Local storage</li>
           </ul>
