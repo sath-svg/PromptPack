@@ -91,7 +91,8 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
 
     const session = await getSession();
-    if (!session?.accessToken || session.expiresAt < Date.now()) {
+    // Use refresh token for /classify authentication (not the short-lived Clerk JWT)
+    if (!session?.refreshToken || session.expiresAt < Date.now()) {
       sendResponse({ ok: false, error: "Sign in required for AI-generated headers" });
       return;
     }
@@ -100,7 +101,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.accessToken}`,
+        "Authorization": `Bearer ${session.refreshToken}`,
       },
       body: JSON.stringify({
         promptText: payload.promptText.slice(0, 500),

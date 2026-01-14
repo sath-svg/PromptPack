@@ -103,8 +103,9 @@ export const upsertByClerkId = mutation({
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),
+    headers: v.optional(v.record(v.string(), v.string())), // Map of promptId -> header
   },
-  handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize }) => {
+  handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize, headers }) => {
     // Find user by clerkId
     const user = await ctx.db
       .query("users")
@@ -122,11 +123,13 @@ export const upsertByClerkId = mutation({
       .first();
 
     if (existing) {
-      // Update existing
+      // Update existing - merge headers with existing ones
+      const mergedHeaders = { ...(existing.headers ?? {}), ...(headers ?? {}) };
       await ctx.db.patch(existing._id, {
         r2Key,
         promptCount,
         fileSize,
+        headers: mergedHeaders,
         updatedAt: Date.now(),
       });
       return { id: existing._id, updated: true };
@@ -139,7 +142,7 @@ export const upsertByClerkId = mutation({
       r2Key,
       promptCount,
       fileSize,
-      headers: {},
+      headers: headers ?? {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });

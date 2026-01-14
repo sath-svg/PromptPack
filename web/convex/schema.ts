@@ -72,4 +72,20 @@ export default defineSchema({
     signedUpAt: v.number(),
   })
     .index("by_email", ["email"]),
+
+  // Refresh tokens for extension authentication
+  refreshTokens: defineTable({
+    clerkId: v.string(),                    // User's Clerk ID
+    token: v.string(),                      // UUID refresh token
+    createdAt: v.number(),                  // When token was created
+    expiresAt: v.number(),                  // When token expires (7 days from creation)
+    lastUsedAt: v.number(),                 // Last time token was used for refresh
+    lastUsedIp: v.optional(v.string()),     // IP address of last refresh
+    lastUsedUserAgent: v.optional(v.string()), // User agent of last refresh
+    rotationCount: v.number(),              // How many times this token chain has been rotated
+    isRevoked: v.boolean(),                 // Whether token has been revoked
+  })
+    .index("by_token", ["token"])
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_clerk_id_active", ["clerkId", "isRevoked"]),
 });

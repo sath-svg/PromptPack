@@ -14,6 +14,7 @@ import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as packs from "../packs.js";
 import type * as purchasedPacks from "../purchasedPacks.js";
+import type * as refreshTokens from "../refreshTokens.js";
 import type * as savedPacks from "../savedPacks.js";
 import type * as stripe from "../stripe.js";
 import type * as users from "../users.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   packs: typeof packs;
   purchasedPacks: typeof purchasedPacks;
+  refreshTokens: typeof refreshTokens;
   savedPacks: typeof savedPacks;
   stripe: typeof stripe;
   users: typeof users;

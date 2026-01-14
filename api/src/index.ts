@@ -60,6 +60,13 @@ const ENHANCE_PRO_MAX_TOKENS: Record<EnhanceMode, number> = {
 const ENHANCE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const CLASSIFY_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
+// Rate limits for /classify endpoint
+const CLASSIFY_FREE_DAY_LIMIT = 50;      // Free: 50/day
+const CLASSIFY_PRO_DAY_LIMIT = 500;      // Pro: 500/day
+const CLASSIFY_MINUTE_LIMIT = 10;        // 10 requests/minute
+const CLASSIFY_10MIN_LIMIT = 50;         // 50 requests/10 minutes
+const CLASSIFY_IN_FLIGHT_TTL_SECONDS = 30; // 1 concurrent request per user
+
 type OriginRule = { suffix: string; scheme?: string };
 
 function parseAllowedOrigins(env: Env): {
@@ -744,6 +751,107 @@ export default {
         }));
       }
 
+      // Auth refresh (proxy to Convex for refresh token rotation)
+      if (path === "/auth/refresh" && method === "POST") {
+        try {
+          const body = await request.json() as { refreshToken?: string };
+
+          if (!body.refreshToken) {
+            return addCors(new Response(JSON.stringify({ error: "Missing refreshToken" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Proxy to Convex refresh token endpoint
+          const convexRefreshUrl = `${env.CONVEX_URL}/api/extension/refresh-token`;
+          const refreshResponse = await fetch(convexRefreshUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              // Forward client info for security tracking
+              ...(request.headers.get("CF-Connecting-IP") && {
+                "X-Forwarded-For": request.headers.get("CF-Connecting-IP") || "",
+              }),
+              ...(request.headers.get("User-Agent") && {
+                "User-Agent": request.headers.get("User-Agent") || "",
+              }),
+            },
+            body: JSON.stringify({ refreshToken: body.refreshToken }),
+          });
+
+          // Forward the response from Convex
+          const refreshData = await refreshResponse.json() as {
+            success?: boolean;
+            error?: string;
+            message?: string;
+            user?: { clerkId: string; email: string; plan: string };
+            refreshToken?: string;
+            refreshTokenExpiresAt?: number;
+          };
+
+          if (!refreshResponse.ok || refreshData.error) {
+            return addCors(new Response(JSON.stringify({
+              error: refreshData.error || "Refresh failed",
+              message: refreshData.message,
+            }), {
+              status: refreshResponse.status,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Return the new tokens
+          // Note: Client will need to get a fresh Clerk JWT separately or we can include one
+          return addCors(new Response(JSON.stringify({
+            success: true,
+            user: refreshData.user,
+            refreshToken: refreshData.refreshToken,
+            refreshTokenExpiresAt: refreshData.refreshTokenExpiresAt,
+            // expiresIn is for compatibility with existing frontend
+            expiresIn: refreshData.refreshTokenExpiresAt
+              ? Math.floor((refreshData.refreshTokenExpiresAt - Date.now()) / 1000)
+              : 7 * 24 * 60 * 60,
+          }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+        } catch (error) {
+          console.error("Auth refresh error:", error);
+          return addCors(new Response(JSON.stringify({
+            error: "Refresh failed",
+            message: error instanceof Error ? error.message : "Unknown error",
+          }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // Auth logout (revoke refresh token)
+      if (path === "/auth/logout" && method === "POST") {
+        try {
+          const body = await request.json() as { refreshToken?: string };
+
+          if (body.refreshToken) {
+            // Revoke the refresh token in Convex
+            const convexRevokeUrl = `${env.CONVEX_URL}/api/extension/revoke-token`;
+            await fetch(convexRevokeUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refreshToken: body.refreshToken }),
+            });
+          }
+
+          return addCors(new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+        } catch (error) {
+          // Still return success - logout should not fail for the user
+          return addCors(new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
       // ============ R2 File Storage Routes ============
 
       // Upload saved prompts to R2
@@ -1067,13 +1175,58 @@ export default {
       if (path === "/classify" && method === "POST") {
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-        const payload = token ? await verifyClerkJwt(token, env) : null;
-        if (!payload?.sub) {
+
+        if (!token) {
           return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
           }));
         }
+
+        // Validate refresh token via Convex
+        let userId: string | null = null;
+        try {
+          const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
+          const validateResponse = await fetch(validateUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: token }),
+          });
+
+          if (!validateResponse.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const validateData = await validateResponse.json() as {
+            valid: boolean;
+            clerkId?: string;
+            reason?: string;
+          };
+
+          if (!validateData.valid || !validateData.clerkId) {
+            return addCors(new Response(JSON.stringify({
+              error: "Sign in required",
+              reason: validateData.reason,
+            }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          userId = validateData.clerkId;
+        } catch (error) {
+          console.error("Token validation error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          }));
+        }
+
+        let inFlightKey: string | null = null;
+        let inFlightLocked = false;
 
         try {
           const body = await request.json() as {
@@ -1097,7 +1250,7 @@ export default {
             }));
           }
 
-          // Call Ollama API
+          // Check cache first (before rate limiting to allow cached responses)
           const maxWords = body.maxWords || 2;
           const promptSnippet = body.promptText.trim().slice(0, 500);
           const cacheKey = await sha256Hex(`${maxWords}:${promptSnippet}`);
@@ -1111,6 +1264,67 @@ export default {
               headers: { "Content-Type": "application/json" },
             }));
           }
+
+          // === RATE LIMITING (only for non-cached requests) ===
+          const rateKey = `user:${userId}`;
+
+          // Check billing status for limits
+          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+          const isPro = billing.isPro;
+
+          // In-flight lock (prevent concurrent requests)
+          inFlightKey = `${rateKey}:classify:inflight`;
+          inFlightLocked = await acquireInFlightLock(inFlightKey, CLASSIFY_IN_FLIGHT_TTL_SECONDS);
+          if (!inFlightLocked) {
+            return addCors(new Response(JSON.stringify({
+              error: "Classification already running. Please wait.",
+              code: "IN_FLIGHT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Daily limit
+          const dayLimit = isPro ? CLASSIFY_PRO_DAY_LIMIT : CLASSIFY_FREE_DAY_LIMIT;
+          const dayCount = await incrementRateCounter(`${rateKey}:classify:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            return addCors(new Response(JSON.stringify({
+              error: isPro
+                ? `Daily classification limit reached (${CLASSIFY_PRO_DAY_LIMIT}/day)`
+                : `Daily classification limit reached (${CLASSIFY_FREE_DAY_LIMIT}/day). Upgrade to Pro for more.`,
+              code: "DAILY_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Minute limit
+          const minuteCount = await incrementRateCounter(`${rateKey}:classify:minute`, 60);
+          if (minuteCount > CLASSIFY_MINUTE_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a moment.",
+              code: "MINUTE_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // 10-minute limit
+          const tenMinCount = await incrementRateCounter(`${rateKey}:classify:10min`, 10 * 60);
+          if (tenMinCount > CLASSIFY_10MIN_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a few minutes.",
+              code: "TEN_MIN_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // === CALL OLLAMA ===
           const systemPrompt = `You are a prompt classifier. Given a user's prompt, generate a concise header of ${maxWords} words maximum that describes what the prompt is asking for. Examples:
 - "Summarize how company makes money..." → "Executive Summary"
 - "Assess revenue predictability..." → "Revenue Quality"
@@ -1184,6 +1398,11 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             status: 500,
             headers: { "Content-Type": "application/json" },
           }));
+        } finally {
+          // Release in-flight lock
+          if (inFlightKey && inFlightLocked) {
+            await releaseInFlightLock(inFlightKey);
+          }
         }
       }
 

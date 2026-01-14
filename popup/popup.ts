@@ -15,7 +15,6 @@ import {
   TOAST_DURATION_MS,
   DASHBOARD_URL,
   PACKS_CREATE_API,
-  SIGN_OUT_URL,
 } from "./shared/config";
 
 // Helper to get prompt limit based on auth state
@@ -898,9 +897,8 @@ function setupEventDelegation() {
         e.preventDefault();
         e.stopPropagation();
 
-        await logout();
+        await logout(); // Opens sign-out tab and closes it automatically
         await chrome.storage.local.remove(REQUEUE_ON_SIGNIN_KEY);
-        await chrome.tabs.create({ url: SIGN_OUT_URL, active: false });
         authState = await getAuthState();
         await render(true);
         return;
@@ -934,7 +932,7 @@ function setupEventDelegation() {
       try {
         toast(`Saving ${sourcePrompts.length} prompt${sourcePrompts.length !== 1 ? "s" : ""} to dashboard...`);
 
-        // Create export data for the prompts
+        // Create export data for the prompts (include headers in file for local use)
         const exportData = {
           version: SCHEMA_VERSION,
           source,
@@ -942,9 +940,18 @@ function setupEventDelegation() {
           prompts: sourcePrompts.map(p => ({
             text: p.text,
             url: p.url,
-            createdAt: p.createdAt
+            createdAt: p.createdAt,
+            ...(p.header && { header: p.header }),
           }))
         };
+
+        // Build headers map (index -> header) for prompts that have headers
+        const headers: Record<string, string> = {};
+        sourcePrompts.forEach((p, index) => {
+          if (p.header) {
+            headers[index.toString()] = p.header;
+          }
+        });
 
         // Encode the data (no encryption for saved prompts, just obfuscation)
         const jsonString = JSON.stringify(exportData);
@@ -957,6 +964,7 @@ function setupEventDelegation() {
           fileData: base64FileData,
           promptCount: sourcePrompts.length,
           clerkId: authState.user.id,
+          headers: Object.keys(headers).length > 0 ? headers : undefined,
         });
 
         if (result.success) {

@@ -188,7 +188,9 @@ class ApiClient {
         name?: string;
         plan: "free" | "pro";
       };
-      token: string; // Clerk session token
+      token: string; // Clerk session token (short-lived)
+      refreshToken?: string; // Long-lived refresh token from Convex
+      refreshTokenExpiresAt?: number; // When refresh token expires
     };
 
     if (!data.success) {
@@ -199,14 +201,14 @@ class ApiClient {
       } as ApiError;
     }
 
-    // Save session with Clerk token
+    // Save session with Clerk token and refresh token
     const tokenExpiry = this.decodeJwtExpiry(data.token);
     await saveSession({
       userId: data.user.clerkId,
       email: data.user.email,
       tier: data.user.plan === "pro" ? "paid" : "free",
-      accessToken: data.token, // Clerk session token
-      refreshToken: data.token, // Use same token for now
+      accessToken: data.token, // Clerk session token (short-lived)
+      refreshToken: data.refreshToken || data.token, // Use new refresh token if available
       expiresAt: tokenExpiry ?? (Date.now() + SESSION_EXPIRY_MS),
       entitlements: {
         promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
@@ -217,29 +219,117 @@ class ApiClient {
 
   async refreshToken(): Promise<boolean> {
     const session = await getSession();
-    if (!session?.refreshToken) return false;
+    if (!session?.refreshToken) {
+      console.log("[PromptPack] No refresh token available");
+      return false;
+    }
+
+    // Check if this is an old-style session (JWT used as refresh token)
+    // New refresh tokens are UUIDs (36 chars), JWTs are much longer and contain dots
+    const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
+    if (isLegacyToken) {
+      console.log("[PromptPack] Legacy session detected (JWT as refresh token). Please sign in again.");
+      // Don't clear session here - let user continue until they need to re-auth
+      return false;
+    }
 
     try {
-      const data = await this.request<{
-        accessToken: string;
-        expiresIn: number;
-      }>("POST", "/auth/refresh", { refreshToken: session.refreshToken }, false);
+      // Call the refresh endpoint (proxies to Convex)
+      console.log("[PromptPack] Calling refresh endpoint...");
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({})) as { error?: string; message?: string };
+        console.error("[PromptPack] Refresh failed:", response.status, errorData);
+
+        // If token was revoked or reused, clear session
+        if (errorData.error === "TOKEN_REUSE" || errorData.error === "TOKEN_REVOKED" ||
+            errorData.error === "INVALID_TOKEN" || errorData.error === "TOKEN_EXPIRED") {
+          console.warn("[PromptPack] Refresh token invalid, clearing session");
+          await clearSession();
+          return false;
+        }
+
+        // For other errors (like 404 if endpoint not deployed), don't clear session
+        // User can continue with expired JWT until they need to re-auth
+        if (response.status === 404) {
+          console.warn("[PromptPack] Refresh endpoint not found - backend may need deployment");
+          return false;
+        }
+
+        throw new Error(errorData.error || errorData.message || "Refresh failed");
+      }
+
+      const data = await response.json() as {
+        success: boolean;
+        user?: {
+          clerkId: string;
+          email: string;
+          plan: "free" | "pro";
+        };
+        refreshToken?: string; // New rotated refresh token
+        refreshTokenExpiresAt?: number;
+        expiresIn?: number;
+      };
+
+      if (!data.success) {
+        console.error("[PromptPack] Refresh response not successful:", data);
+        await clearSession();
+        return false;
+      }
+
+      console.log("[PromptPack] Token refresh successful");
+
+      // Update session with new refresh token (token rotation)
+      // Note: The accessToken (Clerk JWT) needs to be refreshed separately
+      // For now, we extend the session expiry based on the refresh token
       await saveSession({
         ...session,
-        accessToken: data.accessToken,
-        expiresAt: Date.now() + data.expiresIn * 1000,
+        // Update user info if provided
+        ...(data.user && {
+          userId: data.user.clerkId,
+          email: data.user.email,
+          tier: data.user.plan === "pro" ? "paid" : "free",
+          entitlements: {
+            promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
+            loadedPackLimit: data.user.plan === "pro" ? UNLIMITED_PACK_LIMIT : 0,
+          },
+        }),
+        // Update refresh token (rotation)
+        refreshToken: data.refreshToken || session.refreshToken,
+        // Extend expiry - use refreshTokenExpiresAt or expiresIn
+        expiresAt: data.refreshTokenExpiresAt
+          || (data.expiresIn ? Date.now() + data.expiresIn * 1000 : session.expiresAt),
       });
+
       return true;
-    } catch {
+    } catch (error) {
+      console.error("[PromptPack] Token refresh failed:", error);
+      // Don't clear session on network errors - let user retry
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        console.warn("[PromptPack] Network error during refresh, keeping session");
+        return false;
+      }
       await clearSession();
       return false;
     }
   }
 
   async logout(): Promise<void> {
+    const session = await getSession();
     try {
-      await this.request("POST", "/auth/logout", {});
+      // Revoke refresh token on server
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refreshToken: session?.refreshToken,
+        }),
+      });
     } catch {
       // Ignore errors on logout
     }
@@ -344,6 +434,7 @@ class ApiClient {
     fileData: string; // base64 encoded .pmtpk file
     promptCount: number;
     clerkId: string; // Pass clerkId from authState
+    headers?: Record<string, string>; // Map of promptId -> header
   }): Promise<{ success: boolean; r2Key?: string; error?: string }> {
     if (!params.clerkId) {
       return { success: false, error: "Not authenticated" };
@@ -397,6 +488,7 @@ class ApiClient {
           r2Key: uploadData.r2Key,
           promptCount: params.promptCount,
           fileSize: uploadData.size,
+          headers: params.headers, // Map of promptId -> header
         }),
       });
 

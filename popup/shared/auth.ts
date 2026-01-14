@@ -7,6 +7,7 @@ import {
   AUTH_URL,
   DASHBOARD_URL,
   PRICING_URL,
+  SIGN_OUT_URL,
   FREE_PROMPT_LIMIT,
   FALLBACK_LOADED_PACK_LIMIT,
 } from "./config";
@@ -104,19 +105,32 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     return { isAuthenticated: false };
   }
 
+  // Check if session is still valid (JWT not expired, session not expired)
   if (!isSessionValid(session)) {
-    await clearSession();
-    await clearLegacyAuthCache();
-    // Try to refresh if we have a refresh token
+    // Session expired - try to refresh if we have a refresh token
     if (session.refreshToken) {
+      // Check if this is a legacy token (JWT used as refresh token)
+      const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
+
+      if (isLegacyToken) {
+        console.log("[PromptPack] Session expired with legacy token. Please sign in again to get new refresh token.");
+        await clearSession();
+        await clearLegacyAuthCache();
+        return { isAuthenticated: false };
+      }
+
+      console.log("[PromptPack] Session expired, attempting refresh...");
       const refreshed = await api.refreshToken();
       if (refreshed) {
         const newSession = await getSession();
-        if (newSession && isSessionValid(newSession)) {
+        // After successful refresh, trust the session's expiresAt (not JWT expiry)
+        // The refresh updated expiresAt but not the JWT itself
+        if (newSession && newSession.expiresAt > Date.now()) {
+          console.log("[PromptPack] Session refreshed successfully");
           // Fetch billing info from Convex
           const billing = await getBillingInfo(newSession.userId);
 
-          const authState = {
+          return {
             isAuthenticated: true,
             user: {
               id: newSession.userId,
@@ -126,17 +140,49 @@ async function getAuthStateFromServer(): Promise<AuthState> {
             entitlements: newSession.entitlements,
             billing: billing || undefined,
           };
+        }
+      }
+      console.log("[PromptPack] Session refresh failed - user needs to sign in again");
+    }
 
-          return authState;
+    // Refresh failed or no refresh token - clear session
+    await clearSession();
+    await clearLegacyAuthCache();
+    return { isAuthenticated: false };
+  }
+
+  // Session looks valid locally - verify with server
+  const tokenValid = await api.verifyAuthToken(session.accessToken);
+  if (!tokenValid) {
+    // Access token invalid on server - try to refresh
+    if (session.refreshToken) {
+      // Check for legacy token
+      const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
+      if (!isLegacyToken) {
+        console.log("[PromptPack] Access token invalid, attempting refresh...");
+        const refreshed = await api.refreshToken();
+        if (refreshed) {
+          const newSession = await getSession();
+          // Trust expiresAt after successful refresh
+          if (newSession && newSession.expiresAt > Date.now()) {
+            console.log("[PromptPack] Token refreshed successfully");
+            const billing = await getBillingInfo(newSession.userId);
+
+            return {
+              isAuthenticated: true,
+              user: {
+                id: newSession.userId,
+                email: newSession.email,
+                tier: newSession.tier,
+              },
+              entitlements: newSession.entitlements,
+              billing: billing || undefined,
+            };
+          }
         }
       }
     }
 
-    return { isAuthenticated: false };
-  }
-
-  const tokenValid = await api.verifyAuthToken(session.accessToken);
-  if (!tokenValid) {
     await clearSession();
     await clearLegacyAuthCache();
     return { isAuthenticated: false };
@@ -145,7 +191,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
   // Fetch billing info from Convex
   const billing = await getBillingInfo(session.userId);
 
-  const authState = {
+  return {
     isAuthenticated: true,
     user: {
       id: session.userId,
@@ -155,8 +201,6 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     entitlements: session.entitlements,
     billing: billing || undefined,
   };
-
-  return authState;
 }
 
 /**
@@ -426,11 +470,58 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
 
 /**
  * Logout and clear session
+ * Opens Clerk sign-out page in new tab, closes it when done
  */
 export async function logout(): Promise<void> {
+  // First revoke refresh token and clear local session
   await api.logout();
   await clearSession();
   await clearLegacyAuthCache();
+
+  // Open Clerk sign-out page in a new tab
+  try {
+    const tab = await chrome.tabs.create({
+      url: SIGN_OUT_URL,
+      active: false, // Open in background
+    });
+
+    if (tab.id) {
+      const signOutTabId = tab.id;
+
+      // Listen for the tab to finish loading, then close it
+      const listener = (
+        tabId: number,
+        changeInfo: { status?: string },
+      ) => {
+        if (tabId !== signOutTabId) return;
+
+        // Wait for the page to complete loading
+        if (changeInfo.status === "complete") {
+          chrome.tabs.onUpdated.removeListener(listener);
+
+          // Give Clerk a moment to process the sign-out, then close
+          setTimeout(() => {
+            chrome.tabs.remove(signOutTabId).catch(() => {
+              // Tab might already be closed
+            });
+          }, 1500);
+        }
+      };
+
+      chrome.tabs.onUpdated.addListener(listener);
+
+      // Safety timeout - close tab after 10 seconds regardless
+      setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.tabs.remove(signOutTabId).catch(() => {
+          // Tab might already be closed
+        });
+      }, 10000);
+    }
+  } catch {
+    // Ignore errors opening sign-out tab
+    // Local session is already cleared, so user is logged out locally
+  }
 }
 
 /**

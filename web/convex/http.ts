@@ -556,7 +556,19 @@ http.route({
         }
       }
 
-      // Return user data + token for extension to store
+      // Create a refresh token for the extension
+      const ip = request.headers.get("CF-Connecting-IP")
+        || request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim()
+        || undefined;
+      const userAgent = request.headers.get("User-Agent") || undefined;
+
+      const refreshTokenResult = await ctx.runMutation(api.refreshTokens.create, {
+        clerkId: user.clerkId,
+        ip,
+        userAgent,
+      });
+
+      // Return user data + tokens for extension to store
       return new Response(
         JSON.stringify({
           success: true,
@@ -566,7 +578,9 @@ http.route({
             name: user.name,
             plan: user.plan,
           },
-          token: authData.token, // Clerk session token
+          token: authData.token, // Clerk session token (short-lived)
+          refreshToken: refreshTokenResult.refreshToken, // Long-lived refresh token
+          refreshTokenExpiresAt: refreshTokenResult.expiresAt,
         }),
         {
           status: 200,
@@ -578,6 +592,262 @@ http.route({
       return new Response(
         JSON.stringify({
           error: error instanceof Error ? error.message : "Exchange failed",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension auth: refresh token
+// CORS preflight
+http.route({
+  path: "/api/extension/refresh-token",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension auth: exchange refresh token for new access token
+http.route({
+  path: "/api/extension/refresh-token",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { refreshToken } = body as { refreshToken: string };
+
+      if (!refreshToken) {
+        return new Response(
+          JSON.stringify({ error: "Missing refreshToken" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get client info for security tracking
+      const ip = request.headers.get("CF-Connecting-IP")
+        || request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim()
+        || undefined;
+      const userAgent = request.headers.get("User-Agent") || undefined;
+
+      // Rotate the token (validates old token, creates new one)
+      const result = await ctx.runMutation(api.refreshTokens.rotateToken, {
+        refreshToken,
+        ip,
+        userAgent,
+      });
+
+      // Check for errors from the rotation
+      if ("error" in result) {
+        const statusCode = result.error === "TOKEN_REUSE" ? 403 : 401;
+        return new Response(
+          JSON.stringify({ error: result.error, message: result.message }),
+          {
+            status: statusCode,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user info to return with the new tokens
+      const user = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId: result.clerkId,
+      });
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Return new tokens
+      // Note: The caller should get a fresh Clerk JWT from Clerk's API
+      // We return the user info and new refresh token
+      return new Response(
+        JSON.stringify({
+          success: true,
+          user: {
+            clerkId: user.clerkId,
+            email: user.email,
+            name: user.name,
+            plan: user.plan,
+          },
+          refreshToken: result.refreshToken,
+          refreshTokenExpiresAt: result.expiresAt,
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Refresh failed",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension: revoke refresh token (logout)
+// CORS preflight
+http.route({
+  path: "/api/extension/revoke-token",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension: revoke refresh token
+http.route({
+  path: "/api/extension/revoke-token",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { refreshToken } = body as { refreshToken: string };
+
+      if (!refreshToken) {
+        return new Response(
+          JSON.stringify({ error: "Missing refreshToken" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      await ctx.runMutation(api.refreshTokens.revoke, { refreshToken });
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Token revoke error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Revoke failed",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Extension: validate refresh token (for API auth without rotation)
+// CORS preflight
+http.route({
+  path: "/api/extension/validate-token",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Extension: validate refresh token
+http.route({
+  path: "/api/extension/validate-token",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { refreshToken } = body as { refreshToken: string };
+
+      if (!refreshToken) {
+        return new Response(
+          JSON.stringify({ valid: false, error: "Missing refreshToken" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Validate the token
+      const result = await ctx.runQuery(api.refreshTokens.validate, { refreshToken });
+
+      if (!result.valid) {
+        return new Response(
+          JSON.stringify({ valid: false, reason: result.reason }),
+          {
+            status: 401,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user info
+      const user = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId: result.clerkId!,
+      });
+
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          clerkId: result.clerkId,
+          user: user ? {
+            clerkId: user.clerkId,
+            email: user.email,
+            plan: user.plan,
+          } : null,
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Token validate error:", error);
+      return new Response(
+        JSON.stringify({
+          valid: false,
+          error: error instanceof Error ? error.message : "Validation failed",
         }),
         {
           status: 500,
@@ -612,12 +882,13 @@ http.route({
 
     try {
       const body = await request.json();
-      const { clerkId, source, r2Key, promptCount, fileSize } = body as {
+      const { clerkId, source, r2Key, promptCount, fileSize, headers: promptHeaders } = body as {
         clerkId: string;
         source: "chatgpt" | "claude" | "gemini";
         r2Key: string;
         promptCount: number;
         fileSize: number;
+        headers?: Record<string, string>; // Map of promptId -> header
       };
 
       if (!clerkId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
@@ -669,13 +940,14 @@ http.route({
         );
       }
 
-      // Save the pack metadata
+      // Save the pack metadata (including headers if provided)
       const result = await ctx.runMutation(api.savedPacks.upsertByClerkId, {
         clerkId,
         source,
         r2Key,
         promptCount,
         fileSize,
+        headers: promptHeaders,
       });
 
       return new Response(
