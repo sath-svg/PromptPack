@@ -130,8 +130,6 @@ http.route({
       return new Response("Webhook secret not configured", { status: 500 });
     }
 
-    console.log("=== Clerk Webhook Received ===");
-    console.log("Timestamp:", new Date().toISOString());
 
     // Verify the webhook signature
     const svix_id = request.headers.get("svix-id");
@@ -232,12 +230,6 @@ http.route({
     const resolvedUserId = resolveUserId(event.data);
     const status = event.data.status ?? event.data.subscription?.status;
 
-    console.log("=== Webhook Event Details ===");
-    console.log("Event type:", event.type);
-    console.log("Resolved user_id:", resolvedUserId);
-    console.log("Status:", status);
-    console.log("Public metadata:", event.data.public_metadata);
-    console.log("Full event data:", JSON.stringify(event.data, null, 2));
 
     // Handle different event types
     switch (event.type) {
@@ -251,7 +243,6 @@ http.route({
         // Prioritize public_metadata.plan for admin control
         const plan = public_metadata?.plan === "pro" ? "pro" : "free";
 
-        console.log(`[user.${event.type === "user.created" ? "created" : "updated"}] Syncing user ${id} with plan: ${plan} (from public_metadata: ${public_metadata?.plan})`);
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
           clerkId: id,
@@ -281,31 +272,25 @@ http.route({
         const subscriptionStatus = event.data.status ?? event.data.subscription?.status;
 
         if (!userId) {
-          console.log("subscription event: no user_id found");
           break;
         }
 
-        console.log(`[subscription.*] Processing subscription for user ${userId}`);
-        console.log(`Subscription status: ${subscriptionStatus}`);
 
         // Check subscription items for active/upcoming pro plans
         const items = event.data.items;
         let hasActivePro = false;
 
         if (items && Array.isArray(items)) {
-          console.log(`Found ${items.length} subscription items`);
 
           for (const item of items) {
             const itemStatus = item.status;
             const planSlug = item.plan?.slug;
 
-            console.log(`Item: status=${itemStatus}, plan=${planSlug}`);
 
             // Check if this is an active or upcoming Pro subscription
             if ((itemStatus === "active" || itemStatus === "upcoming") &&
                 (planSlug === "pro" || item.plan?.name === "Pro")) {
               hasActivePro = true;
-              console.log(`Found active/upcoming Pro plan item`);
               break;
             }
           }
@@ -313,7 +298,6 @@ http.route({
 
         const plan = hasActivePro ? "pro" : "free";
 
-        console.log(`[subscription.*] Updating user ${userId} to plan: ${plan}`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
           plan: plan as "free" | "pro",
@@ -328,13 +312,11 @@ http.route({
         const status = event.data.status ?? event.data.subscription?.status;
         const planSlug = event.data.plan?.slug;
         if (!userId) {
-          console.log("subscriptionItem event: no user_id found");
           break;
         }
 
         // Active subscription means Pro plan
         const plan = resolvePlan(status, planSlug);
-        console.log(`[subscriptionItem.*] Updating user ${userId} to plan: ${plan} (status: ${status})`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
           plan: plan as "free" | "pro",
@@ -346,12 +328,10 @@ http.route({
       case "subscriptionItem.deleted": {
         const userId = resolveUserId(event.data);
         if (!userId) {
-          console.log("subscriptionItem cancel/delete: no user_id found");
           break;
         }
 
         // Downgrade to free plan
-        console.log(`[subscriptionItem.*] Downgrading user ${userId} to free plan`);
         await ctx.runMutation(internal.users.updatePlanByClerkId, {
           clerkId: userId,
           plan: "free",
@@ -360,7 +340,6 @@ http.route({
       }
 
       default:
-        console.log("Unhandled webhook event type:", event.type);
     }
 
     return new Response(null, { status: 200 });

@@ -220,7 +220,6 @@ class ApiClient {
   async refreshToken(): Promise<boolean> {
     const session = await getSession();
     if (!session?.refreshToken) {
-      console.log("[PromptPack] No refresh token available");
       return false;
     }
 
@@ -228,14 +227,12 @@ class ApiClient {
     // New refresh tokens are UUIDs (36 chars), JWTs are much longer and contain dots
     const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
     if (isLegacyToken) {
-      console.log("[PromptPack] Legacy session detected (JWT as refresh token). Please sign in again.");
       // Don't clear session here - let user continue until they need to re-auth
       return false;
     }
 
     try {
       // Call the refresh endpoint (proxies to Convex)
-      console.log("[PromptPack] Calling refresh endpoint...");
       const response = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -282,7 +279,6 @@ class ApiClient {
         return false;
       }
 
-      console.log("[PromptPack] Token refresh successful");
 
       // Update session with new refresh token (token rotation)
       // Note: The accessToken (Clerk JWT) needs to be refreshed separately

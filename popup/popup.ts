@@ -83,7 +83,6 @@ function ensureStorageListenerOnce() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== "local") return;
     if (changes[PROMPTS_STORAGE_KEY]) {
-      console.log("[PromptPack] Prompt storage updated, refreshing popup view");
       invalidateCache();
       void render(true);
     }

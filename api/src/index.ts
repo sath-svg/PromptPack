@@ -720,7 +720,6 @@ export default {
             }
           }
           const durationMs = Date.now() - start;
-          console.log(`[enhance] requestId=${requestId} latencyMs=${durationMs} cached=${cached} model=${modelUsed} isPro=${isPro} error=${errorCode}`);
         }
       }
 

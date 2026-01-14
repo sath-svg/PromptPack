@@ -113,20 +113,17 @@ async function getAuthStateFromServer(): Promise<AuthState> {
       const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
 
       if (isLegacyToken) {
-        console.log("[PromptPack] Session expired with legacy token. Please sign in again to get new refresh token.");
         await clearSession();
         await clearLegacyAuthCache();
         return { isAuthenticated: false };
       }
 
-      console.log("[PromptPack] Session expired, attempting refresh...");
       const refreshed = await api.refreshToken();
       if (refreshed) {
         const newSession = await getSession();
         // After successful refresh, trust the session's expiresAt (not JWT expiry)
         // The refresh updated expiresAt but not the JWT itself
         if (newSession && newSession.expiresAt > Date.now()) {
-          console.log("[PromptPack] Session refreshed successfully");
           // Fetch billing info from Convex
           const billing = await getBillingInfo(newSession.userId);
 
@@ -142,7 +139,6 @@ async function getAuthStateFromServer(): Promise<AuthState> {
           };
         }
       }
-      console.log("[PromptPack] Session refresh failed - user needs to sign in again");
     }
 
     // Refresh failed or no refresh token - clear session
@@ -159,13 +155,11 @@ async function getAuthStateFromServer(): Promise<AuthState> {
       // Check for legacy token
       const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
       if (!isLegacyToken) {
-        console.log("[PromptPack] Access token invalid, attempting refresh...");
         const refreshed = await api.refreshToken();
         if (refreshed) {
           const newSession = await getSession();
           // Trust expiresAt after successful refresh
           if (newSession && newSession.expiresAt > Date.now()) {
-            console.log("[PromptPack] Token refreshed successfully");
             const billing = await getBillingInfo(newSession.userId);
 
             return {

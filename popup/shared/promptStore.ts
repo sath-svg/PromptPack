@@ -169,10 +169,8 @@ async function getPromptLimitViaBackground(): Promise<number | null> {
  * Called after savePrompt succeeds
  */
 async function classifyPromptInBackground(promptId: string, promptText: string): Promise<void> {
-  console.log(`[PromptPack] classifyPromptInBackground called for ${promptId}`);
   try {
     // Set classifying flag
-    console.log(`[PromptPack] Setting classifying flag for ${promptId}`);
     await atomicUpdate<PromptItem[]>(KEY, (existing) => {
       const arr = existing ?? [];
       const index = arr.findIndex(p => p.id === promptId);
@@ -187,7 +185,6 @@ async function classifyPromptInBackground(promptId: string, promptText: string):
     });
 
     // Call classify API
-    console.log(`[PromptPack] Calling classify API for ${promptId}`);
     const result = await withTimeout(api.classifyPrompt(promptText), CLASSIFY_TIMEOUT_MS);
 
     if (!result) {
@@ -225,7 +222,6 @@ async function classifyPromptInBackground(promptId: string, promptText: string):
         return updatedArr;
       });
 
-      console.log(`[PromptPack] Header generated for prompt ${promptId}: "${result.header}"`);
     } else {
       // Clear classifying flag on error
       await atomicUpdate<PromptItem[]>(KEY, (existing) => {
@@ -262,9 +258,6 @@ async function classifyPromptInBackground(promptId: string, promptText: string):
 }
 
 export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
-  console.log('[PromptPack] ===== savePrompt called =====');
-  console.log('[PromptPack] Text:', item.text.substring(0, 50));
-  console.log('[PromptPack] Source:', item.source);
   const text = item.text.trim();
   if (!text) return { ok: false as const, reason: "empty" as const };
 
@@ -315,12 +308,10 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
   const isAuthed = await api.verifyAuthSession();
   if (isAuthed) {
     const savedPrompts = result.data;
-    console.log('[PromptPack] Looking for saved prompt in:', savedPrompts.length, 'prompts');
     const savedPrompt = savedPrompts.find(p => p.text === text && p.source === item.source);
 
     if (savedPrompt) {
       // Trigger classification in background (non-blocking)
-      console.log(`[PromptPack] Starting classification for prompt ${savedPrompt.id}`);
       classifyPromptInBackground(savedPrompt.id, text).catch((err) => {
         // Silently fail - don't block save operation
         console.error('[PromptPack] Classification failed:', err);
@@ -329,7 +320,6 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
       console.warn('[PromptPack] Could not find saved prompt to classify. Text:', text.substring(0, 50));
     }
   } else {
-    console.log('[PromptPack] Skipping AI header generation (user not signed in)');
   }
 
   return { ok: true as const, count: result.data.length, max: promptLimit };
@@ -343,9 +333,7 @@ export async function requeueStaleClassifications(options?: {
   const max = options?.max ?? 5;
   if (max <= 0) return 0;
 
-  console.log(`[PromptPack] Checking stale classifications (staleMs=${staleMs}, max=${max})`);
   const isAuthed = await api.verifyAuthSession();
-  console.log(`[PromptPack] Auth check for stale classification: ${isAuthed ? "ok" : "not signed in"}`);
   if (!isAuthed) return 0;
 
   const prompts = await listPrompts();
@@ -359,11 +347,9 @@ export async function requeueStaleClassifications(options?: {
   );
 
   if (!stale.length) {
-    console.log("[PromptPack] No stale classifications found");
     return 0;
   }
 
-  console.log(`[PromptPack] Requeueing ${Math.min(max, stale.length)} stale classifications`);
   stale.slice(0, max).forEach((prompt) => {
     void classifyPromptInBackground(prompt.id, prompt.text);
   });

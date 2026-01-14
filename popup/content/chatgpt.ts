@@ -753,7 +753,6 @@ function setupSaveKeybind() {
     if (e.key.toLowerCase() !== "s") return;
     if (e.repeat) return;
 
-    console.log("[PromptPack] Alt+Shift+S pressed");
 
     const composer = findComposer();
     if (composer) currentComposer = composer;
@@ -761,12 +760,10 @@ function setupSaveKeybind() {
     const target = e.target as HTMLElement | null;
     if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
       if (!composer || (target !== composer && !composer.contains(target))) {
-        console.log("[PromptPack] Not in composer, ignoring");
         return;
       }
     }
 
-    console.log("[PromptPack] Triggering save");
     e.preventDefault();
     e.stopPropagation();
     void handleSave();
@@ -1020,8 +1017,6 @@ function tick() {
 }
 
 function boot() {
-  console.log('[PromptPack] ChatGPT content script loaded!');
-  console.log('[PromptPack] Current URL:', location.href);
 
   // Theme sync
   startThemeSync({

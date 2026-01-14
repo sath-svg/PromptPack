@@ -217,7 +217,6 @@ export const updatePlanByClerkId = internalMutation({
 
     // Handle downgrade from pro to free
     if (oldPlan === "pro" && plan === "free") {
-      console.log(`User ${clerkId} downgraded to free - starting grace period`);
 
       // Set grace period: 1 day (24 hours) from cancellation or now
       const gracePeriodMs = 24 * 60 * 60 * 1000; // 1 day in milliseconds
@@ -229,11 +228,9 @@ export const updatePlanByClerkId = internalMutation({
         packDeletionAt,
       });
 
-      console.log(`Grace period set: packs will be deleted at ${new Date(packDeletionAt).toISOString()}`);
     }
     // Handle upgrade from free to pro
     else if (oldPlan === "free" && plan === "pro") {
-      console.log(`User ${clerkId} upgraded to pro - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         plan,
@@ -278,7 +275,6 @@ export const updatePlanFromStripeEvent = internalMutation({
     };
 
     if (oldPlan === "pro" && plan === "free") {
-      console.log(`User ${clerkId} downgraded to free via Stripe - starting grace period`);
 
       const gracePeriodMs = 24 * 60 * 60 * 1000;
       const cancelTime = subscriptionCancelledAt || Date.now();
@@ -292,7 +288,6 @@ export const updatePlanFromStripeEvent = internalMutation({
     }
 
     if (oldPlan === "free" && plan === "pro") {
-      console.log(`User ${clerkId} upgraded to pro via Stripe - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         ...nextPatch,
@@ -316,10 +311,8 @@ export const cleanExpiredPacks = internalMutation({
       (u) => u.packDeletionAt && u.packDeletionAt <= now
     );
 
-    console.log(`[Cleanup] Found ${expiredUsers.length} users with expired grace periods`);
 
     for (const user of expiredUsers) {
-      console.log(`[Cleanup] Processing user ${user.clerkId}`);
 
       // Delete all user-created prompt packs
       const userPacksList = await ctx.db
@@ -329,7 +322,6 @@ export const cleanExpiredPacks = internalMutation({
 
       for (const pack of userPacksList) {
         await ctx.db.delete(pack._id);
-        console.log(`[Cleanup] Deleted pack: ${pack.title}`);
       }
 
       // Clear the packDeletionAt timestamp
@@ -337,7 +329,6 @@ export const cleanExpiredPacks = internalMutation({
         packDeletionAt: undefined,
       });
 
-      console.log(`[Cleanup] Deleted ${userPacksList.length} packs for user ${user.clerkId}`);
     }
 
     return { processedUsers: expiredUsers.length };
@@ -355,10 +346,8 @@ export const testCleanupExpiredPacks = mutation({
       (u) => u.packDeletionAt && u.packDeletionAt <= now
     );
 
-    console.log(`[Test Cleanup] Found ${expiredUsers.length} users with expired grace periods`);
 
     for (const user of expiredUsers) {
-      console.log(`[Test Cleanup] Processing user ${user.clerkId}`);
 
       // Delete all user-created prompt packs
       const userPacksList = await ctx.db
@@ -368,7 +357,6 @@ export const testCleanupExpiredPacks = mutation({
 
       for (const pack of userPacksList) {
         await ctx.db.delete(pack._id);
-        console.log(`[Test Cleanup] Deleted pack: ${pack.title}`);
       }
 
       // Clear the packDeletionAt timestamp
@@ -376,7 +364,6 @@ export const testCleanupExpiredPacks = mutation({
         packDeletionAt: undefined,
       });
 
-      console.log(`[Test Cleanup] Deleted ${userPacksList.length} packs for user ${user.clerkId}`);
     }
 
     return { processedUsers: expiredUsers.length };
@@ -407,9 +394,6 @@ export const testSetGracePeriod = mutation({
       packDeletionAt,
     });
 
-    console.log(`[Test] Set grace period for user ${clerkId}`);
-    console.log(`[Test] Packs will be deleted at: ${new Date(packDeletionAt).toISOString()}`);
-    console.log(`[Test] Hours until expiry: ${hoursUntilExpiry}`);
 
     return {
       packDeletionAt,
@@ -478,7 +462,6 @@ export const syncPlanFromClerk = mutation({
 
     // Handle downgrade from pro to free
     if (oldPlan === "pro" && plan === "free") {
-      console.log(`[Manual Sync] User ${clerkId} downgraded to free - starting grace period`);
 
       // Set grace period: 1 day (24 hours) from now
       const gracePeriodMs = 24 * 60 * 60 * 1000;
@@ -489,7 +472,6 @@ export const syncPlanFromClerk = mutation({
         packDeletionAt,
       });
 
-      console.log(`[Manual Sync] Grace period set: packs will be deleted at ${new Date(packDeletionAt).toISOString()}`);
       return {
         success: true,
         message: `User downgraded from ${oldPlan} to ${plan}. Grace period started: 24 hours.`,
@@ -500,7 +482,6 @@ export const syncPlanFromClerk = mutation({
     }
     // Handle upgrade from free to pro
     else if (oldPlan === "free" && plan === "pro") {
-      console.log(`[Manual Sync] User ${clerkId} upgraded to pro - clearing grace period`);
 
       await ctx.db.patch(user._id, {
         plan,

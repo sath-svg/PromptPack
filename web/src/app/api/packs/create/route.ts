@@ -111,7 +111,6 @@ export async function POST(request: Request) {
       }
 
       const r2Result = await r2Response.json();
-      console.log("R2 upload success:", r2Result);
 
     } catch (r2Error) {
       console.error("R2 upload error:", r2Error);

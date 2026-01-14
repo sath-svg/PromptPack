@@ -76,7 +76,6 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log("Support email sent:", data?.id);
 
     return NextResponse.json({
       success: true,

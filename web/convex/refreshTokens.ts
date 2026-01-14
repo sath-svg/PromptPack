@@ -283,7 +283,6 @@ export const cleanupExpiredTokens = internalMutation({
       }
     }
 
-    console.log(`[Token Cleanup] Deleted ${deletedCount} old tokens`);
     return { deletedCount };
   },
 });

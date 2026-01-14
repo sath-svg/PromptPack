@@ -909,7 +909,6 @@ function injectBubbleSaveIcons() {
     // Mark as processed
     processedUserBubbles.add(userMessage);
 
-    console.log('[PromptPack] Adding save icon for Claude prompt:', promptText.substring(0, 50));
 
     // Create save icon
     const saveIcon = createBubbleSaveIcon(promptText);
@@ -920,7 +919,6 @@ function injectBubbleSaveIcons() {
     } else {
       buttonContainer.appendChild(saveIcon);
     }
-    console.log('[PromptPack] Successfully inserted save icon after copy button');
 
     // Make the button visible when hovering over the button container or message row
     const showButton = () => {
