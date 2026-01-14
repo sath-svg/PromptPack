@@ -10,10 +10,10 @@
 // ============================================================================
 
 // R2 API URL (Cloudflare Workers)
-export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://promptpack-api.dksathvik.workers.dev";
+export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://promptpack-api-marketplace-dev.dksathvik.workers.dev";
 
 // Workers API URL (same as R2 for now)
-export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://promptpack-api.dksathvik.workers.dev";
+export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://promptpack-api-marketplace-dev.dksathvik.workers.dev";
 
 // Default support email
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";

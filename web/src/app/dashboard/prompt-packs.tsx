@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
@@ -38,6 +39,7 @@ type WebPackData = {
   prompts: Array<{
     text: string;
     createdAt: number;
+    header?: string; // AI-generated header for the prompt
   }>;
 };
 
@@ -58,6 +60,8 @@ type HistoryAction = {
   prompts: WebPackData["prompts"];
   promptIndex?: number;
 };
+
+type HeaderMap = Record<string, string>;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
@@ -116,6 +120,32 @@ function parsePackData(fileData: string): WebPackData | null {
   }
 }
 
+function hashText(value: string): string {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) - hash) + value.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function getPromptKey(prompt: { text: string; createdAt: number }): string {
+  return `${prompt.createdAt}:${hashText(prompt.text)}`;
+}
+
+function applyHeaderOverrides(
+  prompts: WebPackData["prompts"],
+  headers?: HeaderMap
+): WebPackData["prompts"] {
+  if (!headers) return prompts;
+  return prompts.map((prompt) => {
+    const override = headers[getPromptKey(prompt)];
+    if (!override) return prompt;
+    if (prompt.header === override) return prompt;
+    return { ...prompt, header: override };
+  });
+}
+
 // Check if fileData is base64 encoded binary (encrypted/obfuscated)
 function isBinaryFormat(fileData: string): boolean {
   try {
@@ -148,9 +178,10 @@ async function decodeObfuscatedFile(bytes: Uint8Array): Promise<WebPackData["pro
 
   // New shared format includes prompts array
   if (Array.isArray(data.prompts)) {
-    return data.prompts.map((p: { text: string; createdAt: number; url?: string }) => ({
+    return data.prompts.map((p: { text: string; createdAt: number; url?: string; header?: string }) => ({
       text: p.text,
       createdAt: p.createdAt,
+      header: p.header,
     }));
   }
 
@@ -169,9 +200,10 @@ async function decodeEncryptedFile(bytes: Uint8Array, password: string): Promise
 
   // New shared format includes prompts array
   if (Array.isArray(data.prompts)) {
-    return data.prompts.map((p: { text: string; createdAt: number; url?: string }) => ({
+    return data.prompts.map((p: { text: string; createdAt: number; url?: string; header?: string }) => ({
       text: p.text,
       createdAt: p.createdAt,
+      header: p.header,
     }));
   }
 
@@ -195,6 +227,7 @@ async function encodePrompts(
       text: p.text,
       url: "", // Web packs don't have URLs
       createdAt: p.createdAt,
+      header: p.header, // Include AI-generated header
     })),
   };
 
@@ -208,9 +241,11 @@ async function encodePrompts(
 }
 
 export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: PromptPacksProps) {
+  const { getToken, isSignedIn } = useAuth();
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
   const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
   const deletePack = useMutation(api.packs.remove);
+  const setPackHeader = useMutation(api.packs.setHeader);
 
   // Helper function to create pack via API (uploads to R2)
   const createPackViaAPI = async (title: string, fileData: string, promptCount: number) => {
@@ -254,7 +289,12 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   const [selectedPack, setSelectedPack] = useState<SelectedPack | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [pendingPack, setPendingPack] = useState<{ id: Id<"userPacks">; title: string; fileData: string } | null>(null);
+  const [pendingPack, setPendingPack] = useState<{
+    id: Id<"userPacks">;
+    title: string;
+    fileData: string;
+    headers?: HeaderMap;
+  } | null>(null);
   const [packName, setPackName] = useState("");
   const [firstPrompt, setFirstPrompt] = useState("");
   const [createPassword, setCreatePassword] = useState("");
@@ -270,11 +310,270 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   const [undoStack, setUndoStack] = useState<HistoryAction[]>([]);
   const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
 
+  // Header generation state
+  const [generatingHeaders, setGeneratingHeaders] = useState<Set<number>>(new Set());
+  const [editingHeaderIndex, setEditingHeaderIndex] = useState<number | null>(null);
+  const [headerDraft, setHeaderDraft] = useState("");
+  const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [headerAuthBlocked, setHeaderAuthBlocked] = useState(false);
+
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
+    if (!isSignedIn) return null;
+    try {
+      return await getToken();
+    } catch {
+      return null;
+    }
+  }, [getToken, isSignedIn]);
+
+  // Generate header for a single prompt
+  const generateHeader = useCallback(async (promptText: string, index: number) => {
+    if (generatingHeaders.has(index) || !selectedPack) return;
+
+    setGeneratingHeaders(prev => new Set(prev).add(index));
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        setHeaderAuthBlocked(true);
+        setError("Sign in required to generate headers.");
+        return;
+      }
+
+      const response = await fetch(`${R2_API_URL}/classify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({ promptText, maxWords: 2 }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          setHeaderAuthBlocked(true);
+          setError("Sign in required to generate headers.");
+          return;
+        }
+        console.error("Header generation failed:", await response.text());
+        return;
+      }
+
+      const data = await response.json() as { success: boolean; header?: string };
+      if (data.success && data.header && selectedPack) {
+        // Update the prompt with the generated header
+        const updatedPrompts = [...selectedPack.prompts];
+        updatedPrompts[index] = { ...updatedPrompts[index], header: data.header };
+
+        // Update local state
+        setSelectedPack({ ...selectedPack, prompts: updatedPrompts });
+
+        // Save the updated prompts back to storage
+        let fileData: string;
+        if (selectedPack.isEncrypted && selectedPack.password) {
+          const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
+          fileData = bytesToBase64(encoded);
+        } else if (isBinaryFormat(selectedPack.fileData)) {
+          const encoded = await encodePrompts(updatedPrompts, false, undefined, selectedPack.title);
+          fileData = bytesToBase64(encoded);
+        } else {
+          fileData = encodeStringToBase64(buildPackData(updatedPrompts));
+        }
+
+        await updatePackViaAPI(selectedPack.id, fileData, updatedPrompts.length);
+
+        try {
+          const promptKey = getPromptKey(updatedPrompts[index]);
+          await setPackHeader({ id: selectedPack.id, promptKey, header: data.header });
+        } catch (e) {
+          console.error("Header metadata update failed:", e);
+        }
+      }
+    } catch (error) {
+      console.error("Error generating header:", error);
+    } finally {
+      setGeneratingHeaders(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }
+  }, [generatingHeaders, selectedPack, setPackHeader, updatePackViaAPI, getAuthToken]);
+
+  // Generate headers for all prompts without headers
+  const generateMissingHeaders = useCallback(async () => {
+    if (!selectedPack || headerAuthBlocked) return;
+
+    const promptsWithoutHeaders = selectedPack.prompts
+      .map((p, i) => ({ prompt: p, index: i }))
+      .filter(({ prompt }) => !prompt.header);
+
+    // Generate headers in parallel (max 3 at a time to avoid rate limiting)
+    const batchSize = 3;
+    for (let i = 0; i < promptsWithoutHeaders.length; i += batchSize) {
+      const batch = promptsWithoutHeaders.slice(i, i + batchSize);
+      await Promise.all(batch.map(({ prompt, index }) =>
+        generateHeader(prompt.text, index)
+      ));
+    }
+  }, [selectedPack, generateHeader, headerAuthBlocked]);
+
+  // Auto-generate headers when prompts are loaded
+  useEffect(() => {
+    if (!headerAuthBlocked && selectedPack && selectedPack.prompts.some(p => !p.header)) {
+      const timer = setTimeout(() => {
+        generateMissingHeaders();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedPack, generateMissingHeaders, headerAuthBlocked]);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      setHeaderAuthBlocked(false);
+    }
+  }, [isSignedIn, selectedPack?.id]);
+
   // Toast helper
   const showToast = useCallback((message: string) => {
     setToast(message);
     setTimeout(() => setToast(null), TOAST_DURATION_MS);
   }, []);
+
+  const startHeaderEdit = useCallback((index: number) => {
+    if (!selectedPack) return;
+    setEditingPromptIndex(null);
+    setPromptDraft("");
+    setEditingHeaderIndex(index);
+    setHeaderDraft(selectedPack.prompts[index]?.header ?? "");
+  }, [selectedPack]);
+
+  const cancelHeaderEdit = useCallback(() => {
+    setEditingHeaderIndex(null);
+    setHeaderDraft("");
+  }, []);
+
+  const saveHeaderEdit = useCallback(async () => {
+    if (!selectedPack || editingHeaderIndex === null) return;
+
+    const trimmed = headerDraft.trim();
+    const currentHeader = selectedPack.prompts[editingHeaderIndex]?.header ?? "";
+    if (trimmed === currentHeader) {
+      cancelHeaderEdit();
+      return;
+    }
+
+    const previousPack = selectedPack;
+    const updatedPrompts = [...selectedPack.prompts];
+    updatedPrompts[editingHeaderIndex] = {
+      ...updatedPrompts[editingHeaderIndex],
+      header: trimmed || undefined,
+    };
+
+    setSelectedPack({ ...selectedPack, prompts: updatedPrompts });
+    cancelHeaderEdit();
+    showToast(trimmed ? "Header updated" : "Header removed");
+
+    try {
+      let fileData: string;
+      if (previousPack.isEncrypted && previousPack.password) {
+        const encoded = await encodePrompts(updatedPrompts, true, previousPack.password, previousPack.title);
+        fileData = bytesToBase64(encoded);
+      } else if (isBinaryFormat(previousPack.fileData)) {
+        const encoded = await encodePrompts(updatedPrompts, false, undefined, previousPack.title);
+        fileData = bytesToBase64(encoded);
+      } else {
+        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
+      }
+
+      await updatePackViaAPI(previousPack.id, fileData, updatedPrompts.length);
+      setSelectedPack(prev => prev ? { ...prev, fileData } : null);
+
+      try {
+        const promptKey = getPromptKey(updatedPrompts[editingHeaderIndex]);
+        await setPackHeader({ id: previousPack.id, promptKey, header: trimmed || undefined });
+      } catch (err) {
+        console.error("Header metadata update failed:", err);
+      }
+    } catch (e) {
+      console.error("Header update failed:", e);
+      setSelectedPack(previousPack);
+      setError("Failed to sync header. Please try again.");
+    }
+  }, [selectedPack, editingHeaderIndex, headerDraft, cancelHeaderEdit, showToast, updatePackViaAPI, setPackHeader]);
+
+  const startPromptEdit = useCallback((index: number) => {
+    if (!selectedPack) return;
+    setEditingHeaderIndex(null);
+    setHeaderDraft("");
+    setEditingPromptIndex(index);
+    setPromptDraft(selectedPack.prompts[index]?.text ?? "");
+  }, [selectedPack]);
+
+  const cancelPromptEdit = useCallback(() => {
+    setEditingPromptIndex(null);
+    setPromptDraft("");
+  }, []);
+
+  const savePromptEdit = useCallback(async () => {
+    if (!selectedPack || editingPromptIndex === null) return;
+
+    const trimmed = promptDraft.trim();
+    if (!trimmed) {
+      setError("Prompt cannot be empty.");
+      return;
+    }
+
+    const currentPrompt = selectedPack.prompts[editingPromptIndex];
+    if (!currentPrompt) return;
+    if (trimmed === currentPrompt.text) {
+      cancelPromptEdit();
+      return;
+    }
+
+    const previousPack = selectedPack;
+    const updatedPrompts = [...selectedPack.prompts];
+    const updatedPrompt = { ...currentPrompt, text: trimmed };
+    updatedPrompts[editingPromptIndex] = updatedPrompt;
+
+    setSelectedPack({ ...selectedPack, prompts: updatedPrompts });
+    cancelPromptEdit();
+    showToast("Prompt updated");
+
+    try {
+      let fileData: string;
+      if (previousPack.isEncrypted && previousPack.password) {
+        const encoded = await encodePrompts(updatedPrompts, true, previousPack.password, previousPack.title);
+        fileData = bytesToBase64(encoded);
+      } else if (isBinaryFormat(previousPack.fileData)) {
+        const encoded = await encodePrompts(updatedPrompts, false, undefined, previousPack.title);
+        fileData = bytesToBase64(encoded);
+      } else {
+        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
+      }
+
+      await updatePackViaAPI(previousPack.id, fileData, updatedPrompts.length);
+      setSelectedPack(prev => prev ? { ...prev, fileData } : null);
+
+      const oldKey = getPromptKey(currentPrompt);
+      const newKey = getPromptKey(updatedPrompt);
+      if (oldKey !== newKey) {
+        try {
+          await setPackHeader({ id: previousPack.id, promptKey: oldKey, header: undefined });
+          if (updatedPrompt.header) {
+            await setPackHeader({ id: previousPack.id, promptKey: newKey, header: updatedPrompt.header });
+          }
+        } catch (err) {
+          console.error("Header metadata update failed:", err);
+        }
+      }
+    } catch (e) {
+      console.error("Prompt update failed:", e);
+      setSelectedPack(previousPack);
+      setError("Failed to sync prompt. Please try again.");
+    }
+  }, [selectedPack, editingPromptIndex, promptDraft, cancelPromptEdit, showToast, updatePackViaAPI, setPackHeader]);
 
   // All packs are now stored in R2 with metadata in Convex
   // No need to filter - just display all packs
@@ -288,6 +587,10 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
   const handlePackClick = async (pack: typeof webPacks[0]) => {
     setError(null);
+    setEditingHeaderIndex(null);
+    setHeaderDraft("");
+    setEditingPromptIndex(null);
+    setPromptDraft("");
     setIsSaving(true);
 
     try {
@@ -303,6 +606,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       }
 
       const { fileData } = await response.json();
+      const headerOverrides = pack.headers ?? undefined;
       const isBinary = isBinaryFormat(fileData);
       if (!isBinary) {
         const parsed = parsePackData(fileData);
@@ -314,7 +618,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
           id: pack._id,
           title: pack.title,
           fileData,
-          prompts: parsed.prompts,
+          prompts: applyHeaderOverrides(parsed.prompts, headerOverrides),
           isEncrypted: false,
         });
         return;
@@ -325,13 +629,13 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       // Check if it's encrypted or obfuscated
       if (encrypted) {
         // Need password
-        setPendingPack({ id: pack._id, title: pack.title, fileData });
+        setPendingPack({ id: pack._id, title: pack.title, fileData, headers: headerOverrides });
         setShowPasswordModal(true);
         setPassword("");
       } else {
         // Obfuscated - decode directly
         const bytes = base64ToBytes(fileData);
-        const prompts = await decodeObfuscatedFile(bytes);
+        const prompts = applyHeaderOverrides(await decodeObfuscatedFile(bytes), headerOverrides);
         setSelectedPack({
           id: pack._id,
           title: pack.title,
@@ -362,7 +666,10 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
     try {
       const bytes = base64ToBytes(pendingPack.fileData);
-      const prompts = await decodeEncryptedFile(bytes, password);
+      const prompts = applyHeaderOverrides(
+        await decodeEncryptedFile(bytes, password),
+        pendingPack.headers
+      );
       setSelectedPack({
         id: pendingPack.id,
         title: pendingPack.title,
@@ -393,6 +700,10 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     setNewPrompt("");
     setPassword("");
     setExportPassword("");
+    setEditingHeaderIndex(null);
+    setHeaderDraft("");
+    setEditingPromptIndex(null);
+    setPromptDraft("");
     setError(null);
   };
 
@@ -531,7 +842,11 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
 
   const handleDeletePrompt = async (index: number) => {
     if (!selectedPack) return;
+    if (editingPromptIndex !== null) {
+      cancelPromptEdit();
+    }
 
+    const removedPrompt = selectedPack.prompts[index];
     const newPrompts = selectedPack.prompts.filter((_, i) => i !== index);
 
     // Save to undo stack
@@ -574,6 +889,15 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       }
 
       await updatePackViaAPI(selectedPack.id, fileData, newPrompts.length);
+
+      if (removedPrompt) {
+        try {
+          const promptKey = getPromptKey(removedPrompt);
+          await setPackHeader({ id: selectedPack.id, promptKey, header: undefined });
+        } catch (err) {
+          console.error("Header metadata cleanup failed:", err);
+        }
+      }
 
       // Update fileData after successful upload
       setSelectedPack(prev => prev ? { ...prev, fileData } : null);
@@ -944,6 +1268,23 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
                 {selectedPack.title}
               </h3>
               <div className="modal-actions">
+                {selectedPack.prompts.some(p => !p.header) && (
+                  <button
+                    onClick={generateMissingHeaders}
+                    disabled={generatingHeaders.size > 0}
+                    className="btn btn-icon"
+                    title="Generate all missing headers"
+                  >
+                    {generatingHeaders.size > 0 ? (
+                      <span className="loading-spinner" />
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                        <path d="M19 3l.75 1.9L21.5 5.5l-1.75.6L19 8l-.75-1.9L16.5 5.5l1.75-.6L19 3z"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
                 <button
                   onClick={handleExportPack}
                   className="btn btn-icon"
@@ -1007,31 +1348,170 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
             <div className="prompts-list">
               {selectedPack.prompts.map((prompt, index) => (
                 <div key={index} className="prompt-item">
-                  <div className="prompt-text">{prompt.text}</div>
+                  <div className="prompt-header-row">
+                    {editingHeaderIndex === index ? (
+                      <div className="prompt-header-edit">
+                        <input
+                          value={headerDraft}
+                          onChange={(e) => setHeaderDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              saveHeaderEdit();
+                            }
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              cancelHeaderEdit();
+                            }
+                          }}
+                          placeholder="Header"
+                          className="prompt-header-input"
+                          autoFocus
+                        />
+                        <button
+                          onClick={saveHeaderEdit}
+                          className="btn btn-icon btn-small"
+                          title="Save header"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={cancelHeaderEdit}
+                          className="btn btn-icon btn-small"
+                          title="Cancel"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="prompt-header-display">
+                        {prompt.header ? (
+                          <>
+                            <span className="prompt-header">{prompt.header}</span>
+                            <button
+                              onClick={() => startHeaderEdit(index)}
+                              className="btn btn-icon btn-small"
+                              title="Edit header"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 20h9"/>
+                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                              </svg>
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => generateHeader(prompt.text, index)}
+                              disabled={generatingHeaders.has(index)}
+                              className="generate-header-btn"
+                              title="Generate AI header"
+                            >
+                              {generatingHeaders.has(index) ? (
+                                <span className="loading-spinner" />
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                  <path d="M19 3l.75 1.9L21.5 5.5l-1.75.6L19 8l-.75-1.9L16.5 5.5l1.75-.6L19 3z"/>
+                                </svg>
+                              )}
+                              {generatingHeaders.has(index) ? "Generating..." : "Generate header"}
+                            </button>
+                            <button
+                              onClick={() => startHeaderEdit(index)}
+                              className="generate-header-btn"
+                              title="Add header"
+                            >
+                              Add header
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {editingPromptIndex === index ? (
+                    <div className="prompt-text-edit">
+                      <textarea
+                        value={promptDraft}
+                        onChange={(e) => setPromptDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            savePromptEdit();
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            cancelPromptEdit();
+                          }
+                        }}
+                        rows={3}
+                        className="prompt-textarea"
+                      />
+                      <div className="prompt-edit-actions">
+                        <button
+                          onClick={savePromptEdit}
+                          className="btn btn-primary btn-sm"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelPromptEdit}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="prompt-text">{prompt.text}</div>
+                  )}
                   <div className="prompt-meta">
-                    <button
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(prompt.text);
-                        showToast("Copied");
-                      }}
-                      className="prompt-copy-btn"
-                      title="Copy to clipboard"
-                    >
-                      Copy
-                    </button>
-                    <span className="prompt-date">
-                      {new Date(prompt.createdAt).toLocaleDateString()}
-                    </span>
-                    <button
-                      onClick={() => handleDeletePrompt(index)}
-                      className="btn btn-icon btn-small btn-danger"
-                      title="Delete prompt"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                      </svg>
-                    </button>
+                    {editingPromptIndex === index ? (
+                      <span className="prompt-date">
+                        {new Date(prompt.createdAt).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <>
+                        <button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(prompt.text);
+                            showToast("Copied");
+                          }}
+                          className="prompt-copy-btn"
+                          title="Copy to clipboard"
+                        >
+                          Copy
+                        </button>
+                        <span className="prompt-date">
+                          {new Date(prompt.createdAt).toLocaleDateString()}
+                        </span>
+                        <button
+                          onClick={() => startPromptEdit(index)}
+                          className="btn btn-icon btn-small"
+                          title="Edit prompt"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 20h9"/>
+                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeletePrompt(index)}
+                          className="btn btn-icon btn-small btn-danger"
+                          title="Delete prompt"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          </svg>
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

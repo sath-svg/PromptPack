@@ -6,23 +6,23 @@
 // ============================================================================
 
 // ============================================================================
-// DEVELOPMENT CONFIGURATION
+// DEVELOPMENT CONFIGURATION (commented for quick toggling)
 // ============================================================================
-
-// Base URLs
 export const BASE_URL = "http://localhost:3000";
-export const API_BASE = "http://localhost:8787";
-export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site";
+// export const API_BASE = "http://localhost:8787";
+// export const CONVEX_API_URL = "https://brilliant-sandpiper-173.convex.site";
+ export const IS_PRODUCTION = false;
+
+// ============================================================================
+// PRODUCTION CONFIGURATION
+// ============================================================================
+//export const BASE_URL = "https://pmtpk.com";
+export const API_BASE = "https://promptpack-api-marketplace-dev.dksathvik.workers.dev";
+export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
+export const GROK_API_URL = "https://grok.pmtpk.com";
 
 // Feature flag for production mode
-export const IS_PRODUCTION = false;
-
-// ============================================================================
-// PRODUCTION CONFIGURATION (commented for quick toggling)
-// ============================================================================
-// export const BASE_URL = "https://pmtpk.com";
-// export const API_BASE = "https://promptpack-api.dksathvik.workers.dev";
-// export const CONVEX_API_URL = "https://determined-lark-313.convex.site";
+//export const IS_PRODUCTION = true;
 // export const IS_PRODUCTION = true;
 
 // ============================================================================
@@ -32,8 +32,10 @@ export const AUTH_URL = `${BASE_URL}/extension-auth`;
 export const DASHBOARD_URL = `${BASE_URL}/dashboard`;
 export const PRICING_URL = `${BASE_URL}/pricing`;
 export const SIGN_IN_URL = `${BASE_URL}/sign-in`;
+export const SIGN_OUT_URL = `${BASE_URL}/sign-out`;
 export const MARKETPLACE_URL = IS_PRODUCTION ? "https://pmtpk.com/marketplace" : `${BASE_URL}/marketplace`;
 export const PACKS_CREATE_API = `${BASE_URL}/api/packs/create`;
+export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
 
 // ============================================================================
 // PROMPT & PACK LIMITS
@@ -51,8 +53,6 @@ export const MAX_IMPORTED_PACKS = 2;
 // SESSION & CACHE CONFIGURATION
 // ============================================================================
 export const SESSION_EXPIRY_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
-export const AUTH_CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-export const AUTH_CACHE_KEY = "pp_auth_cache";
 export const PRO_STATUS_KEY = "pp_last_pro_status";
 
 // ============================================================================

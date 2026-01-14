@@ -32,6 +32,7 @@ export default defineSchema({
     price: v.number(), // Cents, 0 = free
     isPublic: v.boolean(),
     isEncrypted: v.optional(v.boolean()), // Whether the pack has a password
+    headers: v.optional(v.record(v.string(), v.string())),
     downloads: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -58,6 +59,7 @@ export default defineSchema({
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),
+    headers: v.optional(v.record(v.string(), v.string())),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

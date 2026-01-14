@@ -57,6 +57,66 @@ export type MarketplacePack = CloudPack & {
 };
 
 class ApiClient {
+  private decodeJwtExpiry(token: string): number | null {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    try {
+      const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+      const json = atob(padded);
+      const data = JSON.parse(json) as { exp?: number };
+      if (typeof data.exp === "number") {
+        return data.exp * 1000;
+      }
+    } catch {
+      // Ignore decode errors
+    }
+    return null;
+  }
+  private async classifyViaBackground(promptText: string, maxWords: number): Promise<{
+    ok: boolean;
+    header?: string;
+    error?: string;
+    status?: number;
+  } | null> {
+    if (!chrome?.runtime?.sendMessage) return null;
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: "PP_CLASSIFY",
+        promptText,
+        maxWords,
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        resolve(response as {
+          ok: boolean;
+          header?: string;
+          error?: string;
+          status?: number;
+        });
+      });
+    });
+  }
+
+  private async verifyViaBackground(token?: string): Promise<boolean | null> {
+    if (!chrome?.runtime?.sendMessage) return null;
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        type: "PP_VERIFY_AUTH",
+        token,
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(null);
+          return;
+        }
+        const ok = (response as { ok?: boolean } | undefined)?.ok;
+        resolve(typeof ok === "boolean" ? ok : null);
+      });
+    });
+  }
+
   private async getAuthHeaders(): Promise<HeadersInit> {
     const session = await getSession();
     if (!session || session.expiresAt < Date.now()) {
@@ -140,13 +200,14 @@ class ApiClient {
     }
 
     // Save session with Clerk token
+    const tokenExpiry = this.decodeJwtExpiry(data.token);
     await saveSession({
       userId: data.user.clerkId,
       email: data.user.email,
       tier: data.user.plan === "pro" ? "paid" : "free",
       accessToken: data.token, // Clerk session token
       refreshToken: data.token, // Use same token for now
-      expiresAt: Date.now() + SESSION_EXPIRY_MS,
+      expiresAt: tokenExpiry ?? (Date.now() + SESSION_EXPIRY_MS),
       entitlements: {
         promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
         loadedPackLimit: data.user.plan === "pro" ? UNLIMITED_PACK_LIMIT : 0,
@@ -189,6 +250,50 @@ class ApiClient {
 
   async getEntitlements(): Promise<Entitlements> {
     return this.request("GET", "/entitlements");
+  }
+
+  /**
+   * Verify Clerk JWT with the worker
+   */
+  async verifyAuthToken(token: string): Promise<boolean> {
+    const backgroundOk = await this.verifyViaBackground(token);
+    if (backgroundOk !== null) return backgroundOk;
+    if (typeof location !== "undefined" && location.protocol !== "chrome-extension:") {
+      return false;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/auth/status`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Verify current auth session via background (no token required).
+   * Useful in content scripts that cannot read extension IndexedDB.
+   */
+  async verifyAuthSession(): Promise<boolean> {
+    const backgroundOk = await this.verifyViaBackground();
+    if (backgroundOk !== null) return backgroundOk;
+    const session = await getSession();
+    if (!session?.accessToken) return false;
+    try {
+      const response = await fetch(`${API_BASE}/auth/status`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${session.accessToken}`,
+        },
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 
   // ============ Prompts ============
@@ -479,6 +584,7 @@ class ApiClient {
 
   /**
    * Classify a prompt and get an AI-generated header
+   * Requires authentication - returns error for unauthenticated users
    */
   async classifyPrompt(promptText: string): Promise<{
     success: boolean;
@@ -486,17 +592,29 @@ class ApiClient {
     error?: string
   }> {
     try {
-      const authToken = await this.getAuthToken(); // Reuse existing auth
+      const maxWords = 2;
+      const backgroundResult = await this.classifyViaBackground(promptText, maxWords);
+      if (backgroundResult) {
+        if (backgroundResult.ok && backgroundResult.header) {
+          return { success: true, header: backgroundResult.header };
+        }
+        return { success: false, error: backgroundResult.error || "Classification failed" };
+      }
+
+      const session = await getSession();
+      if (!session?.accessToken) {
+        return { success: false, error: "Sign in required for AI-generated headers" };
+      }
 
       const response = await fetch(`${API_BASE}/classify`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${authToken}`,
+          "Authorization": `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify({
           promptText: promptText.slice(0, 500), // Limit to 500 chars
-          maxWords: 2,
+          maxWords,
         }),
       });
 
@@ -513,21 +631,6 @@ class ApiClient {
         error: err instanceof Error ? err.message : "Network error"
       };
     }
-  }
-
-  /**
-   * Get auth token for classify endpoint
-   * For unauthenticated users, generate a basic token
-   */
-  private async getAuthToken(): Promise<string> {
-    const session = await getSession();
-    if (session?.accessToken) {
-      return session.accessToken;
-    }
-
-    // For unauthenticated users, create a minimal token
-    // This allows classification even without login
-    return btoa(JSON.stringify({ userId: "anonymous" }));
   }
 }
 

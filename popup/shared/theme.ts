@@ -201,7 +201,7 @@ export const geminiTheme = {
     text: "rgba(0, 0, 0, 0.87)",
     border: "rgba(0, 0, 0, 0.12)",
     shadow: "0 1px 3px rgba(0, 0, 0, 0.12)",
-    buttonBg: "rgba(245, 245, 245, 0.95)", // Off-white button
+    buttonBg: "rgb(245, 245, 245)", // Solid off-white button
     font: "Google Sans, Roboto, ui-sans-serif, system-ui, -apple-system, Arial",
   },
   dark: {
@@ -209,7 +209,7 @@ export const geminiTheme = {
     text: "rgba(255, 255, 255, 0.87)",
     border: "rgba(255, 255, 255, 0.12)",
     shadow: "0 1px 3px rgba(0, 0, 0, 0.5)",
-    buttonBg: "rgba(255, 255, 255, 0.08)", // Transparent button
+    buttonBg: "rgb(32, 33, 36)", // Solid dark button
     font: "Google Sans, Roboto, ui-sans-serif, system-ui, -apple-system, Arial",
   },
 };

@@ -1,15 +1,25 @@
-name = "promptpack-api"
+name = "promptpack-api-marketplace-dev"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 account_id = "5d400bdfa16d6cb8aceff86d50d43650"
+workers_dev = true
+preview_urls = true
+
+routes = [
+  { pattern = "api.pmtpk.com", zone_name = "pmtpk.com", custom_domain = true },
+  { pattern = "grok.pmtpk.com", zone_name = "pmtpk.com", custom_domain = true }
+]
 
 [vars]
-ENVIRONMENT = "production"
+ENVIRONMENT = "development"
 CONVEX_URL = "https://determined-lark-313.convex.site"
-ALLOWED_ORIGINS = "https://pmtpk.com,chrome-extension://*"
-OLLAMA_URL = "http://localhost:11434"
+ALLOWED_ORIGINS = "http://localhost:3000, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
+OLLAMA_URL = "https://ollama.pmtpk.com"
+CLERK_ISSUER = "https://humorous-swine-81.clerk.accounts.dev"
+CLERK_JWKS_URL = "https://humorous-swine-81.clerk.accounts.dev/.well-known/jwks.json"
+CLERK_AUDIENCE = ""
 
 # R2 bucket binding (production)
 [[r2_buckets]]
 binding = "BUCKET"
-bucket_name = "promptpack-files-prod"
+bucket_name = "promptpack-files"

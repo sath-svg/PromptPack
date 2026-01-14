@@ -27,6 +27,45 @@ export default function ExtensionAuthPage() {
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // Preserve query params immediately on mount (before any Clerk redirects)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const state = params.get("state");
+    const redirectUri = params.get("redirect_uri");
+    const clientId = params.get("client_id");
+    
+    // Also check hash in case params are there (Clerk hash routing)
+    if (!state || !redirectUri || !clientId) {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash) {
+        const hashParams = new URLSearchParams(hash);
+        const hashState = hashParams.get("state");
+        const hashRedirectUri = hashParams.get("redirect_uri");
+        const hashClientId = hashParams.get("client_id");
+        
+        if (hashState && !state) params.set("state", hashState);
+        if (hashRedirectUri && !redirectUri) params.set("redirect_uri", hashRedirectUri);
+        if (hashClientId && !clientId) params.set("client_id", hashClientId);
+      }
+    }
+    
+    const finalState = params.get("state");
+    const finalRedirectUri = params.get("redirect_uri");
+    const finalClientId = params.get("client_id");
+    
+    if (finalState && finalRedirectUri && finalClientId) {
+      try {
+        sessionStorage.setItem("pp_extension_auth_params", JSON.stringify({
+          state: finalState,
+          redirectUri: finalRedirectUri,
+          clientId: finalClientId,
+        }));
+      } catch {
+        // Ignore storage failures
+      }
+    }
+  }, []);
+
   useEffect(() => {
     async function handleAuthCallback() {
       if (!isLoaded || processing || success) return;
@@ -36,13 +75,37 @@ export default function ExtensionAuthPage() {
 
       try {
         const params = new URLSearchParams(window.location.search);
-        const state = params.get("state");
-        const redirectUri = params.get("redirect_uri");
-        const clientId = params.get("client_id");
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        let state = params.get("state") || hashParams.get("state");
+        let redirectUri = params.get("redirect_uri") || hashParams.get("redirect_uri");
+        let clientId = params.get("client_id") || hashParams.get("client_id");
 
-        // Validate required params
         if (!state || !redirectUri || !clientId) {
-          setError("Missing required parameters");
+          try {
+            const cachedRaw = sessionStorage.getItem("pp_extension_auth_params");
+            if (cachedRaw) {
+              const cached = JSON.parse(cachedRaw) as {
+                state?: string;
+                redirectUri?: string;
+                clientId?: string;
+              };
+              state = state || cached.state || null;
+              redirectUri = redirectUri || cached.redirectUri || null;
+              clientId = clientId || cached.clientId || null;
+            }
+          } catch {
+            // Ignore cache read errors
+          }
+        }
+
+        // Validate required params (code is generated after sign-in, so it is not required here)
+        if (!state || !redirectUri || !clientId) {
+          const missing = [];
+          if (!state) missing.push("state");
+          if (!redirectUri) missing.push("redirect_uri");
+          if (!clientId) missing.push("client_id");
+          setError(`Missing required parameters: ${missing.join(", ")}. Please try signing in again.`);
+          console.error("Missing auth parameters:", { state: !!state, redirectUri: !!redirectUri, clientId: !!clientId });
           return;
         }
 
@@ -127,6 +190,26 @@ export default function ExtensionAuthPage() {
 
   // If not signed in, show the Clerk sign-in component
   if (isLoaded && !isSignedIn) {
+    // Build afterSignInUrl with query params preserved
+    // Use the current URL but ensure params are in query string (not hash)
+    const currentUrl = new URL(window.location.href);
+    // Remove hash to avoid conflicts
+    currentUrl.hash = "";
+    // Ensure query params are present (restore from sessionStorage if needed)
+    if (!currentUrl.searchParams.get("state") || !currentUrl.searchParams.get("redirect_uri") || !currentUrl.searchParams.get("client_id")) {
+      try {
+        const cachedRaw = sessionStorage.getItem("pp_extension_auth_params");
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          if (cached.state) currentUrl.searchParams.set("state", cached.state);
+          if (cached.redirectUri) currentUrl.searchParams.set("redirect_uri", cached.redirectUri);
+          if (cached.clientId) currentUrl.searchParams.set("client_id", cached.clientId);
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+    
     return (
       <div
         style={{
@@ -144,7 +227,7 @@ export default function ExtensionAuthPage() {
         </p>
         <SignIn
           routing="hash"
-          afterSignInUrl={window.location.href}
+          afterSignInUrl={currentUrl.toString()}
         />
       </div>
     );

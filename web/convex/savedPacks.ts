@@ -60,6 +60,7 @@ export const upsert = mutation({
       r2Key,
       promptCount,
       fileSize,
+      headers: {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -138,9 +139,37 @@ export const upsertByClerkId = mutation({
       r2Key,
       promptCount,
       fileSize,
+      headers: {},
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
     return { id, updated: false };
+  },
+});
+
+// Set or clear a prompt header override for a saved pack
+export const setHeader = mutation({
+  args: {
+    id: v.id("savedPacks"),
+    promptKey: v.string(),
+    header: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, promptKey, header }) => {
+    const pack = await ctx.db.get(id);
+    if (!pack) throw new Error("Pack not found");
+
+    const headers = { ...(pack.headers ?? {}) };
+    const nextHeader = header?.trim();
+
+    if (nextHeader) {
+      headers[promptKey] = nextHeader;
+    } else {
+      delete headers[promptKey];
+    }
+
+    await ctx.db.patch(id, {
+      headers,
+      updatedAt: Date.now(),
+    });
   },
 });

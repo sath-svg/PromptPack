@@ -517,18 +517,43 @@ http.route({
       }
 
       // Get user from Convex
-      const user = await ctx.runQuery(api.users.getByClerkId, {
+      let user = await ctx.runQuery(api.users.getByClerkId, {
         clerkId: authData.userId,
       });
 
       if (!user) {
-        return new Response(
-          JSON.stringify({ error: "User not found" }),
-          {
-            status: 404,
-            headers: { ...headers, "Content-Type": "application/json" },
-          }
-        );
+        if (!authData.email) {
+          return new Response(
+            JSON.stringify({ error: "User not found and email missing" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Create a user on the fly in dev when webhook hasn't populated Convex yet
+        await ctx.runMutation(api.users.upsert, {
+          clerkId: authData.userId,
+          email: authData.email,
+          name: authData.name,
+          imageUrl: authData.imageUrl,
+          plan: "free",
+        });
+
+        user = await ctx.runQuery(api.users.getByClerkId, {
+          clerkId: authData.userId,
+        });
+
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "Failed to create user" }),
+            {
+              status: 500,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
       }
 
       // Return user data + token for extension to store
