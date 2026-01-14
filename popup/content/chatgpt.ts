@@ -1164,7 +1164,12 @@ async function showContextMenu(x: number, y: number) {
               ${group.displayName} (${group.prompts.length})
             </div>
             <div class="pp-group-items" data-group-index="${index}" style="display: none;">
-              ${group.prompts.map((p, i) => `
+              ${group.prompts.map((p, i) => {
+                // Show header if available, otherwise truncated prompt text
+                const displayText = p.header
+                  ? p.header
+                  : (p.text.length > 50 ? p.text.substring(0, 50) + "..." : p.text);
+                return `
                 <div class="pp-menu-item" data-group-index="${index}" data-prompt-index="${i}" style="
                   padding: 8px 12px 8px 28px;
                   cursor: pointer;
@@ -1173,9 +1178,10 @@ async function showContextMenu(x: number, y: number) {
                   text-overflow: ellipsis;
                   white-space: nowrap;
                 " title="${p.text.replace(/"/g, '&quot;')}">
-                  ${p.text.length > 50 ? p.text.substring(0, 50) + "..." : p.text}
+                  ${displayText}
                 </div>
-              `).join("")}
+              `;
+              }).join("")}
             </div>
           </div>
         `;
