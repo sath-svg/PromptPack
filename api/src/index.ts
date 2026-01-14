@@ -1175,33 +1175,24 @@ export default {
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-        if (!token) {
-          return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          }));
-        }
+        // Check origin - website requests don't need auth (user is already logged in)
+        const origin = request.headers.get("Origin") || "";
+        const isWebsiteRequest = origin.includes("pmtpk.com");
 
-        // Validate token - supports both Clerk JWTs (website) and refresh tokens (extension)
         let userId: string | null = null;
 
-        // Check if token looks like a JWT (3 base64 parts separated by dots)
-        const tokenParts = token.split(".");
-        const isJwt = tokenParts.length === 3;
-
-        if (isJwt) {
-          // Decode Clerk JWT to get userId (from website dashboard)
-          try {
-            const payload = JSON.parse(atob(tokenParts[1]));
-            userId = payload.sub || null;
-          } catch {
-            return addCors(new Response(JSON.stringify({ error: "Invalid token" }), {
+        if (isWebsiteRequest) {
+          // Website requests: no auth needed, use a placeholder userId for rate limiting
+          userId = "website-user";
+        } else {
+          // Extension requests: validate refresh token via Convex
+          if (!token) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             }));
           }
-        } else {
-          // Validate refresh token via Convex (from extension)
+
           try {
             const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
             const validateResponse = await fetch(validateUrl, {
@@ -1240,13 +1231,6 @@ export default {
               headers: { "Content-Type": "application/json" },
             }));
           }
-        }
-
-        if (!userId) {
-          return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          }));
         }
 
         let inFlightKey: string | null = null;
