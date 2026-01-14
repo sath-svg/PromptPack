@@ -1182,43 +1182,68 @@ export default {
           }));
         }
 
-        // Validate refresh token via Convex
+        // Validate token - supports both Clerk JWTs (website) and refresh tokens (extension)
         let userId: string | null = null;
-        try {
-          const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
-          const validateResponse = await fetch(validateUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken: token }),
-          });
 
-          if (!validateResponse.ok) {
-            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+        // Check if token looks like a JWT (3 base64 parts separated by dots)
+        const tokenParts = token.split(".");
+        const isJwt = tokenParts.length === 3;
+
+        if (isJwt) {
+          // Decode Clerk JWT to get userId (from website dashboard)
+          try {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            userId = payload.sub || null;
+          } catch {
+            return addCors(new Response(JSON.stringify({ error: "Invalid token" }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             }));
           }
+        } else {
+          // Validate refresh token via Convex (from extension)
+          try {
+            const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
+            const validateResponse = await fetch(validateUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ refreshToken: token }),
+            });
 
-          const validateData = await validateResponse.json() as {
-            valid: boolean;
-            clerkId?: string;
-            reason?: string;
-          };
+            if (!validateResponse.ok) {
+              return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" },
+              }));
+            }
 
-          if (!validateData.valid || !validateData.clerkId) {
-            return addCors(new Response(JSON.stringify({
-              error: "Sign in required",
-              reason: validateData.reason,
-            }), {
+            const validateData = await validateResponse.json() as {
+              valid: boolean;
+              clerkId?: string;
+              reason?: string;
+            };
+
+            if (!validateData.valid || !validateData.clerkId) {
+              return addCors(new Response(JSON.stringify({
+                error: "Sign in required",
+                reason: validateData.reason,
+              }), {
+                status: 401,
+                headers: { "Content-Type": "application/json" },
+              }));
+            }
+
+            userId = validateData.clerkId;
+          } catch {
+            return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             }));
           }
+        }
 
-          userId = validateData.clerkId;
-        } catch (error) {
-          console.error("Token validation error:", error);
-          return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
+        if (!userId) {
+          return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
           }));
