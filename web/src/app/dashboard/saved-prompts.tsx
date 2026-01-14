@@ -139,11 +139,10 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
         return;
       }
 
-      const response = await fetch(`${WORKERS_API_URL}/classify`, {
+      const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({ promptText, maxWords: 2 }),
       });

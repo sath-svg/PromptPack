@@ -341,11 +341,10 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
         return;
       }
 
-      const response = await fetch(`${R2_API_URL}/classify`, {
+      const response = await fetch(`${R2_API_URL}/classify-website`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({ promptText, maxWords: 2 }),
       });

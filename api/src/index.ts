@@ -1182,68 +1182,42 @@ export default {
           }));
         }
 
-        // Validate token - supports both Clerk JWTs (website) and refresh tokens (extension)
+        // Validate refresh token via Convex (extension only)
         let userId: string | null = null;
+        try {
+          const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
+          const validateResponse = await fetch(validateUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: token }),
+          });
 
-        // Check if token looks like a JWT (3 base64 parts separated by dots)
-        const tokenParts = token.split(".");
-        const isJwt = tokenParts.length === 3;
-
-        if (isJwt) {
-          // Decode Clerk JWT to get userId (from website dashboard)
-          try {
-            const payload = JSON.parse(atob(tokenParts[1]));
-            userId = payload.sub || null;
-          } catch {
-            return addCors(new Response(JSON.stringify({ error: "Invalid token" }), {
+          if (!validateResponse.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             }));
           }
-        } else {
-          // Validate refresh token via Convex (from extension)
-          try {
-            const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
-            const validateResponse = await fetch(validateUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ refreshToken: token }),
-            });
 
-            if (!validateResponse.ok) {
-              return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-                status: 401,
-                headers: { "Content-Type": "application/json" },
-              }));
-            }
+          const validateData = await validateResponse.json() as {
+            valid: boolean;
+            clerkId?: string;
+            reason?: string;
+          };
 
-            const validateData = await validateResponse.json() as {
-              valid: boolean;
-              clerkId?: string;
-              reason?: string;
-            };
-
-            if (!validateData.valid || !validateData.clerkId) {
-              return addCors(new Response(JSON.stringify({
-                error: "Sign in required",
-                reason: validateData.reason,
-              }), {
-                status: 401,
-                headers: { "Content-Type": "application/json" },
-              }));
-            }
-
-            userId = validateData.clerkId;
-          } catch {
-            return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
+          if (!validateData.valid || !validateData.clerkId) {
+            return addCors(new Response(JSON.stringify({
+              error: "Sign in required",
+              reason: validateData.reason,
+            }), {
               status: 401,
               headers: { "Content-Type": "application/json" },
             }));
           }
-        }
 
-        if (!userId) {
-          return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+          userId = validateData.clerkId;
+        } catch {
+          return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
             status: 401,
             headers: { "Content-Type": "application/json" },
           }));
@@ -1424,6 +1398,161 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           }));
         } finally {
           // Release in-flight lock
+          if (inFlightKey && inFlightLocked) {
+            await releaseInFlightLock(inFlightKey);
+          }
+        }
+      }
+
+      // Classify prompt for website (no auth required) - POST /classify-website
+      if (path === "/classify-website" && method === "POST") {
+        // Use a fixed userId for rate limiting website requests
+        const userId = "website-user";
+
+        let inFlightKey: string | null = null;
+        let inFlightLocked = false;
+
+        try {
+          const body = await request.json() as {
+            promptText: string;
+            maxWords?: number;
+          };
+
+          if (!body.promptText || body.promptText.trim().length === 0) {
+            return addCors(new Response(JSON.stringify({ error: "Missing promptText" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const ollamaUrl = env.OLLAMA_URL;
+          if (!ollamaUrl) {
+            return addCors(new Response(JSON.stringify({ error: "Ollama server not configured" }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Check cache first
+          const maxWords = body.maxWords || 2;
+          const promptSnippet = body.promptText.trim().slice(0, 500);
+          const cacheKey = await sha256Hex(`${maxWords}:${promptSnippet}`);
+          const cachedHeader = await getCachedClassify<{ header: string }>(cacheKey);
+          if (cachedHeader?.header) {
+            return addCors(new Response(JSON.stringify({
+              success: true,
+              header: cachedHeader.header,
+              cached: true,
+            }), {
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rate limiting for website (shared across all website users)
+          const rateKey = `user:${userId}`;
+
+          // In-flight lock
+          inFlightKey = `${rateKey}:classify:inflight`;
+          inFlightLocked = await acquireInFlightLock(inFlightKey, CLASSIFY_IN_FLIGHT_TTL_SECONDS);
+          if (!inFlightLocked) {
+            return addCors(new Response(JSON.stringify({
+              error: "Classification already running. Please wait.",
+              code: "IN_FLIGHT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Website gets pro-level limits
+          const dayCount = await incrementRateCounter(`${rateKey}:classify:day`, 24 * 60 * 60);
+          if (dayCount > CLASSIFY_PRO_DAY_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: `Daily classification limit reached`,
+              code: "DAILY_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const minuteCount = await incrementRateCounter(`${rateKey}:classify:minute`, 60);
+          if (minuteCount > CLASSIFY_MINUTE_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a moment.",
+              code: "MINUTE_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Call Ollama
+          const systemPrompt = `You are a prompt classifier. Given a user's prompt, generate a concise header of ${maxWords} words maximum that describes what the prompt is asking for. Examples:
+- "Summarize how company makes money..." → "Executive Summary"
+- "Assess revenue predictability..." → "Revenue Quality"
+- "Write code to parse JSON..." → "JSON Parser"
+- "Analyze market trends in..." → "Market Analysis"
+
+Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or less.`;
+
+          const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "llama3.2",
+              prompt: `${systemPrompt}\n\nPrompt to classify:\n${promptSnippet}`,
+              stream: false,
+              options: {
+                temperature: 0.3,
+                num_predict: 10,
+              }
+            }),
+          });
+
+          if (!ollamaResponse.ok) {
+            return addCors(new Response(JSON.stringify({
+              error: "Classification failed",
+            }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const ollamaData = await ollamaResponse.json() as { response: string };
+
+          let header = ollamaData.response
+            .replace(/^["']|["']$/g, '')
+            .trim();
+
+          const words = header.split(/\s+/);
+          if (words.length > maxWords) {
+            header = words.slice(0, maxWords).join(' ');
+          }
+
+          header = header
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+
+          await putCachedClassify(cacheKey, { header }, CLASSIFY_CACHE_TTL_SECONDS);
+
+          return addCors(new Response(JSON.stringify({
+            success: true,
+            header,
+          }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+
+        } catch (error) {
+          return addCors(new Response(JSON.stringify({
+            error: "Internal server error",
+            message: error instanceof Error ? error.message : "Unknown error",
+          }), {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          }));
+        } finally {
           if (inFlightKey && inFlightLocked) {
             await releaseInFlightLock(inFlightKey);
           }
