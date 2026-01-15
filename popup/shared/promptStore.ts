@@ -328,9 +328,11 @@ export async function savePrompt(item: Omit<PromptItem, "id" | "createdAt">) {
 export async function requeueStaleClassifications(options?: {
   staleMs?: number;
   max?: number;
+  perSource?: boolean;
 }): Promise<number> {
   const staleMs = options?.staleMs ?? STALE_CLASSIFY_RETRY_MS;
   const max = options?.max ?? 5;
+  const perSource = options?.perSource ?? true;
   if (max <= 0) return 0;
 
   const isAuthed = await api.verifyAuthSession();
@@ -350,17 +352,33 @@ export async function requeueStaleClassifications(options?: {
     return 0;
   }
 
-  stale.slice(0, max).forEach((prompt) => {
+  let toProcess: typeof stale;
+
+  if (perSource) {
+    // Process up to `max` stale prompts from EACH source
+    const sources: PromptSource[] = ["chatgpt", "claude", "gemini"];
+    toProcess = [];
+    for (const source of sources) {
+      const sourcePrompts = stale.filter(p => p.source === source).slice(0, max);
+      toProcess.push(...sourcePrompts);
+    }
+  } else {
+    toProcess = stale.slice(0, max);
+  }
+
+  toProcess.forEach((prompt) => {
     void classifyPromptInBackground(prompt.id, prompt.text);
   });
 
-  return Math.min(max, stale.length);
+  return toProcess.length;
 }
 
 export async function requeueMissingHeaders(options?: {
   max?: number;
+  perSource?: boolean;
 }): Promise<number> {
   const max = options?.max ?? 5;
+  const perSource = options?.perSource ?? true;
   if (max <= 0) return 0;
 
   const isAuthed = await api.verifyAuthSession();
@@ -373,11 +391,25 @@ export async function requeueMissingHeaders(options?: {
 
   if (!missing.length) return 0;
 
-  missing.slice(0, max).forEach((prompt) => {
+  let toProcess: typeof missing;
+
+  if (perSource) {
+    // Process up to `max` prompts from EACH source
+    const sources: PromptSource[] = ["chatgpt", "claude", "gemini"];
+    toProcess = [];
+    for (const source of sources) {
+      const sourcePrompts = missing.filter(p => p.source === source).slice(0, max);
+      toProcess.push(...sourcePrompts);
+    }
+  } else {
+    toProcess = missing.slice(0, max);
+  }
+
+  toProcess.forEach((prompt) => {
     void classifyPromptInBackground(prompt.id, prompt.text);
   });
 
-  return Math.min(max, missing.length);
+  return toProcess.length;
 }
 
 export async function deletePrompt(id: string) {

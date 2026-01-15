@@ -6,7 +6,7 @@ import { startThemeSync, detectThemeFromPage, chatgptTheme, type ThemeMode } fro
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 type EnhanceMode = "structured" | "clarity" | "concise" | "strict";
 
-const ENHANCE_OFFSET_RIGHT = 300;
+const ENHANCE_OFFSET_RIGHT = 200;
 const ENHANCE_OFFSET_BOTTOM = 64;
 
 const SPARKLE_ICON = `
@@ -500,8 +500,45 @@ function showEnhancePreview(original: string, enhanced: string) {
     document.removeEventListener("keydown", onKeyDown);
   };
 
+  const copyEnhanced = async () => {
+    try {
+      await navigator.clipboard.writeText(enhanced);
+      toast("Copied to clipboard", "success");
+    } catch {
+      toast("Failed to copy", "error");
+    }
+  };
+
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") cleanup();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      cleanup();
+      return;
+    }
+
+    // Ctrl+C / Cmd+C to copy enhanced text
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      e.stopPropagation();
+      void copyEnhanced();
+      return;
+    }
+
+    // Alt+Shift+S to save to PromptPack
+    if (e.altKey && e.shiftKey && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      e.stopPropagation();
+      saveBtn.click();
+      return;
+    }
+
+    // Enter to replace
+    if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      replaceBtn.click();
+      return;
+    }
   };
 
   const actionColors = currentTheme === "dark" ? chatgptTheme.dark : chatgptTheme.light;
@@ -767,6 +804,68 @@ function setupSaveKeybind() {
     e.preventDefault();
     e.stopPropagation();
     void handleSave();
+  });
+}
+
+function setupEnhanceKeybind() {
+  // Listen for Alt+Shift+E keyboard shortcut to enhance prompt
+  document.addEventListener("keydown", (e) => {
+    if (!e.altKey) return;
+    if (!e.shiftKey) return;
+    if (e.key.toLowerCase() !== "e") return;
+    if (e.repeat) return;
+
+    const composer = findComposer();
+    if (composer) currentComposer = composer;
+
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      if (!composer || (target !== composer && !composer.contains(target))) {
+        return;
+      }
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+    void handleEnhance();
+  });
+}
+
+function setupModeKeybinds() {
+  // Listen for Alt+1/2/3/4 to select enhance mode
+  const modes: EnhanceMode[] = ["structured", "clarity", "concise", "strict"];
+
+  document.addEventListener("keydown", (e) => {
+    if (!e.altKey) return;
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+    if (e.repeat) return;
+
+    const keyNum = parseInt(e.key, 10);
+    if (keyNum < 1 || keyNum > 4) return;
+
+    const composer = findComposer();
+    if (!composer) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      if (target !== composer && !composer.contains(target)) {
+        return;
+      }
+    }
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const newMode = modes[keyNum - 1];
+    enhanceMode = newMode;
+
+    // Update the dropdown UI
+    const modeSelect = document.getElementById("pp-enhance-mode") as HTMLSelectElement | null;
+    if (modeSelect) {
+      modeSelect.value = newMode;
+    }
+
+    toast(`Mode: ${newMode.charAt(0).toUpperCase() + newMode.slice(1)}`, "success");
   });
 }
 
@@ -1050,6 +1149,8 @@ function boot() {
   window.addEventListener("scroll", scheduleTick, { passive: true });
 
   setupSaveKeybind();
+  setupEnhanceKeybind();
+  setupModeKeybinds();
 
   // Handle SPA navigation via History API
   const originalPushState = history.pushState.bind(history);

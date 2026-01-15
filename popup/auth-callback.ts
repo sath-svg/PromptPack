@@ -39,7 +39,7 @@ async function main() {
         title.classList.add("success");
       }
       if (message) {
-        message.textContent = "You're now signed in. You can close this tab.";
+        message.textContent = "You're now signed in. You can close this tab if it does not redirect automatically.";
       }
 
       // Close tab after a short delay
