@@ -2,7 +2,6 @@ import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
-import { BetaSignupForm } from "@/components/beta-signup-form";
 import { HowItWorks } from "@/components/how-it-works";
 import { HeroVideo } from "@/components/hero-video";
 import { FeatureRequestLink } from "@/components/feature-request-link";
@@ -90,7 +89,6 @@ export default function Home() {
           <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
 
-        <BetaSignupForm />
 
         <div className="hero-cta">
           <SignedOut>
