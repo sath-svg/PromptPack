@@ -83,13 +83,6 @@ export default function Home() {
           Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
 
-        <HeroVideo />
-
-        <h4 className="hero-hook">
-          <a className="hero-hook-link" href="#faq">See FAQ</a>
-        </h4>
-
-
         <div className="hero-cta">
           <SignedOut>
             <SignUpButton mode="modal">
@@ -105,6 +98,12 @@ export default function Home() {
             <button className="btn btn-secondary">See Plans</button>
           </Link>
         </div>
+
+        <HeroVideo />
+
+        <h4 className="hero-hook">
+          <a className="hero-hook-link" href="#faq">See FAQ</a>
+        </h4>
       </div>
 
 <HowItWorks />

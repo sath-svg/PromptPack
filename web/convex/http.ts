@@ -233,7 +233,29 @@ http.route({
 
     // Handle different event types
     switch (event.type) {
-      case "user.created":
+      case "user.created": {
+        const { id, email_addresses, first_name, last_name, image_url, public_metadata } = event.data;
+        if (!id) break;
+
+        const email = email_addresses?.[0]?.email_address || "";
+        const name = [first_name, last_name].filter(Boolean).join(" ") || undefined;
+        const plan = public_metadata?.plan === "pro" ? "pro" : "free";
+
+        await ctx.runMutation(internal.users.upsertFromWebhook, {
+          clerkId: id,
+          email,
+          name,
+          imageUrl: image_url,
+          plan: plan as "free" | "pro",
+        });
+
+        // Send welcome email to new user
+        if (email) {
+          await ctx.runAction(internal.email.sendWelcomeEmail, { email });
+        }
+        break;
+      }
+
       case "user.updated": {
         const { id, email_addresses, first_name, last_name, image_url, public_metadata } = event.data;
         if (!id) break;
@@ -242,7 +264,6 @@ http.route({
         const name = [first_name, last_name].filter(Boolean).join(" ") || undefined;
         // Prioritize public_metadata.plan for admin control
         const plan = public_metadata?.plan === "pro" ? "pro" : "free";
-
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
           clerkId: id,
