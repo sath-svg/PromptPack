@@ -35,9 +35,12 @@ export default function PricingPage() {
         <div
           style={{
             padding: "2rem",
+            paddingBottom: "1.5rem",
             borderRadius: "1rem",
             border: "1px solid rgba(128,128,128,0.2)",
             textAlign: "left",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Free</h2>
@@ -57,8 +60,10 @@ export default function PricingPage() {
           <ul
             style={{
               listStyle: "none",
-              marginBottom: "2rem",
-              lineHeight: "2",
+              marginBottom: "1.5rem",
+              lineHeight: "1.8",
+              fontSize: "0.95rem",
+              flex: "1",
             }}
           >
             <li>✓ 10 saved prompts</li>
@@ -69,6 +74,7 @@ export default function PricingPage() {
             <li>✓ Local storage</li>
           </ul>
 
+          <div style={{ marginTop: "auto" }}>
           <SignedOut>
             <SignUpButton mode="modal">
               <button className="btn btn-secondary" style={{ width: "100%" }}>
@@ -92,6 +98,7 @@ export default function PricingPage() {
               </Link>
             )}
           </SignedIn>
+          </div>
         </div>
 
         {/* Pro Plan */}

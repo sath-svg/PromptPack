@@ -38,11 +38,14 @@ export function ProCard() {
     <div
       style={{
         padding: "2rem",
+        paddingBottom: "1.5rem",
         borderRadius: "1rem",
         border: "2px solid var(--accent)",
         background: "rgba(99, 102, 241, 0.05)",
         textAlign: "left",
         position: "relative",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <span
@@ -148,8 +151,10 @@ export function ProCard() {
       <ul
         style={{
           listStyle: "none",
-          marginBottom: "2rem",
-          lineHeight: "2",
+          marginBottom: "1.5rem",
+          lineHeight: "1.8",
+          fontSize: "0.95rem",
+          flex: "1",
         }}
       >
         <li>✓ 40 saved prompts</li>
@@ -164,31 +169,33 @@ export function ProCard() {
         <li>✓ Early access to features</li>
       </ul>
 
-      <SignedOut>
-        <SignUpButton mode="modal">
-          <button className="btn btn-primary" style={{ width: "100%" }}>
-            Start 3-day free trial
-          </button>
-        </SignUpButton>
-      </SignedOut>
-      <SignedIn>
-        {isPro ? (
-          <Link href="/dashboard">
-            <button className="btn btn-primary" style={{ width: "100%" }}>
-              Dashboard
+      <div style={{ marginTop: "auto" }}>
+        <SignedIn>
+          {isPro ? (
+            <Link href="/dashboard">
+              <button className="btn btn-primary" style={{ width: "100%" }}>
+                Dashboard
+              </button>
+            </Link>
+          ) : (
+            <button
+              className="btn btn-primary"
+              style={{ width: "100%" }}
+              onClick={handleCheckout}
+              disabled={isCheckoutLoading}
+            >
+              {isCheckoutLoading ? "Starting checkout..." : "Start 3-day free trial"}
             </button>
-          </Link>
-        ) : (
-          <button
-            className="btn btn-primary"
-            style={{ width: "100%" }}
-            onClick={handleCheckout}
-            disabled={isCheckoutLoading}
-          >
-            {isCheckoutLoading ? "Starting checkout..." : "Start 3-day free trial"}
-          </button>
-        )}
-      </SignedIn>
+          )}
+        </SignedIn>
+        <SignedOut>
+          <SignUpButton mode="modal">
+            <button className="btn btn-primary" style={{ width: "100%" }}>
+              Start 3-day free trial
+            </button>
+          </SignUpButton>
+        </SignedOut>
+      </div>
     </div>
   );
 }

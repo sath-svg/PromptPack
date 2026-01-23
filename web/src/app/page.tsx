@@ -3,6 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
 import { BetaSignupForm } from "@/components/beta-signup-form";
+import { HowItWorks } from "@/components/how-it-works";
+import { HeroVideo } from "@/components/hero-video";
+import { FeatureRequestLink } from "@/components/feature-request-link";
+import { RoadmapTooltip } from "@/components/roadmap-tooltip";
 import './globals.css';
 
 export default function Home() {
@@ -53,18 +57,35 @@ export default function Home() {
           height={165}
           priority
           className="hero-logo"
-          style={{ marginTop: "clamp(3rem, 15vh, 10rem)", marginBottom: "2.5rem" }}
+          style={{ marginTop: "clamp(3rem, 15vh, 6rem)", marginBottom: "1rem" }}
         />
+        <a
+          href="https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb"
+          target="_blank"
+          rel="noreferrer"
+          className="chrome-badge-link"
+        >
+          <Image
+            src={assetUrl("/img/Chrome.svg")}
+            alt="Add to Chrome - free"
+            width={240}
+            height={60}
+            className="chrome-badge"
+          />
+        </a>
         <h1 className="hero-subhead">
           Stop losing your best prompts.
         </h1>
         <p>
           ChatGPT alone sees 2.5 – 3 billion prompts a day.
           <br />
-          The best ones shouldn’t disappear into chat history. Save your winners.
+          The best prompts shouldn't disappear into chat history. Save your winners.
           <br />
           Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
+
+        <HeroVideo />
+
         <h4 className="hero-hook">
           <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
@@ -88,11 +109,13 @@ export default function Home() {
         </div>
       </div>
 
+<HowItWorks />
+
       <section className="workflow-section">
         <div className="workflow-inner">
-          <h2 className="workflow-hero-title">What is a PromptPack?</h2>
+          <h2 className="workflow-hero-title">What is a <span className="gradient-text">PromptPack</span>?</h2>
           <p className="workflow-hero-subtitle">
-            Save individual prompts, then organize them into a PromptPack — a reusable workflow you can run in any LLM or agent.
+            Save individual prompts, then organize them into a <span className="gradient-text">PromptPack</span> — a reusable workflow you can run in any LLM or agent.
           </p>
 
           <div className="workflow-demo">
@@ -107,7 +130,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="workflow-arrow">→</div>
+              <div className="workflow-arrow">←</div>
 
               <div className="workflow-prompt-card">
                 <div className="workflow-prompt-header">
@@ -131,7 +154,7 @@ export default function Home() {
                 </p>
               </div>
 
-              <div className="workflow-arrow">→</div>
+              <div className="workflow-arrow">←</div>
 
               <div className="workflow-prompt-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.05)' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -145,7 +168,7 @@ export default function Home() {
 
             <div className="workflow-pack">
               <div className="workflow-pack-icon">📦</div>
-              <h3 className="workflow-pack-title">Stock Analyzer PromptPack</h3>
+              <h3 className="workflow-pack-title">Stock Analyzer <span className="gradient-text">PromptPack</span></h3>
               <p className="workflow-pack-description">
                 13-point framework • Investment Analysis
               </p>
@@ -154,152 +177,8 @@ export default function Home() {
               </div>
             </div>
 
-            <details className="workflow-future">
-              <summary className="workflow-future-title">
-                <div>
-                  <div className="workflow-future-main">The Vision</div>
-                  <div className="workflow-future-badge">Coming Soon</div>
-                </div>
-              </summary>
-              <p className="workflow-future-text">
-                LLMs will be able to run PromptPacks — multi-step workflows — with a single command.
-                <br />
-                <span className="workflow-future-example">
-                  "Run Stock Analyzer PromptPack for NVDA"
-                </span>
-                <br />
-                One command. Same workflow. Zero copy-paste.
-              </p>
-            </details>
           </div>
-        </div>
-      </section>
 
-<section className="how-section">
-  <div className="how-inner">
-    <h2 className="how-title demo-title">How it works.</h2>
-    <p className="how-subtitle">
-      From a “good prompt” to reusable workflow — in under a minute.
-    </p>
-
-    <div className="how-steps">
-      <div className="how-step">
-        <h3>
-          1){" "}
-          <a
-            href="https://chromewebstore.google.com/detail/jfhgjlelmogjgblhnkbgpkchcimklcoj?utm_source=item-share-cb"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Download
-          </a>{" "}
-          the Chrome extension
-        </h3>
-        <p>
-          Install PromptPack once, and you’re ready to save prompts wherever you work.
-          <span className="pro-break" aria-hidden="true"></span>
-          Your saves live in the extension and give you an option to export them with encryption
-          as <span className="gradient-text">PromptPacks</span> (.pmtpk)
-        </p>
-      </div>
-
-      <div className="how-step">
-        <h3>2) Hit <span className="gradient-text">Save</span> while you’re prompting</h3>
-        <p>
-          A Save button appears inside the prompt box in ChatGPT, Claude, and Gemini.
-          Click it to capture the prompt instantly.{" "}
-          <span className="tooltip-wrap">
-            <span
-              className="tooltip-trigger"
-              data-tooltip="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
-              aria-label="You can also use Alt+Shift+S (Option+Shift+S on Mac) while in the prompt box to save it to the extension."
-              tabIndex={0}
-            >
-              ℹ️
-            </span>
-          </span>
-        </p>
-      </div>
-
-      <div className="how-step">
-        <h3>3) Log in to sync to your dashboard</h3>
-        <p>
-          Signing in gives you access to save <span className="gradient-text">PromptPacks</span> to your dashboard
-          so that you can access them anywhere and stay organized.
-        </p>
-      </div>
-
-      <div className="how-step">
-        <h3>4) Go <Link className="pro-link" href="/pricing">Pro</Link> to create and share PromptPacks</h3>
-        <p>
-          Pro unlocks the ability to build your own <span className="gradient-text">PromptPacks</span> from the dashboard.
-        </p>
-      </div>
-    </div>
-
-    <p className="how-footnote">
-      Prefer to just save and reuse? Free gets the job done. Pro is for building, packaging, and sharing.
-    </p>
-  </div>
-</section>
-
-      <section className="demo-section">
-        <h2 className="how-title demo-title">Works flawlessly with ChatGPT, Gemini and Claude.</h2>
-        <div className="llm-tabs" role="tablist" aria-label="LLM demos">
-          <input
-            className="llm-tab-input"
-            type="radio"
-            name="llm-demo"
-            id="llm-chatgpt"
-            defaultChecked
-          />
-          <label className="llm-tab" htmlFor="llm-chatgpt" role="tab" aria-controls="llm-panel-chatgpt">
-            ChatGPT
-          </label>
-          <input
-            className="llm-tab-input"
-            type="radio"
-            name="llm-demo"
-            id="llm-claude"
-          />
-          <label className="llm-tab" htmlFor="llm-claude" role="tab" aria-controls="llm-panel-claude">
-            Claude
-          </label>
-          <input
-            className="llm-tab-input"
-            type="radio"
-            name="llm-demo"
-            id="llm-gemini"
-          />
-          <label className="llm-tab" htmlFor="llm-gemini" role="tab" aria-controls="llm-panel-gemini">
-            Gemini
-          </label>
-          <div className="llm-panels">
-            <div className="llm-panel" id="llm-panel-chatgpt" role="tabpanel" data-panel="chatgpt">
-              <div className="demo-card demo-card-wide">
-                <div className="demo-media" aria-label="ChatGPT save flow">
-                  <video src={assetUrl("/img/chatgpt.webm")} autoPlay loop muted playsInline />
-                </div>
-                <p className="demo-caption">ChatGPT</p>
-              </div>
-            </div>
-            <div className="llm-panel" id="llm-panel-claude" role="tabpanel" data-panel="claude">
-              <div className="demo-card demo-card-wide">
-                <div className="demo-media" aria-label="Claude save flow">
-                  <video src={assetUrl("/img/claude.webm")} autoPlay loop muted playsInline />
-                </div>
-                <p className="demo-caption">Claude</p>
-              </div>
-            </div>
-            <div className="llm-panel" id="llm-panel-gemini" role="tabpanel" data-panel="gemini">
-              <div className="demo-card demo-card-wide">
-                <div className="demo-media" aria-label="Gemini save flow">
-                  <video src={assetUrl("/img/gemini.webm")} autoPlay loop muted playsInline />
-                </div>
-                <p className="demo-caption">Gemini</p>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -308,7 +187,7 @@ export default function Home() {
           <h2 className="pro-title"><Link className="pro-link" href="/pricing">Pro</Link> is for creators.</h2>
           <p className="pro-copy">
             Your best ideas shouldn&rsquo;t live in a chat history. Unlock {" "}
-            <Link className="pro-link" href="/pricing">Pro</Link> to create your own PromptPacks
+            <Link className="pro-link" href="/pricing">Pro</Link> to create your own <span className="gradient-text">PromptPacks</span>
             and export them as <span className="gradient-text">.pmtpk</span> — a purpose-built format for sharing and distribution.
             <br />
             <span className="pro-break" aria-hidden="true"></span>
@@ -333,8 +212,53 @@ export default function Home() {
               </Link>
             </SignedIn>
             <p style={{ marginTop: '1rem', color: 'var(--muted-foreground)', fontSize: '0.90rem' }}>
-              Create your PromptPacks in the dashboard after sign-in
+              Create your <span className="gradient-text">PromptPacks</span> in the dashboard after sign-in
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mindmap-section">
+        <div className="mindmap-inner">
+          <h2 className="mindmap-header">What <span className="gradient-text">PromptPack</span> is built for</h2>
+
+          <div className="mindmap-diagram">
+            <div className="mindmap-row">
+              <div className="mindmap-card">
+                <div className="mindmap-icon">📁</div>
+                <h4>Prompt Saver</h4>
+                <p>Save, enhance, and organize your prompts in one place.</p>
+              </div>
+
+              <div className="mindmap-connector">
+                <span className="mindmap-arrow">←</span>
+              </div>
+
+              <div className="mindmap-node">
+                <span className="gradient-text">PromptPack</span>
+              </div>
+
+              <div className="mindmap-connector">
+                <span className="mindmap-arrow">→</span>
+              </div>
+
+              <div className="mindmap-card">
+                <div className="mindmap-icon">💎</div>
+                <h4>Digital Asset</h4>
+                <p>License your <span className="gradient-text">PromptPacks</span> — own and monetize your work.</p>
+              </div>
+            </div>
+
+            <div className="mindmap-arrow-down">↓</div>
+
+            <div className="mindmap-row mindmap-row-bottom">
+              <div className="mindmap-card mindmap-card-wide">
+                <div className="mindmap-icon">🤖</div>
+                <h4>Workflow Automater</h4>
+                <p>Automate workflows with AI agents using modular <span className="gradient-text">PromptPacks</span>.</p>
+                <span className="mindmap-soon">Coming Soon</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -346,8 +270,8 @@ export default function Home() {
             <div className="faq-item">
               <h3>1) What is a <span className="gradient-text">PromptPack</span>, and how is it different from a folder of saved prompts?</h3>
               <p>
-                A <span className="gradient-text">PromptPack</span> is a curated set of prompts grouped into a reusable workflow — like a playlist. Save in one click while you are chatting,
-                then reuse the packs <span className="faq-highlight">seamlessly</span> across ChatGPT, Claude, and Gemini with no dragging to copy and paste or tab switching.
+                A <span className="gradient-text">PromptPack</span> is a curated set of prompts grouped into a reusable workflow — like a playlist. Save and enhance prompts in one click while you are chatting,
+                then reuse the packs <span className="faq-highlight">seamlessly</span> across ChatGPT, Claude, and Gemini with no copy-paste or tab switching.
               </p>
             </div>
             <div className="faq-item">
@@ -357,7 +281,7 @@ export default function Home() {
               </p>
             </div>
             <div className="faq-item">
-              <h3>3) How does <span className="gradient-text">.pmtpk</span> and security help me share, distribute, or license PromptPacks safely?</h3>
+              <h3>3) How does <span className="gradient-text">.pmtpk</span> and security help me share, distribute, or license <span className="gradient-text">PromptPacks</span> safely?</h3>
               <p>
                 <span className="gradient-text">.pmtpk</span> is a dedicated format that does not open like a normal text file, so your prompts are not casually readable
                 in Notepad, Word etc. With added encryption, these packs will stay accessible to you and only the people you share with, ideal for
@@ -365,6 +289,59 @@ export default function Home() {
               </p>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="upcoming-section">
+        <div className="upcoming-inner">
+          <h2 className="upcoming-title">Coming Soon</h2>
+          <p className="upcoming-subtitle">
+            The future of prompt management is being built.
+          </p>
+
+          <div className="upcoming-grid">
+            <div className="upcoming-card">
+              <div className="upcoming-badge">Marketplace</div>
+              <div className="upcoming-icon">🏪</div>
+              <h3><span className="gradient-text">PromptPack</span> Marketplace</h3>
+              <p>
+                Discover and purchase curated <span className="gradient-text">PromptPacks</span> from creators.
+                Monetize your expertise by selling your best workflows to the community.
+              </p>
+            </div>
+
+            <div className="upcoming-card">
+              <div className="upcoming-badge">Modular</div>
+              <div className="upcoming-icon">🧩</div>
+              <h3>Modular <span className="gradient-text">PromptPacks</span></h3>
+              <p>
+                Add dynamic arguments to your prompts. When you quick-select a prompt,
+                it will ask for your inputs — making every prompt reusable and customizable.
+              </p>
+            </div>
+
+            <div className="upcoming-card upcoming-card-wide">
+              <div className="upcoming-badge">Automation</div>
+              <div className="upcoming-icon">⚙️</div>
+              <h3>Workflow Automation</h3>
+              <p>
+                Automate repetitive tasks with <span className="gradient-text">PromptPack</span>. Chain prompts together,
+                schedule workflows, and integrate with your favorite tools to streamline your AI-powered processes.
+              </p>
+            </div>
+          </div>
+
+          <div className="upcoming-cta">
+            <p className="upcoming-cta-header">
+              <span className="upcoming-cta-icon">🟣</span>
+              <RoadmapTooltip />
+            </p>
+            <p className="upcoming-cta-footer">
+              Have a feature in mind?{" "}
+              <FeatureRequestLink />
+            </p>
+          </div>
+
         </div>
       </section>
 

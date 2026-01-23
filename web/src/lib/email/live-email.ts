@@ -1,7 +1,7 @@
 const APP_URL = "https://pmtpk.com";
 const DASHBOARD_URL = "https://pmtpk.com/dashboard";
 const EXTENSION_URL =
-  "https://chromewebstore.google.com/detail/jfhgjlelmogjgblhnkbgpkchcimklcoj?utm_source=item-share-cb";
+  "https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb";
 const LOGO_URL = "https://pmtpk.com/img/promptpack_logo_horizontal.png";
 
 const themeLight = {

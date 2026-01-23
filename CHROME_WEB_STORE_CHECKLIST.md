@@ -74,9 +74,9 @@ All screenshots are also available in 640x400 format in the same directory.
 
 ### Short Description (132 chars max)
 ```
-Stop losing your best prompts. Save, organize, and reuse AI prompts across ChatGPT, Claude, and Gemini with one click.
+Save, enhance, and organize AI prompts across ChatGPT, Claude, and Gemini with one click.
 ```
-**Character count:** 131 ✅
+**Character count:** 89
 
 ### Detailed Description (See below)
 
@@ -84,83 +84,68 @@ Stop losing your best prompts. Save, organize, and reuse AI prompts across ChatG
 <summary>Click to expand full store description</summary>
 
 ```
-Stop losing your best prompts. Save your winners.
+Save, enhance, and reuse your best prompts.
 
-PromptPack helps you capture, organize, and reuse your best AI prompts across ChatGPT, Claude, and Gemini. With billions of prompts created every day, the best ones shouldn't disappear into chat history.
+PromptPack helps you capture, organize, and reuse your best AI prompts across ChatGPT, Claude, and Gemini.
 
-🎯 KEY FEATURES
+KEY FEATURES
+- One-click saving inside ChatGPT, Claude, and Gemini
+- Prompt Enhancer with Structured, Clarity, Concise, and Strict modes
+- AI-generated headers for faster scanning
+- Inline save icon next to the platform copy button on your prompts
+- Right-click context menu for quick actions in the prompt box
+- Instant copy from the extension popup
+- Keyboard shortcut: Alt+Shift+S (Option+Shift+S on Mac)
+- Encrypted export to .pmtpk files (optional password)
+- Save to your dashboard for access across devices (sign-in required)
 
-✓ One-Click Saving – Save button appears directly inside ChatGPT, Claude, and Gemini prompt boxes
-✓ Cross-Platform – Works seamlessly across all three major LLMs
-✓ Instant Access – Click any saved prompt to copy it to your clipboard
-✓ Keyboard Shortcut – Press Ctrl+Alt+S (Cmd+Opt+S on Mac) to save prompts instantly
-✓ Automatic Organization – Prompts are organized by source (ChatGPT, Claude, Gemini)
-✓ Encrypted Export – Export prompts as password-protected .pmtpk files
-✓ Cloud Sync – Pro users get automatic sync across devices (requires sign-in + Pro)
+WHAT IS A PROMPTPACK?
+A PromptPack is a curated set of prompts grouped into a reusable workflow.
 
-📦 WHAT IS A PROMPTPACK?
-
-A PromptPack is a curated set of prompts grouped into a reusable workflow — like a playlist for your best AI prompts. Save in one click while chatting, then reuse your packs seamlessly without tab switching or copy-pasting from messy documents.
-
-⚡ HOW IT WORKS
-
+HOW IT WORKS
 1. Install PromptPack
 2. Visit ChatGPT, Claude, or Gemini
-3. Click the save button that appears in the prompt box
-4. Access your saved prompts from the extension popup
-5. Click any prompt to copy it instantly
+3. Save prompts with the inline button or shortcut
+4. Open the extension popup to browse and copy
+5. Export or save to your dashboard when needed
 
-🆓 FREE TIER
+FREE TIER
+- Save up to 10 prompts total
+- Export .pmtpk files
+- Local browser storage
+- Basic encryption
 
-• Save up to 10 prompts per LLM source (30 total)
-• Export prompts as .pmtpk files
-• Local browser storage
-• Basic encryption
+PRO TIER
+- Save up to 40 prompts total
+- Import up to 2 PromptPacks
+- Create custom packs from the web dashboard
+- Access your prompts via the dashboard (sign-in required)
+- AES-GCM encryption with password protection
 
-💎 PRO TIER ($9/month)
+SECURITY & PRIVACY
+- AES-GCM authenticated encryption
+- PBKDF2 key derivation (100,000 iterations)
+- SHA-256 integrity verification
+- Your prompts stay private (local or in your account)
+- No ads, no tracking, no selling your data
 
-• Save up to 40 prompts per source (120 total)
-• Cloud sync across devices (requires sign-in + Pro)
-• Import up to 2 custom PromptPacks
-• Create custom packs from the web dashboard (requires sign-in + Pro)
-• AES-GCM encryption with password protection
-• Turn prompts into shareable, licensable digital assets
+SUPPORTED PLATFORMS
+- ChatGPT (chatgpt.com)
+- Claude (claude.ai)
+- Google Gemini (gemini.google.com)
+- PromptPack Dashboard (pmtpk.com)
 
-🔒 SECURITY & PRIVACY
+NEW IN 2.0.0
+- Prompt Enhance button
+- AI-generated headers
+- Inline save icon beside copy buttons
+- Right-click prompt actions
 
-• AES-GCM authenticated encryption
-• PBKDF2 key derivation (100,000 iterations)
-• SHA-256 integrity verification
-• Your prompts stay private – stored locally or in your secure cloud account
-• No ads, no tracking, no selling your data
+LEARN MORE
+Visit pmtpk.com for docs, pricing, and your dashboard.
 
-🌐 SUPPORTED PLATFORMS
-
-• ChatGPT (chatgpt.com)
-• Claude (claude.ai)
-• Google Gemini (gemini.google.com)
-
-🎨 BUILT FOR CREATORS
-
-Pro users can export PromptPacks as .pmtpk files — a purpose-built format for sharing and distribution. Add encryption to keep your packs secure, then distribute with confidence and license your work like a real digital asset.
-
-Pack your ideas. Monetize your prompts.
-
-📖 WHAT'S NEXT
-
-Beyond storage, PromptPacks will evolve into agent-ready workflows — drag-and-drop modules you can plug into an LLM to get work done faster.
-
-🔗 LEARN MORE
-
-Visit pmtpk.com for full documentation, pricing details, and to access your dashboard.
-
-💬 SUPPORT
-
+SUPPORT
 Questions or feedback? Email sathvik.work@gmail.com
-
----
-
-Made with ❤️ for prompt engineers everywhere
 ```
 
 </details>

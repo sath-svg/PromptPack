@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 export function SupportButton() {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Listen for custom event to open support modal
+  useEffect(() => {
+    const handleOpenSupport = () => setIsOpen(true);
+    window.addEventListener("open-support", handleOpenSupport);
+    return () => window.removeEventListener("open-support", handleOpenSupport);
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);

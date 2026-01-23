@@ -13,7 +13,7 @@ routes = [
 [vars]
 ENVIRONMENT = "production"
 CONVEX_URL = "https://determined-lark-313.convex.cloud"
-ALLOWED_ORIGINS = "https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://omccnllfffnelmkgpngkbdpckdmdhjac"
+ALLOWED_ORIGINS = "https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
 OLLAMA_URL = "https://ollama.pmtpk.com"
 CLERK_ISSUER = "https://clerk.pmtpk.com"
 CLERK_JWKS_URL = "https://clerk.pmtpk.com/.well-known/jwks.json"
