@@ -12,7 +12,7 @@ const SUBJECT = "PromptPack 2.0.0 is here!";
 const IMG_BASE = "https://image.pmtpk.com/img";
 const IMAGES = {
   enhanceSave: `${IMG_BASE}/Enhance-save.jpg`,
-  quickReplace: `${IMG_BASE}/Quick-Replace.jpg`,
+  quickSelect: `${IMG_BASE}/Quick-Select.jpg`,
   saveFromInput: `${IMG_BASE}/Save-from-input-box.jpg`,
   organize: `${IMG_BASE}/Organize.jpg`,
   llms: `${IMG_BASE}/LLMs.jpg`,
@@ -164,26 +164,26 @@ async function main() {
                   <tr>
                     <td style="padding:16px 20px;">
                       <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Enhance & Save</h3>
-                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears above the prompt box with options to enhance your prompt using AI (Structured, Clarity, Concise, or Strict modes) and a Save button to capture prompts instantly.</p>
+                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears beside the prompt box with options to enhance your prompt using AI (Structured, Clarity, Concise, or Strict modes) and a Save button to capture prompts instantly.</p>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
 
-            <!-- Feature 2: Quick Replace -->
+            <!-- Feature 2: Quick Select -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.quickReplace}" alt="Quick Replace" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <img src="${IMAGES.quickSelect}" alt="Quick Select" width="568" style="width:100%;height:auto;display:block;border:0;" />
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:16px 20px;">
-                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Quick Replace</h3>
-                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">Right-click in the prompt box to open the Quick Replace menu. Instantly select and insert any saved prompt from your PromptPacks without leaving your chat.</p>
+                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Quick Select</h3>
+                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">Right-click in the prompt box to open the Quick Select menu. Instantly select and insert any saved prompt from your PromptPacks without leaving your chat.</p>
                     </td>
                   </tr>
                 </table>
@@ -241,6 +241,21 @@ async function main() {
                     <td style="padding:16px 20px;">
                       <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Multi-LLM Support</h3>
                       <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">PromptPack works with ChatGPT, Claude, and Gemini. The same enhance and save bubble adapts seamlessly to each platform's design.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Review Request -->
+            <tr>
+              <td style="padding:0 16px 24px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
+                  <tr>
+                    <td style="padding:20px;text-align:center;">
+                      <p class="email-foreground" style="margin:0 0 12px;font-size:16px;color:${themeLight.foreground};">Enjoying PromptPack?</p>
+                      <p class="email-muted" style="margin:0 0 16px;font-size:14px;line-height:1.6;color:${themeLight.muted};">Your review helps others discover PromptPack and keeps us motivated to build more features!</p>
+                      <a href="https://chromewebstore.google.com/detail/promptpack/ajfgnekiofhiblifmiimnlmcnfhibnbl/reviews" target="_blank" style="display:inline-block;background-color:${themeLight.primary};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;">Leave a Review ⭐</a>
                     </td>
                   </tr>
                 </table>
