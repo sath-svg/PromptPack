@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import {
   ClerkProvider,
   SignInButton,
@@ -15,6 +16,8 @@ import { SupportButton } from "@/components/support-button";
 import { MobileNav } from "@/components/mobile-nav";
 import { assetUrl } from "@/lib/constants";
 import "./globals.css";
+
+const GA_MEASUREMENT_ID = "G-JYKEGJXTP7";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://pmtpk.com'),
@@ -112,6 +115,19 @@ export default function RootLayout({
           <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16.png" />
           <link rel="icon" type="image/png" sizes="48x48" href="/img/icon-48.png" />
           <link rel="shortcut icon" href="/favicon.ico" />
+          {/* Google Analytics */}
+          <Script
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+            strategy="afterInteractive"
+          />
+          <Script id="google-analytics" strategy="afterInteractive">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_MEASUREMENT_ID}');
+            `}
+          </Script>
         </head>
         <body>
           <header className="header">
