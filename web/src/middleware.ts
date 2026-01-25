@@ -1,4 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
@@ -20,6 +21,14 @@ const isPublicRoute = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
+  // Redirect www to non-www for SEO canonicalization
+  const host = request.headers.get("host") || "";
+  if (host.startsWith("www.")) {
+    const newUrl = new URL(request.url);
+    newUrl.host = host.replace("www.", "");
+    return NextResponse.redirect(newUrl, 301);
+  }
+
   if (!isPublicRoute(request)) {
     await auth.protect();
   }
