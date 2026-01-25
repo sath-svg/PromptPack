@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // SEO: Ensure consistent URLs (no trailing slashes)
+  trailingSlash: false,
+
   // Exclude convex folder from typescript checking until convex dev is run
   typescript: {
     ignoreBuildErrors: false,

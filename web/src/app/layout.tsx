@@ -101,6 +101,9 @@ export const metadata: Metadata = {
     // Add your verification codes here when you set up Google Search Console
     // google: 'your-google-verification-code',
   },
+  alternates: {
+    canonical: 'https://pmtpk.com',
+  },
 };
 
 export default function RootLayout({
