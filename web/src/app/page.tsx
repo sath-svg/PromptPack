@@ -101,9 +101,11 @@ export default function Home() {
         </div>
 
         <HeroVideo />
+      </div>
 
-        <FeatureSlideshow />
+      <FeatureSlideshow />
 
+      <div className="hero" style={{ marginTop: 0 }}>
         <h4 className="hero-hook">
           <a className="hero-hook-link" href="#faq">See FAQ</a>
         </h4>
