@@ -2730,6 +2730,7 @@ h4.hero-hook {
   display: flex;
   align-items: center;
   gap: 3rem;
+  width: 100%;
   animation: slideFadeIn 0.4s ease;
 }
 @keyframes slideFadeIn {
