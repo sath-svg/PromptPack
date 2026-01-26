@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withPlausibleProxy } from "next-plausible";
 
 const nextConfig: NextConfig = {
   // SEO: Ensure consistent URLs (no trailing slashes)
@@ -38,4 +39,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPlausibleProxy({
+  customDomain: process.env.NEXT_PUBLIC_PLAUSIBLE_URL,
+})(nextConfig);
