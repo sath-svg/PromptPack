@@ -2689,6 +2689,9 @@ h4.hero-hook {
   overflow: hidden;
   padding: 3rem 4rem;
   min-height: 520px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 /* Arrows */
