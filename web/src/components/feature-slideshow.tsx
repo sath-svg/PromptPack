@@ -12,7 +12,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #22c55e, #00d4ff)",
     description:
       "Right-click any prompt box to instantly insert a saved prompt. Your entire library, one click away.",
-    video: "/img/clip-quick-select.webm",
+    video: "/img/clip-quick-select.mp4",
   },
   {
     id: "output-styles",
@@ -22,7 +22,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #f97316, #9b7bff)",
     description:
       "Enhance any prompt before sending. Shape the AI's response with 4 distinct modes.",
-    video: "/img/clip-output-styles.webm",
+    video: "/img/clip-output-styles.mp4",
   },
   {
     id: "save",
@@ -32,7 +32,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Capture any prompt with one click directly from ChatGPT, Claude, or Gemini. Auto-organized into folders by platform.",
-    video: "/img/clip-save.webm",
+    video: "/img/clip-save.mp4",
   },
   {
     id: "save-input",
@@ -42,7 +42,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Click the PromptPack icon below any input box to save the prompt instantly. No menus, no extra steps.",
-    video: "/img/clip-save-from-input.webm",
+    video: "/img/clip-save-from-input.mp4",
   },
   {
     id: "organize",
@@ -52,7 +52,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description:
       "Prompts automatically sort into ChatGPT, Claude, and Gemini folders. Create custom packs for repeatable workflows.",
-    video: "/img/clip-organize.webm",
+    video: "/img/clip-organize.mp4",
   },
   {
     id: "platforms",
@@ -61,7 +61,7 @@ const slides = [
     title: "Works with Every Major AI Platform",
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description: "One extension. All your AI tools.",
-    video: "/img/clip-platforms.webm",
+    video: "/img/clip-platforms.mp4",
   },
 ];
 

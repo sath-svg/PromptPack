@@ -85,6 +85,7 @@ export const ClipQuickSelect: React.FC = () => {
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: C.bg,
       }}
     >
       <div
@@ -177,6 +178,7 @@ export const ClipOutputStyles: React.FC = () => {
         justifyContent: "center",
         alignItems: "center",
         flexDirection: "column",
+        backgroundColor: C.bg,
       }}
     >
       {/* Style pills */}
@@ -289,6 +291,7 @@ export const ClipSave: React.FC = () => {
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: C.bg,
       }}
     >
       <div
@@ -420,6 +423,7 @@ export const ClipSaveFromInput: React.FC = () => {
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: C.bg,
       }}
     >
       <div
@@ -544,6 +548,7 @@ export const ClipOrganize: React.FC = () => {
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: C.bg,
       }}
     >
       <div
@@ -587,6 +592,7 @@ export const ClipPlatforms: React.FC = () => {
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
+        backgroundColor: C.bg,
       }}
     >
       <div style={{ display: "flex", gap: 30 }}>
