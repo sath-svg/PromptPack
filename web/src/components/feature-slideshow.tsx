@@ -14,8 +14,8 @@ const slides = [
     description:
       "Right-click any prompt box to instantly insert a saved prompt. Your entire library, one click away.",
     images: [
-      { src: "/img/QuickSelect.png", alt: "Quick Select menu", width: 500 },
-      { src: "/img/PromptBox.png", alt: "Prompt box", width: 640 },
+      { src: "/img/Quick%20Select..png", alt: "Quick Select menu", width: 500 },
+      { src: "/img/Prompt%20Box..png", alt: "Prompt box", width: 640 },
     ],
     layout: "overlap" as const,
   },
@@ -27,7 +27,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #f97316, #9b7bff)",
     description:
       "Enhance any prompt before sending. Shape the AI's response with 4 distinct modes.",
-    images: [{ src: "/img/Bubble.svg", alt: "Output styles bubble", width: 470 }],
+    images: [{ src: "/img/Bubble..svg", alt: "Output styles bubble", width: 470 }],
     layout: "center" as const,
     pills: ["Structured", "Clarity", "Concise", "Strict"],
     pillColors: ["#3b82f6", "#22c55e", "#9b7bff", "#f97316"],
@@ -41,8 +41,8 @@ const slides = [
     description:
       "Capture any prompt with one click directly from ChatGPT, Claude, or Gemini. Auto-organized into folders by platform.",
     images: [
-      { src: "/img/PromptBoxEnhanced.svg", alt: "Enhanced prompt box", width: 700 },
-      { src: "/img/ConciseBubble.svg", alt: "Concise bubble", width: 440 },
+      { src: "/img/prompt%20Box%20with%20enhanced%20input..svg", alt: "Enhanced prompt box", width: 700 },
+      { src: "/img/Concise%20bubble..svg", alt: "Concise bubble", width: 440 },
     ],
     layout: "stack" as const,
   },
@@ -54,7 +54,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Click the PromptPack icon below any input box to save the prompt instantly. No menus, no extra steps.",
-    images: [{ src: "/img/PromptPackIcon.png", alt: "PromptPack icon", width: 40 }],
+    images: [{ src: "/img/PromptPack..png", alt: "PromptPack icon", width: 40 }],
     layout: "input-bubble" as const,
   },
   {
@@ -65,7 +65,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description:
       "Prompts automatically sort into ChatGPT, Claude, and Gemini folders. Create custom packs for repeatable workflows.",
-    images: [{ src: "/img/PromptPack.svg", alt: "PromptPack extension", width: 520 }],
+    images: [{ src: "/img/PromptPack..svg", alt: "PromptPack extension", width: 520 }],
     layout: "center" as const,
   },
   {
@@ -76,9 +76,9 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description: "One extension. All your AI tools.",
     images: [
-      { src: "/img/ChatGPTBubble.png", alt: "ChatGPT", width: 340 },
-      { src: "/img/ClaudeBubble.png", alt: "Claude", width: 340 },
-      { src: "/img/GeminiBubble.png", alt: "Gemini", width: 340 },
+      { src: "/img/Bubble..png", alt: "ChatGPT", width: 340 },
+      { src: "/img/claude_bubble.png", alt: "Claude", width: 340 },
+      { src: "/img/gmini_bubble.png", alt: "Gemini", width: 340 },
     ],
     layout: "row" as const,
     platformNames: [
