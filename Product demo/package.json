@@ -1,0 +1,17 @@
+{
+  "name": "promptpack-demo-video",
+  "version": "1.0.0",
+  "description": "PromptPack product demo video built with Remotion",
+  "scripts": {
+    "start": "npx remotion studio",
+    "build": "npx remotion render PromptPackVideo out/video.mp4",
+    "render": "npx remotion render PromptPackVideo out/video.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.242",
+    "@remotion/google-fonts": "^4.0.242",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.242"
+  }
+}

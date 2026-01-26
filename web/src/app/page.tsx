@@ -4,6 +4,7 @@ import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
 import { HowItWorks } from "@/components/how-it-works";
 import { HeroVideo } from "@/components/hero-video";
+import { FeatureSlideshow } from "@/components/feature-slideshow";
 import { FeatureRequestLink } from "@/components/feature-request-link";
 import { RoadmapTooltip } from "@/components/roadmap-tooltip";
 import './globals.css';
@@ -100,6 +101,8 @@ export default function Home() {
         </div>
 
         <HeroVideo />
+
+        <FeatureSlideshow />
 
         <h4 className="hero-hook">
           <a className="hero-hook-link" href="#faq">See FAQ</a>
