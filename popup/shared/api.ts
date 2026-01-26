@@ -673,6 +673,7 @@ class ApiClient {
   /**
    * Classify a prompt and get an AI-generated header
    * Requires authentication - returns error for unauthenticated users
+   * Uses userId for rate limiting (no token auth required)
    */
   async classifyPrompt(promptText: string): Promise<{
     success: boolean;
@@ -690,7 +691,7 @@ class ApiClient {
       }
 
       const session = await getSession();
-      if (!session?.accessToken) {
+      if (!session?.userId) {
         return { success: false, error: "Sign in required for AI-generated headers" };
       }
 
@@ -698,11 +699,11 @@ class ApiClient {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.accessToken}`,
         },
         body: JSON.stringify({
           promptText: promptText.slice(0, 500), // Limit to 500 chars
           maxWords,
+          userId: session.userId,
         }),
       });
 

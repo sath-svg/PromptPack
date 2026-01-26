@@ -27,10 +27,23 @@ export type AuthState = {
     isPro: boolean;
     plan: "free" | "pro";
   };
+  classifyLimit?: number; // Daily limit for AI headers (50 free, 500 pro)
+};
+
+// Classify rate limits
+const CLASSIFY_FREE_LIMIT = 50;
+const CLASSIFY_PRO_LIMIT = 500;
+const CLASSIFY_USAGE_KEY = "pp_classify_usage";
+
+type AuthStateCache = {
+  state: AuthState;
+  cachedAt: number;
 };
 
 const RETURN_TAB_KEY = "pp_auth_return_tab";
 const LEGACY_AUTH_CACHE_KEY = "pp_auth_cache";
+const AUTH_STATE_CACHE_KEY = "pp_auth_state_cache";
+const AUTH_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 1 day
 
 function decodeJwtExpiry(token: string): number | null {
   const parts = token.split(".");
@@ -70,6 +83,139 @@ async function clearLegacyAuthCache(): Promise<void> {
 }
 
 /**
+ * Get cached auth state from storage
+ */
+async function getCachedAuthState(): Promise<AuthStateCache | null> {
+  try {
+    const result = await chrome.storage.local.get(AUTH_STATE_CACHE_KEY);
+    const cache = result[AUTH_STATE_CACHE_KEY] as AuthStateCache | undefined;
+    if (cache && cache.state && typeof cache.cachedAt === "number") {
+      return cache;
+    }
+  } catch {
+    // Ignore cache read failures
+  }
+  return null;
+}
+
+/**
+ * Save auth state to cache
+ */
+async function setCachedAuthState(state: AuthState): Promise<void> {
+  try {
+    const cache: AuthStateCache = {
+      state,
+      cachedAt: Date.now(),
+    };
+    await chrome.storage.local.set({ [AUTH_STATE_CACHE_KEY]: cache });
+  } catch {
+    // Ignore cache write failures
+  }
+}
+
+/**
+ * Clear auth state cache
+ */
+async function clearAuthStateCache(): Promise<void> {
+  try {
+    await chrome.storage.local.remove(AUTH_STATE_CACHE_KEY);
+  } catch {
+    // Ignore cache clear failures
+  }
+}
+
+/**
+ * Check if cached auth state is still valid (less than 1 day old)
+ */
+function isCacheValid(cache: AuthStateCache): boolean {
+  const age = Date.now() - cache.cachedAt;
+  return age < AUTH_CACHE_MAX_AGE_MS;
+}
+
+// ============ Classify Usage Tracking ============
+
+type ClassifyUsage = {
+  count: number;
+  date: string; // ISO date string (YYYY-MM-DD)
+};
+
+/**
+ * Get today's date as ISO string (YYYY-MM-DD)
+ */
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+/**
+ * Get classify usage for today
+ */
+async function getClassifyUsage(): Promise<ClassifyUsage> {
+  try {
+    const result = await chrome.storage.local.get(CLASSIFY_USAGE_KEY);
+    const usage = result[CLASSIFY_USAGE_KEY] as ClassifyUsage | undefined;
+    const today = getTodayDate();
+
+    // Reset counter if it's a new day
+    if (usage && usage.date === today) {
+      return usage;
+    }
+
+    // New day or no usage - return zero
+    return { count: 0, date: today };
+  } catch {
+    return { count: 0, date: getTodayDate() };
+  }
+}
+
+/**
+ * Increment classify usage counter
+ */
+export async function incrementClassifyUsage(): Promise<number> {
+  const usage = await getClassifyUsage();
+  const newCount = usage.count + 1;
+
+  try {
+    await chrome.storage.local.set({
+      [CLASSIFY_USAGE_KEY]: { count: newCount, date: usage.date },
+    });
+  } catch {
+    // Ignore storage errors
+  }
+
+  return newCount;
+}
+
+/**
+ * Check if user can classify (has remaining quota)
+ */
+export async function canClassify(authState: AuthState): Promise<{
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+}> {
+  if (!authState.isAuthenticated) {
+    return { allowed: false, remaining: 0, limit: 0 };
+  }
+
+  const limit = authState.classifyLimit ?? (authState.billing?.isPro ? CLASSIFY_PRO_LIMIT : CLASSIFY_FREE_LIMIT);
+  const usage = await getClassifyUsage();
+  const remaining = Math.max(0, limit - usage.count);
+
+  return {
+    allowed: usage.count < limit,
+    remaining,
+    limit,
+  };
+}
+
+/**
+ * Get classify limit based on billing status
+ */
+function getClassifyLimit(isPro: boolean): number {
+  return isPro ? CLASSIFY_PRO_LIMIT : CLASSIFY_FREE_LIMIT;
+}
+
+/**
  * Get billing info from Convex
  */
 export async function getBillingInfo(clerkId: string): Promise<{
@@ -88,11 +234,33 @@ export async function getBillingInfo(clerkId: string): Promise<{
 }
 
 /**
- * Get current auth state from the server
+ * Get cached auth state instantly (for fast UI rendering)
+ * Returns cached state if valid, otherwise null
+ */
+export async function getAuthStateCached(): Promise<AuthState | null> {
+  const cache = await getCachedAuthState();
+  if (cache && isCacheValid(cache)) {
+    return cache.state;
+  }
+  return null;
+}
+
+/**
+ * Get current auth state - uses cache if valid, otherwise fetches fresh
  */
 export async function getAuthState(): Promise<AuthState> {
   await clearLegacyAuthCache();
-  return getAuthStateFromServer();
+
+  // Check cache first
+  const cache = await getCachedAuthState();
+  if (cache && isCacheValid(cache)) {
+    return cache.state;
+  }
+
+  // Cache miss or expired - fetch fresh
+  const state = await getAuthStateFromServer();
+  await setCachedAuthState(state);
+  return state;
 }
 
 /**
@@ -126,6 +294,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
         if (newSession && newSession.expiresAt > Date.now()) {
           // Fetch billing info from Convex
           const billing = await getBillingInfo(newSession.userId);
+          const isPro = billing?.isPro ?? false;
 
           return {
             isAuthenticated: true,
@@ -136,6 +305,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
             },
             entitlements: newSession.entitlements,
             billing: billing || undefined,
+            classifyLimit: getClassifyLimit(isPro),
           };
         }
       }
@@ -161,6 +331,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
           // Trust expiresAt after successful refresh
           if (newSession && newSession.expiresAt > Date.now()) {
             const billing = await getBillingInfo(newSession.userId);
+            const isPro = billing?.isPro ?? false;
 
             return {
               isAuthenticated: true,
@@ -171,6 +342,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
               },
               entitlements: newSession.entitlements,
               billing: billing || undefined,
+              classifyLimit: getClassifyLimit(isPro),
             };
           }
         }
@@ -184,6 +356,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
 
   // Fetch billing info from Convex
   const billing = await getBillingInfo(session.userId);
+  const isPro = billing?.isPro ?? false;
 
   return {
     isAuthenticated: true,
@@ -194,14 +367,34 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     },
     entitlements: session.entitlements,
     billing: billing || undefined,
+    classifyLimit: getClassifyLimit(isPro),
   };
 }
 
 /**
- * Verify auth state in background and update state if changed
+ * Verify auth state in background and update cache if changed
+ * Returns new state if different from current, null if same
  */
-export async function verifyAuthStateBackground(_currentState: AuthState): Promise<AuthState | null> {
-  return null;
+export async function verifyAuthStateBackground(currentState: AuthState): Promise<AuthState | null> {
+  try {
+    // Always fetch fresh from server in background
+    const freshState = await getAuthStateFromServer();
+
+    // Check if state changed
+    const changed =
+      freshState.isAuthenticated !== currentState.isAuthenticated ||
+      freshState.user?.id !== currentState.user?.id ||
+      freshState.billing?.isPro !== currentState.billing?.isPro;
+
+    // Update cache with fresh state
+    await setCachedAuthState(freshState);
+
+    // Return new state only if changed
+    return changed ? freshState : null;
+  } catch {
+    // Silently fail background verification
+    return null;
+  }
 }
 
 /**
@@ -471,6 +664,7 @@ export async function logout(): Promise<void> {
   await api.logout();
   await clearSession();
   await clearLegacyAuthCache();
+  await clearAuthStateCache();
 
   // Open Clerk sign-out page in a new tab
   try {

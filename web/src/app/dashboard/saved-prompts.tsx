@@ -115,6 +115,7 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
   const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
   const [promptDraft, setPromptDraft] = useState("");
   const [headerAuthBlocked, setHeaderAuthBlocked] = useState(false);
+  const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!isSignedIn) return null;
@@ -413,6 +414,7 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
     setHeaderDraft("");
     setEditingPromptIndex(null);
     setPromptDraft("");
+    setLoadingPackId(pack._id);
 
     // First, fetch the file to check if it's encrypted or obfuscated
     try {
@@ -471,6 +473,8 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
     } catch (e) {
       console.error("Fetch failed:", e);
       setError("Failed to fetch file - check connection");
+    } finally {
+      setLoadingPackId(null);
     }
   };
 
@@ -859,21 +863,36 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
         {savedPacks.map((pack) => (
           <button
             key={pack._id}
-            className="saved-pack-item saved-pack-button"
+            className={`saved-pack-item saved-pack-button${loadingPackId === pack._id ? " pack-loading" : ""}`}
             onClick={() => handlePackClick(pack)}
+            disabled={loadingPackId !== null}
           >
-            <div className="pack-title">
-              <span className={`source-icon source-${pack.source}`}>
-                {pack.source === "chatgpt" ? "🤖" : pack.source === "claude" ? "🧠" : "✨"}
-              </span>
-              <span className="pack-name">{getSourceTitle(pack.source)}</span>
-            </div>
-            <div className="pack-info">
-              <span className="prompt-count">{pack.promptCount} prompts</span>
-              <span className="last-updated">
-                {new Date(pack.updatedAt).toLocaleDateString()}
-              </span>
-            </div>
+            {loadingPackId === pack._id ? (
+              <>
+                <div className="pack-title">
+                  <span className="pack-spinner" />
+                  <span className="pack-name">Loading...</span>
+                </div>
+                <div className="pack-info">
+                  <span className="prompt-count">{pack.promptCount} prompts</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="pack-title">
+                  <span className={`source-icon source-${pack.source}`}>
+                    {pack.source === "chatgpt" ? "🤖" : pack.source === "claude" ? "🧠" : "✨"}
+                  </span>
+                  <span className="pack-name">{getSourceTitle(pack.source)}</span>
+                </div>
+                <div className="pack-info">
+                  <span className="prompt-count">{pack.promptCount} prompts</span>
+                  <span className="last-updated">
+                    {new Date(pack.updatedAt).toLocaleDateString()}
+                  </span>
+                </div>
+              </>
+            )}
           </button>
         ))}
       </div>

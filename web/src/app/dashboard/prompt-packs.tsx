@@ -317,6 +317,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   const [editingPromptIndex, setEditingPromptIndex] = useState<number | null>(null);
   const [promptDraft, setPromptDraft] = useState("");
   const [headerAuthBlocked, setHeaderAuthBlocked] = useState(false);
+  const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!isSignedIn) return null;
@@ -591,6 +592,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     setEditingPromptIndex(null);
     setPromptDraft("");
     setIsSaving(true);
+    setLoadingPackId(pack._id);
 
     try {
       // Fetch file from R2 using the Cloudflare Workers API
@@ -648,6 +650,7 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
       setError("Failed to load pack");
     } finally {
       setIsSaving(false);
+      setLoadingPackId(null);
     }
 
     setNewPrompt("");
@@ -1138,21 +1141,36 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
             {webPacks.map((pack) => (
               <button
                 key={pack._id}
-                className="saved-pack-item saved-pack-button"
+                className={`saved-pack-item saved-pack-button${loadingPackId === pack._id ? " pack-loading" : ""}`}
                 onClick={() => handlePackClick(pack)}
+                disabled={loadingPackId !== null}
               >
-                <div className="pack-title">
-                  <span className="source-icon">
-                    {pack.isEncrypted ? "🔒" : "📦"}
-                  </span>
-                  <span className="pack-name">{pack.title}</span>
-                </div>
-                <div className="pack-info">
-                  <span className="prompt-count">{pack.promptCount} prompts</span>
-                  <span className="last-updated">
-                    {new Date(pack.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
+                {loadingPackId === pack._id ? (
+                  <>
+                    <div className="pack-title">
+                      <span className="pack-spinner" />
+                      <span className="pack-name">Loading...</span>
+                    </div>
+                    <div className="pack-info">
+                      <span className="prompt-count">{pack.promptCount} prompts</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="pack-title">
+                      <span className="source-icon">
+                        {pack.isEncrypted ? "🔒" : "📦"}
+                      </span>
+                      <span className="pack-name">{pack.title}</span>
+                    </div>
+                    <div className="pack-info">
+                      <span className="prompt-count">{pack.promptCount} prompts</span>
+                      <span className="last-updated">
+                        {new Date(pack.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </>
+                )}
               </button>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { API_BASE, FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT } from "./shared/config";
 import { getSession } from "./shared/db";
+import { getAuthStateCached, canClassify, incrementClassifyUsage } from "./shared/auth";
 
 type ClassifyMessage = {
   type: "PP_CLASSIFY";
@@ -91,21 +92,35 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
 
     const session = await getSession();
-    // Use refresh token for /classify authentication (not the short-lived Clerk JWT)
-    if (!session?.refreshToken || session.expiresAt < Date.now()) {
+    // Use userId for /classify - backend rate limiting handles security (50 free / 500 pro per day)
+    if (!session?.userId) {
       sendResponse({ ok: false, error: "Sign in required for AI-generated headers" });
       return;
+    }
+
+    // Check local usage limit before calling API
+    const authState = await getAuthStateCached();
+    if (authState) {
+      const { allowed, limit } = await canClassify(authState);
+      if (!allowed) {
+        sendResponse({
+          ok: false,
+          error: `Daily AI header limit reached (${limit}/day). Upgrade for more.`,
+          status: 429,
+        });
+        return;
+      }
     }
 
     const response = await fetch(`${API_BASE}/classify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session.refreshToken}`,
       },
       body: JSON.stringify({
         promptText: payload.promptText.slice(0, 500),
         maxWords: payload.maxWords ?? 2,
+        userId: session.userId,
       }),
     });
 
@@ -118,6 +133,9 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       });
       return;
     }
+
+    // Increment local usage counter on success
+    await incrementClassifyUsage();
 
     const data = await response.json() as { header?: string };
     sendResponse({ ok: true, header: data.header });

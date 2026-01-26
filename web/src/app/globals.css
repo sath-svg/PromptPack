@@ -1264,9 +1264,34 @@ h4.hero-hook {
   border: 1px solid var(--border);
 }
 
-.saved-pack-button:hover {
+.saved-pack-button:hover:not(:disabled) {
   border-color: var(--primary);
   background: rgba(99, 102, 241, 0.05);
+}
+
+.saved-pack-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.saved-pack-button.pack-loading {
+  opacity: 1;
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.pack-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: pack-spin 0.6s linear infinite;
+}
+
+@keyframes pack-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Prompt packs (web-created) */

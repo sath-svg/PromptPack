@@ -1171,58 +1171,9 @@ export default {
       }
 
       // Classify prompt using Ollama (POST /classify)
+      // Uses userId in request body for rate limiting (no token auth required)
+      // Security is handled by rate limits: 50/day free, 500/day pro
       if (path === "/classify" && method === "POST") {
-        const authHeader = request.headers.get("Authorization") || "";
-        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-
-        if (!token) {
-          return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          }));
-        }
-
-        // Validate refresh token via Convex (extension only)
-        let userId: string | null = null;
-        try {
-          const validateUrl = `${env.CONVEX_URL}/api/extension/validate-token`;
-          const validateResponse = await fetch(validateUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ refreshToken: token }),
-          });
-
-          if (!validateResponse.ok) {
-            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          const validateData = await validateResponse.json() as {
-            valid: boolean;
-            clerkId?: string;
-            reason?: string;
-          };
-
-          if (!validateData.valid || !validateData.clerkId) {
-            return addCors(new Response(JSON.stringify({
-              error: "Sign in required",
-              reason: validateData.reason,
-            }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          userId = validateData.clerkId;
-        } catch {
-          return addCors(new Response(JSON.stringify({ error: "Authentication failed" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          }));
-        }
-
         let inFlightKey: string | null = null;
         let inFlightLocked = false;
 
@@ -1230,7 +1181,17 @@ export default {
           const body = await request.json() as {
             promptText: string;
             maxWords?: number; // Optional, defaults to 2
+            userId?: string; // User ID for rate limiting
           };
+
+          // Get userId from request body
+          const userId = body.userId;
+          if (!userId) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
 
           if (!body.promptText || body.promptText.trim().length === 0) {
             return addCors(new Response(JSON.stringify({ error: "Missing promptText" }), {
