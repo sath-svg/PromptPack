@@ -2668,9 +2668,9 @@ h4.hero-hook {
 .slideshow-section {
   width: 100%;
   margin: 0;
-  padding: 3rem 0;
+  padding: 4rem 0 5rem;
   text-align: center;
-  background: linear-gradient(180deg, var(--background) 0%, #000 8%, #000 92%, var(--background) 100%);
+  background: linear-gradient(180deg, var(--background) 0%, #000 4%, #000 96%, var(--background) 100%);
 }
 
 .slideshow-heading {
@@ -2684,13 +2684,13 @@ h4.hero-hook {
 
 .slideshow-container {
   position: relative;
-  background: #000;
+  background: transparent;
   border: none;
   border-radius: 0;
   overflow: hidden;
-  padding: 3rem clamp(2rem, 5vw, 4rem);
+  padding: 2rem clamp(2rem, 5vw, 6rem);
   min-height: 520px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -2803,7 +2803,7 @@ h4.hero-hook {
 /* Video in slideshow */
 .slideshow-video {
   width: 100%;
-  max-width: 600px;
+  max-width: 800px;
   height: auto;
   border-radius: 0;
   object-fit: contain;
