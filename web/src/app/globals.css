@@ -2776,6 +2776,7 @@ h4.hero-hook {
   align-items: center;
   justify-content: center;
   gap: 1rem;
+  position: relative;
 }
 
 /* Dots */
@@ -2807,6 +2808,45 @@ h4.hero-hook {
   height: auto;
   border-radius: 0;
   object-fit: contain;
+  transition: opacity 0.3s ease;
+}
+
+/* Loading skeleton */
+.slideshow-skeleton {
+  width: 100%;
+  max-width: 1000px;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  background: linear-gradient(
+    110deg,
+    #1a1a2e 30%,
+    #252542 50%,
+    #1a1a2e 70%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+}
+
+.slideshow-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(155, 123, 255, 0.2);
+  border-top-color: #9b7bff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Responsive */

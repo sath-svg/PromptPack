@@ -68,7 +68,10 @@ const slides = [
 export function FeatureSlideshow() {
   const [current, setCurrent] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const next = useCallback(() => {
     setCurrent((prev) => (prev + 1) % slides.length);
@@ -78,14 +81,32 @@ export function FeatureSlideshow() {
     setCurrent((prev) => (prev - 1 + slides.length) % slides.length);
   }, []);
 
+  // Lazy load: only start loading videos when section is near viewport
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
   useEffect(() => {
     if (!isAutoPlaying) return;
     const timer = setInterval(next, 6000);
     return () => clearInterval(timer);
   }, [isAutoPlaying, next]);
 
-  // Reset video on slide change
+  // Reset video and loading state on slide change
   useEffect(() => {
+    setVideoLoaded(false);
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {});
@@ -105,7 +126,7 @@ export function FeatureSlideshow() {
   const slide = slides[current];
 
   return (
-    <section className="slideshow-section">
+    <section className="slideshow-section" ref={sectionRef}>
       <h2 className="slideshow-heading">Feature Highlights</h2>
 
       <div className="slideshow-container">
@@ -148,18 +169,27 @@ export function FeatureSlideshow() {
           </div>
 
           <div className="slideshow-visual">
-            <video
-              ref={videoRef}
-              key={slide.id}
-              src={assetUrl(slide.video)}
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              className="slideshow-video"
-              aria-hidden="true"
-            />
+            {!videoLoaded && (
+              <div className="slideshow-skeleton">
+                <div className="slideshow-spinner" />
+              </div>
+            )}
+            {isVisible && (
+              <video
+                ref={videoRef}
+                key={slide.id}
+                src={assetUrl(slide.video)}
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                className="slideshow-video"
+                style={{ opacity: videoLoaded ? 1 : 0 }}
+                aria-hidden="true"
+                onCanPlay={() => setVideoLoaded(true)}
+              />
+            )}
           </div>
         </div>
 
