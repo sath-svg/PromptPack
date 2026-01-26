@@ -82,7 +82,6 @@ export const ClipQuickSelect: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
@@ -174,7 +173,6 @@ export const ClipOutputStyles: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
@@ -288,7 +286,6 @@ export const ClipSave: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
@@ -420,7 +417,6 @@ export const ClipSaveFromInput: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
@@ -545,7 +541,6 @@ export const ClipOrganize: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
@@ -589,7 +584,6 @@ export const ClipPlatforms: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: C.bg,
         fontFamily: interFont,
         justifyContent: "center",
         alignItems: "center",
