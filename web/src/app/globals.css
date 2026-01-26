@@ -2666,10 +2666,11 @@ h4.hero-hook {
    FEATURE SLIDESHOW
    ═══════════════════════════════════════════ */
 .slideshow-section {
-  max-width: 1200px;
-  width: 92vw;
-  margin: 3rem auto;
+  width: 100%;
+  margin: 0;
+  padding: 3rem 0;
   text-align: center;
+  background: linear-gradient(180deg, var(--background) 0%, #000 8%, #000 92%, var(--background) 100%);
 }
 
 .slideshow-heading {
@@ -2683,12 +2684,14 @@ h4.hero-hook {
 
 .slideshow-container {
   position: relative;
-  background: #0a0a0f;
-  border: 1px solid #2a2a45;
-  border-radius: 1.5rem;
+  background: #000;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  padding: 3rem 4rem;
+  padding: 3rem clamp(2rem, 5vw, 4rem);
   min-height: 520px;
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   justify-content: center;

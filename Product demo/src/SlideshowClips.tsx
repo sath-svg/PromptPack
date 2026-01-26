@@ -14,7 +14,7 @@ const { fontFamily: interFont } = loadFont();
 
 /* ─── colour tokens ─── */
 const C = {
-  bg: "#0a0a0f",
+  bg: "#000000",
   card: "#1e1e30",
   purple: "#9b7bff",
   purpleDark: "#7c3aed",
@@ -595,28 +595,27 @@ export const ClipPlatforms: React.FC = () => {
         backgroundColor: C.bg,
       }}
     >
-      <div style={{ display: "flex", gap: 30 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
         {platforms.map((p, i) => {
-          const s = scaleIn(frame, fps, 10 + i * 10);
-          const op = fadeIn(frame, 10 + i * 10, 15);
+          const s = scaleIn(frame, fps, 10 + i * 12);
+          const op = fadeIn(frame, 10 + i * 12, 15);
           return (
             <div
               key={p.name}
               style={{
                 opacity: op,
-                transform: `scale(${s * breathe * 0.55})`,
+                transform: `scale(${s * breathe})`,
                 display: "flex",
-                flexDirection: "column",
                 alignItems: "center",
-                gap: 12,
+                gap: 16,
               }}
             >
               <Img
                 src={staticFile(p.img)}
                 style={{
-                  width: 420,
+                  width: 500,
                   height: "auto",
-                  filter: `drop-shadow(0 10px 30px ${p.color}40)`,
+                  filter: `drop-shadow(0 6px 20px ${p.color}40)`,
                 }}
               />
               <div
@@ -624,7 +623,6 @@ export const ClipPlatforms: React.FC = () => {
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
-                  marginTop: 8,
                 }}
               >
                 <div
@@ -639,7 +637,7 @@ export const ClipPlatforms: React.FC = () => {
                 <span
                   style={{
                     color: p.color,
-                    fontSize: 24,
+                    fontSize: 22,
                     fontWeight: 700,
                     fontFamily: interFont,
                   }}
