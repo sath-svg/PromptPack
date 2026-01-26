@@ -148,6 +148,9 @@ export default function RootLayout({
               <Link href="/pricing" className="header-link">
                 Pricing
               </Link>
+              <Link href="/blog" className="header-link">
+                Blog
+              </Link>
               <SignedIn>
                 <Link href="/dashboard" className="header-link">
                   Dashboard
