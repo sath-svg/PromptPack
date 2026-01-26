@@ -10,6 +10,8 @@ const isPublicRoute = createRouteMatcher([
   "/privacy", // Privacy policy must be public
   "/marketplace",
   "/marketplace/(.*)",
+  "/blog",
+  "/blog/(.*)",
   "/privacy",
   "/manifest.json",
   "/sitemap.xml",
