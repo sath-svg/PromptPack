@@ -54,7 +54,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Click the PromptPack icon below any input box to save the prompt instantly. No menus, no extra steps.",
-    images: [{ src: "/img/PromptPack..png", alt: "PromptPack icon", width: 40 }],
+    images: [{ src: "/img/icon-48.png", alt: "PromptPack icon", width: 40 }],
     layout: "input-bubble" as const,
   },
   {
