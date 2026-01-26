@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { assetUrl } from "@/lib/constants";
 
 const slides = [
@@ -13,11 +12,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #22c55e, #00d4ff)",
     description:
       "Right-click any prompt box to instantly insert a saved prompt. Your entire library, one click away.",
-    images: [
-      { src: "/img/Quick%20Select..png", alt: "Quick Select menu", width: 500 },
-      { src: "/img/Prompt%20Box..png", alt: "Prompt box", width: 640 },
-    ],
-    layout: "overlap" as const,
+    video: "/img/clip-quick-select.mp4",
   },
   {
     id: "output-styles",
@@ -27,10 +22,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #f97316, #9b7bff)",
     description:
       "Enhance any prompt before sending. Shape the AI's response with 4 distinct modes.",
-    images: [{ src: "/img/Bubble..svg", alt: "Output styles bubble", width: 470 }],
-    layout: "center" as const,
-    pills: ["Structured", "Clarity", "Concise", "Strict"],
-    pillColors: ["#3b82f6", "#22c55e", "#9b7bff", "#f97316"],
+    video: "/img/clip-output-styles.mp4",
   },
   {
     id: "save",
@@ -40,11 +32,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Capture any prompt with one click directly from ChatGPT, Claude, or Gemini. Auto-organized into folders by platform.",
-    images: [
-      { src: "/img/prompt%20Box%20with%20enhanced%20input..svg", alt: "Enhanced prompt box", width: 700 },
-      { src: "/img/Concise%20bubble..svg", alt: "Concise bubble", width: 440 },
-    ],
-    layout: "stack" as const,
+    video: "/img/clip-save.mp4",
   },
   {
     id: "save-input",
@@ -54,8 +42,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #9b7bff, #00d4ff)",
     description:
       "Click the PromptPack icon below any input box to save the prompt instantly. No menus, no extra steps.",
-    images: [{ src: "/img/icon-48.png", alt: "PromptPack icon", width: 40 }],
-    layout: "input-bubble" as const,
+    video: "/img/clip-save-from-input.mp4",
   },
   {
     id: "organize",
@@ -65,8 +52,7 @@ const slides = [
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description:
       "Prompts automatically sort into ChatGPT, Claude, and Gemini folders. Create custom packs for repeatable workflows.",
-    images: [{ src: "/img/PromptPack..svg", alt: "PromptPack extension", width: 520 }],
-    layout: "center" as const,
+    video: "/img/clip-organize.mp4",
   },
   {
     id: "platforms",
@@ -75,23 +61,14 @@ const slides = [
     title: "Works with Every Major AI Platform",
     titleGradient: "linear-gradient(135deg, #00d4ff, #3b82f6)",
     description: "One extension. All your AI tools.",
-    images: [
-      { src: "/img/Bubble..png", alt: "ChatGPT", width: 340 },
-      { src: "/img/claude_bubble.png", alt: "Claude", width: 340 },
-      { src: "/img/gmini_bubble.png", alt: "Gemini", width: 340 },
-    ],
-    layout: "row" as const,
-    platformNames: [
-      { name: "ChatGPT", color: "#10a37f" },
-      { name: "Claude", color: "#f97316" },
-      { name: "Gemini", color: "#4285f4" },
-    ],
+    video: "/img/clip-platforms.mp4",
   },
 ];
 
 export function FeatureSlideshow() {
   const [current, setCurrent] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const next = useCallback(() => {
     setCurrent((prev) => (prev + 1) % slides.length);
@@ -106,6 +83,14 @@ export function FeatureSlideshow() {
     const timer = setInterval(next, 6000);
     return () => clearInterval(timer);
   }, [isAutoPlaying, next]);
+
+  // Reset video on slide change
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [current]);
 
   const handleDotClick = (index: number) => {
     setCurrent(index);
@@ -163,138 +148,18 @@ export function FeatureSlideshow() {
           </div>
 
           <div className="slideshow-visual">
-            {/* Pills for Output Styles */}
-            {slide.pills && (
-              <div className="slideshow-pills">
-                {slide.pills.map((pill, i) => (
-                  <span
-                    key={pill}
-                    className="slideshow-pill"
-                    style={{
-                      background: `${slide.pillColors![i]}18`,
-                      border: `1px solid ${slide.pillColors![i]}50`,
-                      color: slide.pillColors![i],
-                    }}
-                  >
-                    {pill}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Input bubble for Save from Input */}
-            {slide.layout === "input-bubble" && (
-              <div className="slideshow-input-bubble">
-                <div className="slideshow-chat-bubble">
-                  Explain the ISO ecosystem by comparing these entities:
-                  Standard-setting body vs. Certification bodies vs. Training
-                  providers vs. Consultants.
-                </div>
-                <div className="slideshow-icon-row">
-                  <Image
-                    src={assetUrl(slide.images[0].src)}
-                    alt={slide.images[0].alt}
-                    width={36}
-                    height={36}
-                    className="slideshow-pp-icon"
-                  />
-                  <svg
-                    width="30"
-                    height="30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#9ca3af"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                    <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                  </svg>
-                </div>
-              </div>
-            )}
-
-            {/* Overlap layout (Quick Select) */}
-            {slide.layout === "overlap" && (
-              <div className="slideshow-overlap">
-                <Image
-                  src={assetUrl(slide.images[1].src)}
-                  alt={slide.images[1].alt}
-                  width={slide.images[1].width}
-                  height={0}
-                  className="slideshow-img-back"
-                  style={{ height: "auto" }}
-                />
-                <Image
-                  src={assetUrl(slide.images[0].src)}
-                  alt={slide.images[0].alt}
-                  width={slide.images[0].width}
-                  height={0}
-                  className="slideshow-img-front"
-                  style={{ height: "auto" }}
-                />
-              </div>
-            )}
-
-            {/* Stack layout (Save) */}
-            {slide.layout === "stack" && (
-              <div className="slideshow-stack">
-                {slide.images.map((img) => (
-                  <Image
-                    key={img.src}
-                    src={assetUrl(img.src)}
-                    alt={img.alt}
-                    width={img.width}
-                    height={0}
-                    style={{ height: "auto", maxWidth: "100%" }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Center layout (Output Styles, Organize) */}
-            {slide.layout === "center" && (
-              <div className="slideshow-center">
-                <Image
-                  src={assetUrl(slide.images[0].src)}
-                  alt={slide.images[0].alt}
-                  width={slide.images[0].width}
-                  height={0}
-                  style={{ height: "auto", maxWidth: "100%" }}
-                />
-              </div>
-            )}
-
-            {/* Row layout (Platforms) */}
-            {slide.layout === "row" && (
-              <div className="slideshow-platforms">
-                {slide.images.map((img, i) => (
-                  <div key={img.src} className="slideshow-platform-card">
-                    <Image
-                      src={assetUrl(img.src)}
-                      alt={img.alt}
-                      width={img.width}
-                      height={0}
-                      style={{
-                        height: "auto",
-                        maxWidth: "100%",
-                        filter: `drop-shadow(0 8px 20px ${slide.platformNames![i].color}40)`,
-                      }}
-                    />
-                    <div className="slideshow-platform-label">
-                      <span
-                        className="slideshow-platform-dot"
-                        style={{ background: slide.platformNames![i].color }}
-                      />
-                      <span style={{ color: slide.platformNames![i].color }}>
-                        {slide.platformNames![i].name}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <video
+              ref={videoRef}
+              key={slide.id}
+              src={assetUrl(slide.video)}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="slideshow-video"
+              aria-hidden="true"
+            />
           </div>
         </div>
 

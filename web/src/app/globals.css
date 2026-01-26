@@ -2792,121 +2792,13 @@ h4.hero-hook {
   transform: scale(1.2);
 }
 
-/* Pills */
-.slideshow-pills {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-.slideshow-pill {
-  padding: 0.5rem 1.25rem;
-  border-radius: 2rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-/* Overlap layout */
-.slideshow-overlap {
-  position: relative;
+/* Video in slideshow */
+.slideshow-video {
   width: 100%;
-  max-width: 540px;
-}
-.slideshow-img-back {
-  width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-.slideshow-img-front {
-  position: absolute;
-  top: -20%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  border-radius: 16px;
-  box-shadow: 0 20px 50px rgba(34, 197, 94, 0.2), 0 0 0 1px rgba(34, 197, 94, 0.2);
-}
-
-/* Stack layout */
-.slideshow-stack {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
   max-width: 600px;
-  width: 100%;
-}
-.slideshow-stack img {
-  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.15));
-}
-
-/* Center layout */
-.slideshow-center {
-  display: flex;
-  justify-content: center;
-  max-width: 500px;
-  width: 100%;
-}
-.slideshow-center img {
-  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.15));
-}
-
-/* Input bubble */
-.slideshow-input-bubble {
-  max-width: 550px;
-  width: 100%;
-}
-.slideshow-chat-bubble {
-  background: #2d2d2d;
-  border-radius: 1.25rem;
-  padding: 1.25rem 1.5rem;
-  color: #fff;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-}
-.slideshow-icon-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-  margin-right: 0.5rem;
-}
-.slideshow-pp-icon {
-  border-radius: 4px;
-}
-
-/* Platforms row */
-.slideshow-platforms {
-  display: flex;
-  gap: 1.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-.slideshow-platform-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-.slideshow-platform-card img {
-  max-width: 280px;
-  width: 100%;
-}
-.slideshow-platform-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 700;
-}
-.slideshow-platform-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  display: inline-block;
+  height: auto;
+  border-radius: 12px;
+  object-fit: contain;
 }
 
 /* Responsive */
@@ -2930,10 +2822,7 @@ h4.hero-hook {
     height: 36px;
     font-size: 1.5rem;
   }
-  .slideshow-platforms {
-    gap: 1rem;
-  }
-  .slideshow-platform-card img {
-    max-width: 200px;
+  .slideshow-video {
+    max-width: 100%;
   }
 }
