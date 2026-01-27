@@ -7,7 +7,7 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
-const EARLY_BIRD_LIMIT = 100;
+const EARLY_BIRD_LIMIT = 9;
 const EARLY_BIRD_PRICE = 1.99;
 
 export function ProCard() {
@@ -72,7 +72,7 @@ export function ProCard() {
           fontWeight: "600",
         }}
       >
-        {isPro ? "CURRENT PLAN" : isEarlyBird ? `EARLY BIRD — ${spotsLeft} spots left` : "POPULAR"}
+        {isPro ? "CURRENT PLAN" : isEarlyBird ? "EARLY BIRD — 9 spots left" : "POPULAR"}
       </span>
 
       <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>

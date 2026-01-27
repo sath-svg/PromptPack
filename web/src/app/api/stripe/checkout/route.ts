@@ -8,7 +8,7 @@ type CheckoutInterval = "month" | "annual";
 const MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
 const ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
 const EARLY_BIRD_COUPON_ID = process.env.STRIPE_EARLY_BIRD_COUPON_ID;
-const EARLY_BIRD_LIMIT = 100;
+const EARLY_BIRD_LIMIT = 9;
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 function resolvePriceId(interval: CheckoutInterval): string | undefined {
