@@ -7,13 +7,22 @@ const FROM_EMAIL = "PromptPack <support@pmtpk.com>";
 const REPLY_TO = "support@pmtpk.com";
 const SUBJECT = "Welcome to PromptPack!";
 
-const IMG_BASE = "https://image.pmtpk.com/img";
+const CLIP_BASE = "https://image.pmtpk.com/img";
+const CLIPS = {
+  enhance: `${CLIP_BASE}/clip-output-styles.mp4`,
+  save: `${CLIP_BASE}/clip-save.mp4`,
+  quickSelect: `${CLIP_BASE}/clip-quick-select.mp4`,
+  saveFromInput: `${CLIP_BASE}/clip-save-from-input.mp4`,
+  organize: `${CLIP_BASE}/clip-organize.mp4`,
+  platforms: `${CLIP_BASE}/clip-platforms.mp4`,
+};
+// Fallback images for email clients that don't support <video>
 const IMAGES = {
-  enhanceSave: `${IMG_BASE}/Enhance-save.jpg`,
-  quickSelect: `${IMG_BASE}/Quick-Select.jpg`,
-  saveFromInput: `${IMG_BASE}/Save-from-input-box.jpg`,
-  organize: `${IMG_BASE}/Organize.jpg`,
-  llms: `${IMG_BASE}/LLMs.jpg`,
+  enhance: `${CLIP_BASE}/Enhance-save.jpg`,
+  quickSelect: `${CLIP_BASE}/Quick-Select.jpg`,
+  saveFromInput: `${CLIP_BASE}/Save-from-input-box.jpg`,
+  organize: `${CLIP_BASE}/Organize.jpg`,
+  platforms: `${CLIP_BASE}/LLMs.jpg`,
 };
 
 function buildWelcomeEmailHtml(): string {
@@ -121,32 +130,60 @@ function buildWelcomeEmailHtml(): string {
               </td>
             </tr>
 
-            <!-- Feature 1: Enhance & Save -->
+            <!-- Feature 1: Enhance -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.enhanceSave}" alt="Enhance & Save" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.enhance}" type="video/mp4">
+                        <img src="${IMAGES.enhance}" alt="Enhance" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:16px 20px;">
-                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Enhance & Save</h3>
-                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears beside the prompt box with options to enhance your prompt using AI (Structured, Clarity, Concise, or Strict modes) and a Save button to capture prompts instantly.</p>
+                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Enhance</h3>
+                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears beside the prompt box with options to enhance your prompt using AI — Structured, Clarity, Concise, or Strict modes.</p>
                     </td>
                   </tr>
                 </table>
               </td>
             </tr>
 
-            <!-- Feature 2: Quick Select -->
+            <!-- Feature 2: Save -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.quickSelect}" alt="Quick Select" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.save}" type="video/mp4">
+                        <img src="${IMAGES.enhance}" alt="Save" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:16px 20px;">
+                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Save</h3>
+                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">Click the Save button on the floating bubble to capture any prompt instantly to your library.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Feature 3: Quick Select -->
+            <tr>
+              <td style="padding:0 16px 16px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
+                  <tr>
+                    <td>
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.quickSelect}" type="video/mp4">
+                        <img src="${IMAGES.quickSelect}" alt="Quick Select" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
                     </td>
                   </tr>
                   <tr>
@@ -159,18 +196,21 @@ function buildWelcomeEmailHtml(): string {
               </td>
             </tr>
 
-            <!-- Feature 3: Save from AI Response -->
+            <!-- Feature 4: Save from Input Box -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.saveFromInput}" alt="Save from AI Response" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.saveFromInput}" type="video/mp4">
+                        <img src="${IMAGES.saveFromInput}" alt="Save from Input Box" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:16px 20px;">
-                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Save from AI Response</h3>
+                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Save from Input Box</h3>
                       <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">Save prompts directly from AI responses. Click the PromptPack icon next to the copy button to save any message to your library instantly.</p>
                     </td>
                   </tr>
@@ -178,13 +218,16 @@ function buildWelcomeEmailHtml(): string {
               </td>
             </tr>
 
-            <!-- Feature 4: Organize -->
+            <!-- Feature 5: Organize -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.organize}" alt="Organize" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.organize}" type="video/mp4">
+                        <img src="${IMAGES.organize}" alt="Organize" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
                     </td>
                   </tr>
                   <tr>
@@ -197,13 +240,16 @@ function buildWelcomeEmailHtml(): string {
               </td>
             </tr>
 
-            <!-- Feature 5: Multi-LLM -->
+            <!-- Feature 6: Multi-LLM Support -->
             <tr>
               <td style="padding:0 16px 24px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
                   <tr>
                     <td>
-                      <img src="${IMAGES.llms}" alt="Multi-LLM Support" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
+                        <source src="${CLIPS.platforms}" type="video/mp4">
+                        <img src="${IMAGES.platforms}" alt="Multi-LLM Support" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                      </video>
                     </td>
                   </tr>
                   <tr>
