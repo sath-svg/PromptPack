@@ -7,7 +7,8 @@ type CheckoutInterval = "month" | "annual";
 
 const MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
 const ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
-const EARLY_BIRD_COUPON_ID = process.env.STRIPE_EARLY_BIRD_COUPON_ID;
+const EARLY_BIRD_MONTHLY_COUPON_ID = process.env.STRIPE_EARLY_BIRD_MONTHLY_COUPON_ID;
+const EARLY_BIRD_ANNUAL_COUPON_ID = process.env.STRIPE_EARLY_BIRD_ANNUAL_COUPON_ID;
 const EARLY_BIRD_LIMIT = 9;
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -43,12 +44,13 @@ export async function POST(request: Request) {
       ?? process.env.NEXT_PUBLIC_APP_URL
       ?? "http://localhost:3000";
 
-    // Check if early bird pricing applies (first 100 pro users)
+    // Check if early bird pricing applies (first 9 pro users)
     let couponId: string | undefined;
-    if (EARLY_BIRD_COUPON_ID) {
+    const earlyBirdCoupon = interval === "annual" ? EARLY_BIRD_ANNUAL_COUPON_ID : EARLY_BIRD_MONTHLY_COUPON_ID;
+    if (earlyBirdCoupon) {
       const proUserCount = await convexClient.query(api.users.countProUsers);
       if (proUserCount < EARLY_BIRD_LIMIT) {
-        couponId = EARLY_BIRD_COUPON_ID;
+        couponId = earlyBirdCoupon;
       }
     }
 

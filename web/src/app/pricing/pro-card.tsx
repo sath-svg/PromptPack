@@ -86,7 +86,30 @@ export function ProCard() {
             marginBottom: "0",
           }}
         >
-          {showStrikethrough && (
+          {isEarlyBird && isAnnual ? (
+            <>
+              <span
+                style={{
+                  textDecoration: "line-through",
+                  color: "#9ca3af",
+                  fontSize: "1.5rem",
+                  marginRight: "0.35rem",
+                }}
+              >
+                ${monthlyPrice}
+              </span>
+              <span
+                style={{
+                  textDecoration: "line-through",
+                  color: "#b0b0b0",
+                  fontSize: "1.5rem",
+                  marginRight: "0.5rem",
+                }}
+              >
+                ${annualMonthlyPrice}
+              </span>
+            </>
+          ) : showStrikethrough ? (
             <span
               style={{
                 textDecoration: "line-through",
@@ -97,8 +120,17 @@ export function ProCard() {
             >
               ${originalPrice}
             </span>
-          )}
-          ${displayPrice}
+          ) : null}
+          <span
+            style={isEarlyBird && !isPro ? {
+              background: "linear-gradient(135deg, #f59e0b, #ef4444)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              filter: "drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))",
+            } : undefined}
+          >
+            ${displayPrice}
+          </span>
           <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
             /month
           </span>
