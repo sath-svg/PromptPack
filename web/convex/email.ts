@@ -130,7 +130,7 @@ function buildWelcomeEmailHtml(): string {
               </td>
             </tr>
 
-            <!-- Feature 1: Enhance -->
+            <!-- Feature 1: Enhance & Save -->
             <tr>
               <td style="padding:0 16px 16px;">
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
@@ -138,36 +138,14 @@ function buildWelcomeEmailHtml(): string {
                     <td>
                       <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
                         <source src="${CLIPS.enhance}" type="video/mp4">
-                        <img src="${IMAGES.enhance}" alt="Enhance" width="568" style="width:100%;height:auto;display:block;border:0;" />
+                        <img src="${IMAGES.enhance}" alt="Enhance & Save" width="568" style="width:100%;height:auto;display:block;border:0;" />
                       </video>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:16px 20px;">
-                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Enhance</h3>
-                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears beside the prompt box with options to enhance your prompt using AI — Structured, Clarity, Concise, or Strict modes.</p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Feature 2: Save -->
-            <tr>
-              <td style="padding:0 16px 16px;">
-                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.card}" class="email-card" style="background-color:${themeLight.card};border:1px solid ${themeLight.border};border-radius:12px;overflow:hidden;">
-                  <tr>
-                    <td>
-                      <video autoplay loop muted playsinline width="568" style="width:100%;height:auto;display:block;">
-                        <source src="${CLIPS.save}" type="video/mp4">
-                        <img src="${IMAGES.enhance}" alt="Save" width="568" style="width:100%;height:auto;display:block;border:0;" />
-                      </video>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style="padding:16px 20px;">
-                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Save</h3>
-                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">Click the Save button on the floating bubble to capture any prompt instantly to your library.</p>
+                      <h3 class="email-foreground" style="margin:0 0 8px;font-size:16px;color:${themeLight.foreground};">Enhance & Save</h3>
+                      <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">The floating bubble appears beside the prompt box with options to enhance your prompt using AI (Structured, Clarity, Concise, or Strict modes) and a Save button to capture prompts instantly.</p>
                     </td>
                   </tr>
                 </table>
