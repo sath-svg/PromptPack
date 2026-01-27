@@ -7,6 +7,8 @@ type CheckoutInterval = "month" | "annual";
 
 const MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
 const ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
+const EARLY_BIRD_COUPON_ID = process.env.STRIPE_EARLY_BIRD_COUPON_ID;
+const EARLY_BIRD_LIMIT = 100;
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 function resolvePriceId(interval: CheckoutInterval): string | undefined {
@@ -41,6 +43,15 @@ export async function POST(request: Request) {
       ?? process.env.NEXT_PUBLIC_APP_URL
       ?? "http://localhost:3000";
 
+    // Check if early bird pricing applies (first 100 pro users)
+    let couponId: string | undefined;
+    if (EARLY_BIRD_COUPON_ID) {
+      const proUserCount = await convexClient.query(api.users.countProUsers);
+      if (proUserCount < EARLY_BIRD_LIMIT) {
+        couponId = EARLY_BIRD_COUPON_ID;
+      }
+    }
+
     const session = await convexClient.action(api.stripe.createSubscriptionCheckout, {
       clerkId: userId,
       email,
@@ -48,6 +59,7 @@ export async function POST(request: Request) {
       priceId,
       successUrl: `${origin}/dashboard?checkout=success`,
       cancelUrl: `${origin}/pricing?checkout=cancel`,
+      couponId,
     });
 
     if (!session?.url) {

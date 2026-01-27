@@ -7,6 +7,9 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
+const EARLY_BIRD_LIMIT = 100;
+const EARLY_BIRD_PRICE = 1.99;
+
 export function ProCard() {
   const [isAnnual, setIsAnnual] = useState(true);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
@@ -15,12 +18,19 @@ export function ProCard() {
     api.users.getByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
   );
+  const proUserCount = useQuery(api.users.countProUsers) ?? 0;
 
   const isPro = convexUser?.plan === "pro";
+  const isEarlyBird = proUserCount < EARLY_BIRD_LIMIT;
+  const spotsLeft = Math.max(0, EARLY_BIRD_LIMIT - proUserCount);
 
   const monthlyPrice = 9;
   const annualMonthlyPrice = 8.33;
   const savePct = Math.ceil((monthlyPrice * 12 - annualMonthlyPrice * 12) / (monthlyPrice * 12) * 100);
+
+  const displayPrice = isEarlyBird ? EARLY_BIRD_PRICE : (isAnnual ? annualMonthlyPrice : monthlyPrice);
+  const originalPrice = isAnnual ? monthlyPrice : monthlyPrice;
+  const showStrikethrough = isEarlyBird || isAnnual;
 
   const handleCheckout = async () => {
     if (isCheckoutLoading) return;
@@ -54,7 +64,7 @@ export function ProCard() {
           top: "-12px",
           left: "50%",
           transform: "translateX(-50%)",
-          background: "var(--accent)",
+          background: isEarlyBird && !isPro ? "#f59e0b" : "var(--accent)",
           color: "white",
           padding: "0.25rem 0.75rem",
           borderRadius: "999px",
@@ -62,21 +72,21 @@ export function ProCard() {
           fontWeight: "600",
         }}
       >
-        {isPro ? "CURRENT PLAN" : "POPULAR"}
+        {isPro ? "CURRENT PLAN" : isEarlyBird ? `EARLY BIRD — ${spotsLeft} spots left` : "POPULAR"}
       </span>
 
       <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>
 
       {/* Price display */}
       <div style={{ marginBottom: "0.5rem" }}>
-        {isAnnual ? (
-          <p
-            style={{
-              fontSize: "2.5rem",
-              fontWeight: "700",
-              marginBottom: "0",
-            }}
-          >
+        <p
+          style={{
+            fontSize: "2.5rem",
+            fontWeight: "700",
+            marginBottom: "0",
+          }}
+        >
+          {showStrikethrough && (
             <span
               style={{
                 textDecoration: "line-through",
@@ -85,25 +95,24 @@ export function ProCard() {
                 marginRight: "0.5rem",
               }}
             >
-              ${monthlyPrice}
+              ${originalPrice}
             </span>
-            ${annualMonthlyPrice}
-            <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
-              /month
-            </span>
-          </p>
-        ) : (
+          )}
+          ${displayPrice}
+          <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
+            /month
+          </span>
+        </p>
+        {isEarlyBird && !isPro && (
           <p
             style={{
-              fontSize: "2.5rem",
-              fontWeight: "700",
+              fontSize: "0.75rem",
+              color: "var(--muted)",
+              marginTop: "0.25rem",
               marginBottom: "0",
             }}
           >
-            ${monthlyPrice}
-            <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
-              /month
-            </span>
+            *for the first 6 months, then ${isAnnual ? `${annualMonthlyPrice}/mo` : `${monthlyPrice}/mo`}
           </p>
         )}
       </div>

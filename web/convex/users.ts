@@ -1,6 +1,17 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 
+// Count users on the Pro plan (used for early bird pricing limit)
+export const countProUsers = query({
+  handler: async (ctx) => {
+    const proUsers = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("plan"), "pro"))
+      .collect();
+    return proUsers.length;
+  },
+});
+
 // Get current user by Clerk ID
 export const getByClerkId = query({
   args: { clerkId: v.string() },
