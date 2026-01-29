@@ -2,6 +2,7 @@
 import { savePrompt, listPromptsBySourceGrouped } from "../shared/promptStore";
 import { ENHANCE_API_URL } from "../shared/config";
 import { startThemeSync, detectThemeFromPage, claudeTheme, type ThemeMode } from "../shared/theme";
+import { parseTemplateVariables, replaceTemplateVariables } from "../shared/templateParser";
 
 type ComposerEl = HTMLTextAreaElement | HTMLElement;
 type EnhanceMode = "structured" | "clarity" | "concise" | "strict";
@@ -1317,8 +1318,22 @@ async function showContextMenu(x: number, y: number) {
       el.addEventListener("click", () => {
         const group = groups[groupIndex];
         if (group && group.prompts[promptIndex]) {
-          insertPromptIntoComposer(group.prompts[promptIndex].text);
+          const promptText = group.prompts[promptIndex].text;
           hideContextMenu();
+
+          const variables = parseTemplateVariables(promptText);
+          if (variables.length > 0) {
+            showTemplateInputDialog(
+              variables,
+              (values) => {
+                const filledText = replaceTemplateVariables(promptText, values);
+                insertPromptIntoComposer(filledText);
+              },
+              () => { /* cancelled */ }
+            );
+          } else {
+            insertPromptIntoComposer(promptText);
+          }
         }
       });
     });
@@ -1356,6 +1371,184 @@ function insertPromptIntoComposer(text: string) {
 
   // Focus the composer
   composer.focus();
+}
+
+/**
+ * Show lightweight dialog to collect template variable values
+ */
+function showTemplateInputDialog(
+  variables: string[],
+  onSubmit: (values: Record<string, string>) => void,
+  onCancel: () => void
+) {
+  // Remove existing dialog if any
+  const existing = document.getElementById("pp-template-dialog");
+  if (existing) existing.remove();
+
+  // Use same colors as context menu
+  const colors = currentTheme === "dark"
+    ? { bg: "#2d2d2d", border: "#444", text: "#e5e5e5", secondary: "#999", inputBg: "#1e1e1e" }
+    : { bg: "#ffffff", border: "#ddd", text: "#333", secondary: "#666", inputBg: "#fff" };
+
+  // Create overlay
+  const overlay = document.createElement("div");
+  overlay.id = "pp-template-dialog";
+  overlay.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+
+  // Create dialog box
+  const dialog = document.createElement("div");
+  dialog.style.cssText = `
+    background: ${colors.bg};
+    border: 1px solid ${colors.border};
+    border-radius: 8px;
+    padding: 16px 20px;
+    min-width: 280px;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  `;
+
+  // Header
+  const header = document.createElement("div");
+  header.textContent = "Fill in values";
+  header.style.cssText = `
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: ${colors.text};
+  `;
+  dialog.appendChild(header);
+
+  // Create input fields
+  const inputs: HTMLInputElement[] = [];
+  variables.forEach((varName) => {
+    const fieldWrapper = document.createElement("div");
+    fieldWrapper.style.cssText = `margin-bottom: 10px;`;
+
+    const label = document.createElement("label");
+    label.textContent = varName;
+    label.style.cssText = `
+      display: block;
+      font-size: 12px;
+      color: ${colors.secondary};
+      margin-bottom: 4px;
+    `;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = varName;
+    input.style.cssText = `
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid ${colors.border};
+      border-radius: 6px;
+      font-size: 13px;
+      box-sizing: border-box;
+      outline: none;
+      background: ${colors.inputBg};
+      color: ${colors.text};
+    `;
+    input.addEventListener("focus", () => {
+      input.style.borderColor = "#007bff";
+    });
+    input.addEventListener("blur", () => {
+      input.style.borderColor = colors.border;
+    });
+
+    fieldWrapper.appendChild(label);
+    fieldWrapper.appendChild(input);
+    dialog.appendChild(fieldWrapper);
+    inputs.push(input);
+  });
+
+  // Buttons
+  const btnWrapper = document.createElement("div");
+  btnWrapper.style.cssText = `
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+  `;
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.style.cssText = `
+    padding: 8px 14px;
+    border: 1px solid ${colors.border};
+    border-radius: 6px;
+    background: ${colors.bg};
+    color: ${colors.text};
+    font-size: 13px;
+    cursor: pointer;
+  `;
+
+  const okBtn = document.createElement("button");
+  okBtn.textContent = "Insert";
+  okBtn.style.cssText = `
+    padding: 8px 14px;
+    border: none;
+    border-radius: 6px;
+    background: #007bff;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+  `;
+
+  const cleanup = () => overlay.remove();
+
+  const handleSubmit = () => {
+    const values: Record<string, string> = {};
+    variables.forEach((varName, i) => {
+      values[varName] = inputs[i].value;
+    });
+    cleanup();
+    onSubmit(values);
+  };
+
+  cancelBtn.addEventListener("click", () => {
+    cleanup();
+    onCancel();
+  });
+
+  okBtn.addEventListener("click", handleSubmit);
+
+  // Enter key submits, Escape cancels
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSubmit();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cleanup();
+      onCancel();
+    }
+  };
+  overlay.addEventListener("keydown", handleKeyDown);
+
+  // Click outside to cancel
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) {
+      cleanup();
+      onCancel();
+    }
+  });
+
+  btnWrapper.appendChild(cancelBtn);
+  btnWrapper.appendChild(okBtn);
+  dialog.appendChild(btnWrapper);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  // Focus first input
+  if (inputs[0]) inputs[0].focus();
 }
 
 function setupContextMenu() {
