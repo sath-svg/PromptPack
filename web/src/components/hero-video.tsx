@@ -10,7 +10,6 @@ const VIDEOS = [
 
 export function HeroVideo() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
@@ -51,17 +50,19 @@ export function HeroVideo() {
     }
 
     setActiveIndex(newIndex);
+  };
 
-    // Play new video
-    const newVideo = videoRefs.current[newIndex];
+  // Play new video when activeIndex changes
+  useEffect(() => {
+    const newVideo = videoRefs.current[activeIndex];
     if (newVideo) {
       newVideo.currentTime = 0;
       newVideo.muted = isMuted;
       if (isPlaying) {
-        newVideo.play();
+        newVideo.play().catch(() => {});
       }
     }
-  };
+  }, [activeIndex]);
 
   const togglePlay = () => {
     const video = videoRefs.current[activeIndex];
@@ -83,51 +84,32 @@ export function HeroVideo() {
     }
   };
 
-  // Sync mute state across videos when switching
-  useEffect(() => {
-    videoRefs.current.forEach((video) => {
-      if (video) {
-        video.muted = isMuted;
-      }
-    });
-  }, [isMuted]);
-
   return (
     <div className="hero-video">
       <div className="demo-card demo-card-wide">
         <div
           className="demo-media demo-media-hero"
-          ref={containerRef}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
-          style={{ position: "relative", overflow: "hidden" }}
+          style={{ position: "relative" }}
         >
-          <div
-            style={{
-              display: "flex",
-              transition: "transform 0.3s ease-out",
-              transform: `translateX(-${activeIndex * 100}%)`,
-              width: `${VIDEOS.length * 100}%`,
-            }}
-          >
-            {VIDEOS.map((video, index) => (
-              <video
-                key={video.src}
-                ref={(el) => { videoRefs.current[index] = el; }}
-                src={assetUrl(video.src)}
-                autoPlay={index === 0}
-                muted
-                loop
-                playsInline
-                className="hero-video-player"
-                style={{
-                  width: `${100 / VIDEOS.length}%`,
-                  flexShrink: 0,
-                }}
-              />
-            ))}
-          </div>
+          {VIDEOS.map((video, index) => (
+            <video
+              key={video.src}
+              ref={(el) => { videoRefs.current[index] = el; }}
+              src={assetUrl(video.src)}
+              autoPlay={index === 0}
+              muted
+              loop
+              playsInline
+              className="hero-video-player"
+              style={{
+                display: index === activeIndex ? "block" : "none",
+                width: "100%",
+              }}
+            />
+          ))}
 
           {/* Video indicator dots */}
           <div className="hero-video-dots">
