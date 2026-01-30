@@ -33,25 +33,26 @@ const C = {
 };
 
 /* ─── helpers ─── */
-const fadeIn = (frame: number, start: number, dur = 20) =>
+// FASTER ANIMATIONS - reduced durations and delays
+const fadeIn = (frame: number, start: number, dur = 8) =>
   interpolate(frame, [start, start + dur], [0, 1], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
 
-const fadeOut = (frame: number, start: number, dur = 15) =>
+const fadeOut = (frame: number, start: number, dur = 8) =>
   interpolate(frame, [start, start + dur], [1, 0], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
 
-const slideUp = (frame: number, start: number, dur = 20, dist = 60) =>
+const slideUp = (frame: number, start: number, dur = 10, dist = 40) =>
   interpolate(frame, [start, start + dur], [dist, 0], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
 
-const slideIn = (frame: number, start: number, from = 80, dur = 25) =>
+const slideIn = (frame: number, start: number, from = 50, dur = 12) =>
   interpolate(frame, [start, start + dur], [from, 0], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
@@ -61,11 +62,11 @@ const scaleIn = (frame: number, fps: number, delay: number) =>
   spring({
     frame: frame - delay,
     fps,
-    config: { damping: 12, stiffness: 100 },
+    config: { damping: 14, stiffness: 180 },  // Faster spring
   });
 
 /* ─── background gradient ─── */
-const Background: React.FC = () => {
+export const Background: React.FC = () => {
   const frame = useCurrentFrame();
   const shift = interpolate(frame, [0, 1635], [20, 80], {
     extrapolateRight: "clamp",
@@ -80,7 +81,7 @@ const Background: React.FC = () => {
 };
 
 /* ─── subtle grid pattern ─── */
-const GridOverlay: React.FC = () => {
+export const GridOverlay: React.FC = () => {
   const frame = useCurrentFrame();
   const opacity = interpolate(frame, [0, 30], [0, 0.03], {
     extrapolateRight: "clamp",
@@ -100,7 +101,7 @@ const GridOverlay: React.FC = () => {
 };
 
 /* ─── Floating particles ─── */
-const Particles: React.FC = () => {
+export const Particles: React.FC = () => {
   const frame = useCurrentFrame();
   const particles = [
     { x: 10, y: 20, size: 4, speed: 0.3, delay: 0 },
@@ -144,19 +145,19 @@ const Particles: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 1 — Logo Intro  (0s → 4s = 0–120)
    ═══════════════════════════════════════════ */
-const SceneLogo: React.FC = () => {
+export const SceneLogo: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const logoScale = spring({
     frame,
     fps,
-    config: { damping: 10, stiffness: 80 },
+    config: { damping: 14, stiffness: 150 },
   });
-  const subOp = fadeIn(frame, 25);
-  const subY = slideUp(frame, 25);
+  const subOp = fadeIn(frame, 8);
+  const subY = slideUp(frame, 8);
 
-  const glowSize = interpolate(frame, [0, 40, 90], [0, 150, 120], {
+  const glowSize = interpolate(frame, [0, 15, 40], [0, 150, 120], {
     extrapolateRight: "clamp",
   });
   const glowPulse = interpolate(Math.sin(frame * 0.08), [-1, 1], [0.6, 1]);
@@ -210,14 +211,14 @@ const SceneLogo: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 2 — Hook / Problem (4s → 9s = 120–270)
    ═══════════════════════════════════════════ */
-const SceneProblem: React.FC = () => {
+export const SceneProblem: React.FC = () => {
   const frame = useCurrentFrame();
 
-  const headOp = fadeIn(frame, 5);
-  const headY = slideUp(frame, 5);
+  const headOp = fadeIn(frame, 0);
+  const headY = slideUp(frame, 0);
 
-  const statOp = fadeIn(frame, 35);
-  const statY = slideUp(frame, 35);
+  const statOp = fadeIn(frame, 12);
+  const statY = slideUp(frame, 12);
 
   const problems = [
     { text: "Rewriting the same prompts over and over", icon: "🔄" },
@@ -269,9 +270,9 @@ const SceneProblem: React.FC = () => {
 
       {/* Problem list */}
       {problems.map((p, i) => {
-        const delay = 55 + i * 20;
+        const delay = 25 + i * 8;  // Faster stagger
         const op = fadeIn(frame, delay);
-        const x = slideIn(frame, delay, -50);
+        const x = slideIn(frame, delay, -30);
         return (
           <div
             key={i}
@@ -306,19 +307,19 @@ const SceneProblem: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 3 — Solution Intro (9s → 13s = 270–390)
    ═══════════════════════════════════════════ */
-const SceneSolution: React.FC = () => {
+export const SceneSolution: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const titleScale = spring({
-    frame: frame - 5,
+    frame: frame - 0,
     fps,
-    config: { damping: 12, stiffness: 80 },
+    config: { damping: 14, stiffness: 150 },
   });
-  const subOp = fadeIn(frame, 30);
-  const subY = slideUp(frame, 30);
+  const subOp = fadeIn(frame, 10);
+  const subY = slideUp(frame, 10);
 
-  const tagOp = fadeIn(frame, 55);
+  const tagOp = fadeIn(frame, 20);
 
   const tags = [
     { text: "Save", color: C.green },
@@ -362,7 +363,7 @@ const SceneSolution: React.FC = () => {
       {/* Feature tags */}
       <div style={{ display: "flex", gap: 20 }}>
         {tags.map((t, i) => {
-          const s = scaleIn(frame, fps, 50 + i * 8);
+          const s = scaleIn(frame, fps, 20 + i * 4);
           return (
             <div
               key={t.text}
@@ -391,23 +392,23 @@ const SceneSolution: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 4 — Feature: One-Click Save (13s → 19s = 390–570)
    ═══════════════════════════════════════════ */
-const SceneFeatureSave: React.FC = () => {
+export const SceneFeatureSave: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const labelOp = fadeIn(frame, 5);
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const descOp = fadeIn(frame, 30);
-  const imgScale = scaleIn(frame, fps, 40);
-  const imgOp = fadeIn(frame, 40, 30);
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const descOp = fadeIn(frame, 12);
+  const imgScale = scaleIn(frame, fps, 15);
+  const imgOp = fadeIn(frame, 15, 10);
 
   // Cursor animation for the "click" effect
-  const cursorX = interpolate(frame, [70, 100], [100, 0], {
+  const cursorX = interpolate(frame, [30, 50], [100, 0], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
-  const clickScale = interpolate(frame, [100, 110, 120], [1, 0.9, 1], {
+  const clickScale = interpolate(frame, [50, 55, 60], [1, 0.9, 1], {
     extrapolateRight: "clamp",
     extrapolateLeft: "clamp",
   });
@@ -426,6 +427,7 @@ const SceneFeatureSave: React.FC = () => {
             fontWeight: 700,
             letterSpacing: 3,
             marginBottom: 16,
+            fontFamily: interFont,
           }}
         >
           ONE-CLICK SAVE
@@ -515,7 +517,7 @@ const SceneFeatureSave: React.FC = () => {
               }}
             />
             {/* Save button flash effect */}
-            {frame > 100 && frame < 130 && (
+            {frame > 50 && frame < 70 && (
               <div
                 style={{
                   position: "absolute",
@@ -525,7 +527,7 @@ const SceneFeatureSave: React.FC = () => {
                   bottom: 0,
                   background: `radial-gradient(circle at 80% 50%, ${C.purple}30 0%, transparent 60%)`,
                   borderRadius: 30,
-                  opacity: interpolate(frame, [100, 115, 130], [0, 1, 0], {
+                  opacity: interpolate(frame, [50, 58, 70], [0, 1, 0], {
                     extrapolateLeft: "clamp",
                     extrapolateRight: "clamp",
                   }),
@@ -534,14 +536,14 @@ const SceneFeatureSave: React.FC = () => {
             )}
           </div>
           {/* "Saved!" confirmation that appears after click */}
-          {frame > 115 && (
+          {frame > 55 && (
             <div
               style={{
                 position: "absolute",
                 bottom: -50,
                 left: "50%",
                 transform: "translateX(-50%)",
-                opacity: interpolate(frame, [115, 125, 155, 165], [0, 1, 1, 0], {
+                opacity: interpolate(frame, [55, 62, 90, 100], [0, 1, 1, 0], {
                   extrapolateLeft: "clamp",
                   extrapolateRight: "clamp",
                 }),
@@ -568,29 +570,44 @@ const SceneFeatureSave: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 4b — Save from Input Box
    ═══════════════════════════════════════════ */
-const SceneSaveFromInput: React.FC = () => {
+export const SceneSaveFromInput: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const labelOp = fadeIn(frame, 5);
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const descOp = fadeIn(frame, 30);
-  const bubbleOp = fadeIn(frame, 40, 20);
-  const bubbleScale = scaleIn(frame, fps, 40);
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const descOp = fadeIn(frame, 12);
+  const bubbleOp = fadeIn(frame, 15, 10);
+  const bubbleScale = scaleIn(frame, fps, 15);
 
-  // Click animation on PromptPack icon at frame 80
-  const clickFrame = 80;
+  // Click animation on PromptPack icon at frame 40
+  const clickFrame = 40;
+  // More dramatic scale bounce
   const iconClickScale = interpolate(
     frame,
-    [clickFrame, clickFrame + 4, clickFrame + 8],
-    [1, 0.7, 1],
+    [clickFrame, clickFrame + 6, clickFrame + 12, clickFrame + 18],
+    [1, 0.6, 1.2, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
+  // Stronger, longer glow
   const iconGlow = interpolate(
     frame,
-    [clickFrame, clickFrame + 8, clickFrame + 20],
-    [0, 1, 0],
+    [clickFrame, clickFrame + 10, clickFrame + 30],
+    [0, 1.5, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  // Ripple effect radiating out
+  const rippleScale = interpolate(
+    frame,
+    [clickFrame, clickFrame + 20],
+    [1, 3],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const rippleOp = interpolate(
+    frame,
+    [clickFrame, clickFrame + 5, clickFrame + 20],
+    [0, 0.6, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
   // Saved toast
@@ -622,6 +639,7 @@ const SceneSaveFromInput: React.FC = () => {
             fontWeight: 700,
             letterSpacing: 3,
             marginBottom: 16,
+            fontFamily: interFont,
           }}
         >
           SAVE FROM INPUT
@@ -716,6 +734,22 @@ const SceneSaveFromInput: React.FC = () => {
                 position: "relative",
               }}
             >
+              {/* Ripple effect behind icon */}
+              {frame >= clickFrame && frame < clickFrame + 25 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    width: 40,
+                    height: 40,
+                    borderRadius: "50%",
+                    border: `3px solid ${C.purple}`,
+                    transform: `translate(-50%, -50%) scale(${rippleScale})`,
+                    opacity: rippleOp,
+                  }}
+                />
+              )}
               <Img
                 src={staticFile("PromptPackIcon.png")}
                 style={{
@@ -723,7 +757,7 @@ const SceneSaveFromInput: React.FC = () => {
                   height: 40,
                   borderRadius: 4,
                   filter: iconGlow > 0
-                    ? `drop-shadow(0 0 ${8 * iconGlow}px ${C.purple}) brightness(${1 + iconGlow * 0.3})`
+                    ? `drop-shadow(0 0 ${12 * iconGlow}px ${C.purple}) drop-shadow(0 0 ${20 * iconGlow}px ${C.purpleDark}) brightness(${1 + iconGlow * 0.4})`
                     : "none",
                 }}
               />
@@ -775,16 +809,16 @@ const SceneSaveFromInput: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 5 — Feature: Organize (19s → 24s = 570–720)
    ═══════════════════════════════════════════ */
-const SceneFeatureOrganize: React.FC = () => {
+export const SceneFeatureOrganize: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const labelOp = fadeIn(frame, 5);
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const descOp = fadeIn(frame, 30);
-  const imgScale = scaleIn(frame, fps, 40);
-  const imgOp = fadeIn(frame, 40, 30);
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const descOp = fadeIn(frame, 12);
+  const imgScale = scaleIn(frame, fps, 15);
+  const imgOp = fadeIn(frame, 15, 10);
 
   // Floating bob animation
   const floatY = Math.sin(frame * 0.06) * 8;
@@ -815,6 +849,7 @@ const SceneFeatureOrganize: React.FC = () => {
             fontWeight: 700,
             letterSpacing: 3,
             marginBottom: 16,
+            fontFamily: interFont,
           }}
         >
           SMART FOLDERS
@@ -856,7 +891,7 @@ const SceneFeatureOrganize: React.FC = () => {
           Create custom packs for repeatable workflows.
         </div>
       </div>
-      {/* Left image — PromptPack extension with floating animation */}
+      {/* Left — PromptPack extension popup rendered inline with arrowheads */}
       <div
         style={{
           flex: 1,
@@ -868,16 +903,92 @@ const SceneFeatureOrganize: React.FC = () => {
         <div
           style={{
             opacity: imgOp,
-            transform: `scale(${imgScale}) translateY(${floatY}px) rotate(${tilt}deg)`,
-            borderRadius: 20,
+            transform: `scale(${imgScale * 1.5}) translateY(${floatY}px) rotate(${tilt}deg)`,
+            borderRadius: 16,
             overflow: "hidden",
             boxShadow: `0 ${30 + floatY}px ${glowIntensity}px ${C.blue}40, 0 0 0 1px ${C.blue}30`,
+            background: "#1a1a1a",
+            width: 450,
+            fontFamily: interFont,
           }}
         >
-          <Img
-            src={staticFile("PromptPack.svg")}
-            style={{ width: 600, height: "auto" }}
-          />
+          {/* Header */}
+          <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #333" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Img src={staticFile("PromptPackIcon.png")} style={{ width: 28, height: 28, borderRadius: 4 }} />
+              <span style={{ color: C.white, fontSize: 18, fontWeight: 600 }}>PromptPack</span>
+            </div>
+            <div style={{ display: "flex", gap: 12 }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2"><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: C.purple, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+            </div>
+          </div>
+          {/* Signed in */}
+          <div style={{ padding: "12px 20px", fontSize: 14, color: "#aaa", display: "flex", justifyContent: "space-between" }}>
+            <span>Signed in as <span style={{ color: C.white, fontWeight: 500 }}>eric@email.com</span></span>
+            <span style={{ color: C.white, textDecoration: "underline", cursor: "pointer" }}>Sign Out</span>
+          </div>
+          {/* Folders */}
+          <div style={{ padding: "8px 16px" }}>
+            {/* Revenue folder - collapsed */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 8px", background: "#252525", borderRadius: 8, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                <span style={{ color: C.white, fontSize: 16 }}>Revenue</span>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </div>
+            </div>
+            {/* ChatGPT folder - expanded */}
+            <div style={{ background: "#252525", borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10a37f" strokeWidth="2.5"><path d="M19 9l-7 7-7-7"/></svg>
+                  <span style={{ color: C.white, fontSize: 16 }}>ChatGPT</span>
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </div>
+              </div>
+              {/* Prompt items inside ChatGPT */}
+              <div style={{ padding: "0 12px 12px" }}>
+                <div style={{ background: C.cyan, borderRadius: 6, padding: "8px 12px", marginBottom: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#000", letterSpacing: 1, marginBottom: 4 }}>ISO CERTIFICATION</div>
+                  <div style={{ fontSize: 13, color: "#000" }}>Explain the ISO ecosystem by comparing these entities ...</div>
+                </div>
+                <div style={{ color: "#666", fontSize: 13, padding: "4px 0" }}>+ Add header</div>
+                <div style={{ color: "#aaa", fontSize: 13, padding: "8px 0" }}>Can you give me an executive summary of the specificati...</div>
+              </div>
+            </div>
+            {/* Claude folder - collapsed */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 8px", background: "#252525", borderRadius: 8, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                <span style={{ color: C.white, fontSize: 16 }}>Claude</span>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </div>
+            </div>
+            {/* Gemini folder - collapsed */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 8px", background: "#252525", borderRadius: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285f4" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                <span style={{ color: C.white, fontSize: 16 }}>Gemini</span>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </AbsoluteFill>
@@ -885,43 +996,122 @@ const SceneFeatureOrganize: React.FC = () => {
 };
 
 /* ═══════════════════════════════════════════
-   SCENE 6 — Feature: Quick Select (24s → 29s = 720–870)
+   SCENE 6 — Feature: Quick Select (15.2s → 19.36s = ~125 frames)
+   Animation timeline:
+   - Frame 0-15: Text fades in, PromptBox appears
+   - Frame 20-30: Cursor moves to PromptBox
+   - Frame 35: Right-click (cursor pulse)
+   - Frame 40-50: QuickSelect menu appears (scales in)
+   - Frame 70: Click on menu item (bounce)
+   - Frame 75-90: QuickSelect fades out, PromptBox transforms to Enhanced
    ═══════════════════════════════════════════ */
-const SceneFeatureQuickSelect: React.FC = () => {
+export const SceneFeatureQuickSelect: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const labelOp = fadeIn(frame, 5);
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const descOp = fadeIn(frame, 30);
-  const imgScale = scaleIn(frame, fps, 40);
-  const imgOp = fadeIn(frame, 40, 30);
+  // Text animations
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const descOp = fadeIn(frame, 12);
 
-  // Click animation at frame 85: QuickSelect bounces, then fades out, PromptBox swaps
-  const clickFrame = 85;
-  const clickBounce = interpolate(frame, [clickFrame, clickFrame + 5, clickFrame + 10], [1, 0.95, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
+  // PromptBox appears
+  const promptBoxOp = fadeIn(frame, 15, 10);
+  const promptBoxScale = scaleIn(frame, fps, 15);
+
+  // Cursor animation - moves from off-screen to top-left of PromptBox
+  const cursorStartFrame = 20;
+  const rightClickFrame = 35;
+  const cursorX = interpolate(
+    frame,
+    [cursorStartFrame, rightClickFrame - 5],
+    [200, 21],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const cursorY = interpolate(
+    frame,
+    [cursorStartFrame, rightClickFrame - 5],
+    [-100, 25],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const cursorOp = interpolate(
+    frame,
+    [cursorStartFrame, cursorStartFrame + 5],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  // Right-click pulse effect
+  const rightClickPulse = interpolate(
+    frame,
+    [rightClickFrame, rightClickFrame + 3, rightClickFrame + 8],
+    [1, 1.3, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const rightClickRing = interpolate(
+    frame,
+    [rightClickFrame, rightClickFrame + 10],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const rightClickRingOp = interpolate(
+    frame,
+    [rightClickFrame, rightClickFrame + 3, rightClickFrame + 10],
+    [0, 0.6, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // QuickSelect menu appears after right-click
+  const menuAppearFrame = 40;
+  const menuScale = spring({
+    frame: frame - menuAppearFrame,
+    fps,
+    config: { damping: 12, stiffness: 200 },
   });
+  const menuOp = interpolate(
+    frame,
+    [menuAppearFrame, menuAppearFrame + 5],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // Click on menu item
+  const menuClickFrame = 70;
+  const menuClickBounce = interpolate(
+    frame,
+    [menuClickFrame, menuClickFrame + 4, menuClickFrame + 8],
+    [1, 0.95, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
   // QuickSelect fades out after click
-  const qsOpacity = interpolate(frame, [clickFrame + 5, clickFrame + 15], [1, 0], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const menuFadeOutStart = menuClickFrame + 5;
+  const qsOpacity = interpolate(
+    frame,
+    [menuFadeOutStart, menuFadeOutStart + 12],
+    [1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
   // PromptBox swaps to Enhanced after QuickSelect fades
-  const showEnhanced = frame > clickFrame + 10;
-  // Enhanced prompt box scale pop + brightness on swap
+  const showEnhanced = frame > menuFadeOutStart + 8;
   const enhancedPop = interpolate(
     frame,
-    [clickFrame + 10, clickFrame + 16, clickFrame + 22],
+    [menuFadeOutStart + 8, menuFadeOutStart + 14, menuFadeOutStart + 20],
     [0.95, 1.03, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
   const enhancedBright = interpolate(
     frame,
-    [clickFrame + 10, clickFrame + 16, clickFrame + 24],
+    [menuFadeOutStart + 8, menuFadeOutStart + 14, menuFadeOutStart + 22],
     [1.3, 1.15, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+
+  // Hide cursor after menu click
+  const cursorFinalOp = interpolate(
+    frame,
+    [menuClickFrame + 10, menuClickFrame + 15],
+    [1, 0],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
 
@@ -939,6 +1129,7 @@ const SceneFeatureQuickSelect: React.FC = () => {
             fontWeight: 700,
             letterSpacing: 3,
             marginBottom: 16,
+            fontFamily: interFont,
           }}
         >
           INSTANT ACCESS
@@ -980,29 +1171,27 @@ const SceneFeatureQuickSelect: React.FC = () => {
           entire library, one click away.
         </div>
       </div>
-      {/* Right image — QuickSelect over PromptBox */}
+      {/* Right side — PromptBox with cursor and QuickSelect overlay */}
       <div
         style={{
           flex: 1,
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          marginTop: -120,
+          position: "relative",
         }}
       >
         <div
           style={{
-            opacity: imgOp,
-            transform: `scale(${imgScale})`,
+            opacity: promptBoxOp,
+            transform: `scale(${promptBoxScale})`,
             position: "relative",
           }}
         >
-          {/* PromptBox behind — swaps to Enhanced after click */}
+          {/* PromptBox — swaps to Enhanced after menu selection */}
           <div
             style={{
-              position: "absolute",
-              top: showEnhanced ? "42%" : "85%",
-              left: 0,
+              position: "relative",
               zIndex: 0,
               transform: showEnhanced ? `scale(${enhancedPop})` : undefined,
               filter: showEnhanced ? `brightness(${enhancedBright})` : undefined,
@@ -1029,19 +1218,72 @@ const SceneFeatureQuickSelect: React.FC = () => {
               />
             )}
           </div>
-          {/* QuickSelect on top — bounces on click, then fades out */}
-          <Img
-            src={staticFile("QuickSelect.png")}
-            style={{
-              width: 550,
-              height: "auto",
-              position: "relative",
-              zIndex: 1,
-              transform: `scale(${clickBounce})`,
-              opacity: qsOpacity,
-              filter: `drop-shadow(0 20px 40px ${C.green}30)`,
-            }}
-          />
+
+          {/* QuickSelect menu — appears after right-click */}
+          {frame >= menuAppearFrame && (
+            <div
+              style={{
+                position: "absolute",
+                top: -245,
+                left: 25,
+                zIndex: 2,
+                opacity: menuOp * qsOpacity,
+                transform: `scale(${menuScale * menuClickBounce})`,
+                transformOrigin: "bottom left",
+              }}
+            >
+              <Img
+                src={staticFile("QuickSelect.png")}
+                style={{
+                  width: 500,
+                  height: "auto",
+                  filter: `drop-shadow(0 20px 40px ${C.green}30)`,
+                }}
+              />
+            </div>
+          )}
+
+          {/* Cursor */}
+          {frame >= cursorStartFrame && (
+            <div
+              style={{
+                position: "absolute",
+                top: cursorY,
+                left: cursorX,
+                zIndex: 10,
+                opacity: cursorOp * cursorFinalOp,
+                transform: `scale(${rightClickPulse})`,
+                pointerEvents: "none",
+              }}
+            >
+              {/* Right-click ring effect */}
+              {frame >= rightClickFrame && frame < rightClickFrame + 12 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -10,
+                    left: -10,
+                    width: 40 + rightClickRing * 30,
+                    height: 40 + rightClickRing * 30,
+                    borderRadius: "50%",
+                    border: `2px solid ${C.green}`,
+                    opacity: rightClickRingOp,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                />
+              )}
+              {/* Cursor icon */}
+              <svg
+                width="32"
+                height="32"
+                viewBox="0 0 24 24"
+                fill={C.white}
+                style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}
+              >
+                <path d="M4 0l16 12.279-6.951 1.17 4.325 8.817-3.596 1.734-4.35-8.879-5.428 4.702z" />
+              </svg>
+            </div>
+          )}
         </div>
       </div>
     </AbsoluteFill>
@@ -1051,7 +1293,7 @@ const SceneFeatureQuickSelect: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 7 — Feature: Output Styles (29s → 34s = 870–1020)
    ═══════════════════════════════════════════ */
-const SceneOutputStyles: React.FC = () => {
+export const SceneOutputStyles: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -1062,17 +1304,28 @@ const SceneOutputStyles: React.FC = () => {
     { label: "Strict", desc: "Precise control", color: C.orange },
   ];
 
-  const labelOp = fadeIn(frame, 3);
-  const titleOp = fadeIn(frame, 8);
-  const titleY = slideUp(frame, 8);
-  const descOp = fadeIn(frame, 18);
-  const imgOp = fadeIn(frame, 35, 20);
-  const imgScale = scaleIn(frame, fps, 35);
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 3);
+  const titleY = slideUp(frame, 3);
+  const descOp = fadeIn(frame, 8);
+  const imgOp = fadeIn(frame, 15, 10);
+  const imgScale = scaleIn(frame, fps, 15);
 
-  // Highlight animation - cycle through styles (starts earlier, longer range)
-  const activeIdx = Math.floor(
-    interpolate(frame, [40, 180], [0, 3.99], { extrapolateRight: "clamp", extrapolateLeft: "clamp" })
-  );
+  // Highlight animation - sync with spokesperson saying each word
+  // Scene starts at 23.6s, duration 6.56s (~197 frames), ends at 30.16s
+  // Words spoken at approximately:
+  // "structured" ~24.5s (frame 27), "clarity" ~25.3s (frame 51),
+  // "concise" ~26.0s (frame 72), "strict" ~27.5s (frame 117)
+  // After "strict" keep it highlighted until scene ends
+  const wordFrames = [27, 51, 72, 117];
+  const getActiveIdx = () => {
+    if (frame < wordFrames[0]) return -1;
+    if (frame < wordFrames[1]) return 0;
+    if (frame < wordFrames[2]) return 1;
+    if (frame < wordFrames[3]) return 2;
+    return 3;
+  };
+  const activeIdx = getActiveIdx();
 
   return (
     <AbsoluteFill
@@ -1086,6 +1339,7 @@ const SceneOutputStyles: React.FC = () => {
           fontWeight: 700,
           letterSpacing: 3,
           marginBottom: 16,
+          fontFamily: interFont,
         }}
       >
         AI ENHANCEMENT
@@ -1120,7 +1374,7 @@ const SceneOutputStyles: React.FC = () => {
       {/* Style pills */}
       <div style={{ display: "flex", gap: 24, marginBottom: 50 }}>
         {styles.map((s, i) => {
-          const pillScale = scaleIn(frame, fps, 25 + i * 6);
+          const pillScale = scaleIn(frame, fps, 10 + i * 3);
           const active = i === activeIdx;
           return (
             <div
@@ -1211,7 +1465,7 @@ const SceneOutputStyles: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 8 — Works Everywhere (34s → 39s = 1020–1170)
    ═══════════════════════════════════════════ */
-const ScenePlatforms: React.FC = () => {
+export const ScenePlatforms: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
@@ -1233,10 +1487,10 @@ const ScenePlatforms: React.FC = () => {
     },
   ];
 
-  const labelOp = fadeIn(frame, 5);
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const subOp = fadeIn(frame, 30);
+  const labelOp = fadeIn(frame, 0);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const subOp = fadeIn(frame, 12);
 
   return (
     <AbsoluteFill
@@ -1250,6 +1504,7 @@ const ScenePlatforms: React.FC = () => {
           fontWeight: 700,
           letterSpacing: 3,
           marginBottom: 16,
+          fontFamily: interFont,
         }}
       >
         CROSS-PLATFORM
@@ -1280,8 +1535,8 @@ const ScenePlatforms: React.FC = () => {
       </div>
       <div style={{ display: "flex", gap: 50 }}>
         {platforms.map((p, i) => {
-          const s = scaleIn(frame, fps, 35 + i * 12);
-          const op = fadeIn(frame, 35 + i * 12, 20);
+          const s = scaleIn(frame, fps, 15 + i * 5);
+          const op = fadeIn(frame, 15 + i * 5, 10);
           return (
             <div
               key={p.name}
@@ -1342,25 +1597,25 @@ const ScenePlatforms: React.FC = () => {
 /* ═══════════════════════════════════════════
    SCENE 10 — CTA (43s → 50s = 1290–1500)
    ═══════════════════════════════════════════ */
-const SceneCTA: React.FC = () => {
+export const SceneCTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   const logoScale = spring({
-    frame: frame - 5,
+    frame: frame - 0,
     fps,
-    config: { damping: 10, stiffness: 80 },
+    config: { damping: 14, stiffness: 150 },
   });
-  const titleOp = fadeIn(frame, 15);
-  const titleY = slideUp(frame, 15);
-  const chromeScale = scaleIn(frame, fps, 40);
-  const chromeOp = fadeIn(frame, 40, 20);
-  const urlOp = fadeIn(frame, 70);
+  const titleOp = fadeIn(frame, 5);
+  const titleY = slideUp(frame, 5);
+  const chromeScale = scaleIn(frame, fps, 15);
+  const chromeOp = fadeIn(frame, 15, 10);
+  const urlOp = fadeIn(frame, 25);
 
   const pulse = interpolate(Math.sin(frame * 0.08), [-1, 1], [0.4, 1]);
 
   // Chrome icon click animation — two bounces
-  const clickFrame = 80;
+  const clickFrame = 40;
   const clickBounce = interpolate(
     frame,
     [clickFrame, clickFrame + 4, clickFrame + 10, clickFrame + 14, clickFrame + 20],

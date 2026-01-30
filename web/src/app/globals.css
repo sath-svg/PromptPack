@@ -1974,6 +1974,36 @@ h4.hero-hook {
   transform: scale(1.1);
 }
 
+.hero-video-dots {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.hero-video-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  padding: 0;
+}
+
+.hero-video-dot:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.hero-video-dot.active {
+  background: rgba(99, 102, 241, 0.9);
+  transform: scale(1.2);
+}
+
 /* How section - 3 column grid */
 .how-steps-3col {
   grid-template-columns: repeat(3, minmax(0, 1fr));
