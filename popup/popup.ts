@@ -3,7 +3,7 @@ import { listPrompts, deletePrompt, deletePromptsBySource, bulkSavePrompts, remo
 import { isStorageLow } from "./shared/safeStorage";
 import { THEME_KEY, getSystemTheme, applyThemeFromStorageToRoot, type ThemeMode } from "./shared/theme";
 import { encryptPmtpk, decryptPmtpk, encodePmtpk, decodePmtpk, isObfuscated, isEncrypted, SCHEMA_VERSION, PmtpkError } from "./shared/crypto";
-import { getAuthState, verifyAuthStateBackground, type AuthState, login, logout } from "./shared/auth";
+import { getAuthState, getAuthStateCached, verifyAuthStateBackground, type AuthState, login, logout } from "./shared/auth";
 import { api } from "./shared/api";
 import {
   FREE_PROMPT_LIMIT,
@@ -338,6 +338,10 @@ function groupPrompts(items: PromptItem[]): GroupedPrompts[] {
     chatgpt: [],
     claude: [],
     gemini: [],
+    perplexity: [],
+    grok: [],
+    deepseek: [],
+    kimi: [],
   };
 
   for (const p of items) {
@@ -371,8 +375,13 @@ function groupPrompts(items: PromptItem[]): GroupedPrompts[] {
 
   groups.push(...packEntries);
 
-  // Add regular source groups (always show all three sources)
-  const sourceOrder: PromptSource[] = ["chatgpt", "claude", "gemini"];
+  // Add regular source groups (always show all sources)
+  // Base sources shown to all users
+  const baseSourceOrder: PromptSource[] = ["chatgpt", "claude", "gemini"];
+  // Pro-only sources
+  const proSourceOrder: PromptSource[] = ["perplexity", "grok", "deepseek", "kimi"];
+  const sourceOrder: PromptSource[] = [...baseSourceOrder, ...proSourceOrder];
+
   for (const source of sourceOrder) {
     const prompts = regularPrompts[source];
     groups.push({
@@ -390,7 +399,19 @@ function groupPrompts(items: PromptItem[]): GroupedPrompts[] {
 function sectionTitle(source: PromptItem["source"]) {
   if (source === "chatgpt") return "ChatGPT";
   if (source === "claude") return "Claude";
-  return "Gemini";
+  if (source === "gemini") return "Gemini";
+  if (source === "perplexity") return "Perplexity";
+  if (source === "grok") return "Grok";
+  if (source === "deepseek") return "DeepSeek";
+  if (source === "kimi") return "Kimi";
+  return source;
+}
+
+// Pro-only sources
+const PRO_ONLY_SOURCES: PromptSource[] = ["perplexity", "grok", "deepseek", "kimi"];
+
+function isProOnlySource(source: PromptSource): boolean {
+  return PRO_ONLY_SOURCES.includes(source);
 }
 
 function isLongPrompt(text: string) {
@@ -512,6 +533,10 @@ async function detectActiveSource(): Promise<PromptItem["source"] | null> {
     if (url.includes("claude.ai")) return "claude";
     if (url.includes("gemini.google.com")) return "gemini";
     if (url.includes("chatgpt.com") || url.includes("chat.openai.com")) return "chatgpt";
+    if (url.includes("perplexity.ai")) return "perplexity";
+    if (url.includes("grok.com") || url.includes("x.com/i/grok")) return "grok";
+    if (url.includes("chat.deepseek.com")) return "deepseek";
+    if (url.includes("kimi.moonshot.cn")) return "kimi";
 
     return null;
   } catch {
@@ -747,7 +772,7 @@ function setupEventDelegation() {
       }
 
       // Map source to display title
-      const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+      const sourceTitle = sectionTitle(source);
 
       // Create export data with schema version
       const exportData = {
@@ -1160,7 +1185,17 @@ async function render(forceRefresh = false) {
     await setLastProStatus(isPro);
   }
 
-  const groups = groupPrompts(items.filter(p => isPro || !p.packName));
+  // Filter out pro-only sources for non-pro users, and pack prompts for non-pro users
+  const filteredItems = items.filter(p => {
+    // Filter out pack prompts for non-pro users
+    if (!isPro && p.packName) return false;
+    // Filter out pro-only source prompts for non-pro users
+    if (!isPro && isProOnlySource(p.source)) return false;
+    return true;
+  });
+  const allGroups = groupPrompts(filteredItems);
+  // Filter out pro-only source groups for non-pro users
+  const groups = allGroups.filter(g => isPro || !isProOnlySource(g.source));
   const activeSource = await detectActiveSource();
 
   // Set active source on root element for styling
@@ -1255,24 +1290,24 @@ async function render(forceRefresh = false) {
 
 // Get initial auth state
 (async () => {
-  // Show loading screen first
-  await render();
+  // Try to get cached auth state first for instant rendering
+  const cachedState = await getAuthStateCached();
 
-  // Get auth state (cached or fresh)
-  authState = await getAuthState();
-  isLoadingAuth = false;
-
-    // Re-render with actual content
+  if (cachedState) {
+    // Use cached state for instant render (no loading screen)
+    authState = cachedState;
+    isLoadingAuth = false;
     await render();
+
     if (authState.isAuthenticated) {
       void retryStaleClassifications();
       void maybeRequeueMissingHeadersOnSignin(authState);
     }
 
-  // Background verification: check if auth state changed on server
-  verifyAuthStateBackground(authState).then(async (newState) => {
-    if (newState) {
-      // Auth state changed - update and re-render
+    // Background verification: check if auth state changed on server
+    verifyAuthStateBackground(authState).then(async (newState) => {
+      if (newState) {
+        // Auth state changed - update and re-render
         authState = newState;
         await render();
         if (authState.isAuthenticated) {
@@ -1281,4 +1316,17 @@ async function render(forceRefresh = false) {
         }
       }
     });
+  } else {
+    // No valid cache - show loading screen and fetch fresh
+    await render();
+
+    authState = await getAuthState();
+    isLoadingAuth = false;
+
+    await render();
+    if (authState.isAuthenticated) {
+      void retryStaleClassifications();
+      void maybeRequeueMissingHeadersOnSignin(authState);
+    }
+  }
 })();

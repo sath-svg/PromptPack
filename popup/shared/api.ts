@@ -426,7 +426,7 @@ class ApiClient {
    * Returns success status and any limit errors
    */
   async savePromptsToDashboard(params: {
-    source: "chatgpt" | "claude" | "gemini";
+    source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
     fileData: string; // base64 encoded .pmtpk file
     promptCount: number;
     clerkId: string; // Pass clerkId from authState
@@ -504,7 +504,7 @@ class ApiClient {
    */
   async checkDashboardPromptLimit(
     clerkId: string,
-    source: "chatgpt" | "claude" | "gemini",
+    source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi",
     addingCount: number
   ): Promise<{ allowed: boolean; limit: number; currentTotal: number }> {
     try {

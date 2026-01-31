@@ -31,7 +31,7 @@ type HeaderMap = Record<string, string>;
 
 type SelectedPack = {
   id: Id<"savedPacks">;
-  source: "chatgpt" | "claude" | "gemini";
+  source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
   r2Key: string;
   promptCount: number;
   isEncrypted?: boolean;
@@ -46,7 +46,7 @@ type HistoryAction = {
   prompts: DecodedPrompt[];
   packInfo?: {
     id: Id<"savedPacks">;
-    source: "chatgpt" | "claude" | "gemini";
+    source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
     r2Key: string;
     isEncrypted: boolean;
     password?: string;
@@ -62,8 +62,37 @@ function getSourceTitle(source: string): string {
       return "Claude";
     case "gemini":
       return "Gemini";
+    case "perplexity":
+      return "Perplexity";
+    case "grok":
+      return "Grok";
+    case "deepseek":
+      return "DeepSeek";
+    case "kimi":
+      return "Kimi";
     default:
       return source;
+  }
+}
+
+function getSourceEmoji(source: string): string {
+  switch (source) {
+    case "chatgpt":
+      return "🤖";
+    case "claude":
+      return "🧠";
+    case "gemini":
+      return "✨";
+    case "perplexity":
+      return "🔍";
+    case "grok":
+      return "𝕏";
+    case "deepseek":
+      return "🌊";
+    case "kimi":
+      return "🌙";
+    default:
+      return "💬";
   }
 }
 
@@ -881,7 +910,7 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
               <>
                 <div className="pack-title">
                   <span className={`source-icon source-${pack.source}`}>
-                    {pack.source === "chatgpt" ? "🤖" : pack.source === "claude" ? "🧠" : "✨"}
+                    {getSourceEmoji(pack.source)}
                   </span>
                   <span className="pack-name">{getSourceTitle(pack.source)}</span>
                 </div>
@@ -1180,12 +1209,12 @@ async function decodeObfuscatedFile(bytes: Uint8Array): Promise<DecodedPrompt[]>
 // Encode prompts to .pmtpk format (obfuscated or encrypted)
 async function encodePrompts(
   prompts: DecodedPrompt[],
-  source: "chatgpt" | "claude" | "gemini",
+  source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi",
   encrypt: boolean,
   password?: string
 ): Promise<Uint8Array> {
   // Map source to display title
-  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+  const sourceTitle = getSourceTitle(source);
 
   const exportData = {
     version: SCHEMA_VERSION,

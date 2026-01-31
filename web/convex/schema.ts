@@ -54,7 +54,16 @@ export default defineSchema({
   // User's saved prompts from extension (metadata only, file stored in R2)
   savedPacks: defineTable({
     userId: v.id("users"),
-    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    source: v.union(
+      v.literal("chatgpt"),
+      v.literal("claude"),
+      v.literal("gemini"),
+      // Pro-only LLMs
+      v.literal("perplexity"),
+      v.literal("grok"),
+      v.literal("deepseek"),
+      v.literal("kimi")
+    ),
     // R2 object key where the encrypted .pmtpk file is stored
     r2Key: v.string(),
     promptCount: v.number(),

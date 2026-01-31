@@ -213,3 +213,14 @@ export const geminiTheme = {
     font: "Google Sans, Roboto, ui-sans-serif, system-ui, -apple-system, Arial",
   },
 };
+
+/**
+ * Pro-only LLM accent colors - used for popup arrow colors
+ * These LLMs use a standard bubble theme (not page-dependent)
+ */
+export const proLlmAccentColors = {
+  perplexity: "#20B2AA", // Teal/cyan
+  grok: "#1D9BF0", // X/Twitter blue
+  deepseek: "#4D6BFE", // Blue
+  kimi: "#7C3AED", // Purple/violet
+};

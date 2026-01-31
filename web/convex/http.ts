@@ -407,7 +407,7 @@ http.route({
       const body = await request.json();
       const { clerkId, source, r2Key, promptCount, fileSize } = body as {
         clerkId: string;
-        source: "chatgpt" | "claude" | "gemini";
+        source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
         r2Key: string;
         promptCount: number;
         fileSize: number;
@@ -884,7 +884,7 @@ http.route({
       const body = await request.json();
       const { clerkId, source, r2Key, promptCount, fileSize, headers: promptHeaders } = body as {
         clerkId: string;
-        source: "chatgpt" | "claude" | "gemini";
+        source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
         r2Key: string;
         promptCount: number;
         fileSize: number;
@@ -998,7 +998,7 @@ http.route({
       const body = await request.json();
       const { clerkId, source, addingCount } = body as {
         clerkId: string;
-        source: "chatgpt" | "claude" | "gemini";
+        source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
         addingCount: number;
       };
 

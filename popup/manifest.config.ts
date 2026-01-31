@@ -22,6 +22,14 @@ const manifest: ManifestV3Export = {
     "https://chat.openai.com/*",
     "https://claude.ai/*",
     "https://gemini.google.com/*",
+    // Pro-only LLMs
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
+    "https://grok.com/*",
+    "https://x.com/*",
+    "https://chat.deepseek.com/*",
+    "https://kimi.moonshot.cn/*",
+    // API and web app
     "https://grok.pmtpk.com/*",
     "https://api.pmtpk.com/*",
     "https://*.pmtpk.com/*",
@@ -55,6 +63,27 @@ const manifest: ManifestV3Export = {
       js: ["content/gemini.ts"],
       run_at: "document_idle",
     },
+    // Pro-only LLMs
+    {
+      matches: ["https://www.perplexity.ai/*", "https://perplexity.ai/*"],
+      js: ["content/perplexity.ts"],
+      run_at: "document_idle",
+    },
+    {
+      matches: ["https://grok.com/*", "https://x.com/i/grok*"],
+      js: ["content/grok.ts"],
+      run_at: "document_idle",
+    },
+    {
+      matches: ["https://chat.deepseek.com/*"],
+      js: ["content/deepseek.ts"],
+      run_at: "document_idle",
+    },
+    {
+      matches: ["https://kimi.moonshot.cn/*"],
+      js: ["content/kimi.ts"],
+      run_at: "document_idle",
+    },
   ],
 
   // Background service worker (auth proxy for classify)
@@ -72,6 +101,14 @@ const manifest: ManifestV3Export = {
         "https://chat.openai.com/*",
         "https://claude.ai/*",
         "https://gemini.google.com/*",
+        // Pro-only LLMs
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*",
+        "https://grok.com/*",
+        "https://x.com/*",
+        "https://chat.deepseek.com/*",
+        "https://kimi.moonshot.cn/*",
+        // Web app
         "https://pmtpk.com/*",
         "http://localhost:3000/*",
       ],

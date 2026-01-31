@@ -16,7 +16,7 @@ export const listByUser = query({
 export const getByUserAndSource = query({
   args: {
     userId: v.id("users"),
-    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini"), v.literal("perplexity"), v.literal("grok"), v.literal("deepseek"), v.literal("kimi")),
   },
   handler: async (ctx, { userId, source }) => {
     return await ctx.db
@@ -30,7 +30,7 @@ export const getByUserAndSource = query({
 export const upsert = mutation({
   args: {
     userId: v.id("users"),
-    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini"), v.literal("perplexity"), v.literal("grok"), v.literal("deepseek"), v.literal("kimi")),
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),
@@ -79,7 +79,7 @@ export const remove = mutation({
 export const removeByUserAndSource = mutation({
   args: {
     userId: v.id("users"),
-    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini"), v.literal("perplexity"), v.literal("grok"), v.literal("deepseek"), v.literal("kimi")),
   },
   handler: async (ctx, { userId, source }) => {
     const existing = await ctx.db
@@ -99,7 +99,7 @@ export const removeByUserAndSource = mutation({
 export const upsertByClerkId = mutation({
   args: {
     clerkId: v.string(),
-    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini")),
+    source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini"), v.literal("perplexity"), v.literal("grok"), v.literal("deepseek"), v.literal("kimi")),
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),

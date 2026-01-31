@@ -12,7 +12,7 @@ import {
 // Re-export for backwards compatibility
 export { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, MAX_PROMPTS, MAX_IMPORTED_PACKS };
 
-export type PromptSource = "chatgpt" | "claude" | "gemini";
+export type PromptSource = "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
 
 export type PromptItem = {
   id: string;
@@ -93,7 +93,7 @@ export async function listPromptsBySourceGrouped(source: PromptSource): Promise<
   const groups: PromptGroup[] = [];
 
   // Add regular prompts group
-  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : "Gemini";
+  const sourceTitle = source === "chatgpt" ? "ChatGPT" : source === "claude" ? "Claude" : source === "gemini" ? "Gemini" : source === "perplexity" ? "Perplexity" : source === "grok" ? "Grok" : source === "deepseek" ? "DeepSeek" : "Kimi";
   groups.push({
     name: source,
     displayName: `${sourceTitle} Prompts`,
@@ -356,7 +356,7 @@ export async function requeueStaleClassifications(options?: {
 
   if (perSource) {
     // Process up to `max` stale prompts from EACH source
-    const sources: PromptSource[] = ["chatgpt", "claude", "gemini"];
+    const sources: PromptSource[] = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
     toProcess = [];
     for (const source of sources) {
       const sourcePrompts = stale.filter(p => p.source === source).slice(0, max);
@@ -395,7 +395,7 @@ export async function requeueMissingHeaders(options?: {
 
   if (perSource) {
     // Process up to `max` prompts from EACH source
-    const sources: PromptSource[] = ["chatgpt", "claude", "gemini"];
+    const sources: PromptSource[] = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
     toProcess = [];
     for (const source of sources) {
       const sourcePrompts = missing.filter(p => p.source === source).slice(0, max);

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PlausibleProvider from "next-plausible";
+import Script from "next/script";
 import {
   ClerkProvider,
   SignInButton,
@@ -116,11 +116,14 @@ export default function RootLayout({
           <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16.png" />
           <link rel="icon" type="image/png" sizes="48x48" href="/img/icon-48.png" />
           <link rel="shortcut icon" href="/favicon.ico" />
-          <PlausibleProvider
-            domain="pmtpk.com"
-            customDomain={process.env.NEXT_PUBLIC_PLAUSIBLE_URL}
-            selfHosted
+          <Script
+            defer
+            data-domain="pmtpk.com"
+            src="https://analytics.pmtpk.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
           />
+          <Script id="plausible-init">
+            {`window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }`}
+          </Script>
         </head>
         <body>
           <header className="header">

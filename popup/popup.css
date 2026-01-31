@@ -183,6 +183,27 @@ details.pp-sec[data-source="gemini"] .pp-arrow {
   color: #1A73E8;
 }
 
+/* Pro-only LLM arrows - each matches their brand color */
+/* Perplexity teal/cyan */
+details.pp-sec[data-source="perplexity"] .pp-arrow {
+  color: #20B2AA;
+}
+
+/* Grok/X blue */
+details.pp-sec[data-source="grok"] .pp-arrow {
+  color: #1D9BF0;
+}
+
+/* DeepSeek blue */
+details.pp-sec[data-source="deepseek"] .pp-arrow {
+  color: #4D6BFE;
+}
+
+/* Kimi purple/violet */
+details.pp-sec[data-source="kimi"] .pp-arrow {
+  color: #7C3AED;
+}
+
 /* When Claude is active, use Tiempos Text font for entire popup */
 :root[data-active-source="claude"] {
   --font: 'Tiempos Text Regular', 'Tiempos Text', ui-serif, Georgia, serif;
