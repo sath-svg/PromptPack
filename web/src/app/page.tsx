@@ -59,6 +59,17 @@ export default function Home() {
           className="hero-logo"
           style={{ marginTop: "clamp(3rem, 15vh, 6rem)", marginBottom: "1rem" }}
         />
+        <h1 className="hero-subhead">
+          Stop losing your best prompts.
+        </h1>
+        <p>
+          ChatGPT alone sees 2.5 – 3 billion prompts a day.
+          <br />
+          The best prompts shouldn't disappear into chat history. Save your winners.
+          <br />
+          Turn them into repeatable workflows. Move faster with a library of your best prompts.
+        </p>
+
         <div className="browser-badges">
           <a
             href="https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb"
@@ -74,12 +85,7 @@ export default function Home() {
               className="browser-badge"
             />
           </a>
-          <a
-            href="https://addons.mozilla.org/en-US/firefox/addon/promptpack/"
-            target="_blank"
-            rel="noreferrer"
-            className="browser-badge-link"
-          >
+          <Link href="/downloads" className="browser-badge-link">
             <Image
               src={assetUrl("/img/Firefox.svg")}
               alt="Add to Firefox - free"
@@ -87,7 +93,7 @@ export default function Home() {
               height={50}
               className="browser-badge"
             />
-          </a>
+          </Link>
           <Link href="/downloads" className="browser-badge-link">
             <Image
               src={assetUrl("/img/Safari.svg")}
@@ -98,16 +104,6 @@ export default function Home() {
             />
           </Link>
         </div>
-        <h1 className="hero-subhead">
-          Stop losing your best prompts.
-        </h1>
-        <p>
-          ChatGPT alone sees 2.5 – 3 billion prompts a day.
-          <br />
-          The best prompts shouldn't disappear into chat history. Save your winners.
-          <br />
-          Turn them into repeatable workflows. Move faster with a library of your best prompts.
-        </p>
 
         <div className="hero-cta">
           <SignedOut>
