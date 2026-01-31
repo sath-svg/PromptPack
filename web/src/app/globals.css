@@ -3166,7 +3166,7 @@ h4.hero-hook {
 .downloads-hero {
   text-align: center;
   padding: 4rem 2rem 3rem;
-  background: linear-gradient(180deg, rgba(99, 102, 241, 0.08) 0%, transparent 100%);
+  background: transparent;
 }
 
 .downloads-logo {
@@ -3178,11 +3178,15 @@ h4.hero-hook {
 
 .downloads-title {
   font-size: 2.5rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #9b7bff, #00d4ff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  color: var(--foreground);
   margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.downloads-title-logo {
+  height: 52px;
+  width: auto;
 }
 
 .downloads-subtitle {
@@ -3208,6 +3212,8 @@ h4.hero-hook {
   padding: 2rem;
   text-align: center;
   transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
 }
 
 .download-card:hover {
@@ -3237,6 +3243,12 @@ h4.hero-hook {
   height: 48px;
 }
 
+.browser-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
 .download-card h2 {
   font-size: 1.5rem;
   font-weight: 700;
@@ -3264,7 +3276,7 @@ h4.hero-hook {
   font-size: 0.95rem;
   line-height: 1.5;
   margin-bottom: 1.5rem;
-  min-height: 60px;
+  flex: 1;
 }
 
 .download-actions {
@@ -3307,7 +3319,103 @@ h4.hero-hook {
   opacity: 0.5;
 }
 
-/* Safari Instructions */
+/* Installation Instructions */
+.install-instructions {
+  max-width: 1000px;
+  margin: 0 auto 4rem;
+  padding: 0 2rem;
+}
+
+.install-instructions h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.install-instructions-subtitle {
+  text-align: center;
+  color: var(--muted-foreground);
+  margin-bottom: 2rem;
+}
+
+.install-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+}
+
+.install-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.install-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.install-section-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.install-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.install-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.install-step-num {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.install-step p {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.install-step code {
+  background: rgba(99, 102, 241, 0.15);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 0.8em;
+}
+
+.install-note {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+}
+
+/* Legacy Safari Instructions - kept for compatibility */
 .safari-instructions {
   max-width: 800px;
   margin: 0 auto 4rem;
@@ -3502,6 +3610,10 @@ h4.hero-hook {
   .downloads-title {
     font-size: 2rem;
   }
+
+  .install-tabs {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 600px) {
@@ -3515,6 +3627,10 @@ h4.hero-hook {
 
   .download-card {
     padding: 1.5rem;
+  }
+
+  .install-instructions {
+    padding: 0 1rem;
   }
 
   .safari-instructions {
