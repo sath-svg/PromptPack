@@ -67,18 +67,46 @@ export default function PricingPage() {
           }}
         >
           <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Free</h2>
-          <p
+          <div style={{ marginBottom: "0.5rem" }}>
+            <p
+              style={{
+                fontSize: "2.5rem",
+                fontWeight: "700",
+                marginBottom: "0",
+              }}
+            >
+              $0
+              <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
+                /month
+              </span>
+            </p>
+            <p
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--muted)",
+                marginTop: "0.25rem",
+                marginBottom: "0",
+              }}
+            >
+              Forever free
+            </p>
+          </div>
+
+          {/* Spacer to align with Pro billing toggle */}
+          <div
             style={{
-              fontSize: "2.5rem",
-              fontWeight: "700",
-              marginBottom: "1rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              height: "24px",
+              marginBottom: "1.5rem",
+              fontSize: "0.9rem",
+              color: "var(--muted)",
             }}
           >
-            $0
-            <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
-              /month
-            </span>
-          </p>
+            <span style={{ position: "relative", top: "-2px" }}>💳</span>
+            <span>No credit card required</span>
+          </div>
 
           <ul
             style={{
@@ -93,7 +121,8 @@ export default function PricingPage() {
             <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
             <li>✓ 10 prompt enhances per day</li>
             <li>✓ 50 AI headers per day</li>
-            <li>✓ Chrome extension</li>
+            <li>✓ Chrome, Firefox &amp; Safari extension</li>
+            <li>✓ ChatGPT, Claude &amp; Gemini support</li>
             <li>✓ Local storage</li>
           </ul>
 

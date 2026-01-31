@@ -198,14 +198,17 @@ export function ProCard() {
           flex: "1",
         }}
       >
-        <li>✓ 40 saved prompts</li>
+        {/* Aligned with Free plan */}
+        <li>✓ <span className="faq-highlight">40</span> saved prompts</li>
         <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
-        <li>✓ <span className="faq-highlight">2</span> custom <span className="gradient-text">PromptPacks</span></li>
         <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
-        <li>✓ Chrome extension</li>
-        <li>✓ Local storage</li>
-        <li>✓ Cloud sync</li>
+        <li>✓ Chrome, Firefox &amp; Safari extension</li>
+        <li>✓ ChatGPT, Claude &amp; Gemini support</li>
+        <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
+        {/* Pro-only features */}
+        <li>✓ <span className="faq-highlight">2</span> custom <span className="gradient-text">PromptPacks</span></li>
+        <li>✓ <span style={{ color: "#20B8CD" }}>Perplexity</span>, Grok, <span style={{ color: "#4D6BFE" }}>DeepSeek</span>, <span style={{ color: "#6B4FBB" }}>Kimi</span> support</li>
         <li>✓ Priority support</li>
         <li>✓ Early access to features</li>
       </ul>
