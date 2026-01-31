@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/pricing",
   "/privacy", // Privacy policy must be public
+  "/downloads", // Downloads page must be public
   "/marketplace",
   "/marketplace/(.*)",
   "/blog",

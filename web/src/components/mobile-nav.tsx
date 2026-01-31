@@ -49,6 +49,13 @@ export function MobileNav() {
           />
           <nav className="mobile-nav-menu">
             <Link
+              href="/downloads"
+              className="mobile-nav-link"
+              onClick={() => setIsOpen(false)}
+            >
+              Downloads
+            </Link>
+            <Link
               href="/marketplace"
               className="mobile-nav-link"
               onClick={() => setIsOpen(false)}

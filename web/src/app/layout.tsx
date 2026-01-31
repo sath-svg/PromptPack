@@ -145,6 +145,9 @@ export default function RootLayout({
             />
             </Link>
             <nav className="header-nav">
+              <Link href="/downloads" className="header-link">
+                Downloads
+              </Link>
               <Link href="/marketplace" className="header-link">
                 Marketplace
               </Link>

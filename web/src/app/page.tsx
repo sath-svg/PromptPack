@@ -59,20 +59,45 @@ export default function Home() {
           className="hero-logo"
           style={{ marginTop: "clamp(3rem, 15vh, 6rem)", marginBottom: "1rem" }}
         />
-        <a
-          href="https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb"
-          target="_blank"
-          rel="noreferrer"
-          className="chrome-badge-link"
-        >
-          <Image
-            src={assetUrl("/img/Chrome.svg")}
-            alt="Add to Chrome - free"
-            width={240}
-            height={60}
-            className="chrome-badge"
-          />
-        </a>
+        <div className="browser-badges">
+          <a
+            href="https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb"
+            target="_blank"
+            rel="noreferrer"
+            className="browser-badge-link"
+          >
+            <Image
+              src={assetUrl("/img/Chrome.svg")}
+              alt="Add to Chrome - free"
+              width={200}
+              height={50}
+              className="browser-badge"
+            />
+          </a>
+          <a
+            href="https://addons.mozilla.org/en-US/firefox/addon/promptpack/"
+            target="_blank"
+            rel="noreferrer"
+            className="browser-badge-link"
+          >
+            <Image
+              src={assetUrl("/img/Firefox.svg")}
+              alt="Add to Firefox - free"
+              width={200}
+              height={50}
+              className="browser-badge"
+            />
+          </a>
+          <Link href="/downloads" className="browser-badge-link">
+            <Image
+              src={assetUrl("/img/Safari.svg")}
+              alt="Get Safari Extension"
+              width={200}
+              height={50}
+              className="browser-badge"
+            />
+          </Link>
+        </div>
         <h1 className="hero-subhead">
           Stop losing your best prompts.
         </h1>
