@@ -122,7 +122,7 @@ export function ProCard() {
             </span>
           ) : null}
           <span
-            style={isEarlyBird && !isPro ? {
+            style={isEarlyBird ? {
               background: "linear-gradient(135deg, #f59e0b, #ef4444)",
               WebkitBackgroundClip: "text",
               WebkitTextFillColor: "transparent",
