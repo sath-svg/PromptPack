@@ -79,6 +79,30 @@ export function ProCard() {
 
       {/* Price display */}
       <div style={{ marginBottom: "0.5rem" }}>
+        {/* Strikethrough prices on separate line when early bird */}
+        {isEarlyBird && isAnnual && (
+          <div style={{ marginBottom: "0.25rem" }}>
+            <span
+              style={{
+                textDecoration: "line-through",
+                color: "#9ca3af",
+                fontSize: "1.25rem",
+                marginRight: "0.5rem",
+              }}
+            >
+              ${monthlyPrice}
+            </span>
+            <span
+              style={{
+                textDecoration: "line-through",
+                color: "#b0b0b0",
+                fontSize: "1.25rem",
+              }}
+            >
+              ${annualMonthlyPrice}
+            </span>
+          </div>
+        )}
         <p
           style={{
             fontSize: "2.5rem",
@@ -86,30 +110,7 @@ export function ProCard() {
             marginBottom: "0",
           }}
         >
-          {isEarlyBird && isAnnual ? (
-            <>
-              <span
-                style={{
-                  textDecoration: "line-through",
-                  color: "#9ca3af",
-                  fontSize: "1.5rem",
-                  marginRight: "0.35rem",
-                }}
-              >
-                ${monthlyPrice}
-              </span>
-              <span
-                style={{
-                  textDecoration: "line-through",
-                  color: "#b0b0b0",
-                  fontSize: "1.5rem",
-                  marginRight: "0.5rem",
-                }}
-              >
-                ${annualMonthlyPrice}
-              </span>
-            </>
-          ) : showStrikethrough ? (
+          {!isEarlyBird && showStrikethrough && (
             <span
               style={{
                 textDecoration: "line-through",
@@ -120,7 +121,7 @@ export function ProCard() {
             >
               ${originalPrice}
             </span>
-          ) : null}
+          )}
           <span
             style={isEarlyBird && !isPro ? {
               background: "linear-gradient(135deg, #f59e0b, #ef4444)",
