@@ -303,11 +303,13 @@ function buildEnhanceSystemPrompt(mode: EnhanceMode): string {
   };
 
   return [
-    "You are an expert prompt editor.",
+    "You are an expert prompt editor. Your ONLY job is to REWRITE and IMPROVE the user's prompt.",
+    "CRITICAL: Do NOT answer or respond to the prompt. Do NOT provide the information the prompt is asking for.",
+    "Do NOT execute the prompt's instructions. ONLY rewrite it to make it a better prompt.",
     `Rewrite the user's prompt to ${modeGuidance[mode]}.`,
-    "Preserve the original intent.",
+    "Preserve the original intent and keep it as a question/request to an AI.",
     "If it is already good, do a light pass without overhauling.",
-    "Output ONLY the enhanced prompt text (no commentary, no markdown, no code fences).",
+    "Output ONLY the enhanced prompt text (no commentary, no markdown, no code fences, no explanations).",
   ].join(" ");
 }
 
@@ -412,6 +414,26 @@ async function releaseInFlightLock(key: string): Promise<void> {
   await cache.delete(req);
 }
 
+// Strip preamble text that Groq sometimes adds despite system prompt instructions
+// e.g., "Here is a rewritten version of the prompt with clear sections:"
+function stripGroqPreamble(content: string): string {
+  // Common preamble patterns from Groq
+  const preamblePatterns = [
+    /^Here(?:'s| is) (?:a |the )?(?:rewritten|enhanced|improved|revised|updated|optimized|refined|concise|structured|clarified|clearer) (?:version of (?:the|your) )?prompt[^:]*:\s*/i,
+    /^Here(?:'s| is) (?:a |the )?(?:rewritten|enhanced|improved|revised|updated|optimized|refined|concise|structured|clarified|clearer) prompt[^:]*:\s*/i,
+    /^(?:The )?(?:rewritten|enhanced|improved|revised|updated|optimized|refined|concise|structured|clarified|clearer) (?:version of (?:the|your) )?prompt[^:]*:\s*/i,
+    /^(?:I've |I have )?(?:rewritten|enhanced|improved|revised|updated|optimized|refined) (?:the|your) prompt[^:]*:\s*/i,
+    /^Below is (?:a |the )?(?:rewritten|enhanced|improved|revised|updated) (?:version of (?:the|your) )?prompt[^:]*:\s*/i,
+  ];
+
+  let result = content;
+  for (const pattern of preamblePatterns) {
+    result = result.replace(pattern, '');
+  }
+
+  return result.trim();
+}
+
 async function callGroqChatCompletion(params: {
   apiKey: string;
   model: string;
@@ -444,10 +466,13 @@ async function callGroqChatCompletion(params: {
   const data = await response.json() as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  const content = data.choices?.[0]?.message?.content?.trim();
+  let content = data.choices?.[0]?.message?.content?.trim();
   if (!content) {
     return { ok: false, status: 502, error: "Empty completion" };
   }
+
+  // Strip any preamble text that Groq might have added
+  content = stripGroqPreamble(content);
 
   return { ok: true, content };
 }
@@ -1065,7 +1090,7 @@ export default {
 
         // Security: Verify the r2Key pattern matches expected formats
         // users/{userId}/saved/{source}.pmtpk OR users/{userId}/userpacks/pack_{id}.pmtpk
-        const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/);
+        const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
         const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
 
         if (!isValidSavedPack && !isValidUserPack) {
@@ -1109,7 +1134,7 @@ export default {
         }
 
         // Security: Verify the r2Key pattern matches expected format
-        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/)) {
+        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/)) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
@@ -1139,7 +1164,7 @@ export default {
         }
 
         // Security: Verify the r2Key pattern matches expected format
-        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini)\.pmtpk$/)) {
+        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/)) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
@@ -1148,7 +1173,7 @@ export default {
 
         // Decode base64 and upload to R2
         const fileBuffer = Uint8Array.from(atob(body.fileData), c => c.charCodeAt(0));
-        const source = body.r2Key.match(/\/(chatgpt|claude|gemini)\.pmtpk$/)?.[1] || "unknown";
+        const source = body.r2Key.match(/\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/)?.[1] || "unknown";
 
         await env.BUCKET.put(body.r2Key, fileBuffer, {
           httpMetadata: {

@@ -98,7 +98,7 @@ function findComposer(): ComposerEl | null {
   const byId = document.querySelector<HTMLTextAreaElement>("textarea#prompt-textarea");
   if (byId && isVisible(byId)) return byId;
 
-  // Filter function to exclude settings/modal textareas
+  // Filter function to exclude settings/modal textareas and output areas
   const isMainChatComposer = (el: HTMLElement): boolean => {
     // Exclude if inside modal/dialog/settings containers
     let parent = el.parentElement;
@@ -110,6 +110,16 @@ function findComposer(): ComposerEl | null {
       // Skip if inside modal, dialog, or settings panel
       if (role === "dialog" || ariaModal === "true") return false;
       if (parent.classList.contains("modal") || parent.classList.contains("settings")) return false;
+
+      // Skip if inside PromptPack enhance preview modal
+      if (parent.id === "pp-enhance-preview") return false;
+
+      // Skip if inside message/response bubbles (assistant or user messages)
+      const messageRole = parent.getAttribute("data-message-author-role");
+      if (messageRole === "assistant" || messageRole === "user") return false;
+
+      // Skip if inside article elements (ChatGPT message containers)
+      if (parent.tagName === "ARTICLE") return false;
 
       // Skip if inside a form with settings-related classes or attributes
       if (parent.tagName === "FORM") {
@@ -129,6 +139,11 @@ function findComposer(): ComposerEl | null {
           placeholder.includes("custom instruction")) {
         return false;
       }
+    }
+
+    // Exclude readonly textareas (like preview areas)
+    if (el instanceof HTMLTextAreaElement && el.readOnly) {
+      return false;
     }
 
     return true;
