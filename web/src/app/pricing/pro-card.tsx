@@ -73,7 +73,7 @@ export function ProCard() {
           whiteSpace: "nowrap",
         }}
       >
-        {isPro ? "CURRENT PLAN" : isEarlyBird ? `EARLY BIRD — ${spotsLeft} left` : "POPULAR"}
+        {isPro ? "CURRENT PLAN" : isEarlyBird ? "EARLY BIRD — 9 left" : "POPULAR"}
       </span>
 
       <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>
