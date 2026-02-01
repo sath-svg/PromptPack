@@ -61,33 +61,21 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
 
     if (payload.type === "PP_VERIFY_AUTH") {
-      let sessionToken = payload.token;
-      if (!sessionToken) {
-        const session = await getSession();
-        if (!session?.accessToken || session.expiresAt < Date.now()) {
-          sendResponse({ ok: false, error: "Sign in required" });
-          return;
-        }
-        sessionToken = session.accessToken;
-      }
-
-      const response = await fetch(`${API_BASE}/auth/status`, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${sessionToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        sendResponse({
-          ok: false,
-          status: response.status,
-          error: response.statusText,
-        });
+      // Use same auth flow as popup - check cached auth state first, then session
+      const cachedAuth = await getAuthStateCached();
+      if (cachedAuth?.isAuthenticated) {
+        sendResponse({ ok: true });
         return;
       }
 
-      sendResponse({ ok: true });
+      // Fall back to session check if no cached auth
+      const session = await getSession();
+      if (session?.userId && session.expiresAt > Date.now()) {
+        sendResponse({ ok: true });
+        return;
+      }
+
+      sendResponse({ ok: false, error: "Sign in required" });
       return;
     }
 
@@ -99,17 +87,21 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     }
 
     // Check local usage limit before calling API
-    const authState = await getAuthStateCached();
-    if (authState) {
-      const { allowed, limit } = await canClassify(authState);
-      if (!allowed) {
-        sendResponse({
-          ok: false,
-          error: `Daily AI header limit reached (${limit}/day). Upgrade for more.`,
-          status: 429,
-        });
-        return;
-      }
+    // If no cached auth state, default to free tier limits
+    const authState = await getAuthStateCached() ?? {
+      isAuthenticated: true,
+      user: { id: session.userId, email: "", tier: "free" as const },
+      billing: { isPro: false, isStudio: false, plan: "free" as const },
+      classifyLimit: 50, // Free tier limit
+    };
+    const { allowed, limit } = await canClassify(authState);
+    if (!allowed) {
+      sendResponse({
+        ok: false,
+        error: `Daily AI header limit reached (${limit}/day). Upgrade for more.`,
+        status: 429,
+      });
+      return;
     }
 
     const response = await fetch(`${API_BASE}/classify`, {

@@ -11,6 +11,7 @@ export async function GET() {
       return NextResponse.json({
         plan: "free",
         isPro: false,
+        isStudio: false,
       });
     }
 
@@ -25,18 +26,21 @@ export async function GET() {
       return NextResponse.json({
         plan: "free",
         isPro: false,
+        isStudio: false,
       });
     }
 
     return NextResponse.json({
       plan: user.plan,
-      isPro: user.plan === "pro",
+      isPro: user.plan === "pro" || user.plan === "studio",
+      isStudio: user.plan === "studio",
     });
   } catch (error) {
     console.error("Billing status check error:", error);
     return NextResponse.json({
       plan: "free",
       isPro: false,
+      isStudio: false,
     });
   }
 }

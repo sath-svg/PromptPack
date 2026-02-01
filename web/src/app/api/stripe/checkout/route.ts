@@ -4,16 +4,27 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 
 type CheckoutInterval = "month" | "annual";
+type CheckoutPlan = "pro" | "studio";
 
-const MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
-const ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
+// Pro plan prices
+const PRO_MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+const PRO_ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
+
+// Studio plan prices
+const STUDIO_MONTHLY_PRICE_ID = process.env.STRIPE_STUDIO_MONTHLY_PRICE_ID;
+const STUDIO_ANNUAL_PRICE_ID = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
+
+// Early bird coupons (Pro only)
 const EARLY_BIRD_MONTHLY_COUPON_ID = process.env.STRIPE_EARLY_BIRD_MONTHLY_COUPON_ID;
 const EARLY_BIRD_ANNUAL_COUPON_ID = process.env.STRIPE_EARLY_BIRD_ANNUAL_COUPON_ID;
 const EARLY_BIRD_LIMIT = 9;
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-function resolvePriceId(interval: CheckoutInterval): string | undefined {
-  return interval === "annual" ? ANNUAL_PRICE_ID : MONTHLY_PRICE_ID;
+function resolvePriceId(plan: CheckoutPlan, interval: CheckoutInterval): string | undefined {
+  if (plan === "studio") {
+    return interval === "annual" ? STUDIO_ANNUAL_PRICE_ID : STUDIO_MONTHLY_PRICE_ID;
+  }
+  return interval === "annual" ? PRO_ANNUAL_PRICE_ID : PRO_MONTHLY_PRICE_ID;
 }
 
 export async function POST(request: Request) {
@@ -25,9 +36,11 @@ export async function POST(request: Request) {
 
     const body = (await request.json().catch(() => ({}))) as {
       interval?: CheckoutInterval;
+      plan?: CheckoutPlan;
     };
     const interval: CheckoutInterval = body.interval === "annual" ? "annual" : "month";
-    const priceId = resolvePriceId(interval);
+    const plan: CheckoutPlan = body.plan === "studio" ? "studio" : "pro";
+    const priceId = resolvePriceId(plan, interval);
 
     if (!priceId) {
       return NextResponse.json({ error: "Missing Stripe price configuration" }, { status: 500 });
@@ -44,13 +57,15 @@ export async function POST(request: Request) {
       ?? process.env.NEXT_PUBLIC_APP_URL
       ?? "http://localhost:3000";
 
-    // Check if early bird pricing applies (first 9 pro users)
+    // Check if early bird pricing applies (first 9 pro users, Pro plan only)
     let couponId: string | undefined;
-    const earlyBirdCoupon = interval === "annual" ? EARLY_BIRD_ANNUAL_COUPON_ID : EARLY_BIRD_MONTHLY_COUPON_ID;
-    if (earlyBirdCoupon) {
-      const proUserCount = await convexClient.query(api.users.countProUsers);
-      if (proUserCount < EARLY_BIRD_LIMIT) {
-        couponId = earlyBirdCoupon;
+    if (plan === "pro") {
+      const earlyBirdCoupon = interval === "annual" ? EARLY_BIRD_ANNUAL_COUPON_ID : EARLY_BIRD_MONTHLY_COUPON_ID;
+      if (earlyBirdCoupon) {
+        const proUserCount = await convexClient.query(api.users.countProUsers);
+        if (proUserCount < EARLY_BIRD_LIMIT) {
+          couponId = earlyBirdCoupon;
+        }
       }
     }
 

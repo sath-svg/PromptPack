@@ -8,7 +8,7 @@ import { SavedPrompts } from "./saved-prompts";
 import { ManageSubscriptionButton } from "./manage-subscription-button";
 import { useEffect } from "react";
 import { PromptPacks } from "./prompt-packs";
-import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT } from "@/lib/constants";
+import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, STUDIO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT, STUDIO_PACK_LIMIT } from "@/lib/constants";
 
 export function DashboardContent() {
   const { user: clerkUser, isLoaded } = useUser();
@@ -46,12 +46,13 @@ export function DashboardContent() {
     return <div className="loading">Setting up your account...</div>;
   }
 
-  // Check if user has Pro plan (via Clerk metadata or Convex)
-  const hasPro = convexUser?.plan === "pro";
+  // Check if user has Pro or Studio plan
+  const isStudio = convexUser?.plan === "studio";
+  const hasPro = convexUser?.plan === "pro" || isStudio;
 
   // Set limits based on plan
-  const promptLimit = hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT;
-  const packLimit = hasPro ? PRO_PACK_LIMIT : FREE_PACK_LIMIT;
+  const promptLimit = isStudio ? STUDIO_PROMPT_LIMIT : (hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT);
+  const packLimit = isStudio ? STUDIO_PACK_LIMIT : (hasPro ? PRO_PACK_LIMIT : FREE_PACK_LIMIT);
 
   // Calculate saved prompts count
   const savedPromptsCount = savedPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
@@ -64,7 +65,7 @@ export function DashboardContent() {
         <div className="dashboard-card">
           <h2>Saved Prompts</h2>
           <p className="stat-value">{savedPromptsCount}</p>
-          <p>of {promptLimit} {hasPro ? "pro" : "free"} prompts used</p>
+          <p>of {promptLimit} {isStudio ? "studio" : (hasPro ? "pro" : "free")} prompts used</p>
           {savedPacks && savedPacks.length > 0 && (
             <div className="saved-sources">
               {savedPacks.map((pack) => (
@@ -79,12 +80,17 @@ export function DashboardContent() {
         <div className="dashboard-card">
           <h2>Loaded Packs</h2>
           <p className="stat-value">0</p>
-          <p>of {packLimit} {hasPro ? "pro" : "free"} pack slots used</p>
+          <p>of {packLimit} {isStudio ? "studio" : (hasPro ? "pro" : "free")} pack slots used</p>
         </div>
 
         <div className="dashboard-card">
           <h2>Current Plan</h2>
-          {hasPro ? (
+          {isStudio ? (
+            <>
+              <p className="stat-value" style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Studio</p>
+              <ManageSubscriptionButton />
+            </>
+          ) : hasPro ? (
             <>
               <p className="stat-value" style={{ color: "#8b5cf6" }}>Pro</p>
               <ManageSubscriptionButton />
@@ -121,7 +127,7 @@ export function DashboardContent() {
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
         {convexUser?._id && clerkUser?.id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
         )}
       </div>
 

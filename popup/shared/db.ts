@@ -41,7 +41,7 @@ export type UserSession = {
   id: "current";
   userId: string;
   email: string;
-  tier: "free" | "paid";
+  tier: "free" | "paid" | "studio";
   accessToken: string;
   refreshToken?: string;
   expiresAt: number;

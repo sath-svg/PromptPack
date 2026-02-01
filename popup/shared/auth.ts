@@ -17,7 +17,7 @@ export type AuthState = {
   user?: {
     id: string;
     email: string;
-    tier: "free" | "paid";
+    tier: "free" | "paid" | "studio";
   };
   entitlements?: {
     promptLimit: number;
@@ -25,14 +25,16 @@ export type AuthState = {
   };
   billing?: {
     isPro: boolean;
-    plan: "free" | "pro";
+    isStudio: boolean;
+    plan: "free" | "pro" | "studio";
   };
-  classifyLimit?: number; // Daily limit for AI headers (50 free, 500 pro)
+  classifyLimit?: number; // Daily limit for AI headers (50 free, 500 pro, 2000 studio)
 };
 
 // Classify rate limits
 const CLASSIFY_FREE_LIMIT = 50;
 const CLASSIFY_PRO_LIMIT = 500;
+const CLASSIFY_STUDIO_LIMIT = 2000;
 const CLASSIFY_USAGE_KEY = "pp_classify_usage";
 
 type AuthStateCache = {
@@ -45,27 +47,10 @@ const LEGACY_AUTH_CACHE_KEY = "pp_auth_cache";
 const AUTH_STATE_CACHE_KEY = "pp_auth_state_cache";
 const AUTH_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 1 day
 
-function decodeJwtExpiry(token: string): number | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  try {
-    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    const json = atob(padded);
-    const data = JSON.parse(json) as { exp?: number };
-    if (typeof data.exp === "number") {
-      return data.exp * 1000;
-    }
-  } catch {
-    // Ignore decode errors
-  }
-  return null;
-}
-
 function isSessionValid(session: UserSession | null | undefined): boolean {
   if (!session || !session.accessToken) return false;
-  const jwtExpiry = decodeJwtExpiry(session.accessToken);
-  if (jwtExpiry && jwtExpiry <= Date.now()) return false;
+  // Check session expiry first (3 days) - this is the primary validity check
+  // JWT expiry is handled separately with refresh logic
   return session.expiresAt > Date.now();
 }
 
@@ -211,7 +196,8 @@ export async function canClassify(authState: AuthState): Promise<{
 /**
  * Get classify limit based on billing status
  */
-function getClassifyLimit(isPro: boolean): number {
+function getClassifyLimit(isPro: boolean, isStudio: boolean): number {
+  if (isStudio) return CLASSIFY_STUDIO_LIMIT;
   return isPro ? CLASSIFY_PRO_LIMIT : CLASSIFY_FREE_LIMIT;
 }
 
@@ -220,13 +206,15 @@ function getClassifyLimit(isPro: boolean): number {
  */
 export async function getBillingInfo(clerkId: string): Promise<{
   isPro: boolean;
-  plan: "free" | "pro";
+  isStudio: boolean;
+  plan: "free" | "pro" | "studio";
 } | null> {
   try {
     const billingStatus = await api.getBillingStatus(clerkId);
     return {
       isPro: billingStatus.hasPro,
-      plan: billingStatus.tier,
+      isStudio: billingStatus.isStudio ?? false,
+      plan: billingStatus.tier as "free" | "pro" | "studio",
     };
   } catch {
     return null;
@@ -295,6 +283,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
           // Fetch billing info from Convex
           const billing = await getBillingInfo(newSession.userId);
           const isPro = billing?.isPro ?? false;
+          const isStudio = billing?.isStudio ?? false;
 
           return {
             isAuthenticated: true,
@@ -305,7 +294,7 @@ async function getAuthStateFromServer(): Promise<AuthState> {
             },
             entitlements: newSession.entitlements,
             billing: billing || undefined,
-            classifyLimit: getClassifyLimit(isPro),
+            classifyLimit: getClassifyLimit(isPro, isStudio),
           };
         }
       }
@@ -317,46 +306,15 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     return { isAuthenticated: false };
   }
 
-  // Session looks valid locally - verify with server
-  const tokenValid = await api.verifyAuthToken(session.accessToken);
-  if (!tokenValid) {
-    // Access token invalid on server - try to refresh
-    if (session.refreshToken) {
-      // Check for legacy token
-      const isLegacyToken = session.refreshToken.includes(".") || session.refreshToken.length > 100;
-      if (!isLegacyToken) {
-        const refreshed = await api.refreshToken();
-        if (refreshed) {
-          const newSession = await getSession();
-          // Trust expiresAt after successful refresh
-          if (newSession && newSession.expiresAt > Date.now()) {
-            const billing = await getBillingInfo(newSession.userId);
-            const isPro = billing?.isPro ?? false;
-
-            return {
-              isAuthenticated: true,
-              user: {
-                id: newSession.userId,
-                email: newSession.email,
-                tier: newSession.tier,
-              },
-              entitlements: newSession.entitlements,
-              billing: billing || undefined,
-              classifyLimit: getClassifyLimit(isPro),
-            };
-          }
-        }
-      }
-    }
-
-    await clearSession();
-    await clearLegacyAuthCache();
-    return { isAuthenticated: false };
-  }
+  // Session is valid locally - trust it without server verification
+  // JWT verification is expensive and JWTs expire quickly (60s-2min)
+  // The session.expiresAt (3 days) is the source of truth for local validity
+  // Server-side operations will fail and trigger re-auth if truly invalid
 
   // Fetch billing info from Convex
   const billing = await getBillingInfo(session.userId);
   const isPro = billing?.isPro ?? false;
+  const isStudio = billing?.isStudio ?? false;
 
   return {
     isAuthenticated: true,
@@ -367,17 +325,47 @@ async function getAuthStateFromServer(): Promise<AuthState> {
     },
     entitlements: session.entitlements,
     billing: billing || undefined,
-    classifyLimit: getClassifyLimit(isPro),
+    classifyLimit: getClassifyLimit(isPro, isStudio),
   };
 }
 
 /**
  * Verify auth state in background and update cache if changed
  * Returns new state if different from current, null if same
+ *
+ * IMPORTANT: If user is currently authenticated, we only check billing status
+ * to avoid logging them out due to JWT expiry or network issues.
  */
 export async function verifyAuthStateBackground(currentState: AuthState): Promise<AuthState | null> {
   try {
-    // Always fetch fresh from server in background
+    // If user is authenticated, only check billing - don't do full JWT verification
+    // This prevents logout due to expired JWT or network issues
+    if (currentState.isAuthenticated && currentState.user?.id) {
+      const billing = await getBillingInfo(currentState.user.id);
+
+      if (billing) {
+        // Check if billing status changed
+        const proChanged = billing.isPro !== currentState.billing?.isPro;
+        const studioChanged = billing.isStudio !== currentState.billing?.isStudio;
+
+        if (proChanged || studioChanged) {
+          const newState: AuthState = {
+            ...currentState,
+            billing,
+            classifyLimit: getClassifyLimit(billing.isPro, billing.isStudio),
+          };
+          await setCachedAuthState(newState);
+          return newState;
+        }
+
+        // No change - just refresh cache timestamp
+        await setCachedAuthState(currentState);
+      }
+      // If billing call failed, don't change anything
+      return null;
+    }
+
+    // User not authenticated - do full check
     const freshState = await getAuthStateFromServer();
 
     // Check if state changed
@@ -392,7 +380,7 @@ export async function verifyAuthStateBackground(currentState: AuthState): Promis
     // Return new state only if changed
     return changed ? freshState : null;
   } catch {
-    // Silently fail background verification
+    // Silently fail background verification - don't change auth state
     return null;
   }
 }
@@ -647,6 +635,8 @@ export async function handleAuthCallback(params: URLSearchParams): Promise<boole
     await clearLegacyAuthCache();
 
     const freshState = await getAuthStateFromServer();
+    // Cache the auth state for instant popup rendering next time
+    await setCachedAuthState(freshState);
     return freshState.isAuthenticated === true;
   } catch (err) {
     console.error("Auth callback exchange failed:", err);

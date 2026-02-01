@@ -54,7 +54,7 @@ export const upsert = mutation({
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    plan: v.optional(v.union(v.literal("free"), v.literal("pro"))),
+    plan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("studio"))),
     stripeCustomerId: v.optional(v.string()),
   },
   handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
@@ -131,7 +131,7 @@ export const setStripeCustomerIdByClerkId = internalMutation({
 export const updatePlan = mutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
   handler: async (ctx, { clerkId, plan }) => {
     const user = await ctx.db
@@ -162,7 +162,7 @@ export const upsertFromWebhook = internalMutation({
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
   },
   handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
@@ -213,7 +213,7 @@ export const deleteByClerkId = internalMutation({
 export const updatePlanByClerkId = internalMutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     subscriptionCancelledAt: v.optional(v.number()), // Timestamp when subscription was cancelled
   },
   handler: async (ctx, { clerkId, plan, subscriptionCancelledAt }) => {
@@ -226,8 +226,8 @@ export const updatePlanByClerkId = internalMutation({
 
     const oldPlan = user.plan;
 
-    // Handle downgrade from pro to free
-    if (oldPlan === "pro" && plan === "free") {
+    // Handle downgrade to free (from pro or studio)
+    if ((oldPlan === "pro" || oldPlan === "studio") && plan === "free") {
 
       // Set grace period: 1 day (24 hours) from cancellation or now
       const gracePeriodMs = 24 * 60 * 60 * 1000; // 1 day in milliseconds
@@ -240,8 +240,12 @@ export const updatePlanByClerkId = internalMutation({
       });
 
     }
-    // Handle upgrade from free to pro
-    else if (oldPlan === "free" && plan === "pro") {
+    // Handle downgrade from studio to pro (no grace period, just reduce limits)
+    else if (oldPlan === "studio" && plan === "pro") {
+      await ctx.db.patch(user._id, { plan });
+    }
+    // Handle upgrade to pro or studio (clear any grace period)
+    else if (plan === "pro" || plan === "studio") {
 
       await ctx.db.patch(user._id, {
         plan,
@@ -259,7 +263,7 @@ export const updatePlanByClerkId = internalMutation({
 export const updatePlanFromStripeEvent = internalMutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     subscriptionCancelledAt: v.optional(v.number()),
@@ -285,7 +289,8 @@ export const updatePlanFromStripeEvent = internalMutation({
       ...(stripeSubscriptionId && { stripeSubscriptionId }),
     };
 
-    if (oldPlan === "pro" && plan === "free") {
+    // Handle downgrade to free (from pro or studio)
+    if ((oldPlan === "pro" || oldPlan === "studio") && plan === "free") {
 
       const gracePeriodMs = 24 * 60 * 60 * 1000;
       const cancelTime = subscriptionCancelledAt || Date.now();
@@ -298,7 +303,14 @@ export const updatePlanFromStripeEvent = internalMutation({
       return;
     }
 
-    if (oldPlan === "free" && plan === "pro") {
+    // Handle downgrade from studio to pro (no grace period)
+    if (oldPlan === "studio" && plan === "pro") {
+      await ctx.db.patch(user._id, nextPatch);
+      return;
+    }
+
+    // Handle upgrade to pro or studio (clear any grace period)
+    if (plan === "pro" || plan === "studio") {
 
       await ctx.db.patch(user._id, {
         ...nextPatch,
@@ -457,7 +469,7 @@ export const checkWebhookSecret = query({
 export const syncPlanFromClerk = mutation({
   args: {
     clerkId: v.string(),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
   handler: async (ctx, { clerkId, plan }) => {
     const user = await ctx.db
@@ -471,8 +483,8 @@ export const syncPlanFromClerk = mutation({
 
     const oldPlan = user.plan;
 
-    // Handle downgrade from pro to free
-    if (oldPlan === "pro" && plan === "free") {
+    // Handle downgrade to free (from pro or studio)
+    if ((oldPlan === "pro" || oldPlan === "studio") && plan === "free") {
 
       // Set grace period: 1 day (24 hours) from now
       const gracePeriodMs = 24 * 60 * 60 * 1000;
@@ -491,8 +503,18 @@ export const syncPlanFromClerk = mutation({
         newPlan: plan,
       };
     }
-    // Handle upgrade from free to pro
-    else if (oldPlan === "free" && plan === "pro") {
+    // Handle downgrade from studio to pro (no grace period)
+    else if (oldPlan === "studio" && plan === "pro") {
+      await ctx.db.patch(user._id, { plan });
+      return {
+        success: true,
+        message: `User downgraded from ${oldPlan} to ${plan}. No grace period (packs retained).`,
+        oldPlan,
+        newPlan: plan,
+      };
+    }
+    // Handle upgrade to pro or studio (clear any grace period)
+    else if (plan === "pro" || plan === "studio") {
 
       await ctx.db.patch(user._id, {
         plan,

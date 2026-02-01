@@ -17,7 +17,9 @@ import {
 import {
   FREE_PROMPT_LIMIT,
   PRO_PROMPT_LIMIT,
+  STUDIO_PROMPT_LIMIT,
   MAX_PRO_PACKS,
+  MAX_STUDIO_PACKS,
   WEB_PACK_FORMAT,
   WEB_PACK_VERSION,
   PASSWORD_MAX_LENGTH,
@@ -29,6 +31,7 @@ import {
 type PromptPacksProps = {
   userId: Id<"users">;
   hasPro: boolean;
+  isStudio: boolean;
   clerkId: string;
   savedPromptsCount: number;
 };
@@ -240,7 +243,7 @@ async function encodePrompts(
   }
 }
 
-export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: PromptPacksProps) {
+export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCount }: PromptPacksProps) {
   const { getToken, isSignedIn } = useAuth();
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
   const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
@@ -581,9 +584,11 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
   const packCount = webPacks.length;
   const webPackPrompts = webPacks.reduce((sum, pack) => sum + pack.promptCount, 0);
   // Available slots = max prompts - saved prompts already used
-  const maxPrompts = hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT;
+  const maxPrompts = isStudio ? STUDIO_PROMPT_LIMIT : (hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT);
   const availableSlots = Math.max(0, maxPrompts - savedPromptsCount);
-  const canCreate = hasPro && packCount < MAX_PRO_PACKS;
+  // Studio: unlimited packs (-1), Pro: MAX_PRO_PACKS, Free: 0
+  const maxPacks = isStudio ? MAX_STUDIO_PACKS : (hasPro ? MAX_PRO_PACKS : 0);
+  const canCreate = isStudio || (hasPro && packCount < MAX_PRO_PACKS);
 
   const handlePackClick = async (pack: typeof webPacks[0]) => {
     setError(null);
@@ -978,8 +983,8 @@ export function PromptPacks({ userId, hasPro, clerkId, savedPromptsCount }: Prom
     const action = undoStack[undoStack.length - 1];
     if (!action) return;
 
-    // Prevent undo if it would exceed pack limit
-    if (action.type === "delete-pack" && packCount >= MAX_PRO_PACKS) {
+    // Prevent undo if it would exceed pack limit (Studio has unlimited = -1)
+    if (action.type === "delete-pack" && maxPacks !== -1 && packCount >= maxPacks) {
       showToast("Cannot restore: pack limit reached");
       return;
     }

@@ -13,6 +13,34 @@ const resolveClerkId = (metadata?: Stripe.Metadata): string | undefined => {
   return userId || undefined;
 };
 
+// Studio price IDs from environment
+const STUDIO_MONTHLY_PRICE_ID = process.env.STRIPE_STUDIO_MONTHLY_PRICE_ID;
+const STUDIO_ANNUAL_PRICE_ID = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
+
+const isStudioPriceId = (priceId: string): boolean => {
+  return priceId === STUDIO_MONTHLY_PRICE_ID || priceId === STUDIO_ANNUAL_PRICE_ID;
+};
+
+const resolvePlanFromSubscription = (
+  status: Stripe.Subscription.Status,
+  subscription: Stripe.Subscription
+): "free" | "pro" | "studio" => {
+  if (status !== "active" && status !== "trialing" && status !== "past_due") {
+    return "free";
+  }
+
+  // Check subscription items for studio price
+  const items = subscription.items?.data || [];
+  for (const item of items) {
+    const priceId = item.price.id;
+    if (isStudioPriceId(priceId)) {
+      return "studio";
+    }
+  }
+  return "pro";
+};
+
+// Legacy function for backwards compatibility
 const resolvePlanFromStatus = (status: Stripe.Subscription.Status): "free" | "pro" => {
   if (status === "active" || status === "trialing" || status === "past_due") {
     return "pro";
@@ -66,7 +94,7 @@ registerRoutes(http, components.stripe, {
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
         clerkId,
-        plan: resolvePlanFromStatus(subscription.status),
+        plan: resolvePlanFromSubscription(subscription.status, subscription),
         stripeCustomerId,
         stripeSubscriptionId: subscription.id,
         subscriptionCancelledAt: resolveCancelledAt(subscription),
@@ -86,7 +114,7 @@ registerRoutes(http, components.stripe, {
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
         clerkId,
-        plan: resolvePlanFromStatus(subscription.status),
+        plan: resolvePlanFromSubscription(subscription.status, subscription),
         stripeCustomerId,
         stripeSubscriptionId: subscription.id,
         subscriptionCancelledAt: resolveCancelledAt(subscription),
@@ -923,8 +951,8 @@ http.route({
         .reduce((sum, p) => sum + p.promptCount, 0);
       const newTotal = currentTotalExcludingSource + promptCount;
 
-      // Check limit based on plan
-      const limit = user.plan === "pro" ? 40 : 10;
+      // Check limit based on plan (studio: 200, pro: 40, free: 10)
+      const limit = user.plan === "studio" ? 200 : (user.plan === "pro" ? 40 : 10);
       if (newTotal > limit) {
         return new Response(
           JSON.stringify({
@@ -1035,8 +1063,8 @@ http.route({
         .reduce((sum, p) => sum + p.promptCount, 0);
       const newTotal = currentTotalExcludingSource + addingCount;
 
-      // Check limit based on plan
-      const limit = user.plan === "pro" ? 40 : 10;
+      // Check limit based on plan (studio: 200, pro: 40, free: 10)
+      const limit = user.plan === "studio" ? 200 : (user.plan === "pro" ? 40 : 10);
       const allowed = newTotal <= limit;
 
       return new Response(
@@ -1119,7 +1147,8 @@ http.route({
       return new Response(
         JSON.stringify({
           tier: user.plan,
-          hasPro: user.plan === "pro",
+          hasPro: user.plan === "pro" || user.plan === "studio",
+          isStudio: user.plan === "studio",
         }),
         {
           status: 200,

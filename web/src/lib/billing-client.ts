@@ -1,4 +1,5 @@
 type CheckoutInterval = "month" | "annual";
+type CheckoutPlan = "pro" | "studio";
 
 async function parseError(response: Response): Promise<string> {
   try {
@@ -9,11 +10,14 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
-export async function startStripeCheckout(interval: CheckoutInterval): Promise<void> {
+export async function startStripeCheckout(
+  interval: CheckoutInterval,
+  plan: CheckoutPlan = "pro"
+): Promise<void> {
   const response = await fetch("/api/stripe/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ interval }),
+    body: JSON.stringify({ interval, plan }),
   });
 
   if (!response.ok) {

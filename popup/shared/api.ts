@@ -22,7 +22,7 @@ export type ApiError = {
 };
 
 export type Entitlements = {
-  tier: "free" | "paid";
+  tier: "free" | "paid" | "studio";
   promptLimit: number;
   loadedPackLimit: number;
   promptCount: number;
@@ -57,22 +57,6 @@ export type MarketplacePack = CloudPack & {
 };
 
 class ApiClient {
-  private decodeJwtExpiry(token: string): number | null {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    try {
-      const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-      const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-      const json = atob(padded);
-      const data = JSON.parse(json) as { exp?: number };
-      if (typeof data.exp === "number") {
-        return data.exp * 1000;
-      }
-    } catch {
-      // Ignore decode errors
-    }
-    return null;
-  }
   private async classifyViaBackground(promptText: string, maxWords: number): Promise<{
     ok: boolean;
     header?: string;
@@ -201,15 +185,16 @@ class ApiClient {
       } as ApiError;
     }
 
-    // Save session with Clerk token and refresh token
-    const tokenExpiry = this.decodeJwtExpiry(data.token);
+    // Save session with user info
+    // Note: We use SESSION_EXPIRY_MS (3 days) for session validity, NOT the JWT expiry
+    // The JWT expires quickly (60s-2min) but we only need userId for Convex calls
     await saveSession({
       userId: data.user.clerkId,
       email: data.user.email,
       tier: data.user.plan === "pro" ? "paid" : "free",
-      accessToken: data.token, // Clerk session token (short-lived)
-      refreshToken: data.refreshToken || data.token, // Use new refresh token if available
-      expiresAt: tokenExpiry ?? (Date.now() + SESSION_EXPIRY_MS),
+      accessToken: data.token, // Stored but not used for auth (expires too fast)
+      refreshToken: data.refreshToken || data.token, // Stored but not actively used
+      expiresAt: Date.now() + SESSION_EXPIRY_MS, // 3 days - this is the real session expiry
       entitlements: {
         promptLimit: data.user.plan === "pro" ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT,
         loadedPackLimit: data.user.plan === "pro" ? UNLIMITED_PACK_LIMIT : 0,
@@ -645,8 +630,9 @@ class ApiClient {
    * Get billing status from Convex - checks user's current plan
    */
   async getBillingStatus(clerkId: string): Promise<{
-    tier: "free" | "pro";
+    tier: "free" | "pro" | "studio";
     hasPro: boolean;
+    isStudio?: boolean;
   }> {
     const response = await fetch(`${CONVEX_API_URL}/api/extension/billing-status`, {
       method: "POST",

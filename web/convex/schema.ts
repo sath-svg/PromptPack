@@ -8,7 +8,7 @@ export default defineSchema({
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    plan: v.union(v.literal("free"), v.literal("pro")),
+    plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     createdAt: v.number(),
