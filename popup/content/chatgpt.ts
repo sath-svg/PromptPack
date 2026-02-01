@@ -180,10 +180,7 @@ function getComposerText(el: ComposerEl): string {
 }
 
 async function setComposerText(el: ComposerEl, text: string): Promise<void> {
-  console.log("[PromptPack] setComposerText called", { el, text: text.substring(0, 50) });
-
   if (el instanceof HTMLTextAreaElement) {
-    console.log("[PromptPack] Using textarea approach");
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
     if (setter) {
       setter.call(el, text);
@@ -195,44 +192,22 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
   }
 
   // For ProseMirror editor (ChatGPT's contenteditable)
-  console.log("[PromptPack] Element classes:", el.className);
-  console.log("[PromptPack] Element id:", el.id);
-  console.log("[PromptPack] Element tagName:", el.tagName);
-
   // Method 0: Try to access ProseMirror view directly (most reliable)
-  // ProseMirror often stores a reference to itself on the DOM node
   try {
-    console.log("[PromptPack] Method 0: Looking for ProseMirror view...");
-
-    // Check various ways ProseMirror might be attached
     const anyEl = el as any;
     const pmViewDesc = anyEl.pmViewDesc;
     const view = pmViewDesc?.view || anyEl.view || anyEl.editor?.view;
 
-    console.log("[PromptPack] pmViewDesc:", pmViewDesc);
-    console.log("[PromptPack] view:", view);
-
     if (view && view.state && view.dispatch) {
-      console.log("[PromptPack] Found ProseMirror view! Using transaction.");
-
-      // Create a transaction to replace all content
       const { state } = view;
       const tr = state.tr;
-
-      // Delete all current content
       tr.delete(0, state.doc.content.size);
-
-      // Insert new text at the beginning
       tr.insertText(text, 0);
-
-      // Dispatch the transaction
       view.dispatch(tr);
-
-      console.log("[PromptPack] ProseMirror transaction dispatched!");
       return;
     }
-  } catch (e) {
-    console.log("[PromptPack] Method 0 failed:", e);
+  } catch {
+    // Method 0 failed, try next
   }
 
   // Ensure element is focused
@@ -240,11 +215,7 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
   await new Promise(r => setTimeout(r, 50));
 
   // Method 1: Use beforeinput event (preferred for ProseMirror)
-  // ProseMirror listens for beforeinput events from the Input Events API
   try {
-    console.log("[PromptPack] Method 1: Trying beforeinput with deleteContentBackward + insertText");
-
-    // First, select all content
     const selection = window.getSelection();
     if (selection) {
       const range = document.createRange();
@@ -253,7 +224,6 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
       selection.addRange(range);
     }
 
-    // Try to delete existing content first using beforeinput
     const deleteEvent = new InputEvent("beforeinput", {
       bubbles: true,
       cancelable: true,
@@ -261,7 +231,6 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
     });
     el.dispatchEvent(deleteEvent);
 
-    // Clear selection and position cursor at start
     if (selection) {
       const range = document.createRange();
       range.setStart(el, 0);
@@ -270,66 +239,51 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
       selection.addRange(range);
     }
 
-    // Now insert the new text using beforeinput
     const insertEvent = new InputEvent("beforeinput", {
       bubbles: true,
       cancelable: true,
       inputType: "insertText",
       data: text,
     });
-    const handled = !el.dispatchEvent(insertEvent);
-    console.log("[PromptPack] beforeinput insertText dispatched, default prevented:", handled);
+    el.dispatchEvent(insertEvent);
 
-    // Give ProseMirror time to process
     await new Promise(r => setTimeout(r, 100));
 
-    // Check if it worked
     const currentText = el.textContent || "";
     if (currentText.includes(text.substring(0, Math.min(20, text.length)))) {
-      console.log("[PromptPack] Method 1 succeeded!");
       return;
     }
-  } catch (e) {
-    console.log("[PromptPack] Method 1 failed:", e);
+  } catch {
+    // Method 1 failed, try next
   }
 
   // Method 2: Try insertText execCommand (still works in some browsers)
   try {
-    console.log("[PromptPack] Method 2: Trying execCommand selectAll + insertText");
-
     el.focus();
     document.execCommand("selectAll", false);
     const inserted = document.execCommand("insertText", false, text);
-    console.log("[PromptPack] insertText result:", inserted);
 
     if (inserted) {
       await new Promise(r => setTimeout(r, 50));
       const currentText = el.textContent || "";
       if (currentText.includes(text.substring(0, Math.min(20, text.length)))) {
-        console.log("[PromptPack] Method 2 succeeded!");
         return;
       }
     }
-  } catch (e) {
-    console.log("[PromptPack] Method 2 failed:", e);
+  } catch {
+    // Method 2 failed, try next
   }
 
   // Method 3: Direct DOM manipulation with proper ProseMirror structure
-  // This modifies the DOM and then triggers events to sync ProseMirror
   try {
-    console.log("[PromptPack] Method 3: Direct DOM + input event");
-
-    // Clear existing content
     while (el.firstChild) {
       el.removeChild(el.firstChild);
     }
 
-    // Create new paragraph with text (ProseMirror structure)
     const p = document.createElement("p");
     p.textContent = text;
     el.appendChild(p);
 
-    // Dispatch input event to notify ProseMirror
     el.dispatchEvent(new InputEvent("input", {
       bubbles: true,
       cancelable: true,
@@ -337,7 +291,6 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
       data: text,
     }));
 
-    // Also try dispatching on the paragraph
     p.dispatchEvent(new InputEvent("input", {
       bubbles: true,
       cancelable: true,
@@ -347,19 +300,15 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
 
     await new Promise(r => setTimeout(r, 100));
 
-    // Verify
     if (el.textContent?.includes(text.substring(0, Math.min(20, text.length)))) {
-      console.log("[PromptPack] Method 3 succeeded!");
       return;
     }
-  } catch (e) {
-    console.log("[PromptPack] Method 3 failed:", e);
+  } catch {
+    // Method 3 failed, try next
   }
 
   // Method 4: DataTransfer paste simulation
   try {
-    console.log("[PromptPack] Method 4: DataTransfer paste simulation");
-
     el.focus();
     const selection = window.getSelection();
     if (selection) {
@@ -383,31 +332,21 @@ async function setComposerText(el: ComposerEl, text: string): Promise<void> {
     await new Promise(r => setTimeout(r, 100));
 
     if (el.textContent?.includes(text.substring(0, Math.min(20, text.length)))) {
-      console.log("[PromptPack] Method 4 succeeded!");
       return;
     }
-  } catch (e) {
-    console.log("[PromptPack] Method 4 failed:", e);
+  } catch {
+    // Method 4 failed, try next
   }
 
   // Method 5: Last resort - modify innerHTML and dispatch compositionend
-  // Some editors respond to composition events
   try {
-    console.log("[PromptPack] Method 5: innerHTML + compositionend");
-
     el.innerHTML = `<p>${text}</p>`;
-
-    // Try composition events (some editors use these)
     el.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
     el.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: text }));
     el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertCompositionText", data: text }));
-
-    console.log("[PromptPack] Method 5 applied, innerHTML:", el.innerHTML.substring(0, 100));
-  } catch (e) {
-    console.log("[PromptPack] Method 5 failed:", e);
+  } catch {
+    // Method 5 failed
   }
-
-  console.log("[PromptPack] All methods attempted. Final textContent:", el.textContent?.substring(0, 50));
 }
 
 function positionControlsFixed(container: HTMLElement) {
@@ -786,9 +725,7 @@ function showEnhancePreview(original: string, enhanced: string) {
     await new Promise(r => setTimeout(r, 50));
 
     const composer = findComposer();
-    console.log("[PromptPack] Replace clicked, composer:", composer);
     if (!composer) {
-      console.log("[PromptPack] No composer found!");
       toast("Could not find input", "error");
       return;
     }
