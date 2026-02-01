@@ -2,11 +2,19 @@ import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 
 // Count users on the Pro plan (used for early bird pricing limit)
+// Only counts Pro users who subscribed after the early bird start date
+const EARLY_BIRD_START_DATE = new Date("2026-02-01T00:00:00Z").getTime();
+
 export const countProUsers = query({
   handler: async (ctx) => {
     const proUsers = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("plan"), "pro"))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("plan"), "pro"),
+          q.gte(q.field("_creationTime"), EARLY_BIRD_START_DATE)
+        )
+      )
       .collect();
     return proUsers.length;
   },
