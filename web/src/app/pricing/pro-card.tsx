@@ -70,9 +70,10 @@ export function ProCard() {
           borderRadius: "999px",
           fontSize: "0.75rem",
           fontWeight: "600",
+          whiteSpace: "nowrap",
         }}
       >
-        {isPro ? "CURRENT PLAN" : isEarlyBird ? "EARLY BIRD — 9 spots left" : "POPULAR"}
+        {isPro ? "CURRENT PLAN" : isEarlyBird ? `EARLY BIRD — ${spotsLeft} left` : "POPULAR"}
       </span>
 
       <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>
