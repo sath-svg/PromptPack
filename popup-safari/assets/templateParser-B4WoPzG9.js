@@ -1,0 +1,1 @@
+const c=/\{([^}]+)\}/g;function o(a){const r=a.matchAll(c),s=new Set,e=[];for(const n of r){const t=n[1].trim();t&&!s.has(t)&&(s.add(t),e.push(t))}return e}function i(a,r){return a.replace(c,(s,e)=>{const n=e.trim();return r[n]??`{${e}}`})}export{o as p,i as r};
