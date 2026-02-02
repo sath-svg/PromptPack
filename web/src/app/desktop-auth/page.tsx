@@ -33,8 +33,10 @@ export default function DesktopAuthPage() {
           return;
         }
 
-        // Build user info
-        const name = user.fullName || user.firstName || user.username || "";
+        // Build user info - combine first and last name with space (not +)
+        const firstName = user.firstName || "";
+        const lastName = user.lastName || "";
+        const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
         const email = user.primaryEmailAddress?.emailAddress || "";
         const image = user.imageUrl || "";
 
