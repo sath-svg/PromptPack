@@ -131,52 +131,76 @@ export default function DesktopAuthPage() {
   // If signed in and NOT switching accounts, show confirmation screen
   if (isLoaded && isSignedIn && user && !switchingAccount) {
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "User";
+    const firstName = displayName.split(" ")[0];
 
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
         <div className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold text-foreground text-center mb-6">
-            Connect to PromptPack
-          </h1>
-
-          {/* Current account */}
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-card border border-border mb-6">
-            {user.imageUrl ? (
-              <img
-                src={user.imageUrl}
-                alt="Profile"
-                className="w-12 h-12 rounded-full"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-lg font-semibold">
-                {displayName[0]?.toUpperCase()}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-foreground truncate">{displayName}</p>
-              <p className="text-sm text-muted-foreground truncate">
-                {user.primaryEmailAddress?.emailAddress}
-              </p>
+          {/* Logo/Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
             </div>
           </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={handleContinue}
-              disabled={processing}
-              className="w-full px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 font-medium"
-            >
-              {processing ? "Connecting..." : "Continue as " + displayName.split(" ")[0]}
-            </button>
+          <h1 className="text-xl font-semibold text-foreground text-center mb-2">
+            Connect to PromptPack
+          </h1>
+          <p className="text-sm text-muted-foreground text-center mb-8">
+            Sign in to sync your prompts with the desktop app
+          </p>
 
-            <button
-              onClick={handleSwitchAccount}
-              disabled={processing}
-              className="w-full px-4 py-3 text-muted-foreground hover:text-foreground rounded-lg hover:bg-accent transition-colors"
-            >
-              Use a different account
-            </button>
+          {/* Current account card */}
+          <div className="p-4 rounded-xl bg-card border border-border mb-8">
+            <div className="flex items-center gap-4">
+              {user.imageUrl ? (
+                <img
+                  src={user.imageUrl}
+                  alt="Profile"
+                  className="w-14 h-14 rounded-full border-2 border-border"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xl font-semibold border-2 border-border">
+                  {displayName[0]?.toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate text-base">{displayName}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {user.primaryEmailAddress?.emailAddress}
+                </p>
+              </div>
+            </div>
           </div>
+
+          {/* Primary action button */}
+          <button
+            onClick={handleContinue}
+            disabled={processing}
+            className="w-full px-4 py-3.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 disabled:opacity-50 font-semibold text-base shadow-sm transition-all"
+          >
+            {processing ? "Connecting..." : `Continue as ${firstName}`}
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Secondary action button */}
+          <button
+            onClick={handleSwitchAccount}
+            disabled={processing}
+            className="w-full px-4 py-3 text-muted-foreground hover:text-foreground border border-border rounded-xl hover:bg-accent hover:border-accent transition-all font-medium"
+          >
+            Use a different account
+          </button>
         </div>
       </div>
     );
@@ -185,12 +209,21 @@ export default function DesktopAuthPage() {
   // If not signed in, show the Clerk sign-in component
   if (isLoaded && !isSignedIn) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
+        {/* Logo/Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+
         <h1 className="text-xl font-semibold text-foreground mb-2">
           Sign in to PromptPack
         </h1>
-        <p className="text-muted-foreground text-sm mb-6">
-          Connect your desktop app
+        <p className="text-muted-foreground text-sm mb-8">
+          Connect your desktop app to sync prompts
         </p>
         <SignIn
           routing="hash"
@@ -203,8 +236,17 @@ export default function DesktopAuthPage() {
   // Show loading while processing
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
-      <div className="w-12 h-12 border-3 border-muted border-t-primary rounded-full animate-spin mb-6" />
-      <h1 className="text-xl font-semibold text-foreground mb-2">
+      {/* Logo/Icon */}
+      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary animate-pulse">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+
+      <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mb-4" />
+      <h1 className="text-lg font-semibold text-foreground mb-1">
         {switchingAccount ? "Connecting..." : "Loading..."}
       </h1>
       <p className="text-muted-foreground text-sm">
