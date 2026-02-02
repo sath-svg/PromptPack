@@ -1335,7 +1335,7 @@ h4.hero-hook {
   top: calc(100% + 4px);
   left: 0;
   z-index: 100;
-  padding: 0.5rem;
+  padding: 0.75rem;
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 0.5rem;
@@ -1352,7 +1352,7 @@ h4.hero-hook {
 .emoji-picker-grid {
   display: grid;
   grid-template-columns: repeat(5, 32px);
-  gap: 4px;
+  gap: 6px;
 }
 
 .emoji-option {
