@@ -9,9 +9,11 @@
  */
 
 import type * as authStatus from "../authStatus.js";
-import type * as betaSignups from "../betaSignups.js";
 import type * as crons from "../crons.js";
+import type * as email from "../email.js";
 import type * as http from "../http.js";
+import type * as httpDesktop from "../httpDesktop.js";
+import type * as httpExtension from "../httpExtension.js";
 import type * as packs from "../packs.js";
 import type * as purchasedPacks from "../purchasedPacks.js";
 import type * as refreshTokens from "../refreshTokens.js";
@@ -27,9 +29,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authStatus: typeof authStatus;
-  betaSignups: typeof betaSignups;
   crons: typeof crons;
+  email: typeof email;
   http: typeof http;
+  httpDesktop: typeof httpDesktop;
+  httpExtension: typeof httpExtension;
   packs: typeof packs;
   purchasedPacks: typeof purchasedPacks;
   refreshTokens: typeof refreshTokens;

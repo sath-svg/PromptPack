@@ -249,6 +249,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
   const deletePack = useMutation(api.packs.remove);
   const setPackHeader = useMutation(api.packs.setHeader);
+  const updatePackIcon = useMutation(api.packs.updateIcon);
 
   // Helper function to create pack via API (uploads to R2)
   const createPackViaAPI = async (title: string, fileData: string, promptCount: number) => {
@@ -321,6 +322,10 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   const [promptDraft, setPromptDraft] = useState("");
   const [headerAuthBlocked, setHeaderAuthBlocked] = useState(false);
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
+  const [editingIconPackId, setEditingIconPackId] = useState<string | null>(null);
+
+  // Emoji options for pack icons
+  const EMOJI_OPTIONS = ["📦", "🎯", "💡", "🚀", "⚡", "🔥", "💎", "🎨", "📝", "🛠️", "🎮", "🌟", "📚", "🔮", "🧩"];
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!isSignedIn) return null;
@@ -435,6 +440,15 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       setHeaderAuthBlocked(false);
     }
   }, [isSignedIn, selectedPack?.id]);
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    if (!editingIconPackId) return;
+
+    const handleClickOutside = () => setEditingIconPackId(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [editingIconPackId]);
 
   // Toast helper
   const showToast = useCallback((message: string) => {
@@ -583,6 +597,18 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Studio: unlimited packs (-1), Pro: MAX_PRO_PACKS, Free: 0
   const maxPacks = isStudio ? MAX_STUDIO_PACKS : (hasPro ? MAX_PRO_PACKS : 0);
   const canCreate = isStudio || (hasPro && packCount < MAX_PRO_PACKS);
+
+  const handleIconSelect = async (packId: Id<"userPacks">, icon: string) => {
+    try {
+      await updatePackIcon({ id: packId, icon: icon || null });
+      showToast("Icon updated");
+    } catch (e) {
+      console.error("Failed to update icon:", e);
+      showToast("Failed to update icon");
+    } finally {
+      setEditingIconPackId(null);
+    }
+  };
 
   const handlePackClick = async (pack: typeof webPacks[0]) => {
     setError(null);
@@ -1136,14 +1162,17 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
           <div className="saved-packs-list">
             {webPacks.map((pack) => (
-              <button
+              <div
                 key={pack._id}
                 className={`saved-pack-item saved-pack-button${loadingPackId === pack._id ? " pack-loading" : ""}`}
-                onClick={() => handlePackClick(pack)}
-                disabled={loadingPackId !== null}
+                style={{ position: "relative" }}
               >
                 {loadingPackId === pack._id ? (
-                  <>
+                  <button
+                    className="saved-pack-item-inner"
+                    onClick={() => handlePackClick(pack)}
+                    disabled={loadingPackId !== null}
+                  >
                     <div className="pack-title">
                       <span className="pack-spinner" />
                       <span className="pack-name">Loading...</span>
@@ -1151,24 +1180,55 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
                     <div className="pack-info">
                       <span className="prompt-count">{pack.promptCount} prompts</span>
                     </div>
-                  </>
+                  </button>
                 ) : (
                   <>
-                    <div className="pack-title">
+                    <button
+                      className="pack-icon-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingIconPackId(editingIconPackId === pack._id ? null : pack._id);
+                      }}
+                      title="Change icon"
+                    >
                       <span className="source-icon">
-                        {pack.isEncrypted ? "🔒" : "📦"}
+                        {pack.isEncrypted ? "🔒" : (pack.icon || "📦")}
                       </span>
-                      <span className="pack-name">{pack.title}</span>
-                    </div>
-                    <div className="pack-info">
-                      <span className="prompt-count">{pack.promptCount} prompts</span>
-                      <span className="last-updated">
-                        {new Date(pack.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
+                    </button>
+                    {editingIconPackId === pack._id && (
+                      <div className="emoji-picker" onClick={(e) => e.stopPropagation()}>
+                        <div className="emoji-picker-title">Choose an icon</div>
+                        <div className="emoji-picker-grid">
+                          {EMOJI_OPTIONS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              className={`emoji-option${(pack.icon || "📦") === emoji ? " selected" : ""}`}
+                              onClick={() => handleIconSelect(pack._id, emoji)}
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      className="saved-pack-item-inner"
+                      onClick={() => handlePackClick(pack)}
+                      disabled={loadingPackId !== null}
+                    >
+                      <div className="pack-title">
+                        <span className="pack-name">{pack.title}</span>
+                      </div>
+                      <div className="pack-info">
+                        <span className="prompt-count">{pack.promptCount} prompts</span>
+                        <span className="last-updated">
+                          {new Date(pack.updatedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </button>
                   </>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </>

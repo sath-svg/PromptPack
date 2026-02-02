@@ -24,6 +24,7 @@ export default defineSchema({
     title: v.string(),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
+    icon: v.optional(v.string()), // Emoji icon for the pack (e.g., "📦", "🚀", "💡")
     // R2 object key where the .pmtpk file is stored (e.g., "users/user123/userpacks/pack456.pmtpk")
     r2Key: v.string(),
     promptCount: v.number(),

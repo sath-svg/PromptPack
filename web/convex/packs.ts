@@ -95,6 +95,7 @@ export const update = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     category: v.optional(v.string()),
+    icon: v.optional(v.string()), // Emoji icon for the pack
     r2Key: v.optional(v.string()), // If updating the file in R2
     promptCount: v.optional(v.number()),
     fileSize: v.optional(v.number()),
@@ -110,6 +111,21 @@ export const update = mutation({
     );
     await ctx.db.patch(id, {
       ...filtered,
+      updatedAt: Date.now(),
+    });
+    return id;
+  },
+});
+
+// Update pack icon only
+export const updateIcon = mutation({
+  args: {
+    id: v.id("userPacks"),
+    icon: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, { id, icon }) => {
+    await ctx.db.patch(id, {
+      icon: icon || undefined,
       updatedAt: Date.now(),
     });
     return id;
