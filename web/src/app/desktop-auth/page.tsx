@@ -72,7 +72,8 @@ export default function DesktopAuthPage() {
     setProcessing(true);
     setSwitchingAccount(true);
     try {
-      await signOut();
+      // Sign out but stay on this page
+      await signOut({ redirectUrl: "/desktop-auth" });
       // After sign out, reset processing so the SignIn form shows
       setProcessing(false);
     } catch (err) {
@@ -202,7 +203,8 @@ export default function DesktopAuthPage() {
         </p>
         <SignIn
           routing="hash"
-          afterSignInUrl="/desktop-auth"
+          forceRedirectUrl="/desktop-auth"
+          signUpForceRedirectUrl="/desktop-auth"
         />
       </div>
     );
