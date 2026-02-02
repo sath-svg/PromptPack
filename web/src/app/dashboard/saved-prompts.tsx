@@ -970,7 +970,6 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
           <div className="modal-content modal-large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{getSourceTitle(selectedPack.source)} Prompts</h3>
-              <p className="sync-notice">Changes sync with the desktop app, but not with the browser extension.</p>
               <div className="modal-actions">
                 {decryptedPrompts.some(p => !p.header) && (
                   <button
