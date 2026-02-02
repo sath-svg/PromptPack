@@ -22,47 +22,14 @@ export default function DesktopAuthPage() {
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const hasRedirected = useRef(false);
 
-  // Auto-redirect after signing in (when switching accounts)
+  // When user signs in after switching accounts, reset switchingAccount
+  // so they see the confirmation screen with the new account
   useEffect(() => {
-    async function autoRedirect() {
-      if (!isLoaded || !isSignedIn || !user || !switchingAccount || hasRedirected.current) return;
-
-      hasRedirected.current = true;
-      setProcessing(true);
-
-      try {
-        const token = await getToken();
-        if (!token) {
-          setError("Failed to get authentication token");
-          setProcessing(false);
-          hasRedirected.current = false;
-          return;
-        }
-
-        const firstName = user.firstName || "";
-        const lastName = user.lastName || "";
-        const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
-        const email = user.primaryEmailAddress?.emailAddress || "";
-        const image = user.imageUrl || "";
-
-        const callbackUrl = new URL("/desktop-callback", window.location.origin);
-        callbackUrl.searchParams.set("token", token);
-        callbackUrl.searchParams.set("name", name);
-        callbackUrl.searchParams.set("email", email);
-        callbackUrl.searchParams.set("image", image);
-        callbackUrl.searchParams.set("user_id", user.id);
-
-        window.location.href = callbackUrl.toString();
-      } catch (err) {
-        console.error("Auth error:", err);
-        setError("Authentication failed. Please try again.");
-        setProcessing(false);
-        hasRedirected.current = false;
-      }
+    if (isLoaded && isSignedIn && user && switchingAccount) {
+      // User has signed in with a new account, show confirmation screen
+      setSwitchingAccount(false);
     }
-
-    autoRedirect();
-  }, [isLoaded, isSignedIn, user, switchingAccount, getToken]);
+  }, [isLoaded, isSignedIn, user, switchingAccount]);
 
   const handleContinue = async () => {
     if (!user || hasRedirected.current) return;
