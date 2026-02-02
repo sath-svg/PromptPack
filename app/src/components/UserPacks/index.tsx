@@ -653,7 +653,7 @@ export function UserPacksPage() {
                   {editingIcon === pack.id && (
                     <div
                       className="absolute top-full left-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50"
-                      style={{ width: '290px', padding: '12px' }}
+                      style={{ padding: '12px' }}
                     >
                       <p className="text-xs text-[var(--muted-foreground)] mb-2">Choose an icon</p>
                       <div
