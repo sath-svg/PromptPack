@@ -1465,15 +1465,28 @@ h4.hero-hook {
 
 .modal-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
+  gap: 0.5rem;
 }
 
 .modal-header h3 {
   margin: 0;
+}
+
+.sync-notice {
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 0.375rem;
+  order: 3;
 }
 
 .close-icon {
