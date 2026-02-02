@@ -113,6 +113,12 @@ function parseAllowedOrigins(env: Env): {
 
 function isOriginAllowed(origin: string, env: Env): boolean {
   if (!origin || origin === "null") return false;
+
+  // Allow Tauri desktop app origins
+  if (origin.startsWith("tauri://") || origin.startsWith("http://tauri.localhost") || origin.startsWith("https://tauri.localhost")) {
+    return true;
+  }
+
   let url: URL;
   try {
     url = new URL(origin);

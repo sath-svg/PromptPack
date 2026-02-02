@@ -395,12 +395,18 @@ http.route({
   }),
 });
 
-// CORS headers for extension requests
+// CORS headers for extension and desktop app requests
 function corsHeaders(origin: string | null): HeadersInit {
-  // Allow chrome-extension:// origins and localhost for dev
-  if (origin?.startsWith("chrome-extension://") || origin?.includes("localhost")) {
+  // Allow chrome-extension://, tauri://, and localhost for dev
+  const allowedOrigin =
+    origin?.startsWith("chrome-extension://") ||
+    origin?.startsWith("tauri://") ||
+    origin?.startsWith("moz-extension://") ||
+    origin?.includes("localhost");
+
+  if (allowedOrigin) {
     return {
-      "Access-Control-Allow-Origin": origin,
+      "Access-Control-Allow-Origin": origin!,
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Access-Control-Max-Age": "86400",
@@ -1160,6 +1166,97 @@ http.route({
       return new Response(
         JSON.stringify({
           error: error instanceof Error ? error.message : "Failed to get billing status",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
+// Desktop/Extension: get user's saved packs (cloud prompts)
+// CORS preflight
+http.route({
+  path: "/api/desktop/saved-packs",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Desktop/Extension: get user's saved packs list
+http.route({
+  path: "/api/desktop/saved-packs",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { clerkId } = body as { clerkId: string };
+
+      if (!clerkId) {
+        return new Response(
+          JSON.stringify({ error: "Missing clerkId" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user from Convex
+      const user = await ctx.runQuery(api.users.getByClerkId, {
+        clerkId,
+      });
+
+      if (!user) {
+        return new Response(
+          JSON.stringify({ error: "User not found" }),
+          {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get all saved packs for this user
+      const savedPacks = await ctx.runQuery(api.savedPacks.listByUser, {
+        userId: user._id,
+      });
+
+      // Return packs list with relevant info
+      return new Response(
+        JSON.stringify({
+          success: true,
+          packs: savedPacks.map((pack) => ({
+            id: pack._id,
+            source: pack.source,
+            r2Key: pack.r2Key,
+            promptCount: pack.promptCount,
+            fileSize: pack.fileSize,
+            headers: pack.headers,
+            createdAt: pack.createdAt,
+            updatedAt: pack.updatedAt,
+          })),
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Get saved packs error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Failed to get saved packs",
         }),
         {
           status: 500,
