@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth, useUser, useClerk, SignIn } from "@clerk/nextjs";
 
 /**
@@ -19,31 +19,72 @@ export default function DesktopAuthPage() {
   const { signOut } = useClerk();
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(true);
+  const [switchingAccount, setSwitchingAccount] = useState(false);
+  const hasRedirected = useRef(false);
+
+  // Auto-redirect after signing in (when switching accounts)
+  useEffect(() => {
+    async function autoRedirect() {
+      if (!isLoaded || !isSignedIn || !user || !switchingAccount || hasRedirected.current) return;
+
+      hasRedirected.current = true;
+      setProcessing(true);
+
+      try {
+        const token = await getToken();
+        if (!token) {
+          setError("Failed to get authentication token");
+          setProcessing(false);
+          hasRedirected.current = false;
+          return;
+        }
+
+        const firstName = user.firstName || "";
+        const lastName = user.lastName || "";
+        const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
+        const email = user.primaryEmailAddress?.emailAddress || "";
+        const image = user.imageUrl || "";
+
+        const callbackUrl = new URL("/desktop-callback", window.location.origin);
+        callbackUrl.searchParams.set("token", token);
+        callbackUrl.searchParams.set("name", name);
+        callbackUrl.searchParams.set("email", email);
+        callbackUrl.searchParams.set("image", image);
+        callbackUrl.searchParams.set("user_id", user.id);
+
+        window.location.href = callbackUrl.toString();
+      } catch (err) {
+        console.error("Auth error:", err);
+        setError("Authentication failed. Please try again.");
+        setProcessing(false);
+        hasRedirected.current = false;
+      }
+    }
+
+    autoRedirect();
+  }, [isLoaded, isSignedIn, user, switchingAccount, getToken]);
 
   const handleContinue = async () => {
-    if (!user) return;
+    if (!user || hasRedirected.current) return;
 
+    hasRedirected.current = true;
     setProcessing(true);
-    setShowConfirmation(false);
 
     try {
-      // Get a session token from Clerk
       const token = await getToken();
       if (!token) {
         setError("Failed to get authentication token");
         setProcessing(false);
+        hasRedirected.current = false;
         return;
       }
 
-      // Build user info - combine first and last name with space
       const firstName = user.firstName || "";
       const lastName = user.lastName || "";
       const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
       const email = user.primaryEmailAddress?.emailAddress || "";
       const image = user.imageUrl || "";
 
-      // Redirect to callback URL with token and user info
       const callbackUrl = new URL("/desktop-callback", window.location.origin);
       callbackUrl.searchParams.set("token", token);
       callbackUrl.searchParams.set("name", name);
@@ -56,14 +97,15 @@ export default function DesktopAuthPage() {
       console.error("Auth error:", err);
       setError("Authentication failed. Please try again.");
       setProcessing(false);
+      hasRedirected.current = false;
     }
   };
 
   const handleSwitchAccount = async () => {
     setProcessing(true);
+    setSwitchingAccount(true);
     await signOut();
     setProcessing(false);
-    setShowConfirmation(false);
   };
 
   if (error) {
@@ -76,6 +118,7 @@ export default function DesktopAuthPage() {
           onClick={() => {
             setError(null);
             setProcessing(false);
+            hasRedirected.current = false;
           }}
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
         >
@@ -85,8 +128,8 @@ export default function DesktopAuthPage() {
     );
   }
 
-  // If signed in, show confirmation screen
-  if (isLoaded && isSignedIn && user && showConfirmation) {
+  // If signed in and NOT switching accounts, show confirmation screen
+  if (isLoaded && isSignedIn && user && !switchingAccount) {
     const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "User";
 
     return (
@@ -162,10 +205,10 @@ export default function DesktopAuthPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
       <div className="w-12 h-12 border-3 border-muted border-t-primary rounded-full animate-spin mb-6" />
       <h1 className="text-xl font-semibold text-foreground mb-2">
-        {processing ? "Connecting..." : "Loading..."}
+        {switchingAccount ? "Connecting..." : "Loading..."}
       </h1>
       <p className="text-muted-foreground text-sm">
-        {processing
+        {switchingAccount
           ? "Setting up your desktop app"
           : "Please wait..."}
       </p>
