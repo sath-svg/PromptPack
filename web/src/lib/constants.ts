@@ -24,9 +24,9 @@ export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.co
 export const FREE_PROMPT_LIMIT = 10;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
-export const FREE_PACK_LIMIT = 2;
-export const PRO_PACK_LIMIT = 5;
-export const STUDIO_PACK_LIMIT = 10;
+export const FREE_PACK_LIMIT = 6;
+export const PRO_PACK_LIMIT = 9;
+export const STUDIO_PACK_LIMIT = 21;
 export const MAX_PRO_PACKS = 2; // Maximum packs for Pro tier on web
 export const MAX_STUDIO_PACKS = -1; // -1 = unlimited packs for Studio tier
 

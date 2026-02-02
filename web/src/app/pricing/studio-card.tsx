@@ -169,7 +169,7 @@ export function StudioCard() {
         }}
       >
         <li>✓ Everything in Pro</li>
-        <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Unlimited</span> custom <span className="gradient-text">PromptPacks</span></li>
+        <li>✓ <span className="faq-highlight">21</span> loaded <span className="gradient-text">PromptPacks</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(14 custom + 7 saved)</span></li>
         <li>✓ <span className="faq-highlight">200</span> saved prompts</li>
         <li>✓ <span className="faq-highlight">500</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">2000</span> AI headers per day</li>
