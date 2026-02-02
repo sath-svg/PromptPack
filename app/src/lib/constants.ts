@@ -15,7 +15,7 @@
  * - DEV: https://accurate-cardinal-55.convex.site (your dev Convex deployment)
  * - PROD: Same URL (Convex URL doesn't change between environments)
  */
-export const CONVEX_URL = 'https://accurate-cardinal-55.convex.site';
+export const CONVEX_URL = 'https://determined-lark-313.convex.site';
 
 /**
  * Cloudflare Workers API URL (R2 storage, enhance, classify)

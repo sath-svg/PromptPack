@@ -1274,4 +1274,85 @@ http.route({
   }),
 });
 
+// Desktop/Extension: get user's created packs (userPacks)
+// CORS preflight
+http.route({
+  path: "/api/desktop/user-packs",
+  method: "OPTIONS",
+  handler: httpAction(async (_, request) => {
+    const origin = request.headers.get("Origin");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }),
+});
+
+// Desktop/Extension: get user's created packs list
+http.route({
+  path: "/api/desktop/user-packs",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const origin = request.headers.get("Origin");
+    const headers = corsHeaders(origin);
+
+    try {
+      const body = await request.json();
+      const { clerkId } = body as { clerkId: string };
+
+      if (!clerkId) {
+        return new Response(
+          JSON.stringify({ error: "Missing clerkId" }),
+          {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // Get user's created packs using the query
+      const userPacks = await ctx.runQuery(api.packs.listByClerkId, {
+        clerkId,
+      });
+
+      // Return packs list with relevant info
+      return new Response(
+        JSON.stringify({
+          success: true,
+          packs: userPacks.map((pack) => ({
+            id: pack._id,
+            title: pack.title,
+            description: pack.description,
+            category: pack.category,
+            r2Key: pack.r2Key,
+            promptCount: pack.promptCount,
+            fileSize: pack.fileSize,
+            version: pack.version,
+            isPublic: pack.isPublic,
+            isEncrypted: pack.isEncrypted,
+            headers: pack.headers,
+            createdAt: pack.createdAt,
+            updatedAt: pack.updatedAt,
+          })),
+        }),
+        {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    } catch (error) {
+      console.error("Get user packs error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Failed to get user packs",
+        }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        }
+      );
+    }
+  }),
+});
+
 export default http;

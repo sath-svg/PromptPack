@@ -112,17 +112,25 @@ function parseAllowedOrigins(env: Env): {
 }
 
 function isOriginAllowed(origin: string, env: Env): boolean {
-  if (!origin || origin === "null") return false;
+  // Allow null origin for Tauri production builds (file:// protocol sends null)
+  // This is safe because these endpoints require auth tokens
+  if (origin === "null") return true;
+  if (!origin) return false;
 
   // Allow browser extensions and Tauri desktop app origins
   // Chrome extension: chrome-extension://
   // Firefox extension: moz-extension://
   // Safari extension: safari-web-extension:// (macOS 11+)
   // Tauri desktop app: tauri://, http://tauri.localhost, https://tauri.localhost
+  // Tauri v2 dev server: http://localhost:1420
+  // Local dev: http://localhost:*, http://127.0.0.1:*
   if (
     origin.startsWith("tauri://") ||
     origin.startsWith("http://tauri.localhost") ||
     origin.startsWith("https://tauri.localhost") ||
+    origin.startsWith("http://localhost:") ||
+    origin.startsWith("http://localhost") ||
+    origin.startsWith("http://127.0.0.1:") ||
     origin.startsWith("moz-extension://") ||
     origin.startsWith("safari-web-extension://")
   ) {
@@ -1063,8 +1071,9 @@ export default {
 
         // Security: Verify the r2Key pattern for packs
         // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk
-        if (!body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/)) {
-          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack" }), {
+        if (!body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i)) {
+          console.error("Invalid r2Key format for pack:", body.r2Key);
+          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack", r2Key: body.r2Key }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
           }));
@@ -1107,10 +1116,12 @@ export default {
         // Security: Verify the r2Key pattern matches expected formats
         // users/{userId}/saved/{source}.pmtpk OR users/{userId}/userpacks/pack_{id}.pmtpk
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
-        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/);
+        // userPacks: pack_<timestamp>_<random> where random is base36 (lowercase + digits)
+        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i);
 
         if (!isValidSavedPack && !isValidUserPack) {
-          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
+          console.error("Invalid r2Key format:", body.r2Key);
+          return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format", r2Key: body.r2Key }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
           }));

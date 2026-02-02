@@ -25,9 +25,9 @@ interface SidebarProps {
 
 export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const [packsExpanded, setPacksExpanded] = useState(true);
-  const { folders, selectedSource, setSelectedSource, setSelectedFolder, prompts } =
+  const { selectedSource, setSelectedSource, setSelectedFolder, prompts } =
     usePromptStore();
-  const { cloudPacks } = useSyncStore();
+  const { cloudPacks, userPacks } = useSyncStore();
   const { session } = useAuthStore();
 
   const sourceCounts = prompts.reduce(
@@ -109,9 +109,9 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           >
             <Cloud size={18} />
             <span>Cloud Prompts</span>
-            {session && cloudPacks.length > 0 && (
+            {session && (cloudPacks.length > 0 || userPacks.length > 0) && (
               <span className="ml-auto text-xs opacity-70">
-                {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0)}
+                {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0) + userPacks.reduce((sum, p) => sum + p.promptCount, 0)}
               </span>
             )}
           </button>
@@ -154,7 +154,7 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           )}
         </div>
 
-        {/* Your Prompt Packs (Folders) */}
+        {/* Your Prompt Packs (from Convex userPacks) */}
         <div className="mt-6">
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
@@ -169,24 +169,21 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </div>
 
           <div className="mt-1 space-y-1">
-            {folders.map((folder) => (
+            {session && userPacks.map((pack) => (
               <button
-                key={folder.id}
-                onClick={() => {
-                  setSelectedFolder(folder.id);
-                  setSelectedSource('all');
-                  onNavigate('library');
-                }}
+                key={pack.id}
+                onClick={() => onNavigate('cloud')}
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
               >
-                <Package size={18} style={{ color: folder.color || 'var(--primary)' }} />
-                <span>{folder.name}</span>
+                <Package size={18} className="text-[var(--primary)]" />
+                <span className="truncate">{pack.title}</span>
+                <span className="ml-auto text-xs opacity-70">{pack.promptCount}</span>
               </button>
             ))}
 
-            {folders.length === 0 && (
+            {(!session || userPacks.length === 0) && (
               <p className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                No Prompt Packs yet
+                {session ? 'No Prompt Packs yet' : 'Sign in to see your packs'}
               </p>
             )}
           </div>

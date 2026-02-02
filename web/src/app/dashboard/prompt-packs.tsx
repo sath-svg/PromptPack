@@ -372,17 +372,15 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
         // Update local state
         setSelectedPack({ ...selectedPack, prompts: updatedPrompts });
 
-        // Save the updated prompts back to storage
+        // Save the updated prompts back to storage (always use .pmtpk format)
         let fileData: string;
-        if (selectedPack.isEncrypted && selectedPack.password) {
-          const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
-          fileData = bytesToBase64(encoded);
-        } else if (isBinaryFormat(selectedPack.fileData)) {
-          const encoded = await encodePrompts(updatedPrompts, false, undefined, selectedPack.title);
-          fileData = bytesToBase64(encoded);
-        } else {
-          fileData = encodeStringToBase64(buildPackData(updatedPrompts));
-        }
+        const encoded = await encodePrompts(
+          updatedPrompts,
+          !!(selectedPack.isEncrypted && selectedPack.password),
+          selectedPack.password,
+          selectedPack.title
+        );
+        fileData = bytesToBase64(encoded);
 
         await updatePackViaAPI(selectedPack.id, fileData, updatedPrompts.length);
 
@@ -479,16 +477,14 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     showToast(trimmed ? "Header updated" : "Header removed");
 
     try {
-      let fileData: string;
-      if (previousPack.isEncrypted && previousPack.password) {
-        const encoded = await encodePrompts(updatedPrompts, true, previousPack.password, previousPack.title);
-        fileData = bytesToBase64(encoded);
-      } else if (isBinaryFormat(previousPack.fileData)) {
-        const encoded = await encodePrompts(updatedPrompts, false, undefined, previousPack.title);
-        fileData = bytesToBase64(encoded);
-      } else {
-        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
-      }
+      // Always use .pmtpk format
+      const encoded = await encodePrompts(
+        updatedPrompts,
+        !!(previousPack.isEncrypted && previousPack.password),
+        previousPack.password,
+        previousPack.title
+      );
+      const fileData = bytesToBase64(encoded);
 
       await updatePackViaAPI(previousPack.id, fileData, updatedPrompts.length);
       setSelectedPack(prev => prev ? { ...prev, fileData } : null);
@@ -545,16 +541,14 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     showToast("Prompt updated");
 
     try {
-      let fileData: string;
-      if (previousPack.isEncrypted && previousPack.password) {
-        const encoded = await encodePrompts(updatedPrompts, true, previousPack.password, previousPack.title);
-        fileData = bytesToBase64(encoded);
-      } else if (isBinaryFormat(previousPack.fileData)) {
-        const encoded = await encodePrompts(updatedPrompts, false, undefined, previousPack.title);
-        fileData = bytesToBase64(encoded);
-      } else {
-        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
-      }
+      // Always use .pmtpk format
+      const encoded = await encodePrompts(
+        updatedPrompts,
+        !!(previousPack.isEncrypted && previousPack.password),
+        previousPack.password,
+        previousPack.title
+      );
+      const fileData = bytesToBase64(encoded);
 
       await updatePackViaAPI(previousPack.id, fileData, updatedPrompts.length);
       setSelectedPack(prev => prev ? { ...prev, fileData } : null);
@@ -752,14 +746,10 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       const prompts = [{ text: promptText, createdAt: now }];
 
       let fileData: string;
-      if (createPassword) {
-        // Create encrypted binary format
-        const encoded = await encodePrompts(prompts, true, createPassword, title);
-        fileData = bytesToBase64(encoded);
-      } else {
-        // Create plain JSON format
-        fileData = encodeStringToBase64(buildPackData(prompts));
-      }
+      // Always use the proper .pmtpk format (obfuscated or encrypted)
+      // This ensures compatibility with desktop app and browser extension
+      const encoded = await encodePrompts(prompts, !!createPassword, createPassword || undefined, title);
+      fileData = bytesToBase64(encoded);
 
       // Upload to R2 via API route (which handles R2 upload + Convex metadata)
       const response = await fetch("/api/packs/create", {
@@ -823,16 +813,14 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
     // Background sync: Upload to server asynchronously
     try {
-      let fileData: string;
-      if (selectedPack.isEncrypted && selectedPack.password) {
-        const encoded = await encodePrompts(updatedPrompts, true, selectedPack.password, selectedPack.title);
-        fileData = bytesToBase64(encoded);
-      } else if (isBinaryFormat(selectedPack.fileData)) {
-        const encoded = await encodePrompts(updatedPrompts, false, undefined, selectedPack.title);
-        fileData = bytesToBase64(encoded);
-      } else {
-        fileData = encodeStringToBase64(buildPackData(updatedPrompts));
-      }
+      // Always use .pmtpk format
+      const encoded = await encodePrompts(
+        updatedPrompts,
+        !!(selectedPack.isEncrypted && selectedPack.password),
+        selectedPack.password,
+        selectedPack.title
+      );
+      const fileData = bytesToBase64(encoded);
 
       await updatePackViaAPI(selectedPack.id, fileData, updatedPrompts.length);
 
@@ -884,16 +872,14 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
     // Background sync: Upload to server asynchronously
     try {
-      let fileData: string;
-      if (selectedPack.isEncrypted && selectedPack.password) {
-        const encoded = await encodePrompts(newPrompts, true, selectedPack.password, selectedPack.title);
-        fileData = bytesToBase64(encoded);
-      } else if (isBinaryFormat(selectedPack.fileData)) {
-        const encoded = await encodePrompts(newPrompts, false, undefined, selectedPack.title);
-        fileData = bytesToBase64(encoded);
-      } else {
-        fileData = encodeStringToBase64(buildPackData(newPrompts));
-      }
+      // Always use .pmtpk format
+      const encoded = await encodePrompts(
+        newPrompts,
+        !!(selectedPack.isEncrypted && selectedPack.password),
+        selectedPack.password,
+        selectedPack.title
+      );
+      const fileData = bytesToBase64(encoded);
 
       await updatePackViaAPI(selectedPack.id, fileData, newPrompts.length);
 
@@ -993,11 +979,15 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
     try {
       if (action.type === "delete-pack") {
-        const fileData = encodeStringToBase64(buildPackData(action.prompts));
+        // Always use .pmtpk format (obfuscated, unencrypted for undo)
+        const encoded = await encodePrompts(action.prompts, false, undefined, action.title);
+        const fileData = bytesToBase64(encoded);
         await createPackViaAPI(action.title, fileData, action.prompts.length);
         showToast("Pack restored");
       } else if (action.type === "delete-prompt") {
-        const fileData = encodeStringToBase64(buildPackData(action.prompts));
+        // Always use .pmtpk format (obfuscated, unencrypted for undo)
+        const encoded = await encodePrompts(action.prompts, false, undefined, action.title);
+        const fileData = bytesToBase64(encoded);
         await updatePackViaAPI(action.packId, fileData, action.prompts.length);
         if (selectedPack && selectedPack.id === action.packId) {
           setSelectedPack({
@@ -1038,7 +1028,9 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
             setSelectedPack(null);
           }
         } else {
-          const fileData = encodeStringToBase64(buildPackData(newPrompts));
+          // Always use .pmtpk format (obfuscated, unencrypted for redo)
+          const encoded = await encodePrompts(newPrompts, false, undefined, action.title);
+          const fileData = bytesToBase64(encoded);
           await updatePackViaAPI(action.packId, fileData, newPrompts.length);
           if (selectedPack && selectedPack.id === action.packId) {
             setSelectedPack({

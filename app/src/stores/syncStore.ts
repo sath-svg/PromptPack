@@ -3,13 +3,30 @@ import { persist } from 'zustand/middleware';
 import type { PromptSource } from '../types';
 import { CONVEX_URL, WORKERS_API_URL } from '../lib/constants';
 
-// Cloud saved pack from Convex
+// Cloud saved pack from Convex (extension-saved prompts)
 export interface CloudPack {
   id: string;
   source: PromptSource;
   r2Key: string;
   promptCount: number;
   fileSize: number;
+  headers?: Record<string, string>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// User-created pack from website dashboard
+export interface UserPack {
+  id: string;
+  title: string;
+  description?: string;
+  category?: string;
+  r2Key: string;
+  promptCount: number;
+  fileSize: number;
+  version: string;
+  isPublic: boolean;
+  isEncrypted?: boolean;
   headers?: Record<string, string>;
   createdAt: number;
   updatedAt: number;
@@ -23,19 +40,29 @@ export interface CloudPrompt {
   header?: string;
 }
 
-// Pack with loaded prompts
+// Pack with loaded prompts (for savedPacks)
 export interface LoadedPack extends CloudPack {
   prompts: CloudPrompt[];
   isEncrypted: boolean;
   password?: string; // Cached for re-fetching
 }
 
+// Loaded user pack with prompts
+export interface LoadedUserPack extends UserPack {
+  prompts: CloudPrompt[];
+  password?: string; // Cached for re-fetching
+}
+
 interface SyncState {
-  // Cloud packs metadata
+  // Cloud packs metadata (saved from extension)
   cloudPacks: CloudPack[];
+
+  // User-created packs from website dashboard
+  userPacks: UserPack[];
 
   // Loaded pack data (after fetching from R2)
   loadedPacks: Record<string, LoadedPack>;
+  loadedUserPacks: Record<string, LoadedUserPack>;
 
   // State
   isLoading: boolean;
@@ -45,7 +72,10 @@ interface SyncState {
 
   // Actions
   fetchCloudPacks: (clerkId: string) => Promise<void>;
+  fetchUserPacks: (clerkId: string) => Promise<void>;
+  fetchAllPacks: (clerkId: string) => Promise<void>;
   fetchPackPrompts: (pack: CloudPack, password?: string) => Promise<LoadedPack | null>;
+  fetchUserPackPrompts: (pack: UserPack, password?: string) => Promise<LoadedUserPack | null>;
   clearError: () => void;
   clearCache: () => void;
 }
@@ -73,7 +103,10 @@ function xorDeobfuscate(data: Uint8Array): Uint8Array {
 
 // Gzip decompress using native APIs
 async function gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([data]).stream();
+  // Create a copy to ensure we have a regular ArrayBuffer (not SharedArrayBuffer)
+  const buffer = new ArrayBuffer(data.length);
+  new Uint8Array(buffer).set(data);
+  const stream = new Blob([buffer]).stream();
   const decompressed = stream.pipeThrough(new DecompressionStream('gzip'));
   const reader = decompressed.getReader();
   const chunks: Uint8Array[] = [];
@@ -108,7 +141,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: salt.buffer as ArrayBuffer,
       iterations: 100000,
       hash: 'SHA-256'
     },
@@ -197,7 +230,9 @@ export const useSyncStore = create<SyncState>()(
   persist(
     (set, get) => ({
       cloudPacks: [],
+      userPacks: [],
       loadedPacks: {},
+      loadedUserPacks: {},
       isLoading: false,
       isFetching: {},
       lastSyncAt: null,
@@ -231,6 +266,77 @@ export const useSyncStore = create<SyncState>()(
           } else {
             throw new Error('Invalid response format');
           }
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to sync',
+            isLoading: false,
+          });
+        }
+      },
+
+      fetchUserPacks: async (clerkId: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await fetch(`${CONVEX_URL}/api/desktop/user-packs`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ clerkId }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to fetch user packs');
+          }
+
+          const data = await response.json();
+
+          if (data.success && Array.isArray(data.packs)) {
+            set({
+              userPacks: data.packs,
+              lastSyncAt: Date.now(),
+              isLoading: false,
+            });
+          } else {
+            throw new Error('Invalid response format');
+          }
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Failed to sync user packs',
+            isLoading: false,
+          });
+        }
+      },
+
+      fetchAllPacks: async (clerkId: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          // Fetch both savedPacks and userPacks in parallel
+          const [savedResponse, userResponse] = await Promise.all([
+            fetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clerkId }),
+            }),
+            fetch(`${CONVEX_URL}/api/desktop/user-packs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ clerkId }),
+            }),
+          ]);
+
+          const savedData = await savedResponse.json();
+          const userData = await userResponse.json();
+
+          set({
+            cloudPacks: savedData.success && Array.isArray(savedData.packs) ? savedData.packs : [],
+            userPacks: userData.success && Array.isArray(userData.packs) ? userData.packs : [],
+            lastSyncAt: Date.now(),
+            isLoading: false,
+          });
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : 'Failed to sync',
@@ -315,11 +421,93 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
+      fetchUserPackPrompts: async (pack: UserPack, password?: string) => {
+        const { isFetching, loadedUserPacks } = get();
+
+        // Check if already fetching
+        if (isFetching[pack.id]) {
+          return loadedUserPacks[pack.id] || null;
+        }
+
+        set({ isFetching: { ...isFetching, [pack.id]: true }, error: null });
+
+        try {
+          // Fetch from R2 via workers API
+          const response = await fetch(`${WORKERS_API_URL}/storage/fetch`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ r2Key: pack.r2Key }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to fetch pack file');
+          }
+
+          const { fileData } = await response.json();
+          const bytes = Uint8Array.from(atob(fileData), (c) => c.charCodeAt(0));
+
+          // Debug: log first bytes to verify format
+          console.log('[fetchUserPackPrompts] Pack bytes (first 10):', Array.from(bytes.slice(0, 10)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+          console.log('[fetchUserPackPrompts] Expected PPK header: 50 50 4b 00 (obfuscated) or 50 50 4b 01 (encrypted)');
+
+          const fileIsEncrypted = isEncrypted(bytes);
+          console.log('[fetchUserPackPrompts] isEncrypted:', fileIsEncrypted);
+
+          let prompts: CloudPrompt[];
+
+          if (fileIsEncrypted) {
+            if (!password) {
+              // Return partial loaded pack indicating encryption
+              const loadedPack: LoadedUserPack = {
+                ...pack,
+                prompts: [],
+                isEncrypted: true,
+              };
+              set((state) => ({
+                loadedUserPacks: { ...state.loadedUserPacks, [pack.id]: loadedPack },
+                isFetching: { ...state.isFetching, [pack.id]: false },
+              }));
+              return loadedPack;
+            }
+            prompts = await decryptPmtpk(bytes, password);
+          } else {
+            prompts = await decodeObfuscated(bytes);
+          }
+
+          // Apply header overrides
+          prompts = applyHeaderOverrides(prompts, pack.headers);
+
+          const loadedPack: LoadedUserPack = {
+            ...pack,
+            prompts,
+            password: fileIsEncrypted ? password : undefined,
+          };
+
+          set((state) => ({
+            loadedUserPacks: { ...state.loadedUserPacks, [pack.id]: loadedPack },
+            isFetching: { ...state.isFetching, [pack.id]: false },
+          }));
+
+          return loadedPack;
+        } catch (error) {
+          set((state) => ({
+            error: error instanceof Error ? error.message : 'Failed to load pack',
+            isFetching: { ...state.isFetching, [pack.id]: false },
+          }));
+          return null;
+        }
+      },
+
       clearError: () => set({ error: null }),
 
       clearCache: () => set({
         cloudPacks: [],
+        userPacks: [],
         loadedPacks: {},
+        loadedUserPacks: {},
         lastSyncAt: null,
       }),
     }),
@@ -327,6 +515,7 @@ export const useSyncStore = create<SyncState>()(
       name: 'promptpack-sync',
       partialize: (state) => ({
         cloudPacks: state.cloudPacks,
+        userPacks: state.userPacks,
         lastSyncAt: state.lastSyncAt,
       }),
     }

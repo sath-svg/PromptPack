@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Cloud, RefreshCw, Lock, Unlock, ChevronDown, ChevronRight, Copy, Check, AlertCircle } from 'lucide-react';
-import { useSyncStore, type CloudPack, type LoadedPack } from '../../stores/syncStore';
+import { Cloud, RefreshCw, Lock, Unlock, ChevronDown, ChevronRight, Copy, Check, AlertCircle, Package } from 'lucide-react';
+import { useSyncStore, type CloudPack, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { SOURCE_META } from '../../types';
 import type { PromptSource } from '../../types';
@@ -9,13 +9,16 @@ export function CloudPromptsPage() {
   const { session } = useAuthStore();
   const {
     cloudPacks,
+    userPacks,
     loadedPacks,
+    loadedUserPacks,
     isLoading,
     isFetching,
     lastSyncAt,
     error,
-    fetchCloudPacks,
+    fetchAllPacks,
     fetchPackPrompts,
+    fetchUserPackPrompts,
     clearError,
   } = useSyncStore();
 
@@ -25,14 +28,14 @@ export function CloudPromptsPage() {
 
   // Auto-sync when user signs in
   useEffect(() => {
-    if (session?.user_id && cloudPacks.length === 0 && !isLoading) {
-      fetchCloudPacks(session.user_id);
+    if (session?.user_id && cloudPacks.length === 0 && userPacks.length === 0 && !isLoading) {
+      fetchAllPacks(session.user_id);
     }
   }, [session?.user_id]);
 
   const handleSync = () => {
     if (session?.user_id) {
-      fetchCloudPacks(session.user_id);
+      fetchAllPacks(session.user_id);
     }
   };
 
@@ -54,11 +57,38 @@ export function CloudPromptsPage() {
     await fetchPackPrompts(pack);
   };
 
+  const handleUserPackClick = async (pack: UserPack) => {
+    if (expandedPack === pack.id) {
+      setExpandedPack(null);
+      return;
+    }
+
+    setExpandedPack(pack.id);
+
+    // Check if already loaded
+    const loaded = loadedUserPacks[pack.id];
+    if (loaded && loaded.prompts.length > 0) {
+      return;
+    }
+
+    // Fetch pack prompts
+    await fetchUserPackPrompts(pack);
+  };
+
   const handleDecrypt = async (pack: CloudPack) => {
     const password = passwordInputs[pack.id];
     if (!password) return;
 
     await fetchPackPrompts(pack, password);
+    // Clear password input after attempt
+    setPasswordInputs((prev) => ({ ...prev, [pack.id]: '' }));
+  };
+
+  const handleUserPackDecrypt = async (pack: UserPack) => {
+    const password = passwordInputs[pack.id];
+    if (!password) return;
+
+    await fetchUserPackPrompts(pack, password);
     // Clear password input after attempt
     setPasswordInputs((prev) => ({ ...prev, [pack.id]: '' }));
   };
@@ -102,7 +132,7 @@ export function CloudPromptsPage() {
             Cloud Prompts
           </h1>
           <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            Prompts saved from your browser extension
+            Synced from your browser extension and web dashboard
           </p>
         </div>
 
@@ -138,14 +168,27 @@ export function CloudPromptsPage() {
       )}
 
       {/* Empty state */}
-      {!isLoading && cloudPacks.length === 0 && (
+      {!isLoading && cloudPacks.length === 0 && userPacks.length === 0 && (
         <div className="text-center py-12 bg-[var(--card)] rounded-xl border border-[var(--border)]">
           <Cloud size={48} className="mx-auto text-[var(--muted-foreground)] mb-4" />
           <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
             No cloud prompts yet
           </h3>
           <p className="text-[var(--muted-foreground)] max-w-sm mx-auto">
-            Save prompts using the PromptPack browser extension to see them here.
+            Save prompts using the browser extension or create prompt packs on the web dashboard to see them here.
+          </p>
+        </div>
+      )}
+
+      {/* Saved Packs Section (from browser extension) */}
+      {cloudPacks.length > 0 && (
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+            <Cloud size={20} />
+            Saved from Extension
+          </h2>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
+            Prompts saved from the browser extension
           </p>
         </div>
       )}
@@ -285,12 +328,166 @@ export function CloudPromptsPage() {
         })}
       </div>
 
+      {/* User Packs Section */}
+      {userPacks.length > 0 && (
+        <>
+          <div className="mt-8 mb-4">
+            <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+              <Package size={20} />
+              Your Prompt Packs
+            </h2>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">
+              Prompt packs created on the web dashboard
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {userPacks.map((pack) => {
+              const loaded = loadedUserPacks[pack.id];
+              const isExpanded = expandedPack === pack.id;
+              const isFetchingPack = isFetching[pack.id];
+              const needsPassword = loaded?.isEncrypted && loaded.prompts.length === 0;
+
+              return (
+                <div
+                  key={pack.id}
+                  className="bg-[var(--card)] rounded-xl border border-[var(--border)] overflow-hidden"
+                >
+                  {/* Pack header */}
+                  <button
+                    onClick={() => handleUserPackClick(pack)}
+                    disabled={isFetchingPack}
+                    className="w-full flex items-center gap-4 p-4 hover:bg-[var(--accent)]/50 transition-colors text-left"
+                  >
+                    <span className="text-2xl">📦</span>
+                    <div className="flex-1">
+                      <h3 className="font-medium text-[var(--foreground)]">
+                        {pack.title}
+                      </h3>
+                      <p className="text-sm text-[var(--muted-foreground)]">
+                        {pack.promptCount} prompt{pack.promptCount !== 1 ? 's' : ''}
+                        {pack.category && ` · ${pack.category}`}
+                        {' · '}Updated {formatDate(pack.updatedAt)}
+                      </p>
+                      {pack.description && (
+                        <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-1">
+                          {pack.description}
+                        </p>
+                      )}
+                    </div>
+                    {pack.isEncrypted && (
+                      <Lock size={16} className="text-[var(--muted-foreground)]" />
+                    )}
+                    {isFetchingPack ? (
+                      <RefreshCw size={18} className="animate-spin text-[var(--muted-foreground)]" />
+                    ) : isExpanded ? (
+                      <ChevronDown size={18} className="text-[var(--muted-foreground)]" />
+                    ) : (
+                      <ChevronRight size={18} className="text-[var(--muted-foreground)]" />
+                    )}
+                  </button>
+
+                  {/* Expanded content */}
+                  {isExpanded && (
+                    <div className="border-t border-[var(--border)]">
+                      {/* Password prompt for encrypted packs */}
+                      {needsPassword && (
+                        <div className="p-4 bg-[var(--accent)]/30">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Lock size={16} className="text-[var(--muted-foreground)]" />
+                            <span className="text-sm text-[var(--foreground)]">
+                              This pack is encrypted
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <input
+                              type="password"
+                              value={passwordInputs[pack.id] || ''}
+                              onChange={(e) =>
+                                setPasswordInputs((prev) => ({
+                                  ...prev,
+                                  [pack.id]: e.target.value,
+                                }))
+                              }
+                              onKeyDown={(e) => e.key === 'Enter' && handleUserPackDecrypt(pack)}
+                              placeholder="Enter password"
+                              className="flex-1 px-3 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]"
+                            />
+                            <button
+                              onClick={() => handleUserPackDecrypt(pack)}
+                              disabled={!passwordInputs[pack.id]}
+                              className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                            >
+                              <Unlock size={16} />
+                              Unlock
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Prompts list */}
+                      {loaded && loaded.prompts.length > 0 && (
+                        <div className="divide-y divide-[var(--border)]">
+                          {loaded.prompts.map((prompt, index) => (
+                            <div key={index} className="p-4 hover:bg-[var(--accent)]/30 transition-colors">
+                              {prompt.header && (
+                                <p className="text-xs font-medium text-[var(--primary)] mb-1">
+                                  {prompt.header}
+                                </p>
+                              )}
+                              <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap line-clamp-3">
+                                {prompt.text}
+                              </p>
+                              <div className="flex items-center justify-between mt-2">
+                                <span className="text-xs text-[var(--muted-foreground)]">
+                                  {formatDate(prompt.createdAt)}
+                                </span>
+                                <button
+                                  onClick={() => handleCopy(prompt.text, `${pack.id}-${index}`)}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                >
+                                  {copiedId === `${pack.id}-${index}` ? (
+                                    <>
+                                      <Check size={14} className="text-green-500" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={14} />
+                                      Copy
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Loading state */}
+                      {isFetchingPack && (
+                        <div className="p-8 text-center">
+                          <RefreshCw size={24} className="animate-spin mx-auto text-[var(--muted-foreground)]" />
+                          <p className="text-sm text-[var(--muted-foreground)] mt-2">
+                            Loading prompts...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
       {/* Summary */}
-      {cloudPacks.length > 0 && (
+      {(cloudPacks.length > 0 || userPacks.length > 0) && (
         <div className="mt-6 text-center">
           <p className="text-sm text-[var(--muted-foreground)]">
-            {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0)} total prompts across{' '}
-            {cloudPacks.length} pack{cloudPacks.length !== 1 ? 's' : ''}
+            {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0) + userPacks.reduce((sum, p) => sum + p.promptCount, 0)} total prompts across{' '}
+            {cloudPacks.length + userPacks.length} pack{(cloudPacks.length + userPacks.length) !== 1 ? 's' : ''}
           </p>
         </div>
       )}

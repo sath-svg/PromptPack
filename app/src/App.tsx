@@ -7,6 +7,8 @@ import { SettingsPage } from './components/Settings';
 import { DraftPage } from './components/Draft';
 import { CloudPromptsPage } from './components/CloudPrompts';
 import { usePromptStore } from './stores/promptStore';
+import { useAuthStore } from './stores/authStore';
+import { useSyncStore } from './stores/syncStore';
 import type { Prompt } from './types';
 
 // Demo data for testing
@@ -60,6 +62,8 @@ const DEMO_PROMPTS: Prompt[] = [
 function App() {
   const [currentPage, setCurrentPage] = useState('library');
   const { setPrompts, prompts } = usePromptStore();
+  const { session } = useAuthStore();
+  const { fetchAllPacks, cloudPacks, userPacks } = useSyncStore();
 
   // Load demo data on first render
   useEffect(() => {
@@ -67,6 +71,13 @@ function App() {
       setPrompts(DEMO_PROMPTS);
     }
   }, []);
+
+  // Fetch cloud and user packs when session is available
+  useEffect(() => {
+    if (session?.user_id && cloudPacks.length === 0 && userPacks.length === 0) {
+      fetchAllPacks(session.user_id);
+    }
+  }, [session?.user_id]);
 
   const renderPage = () => {
     switch (currentPage) {

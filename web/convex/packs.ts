@@ -41,6 +41,28 @@ export const listByAuthor = query({
   },
 });
 
+// Get packs created by a user (by clerkId for desktop/extension)
+export const listByClerkId = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    // First find the user by clerkId
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      return [];
+    }
+
+    // Then get all their packs
+    return await ctx.db
+      .query("userPacks")
+      .withIndex("by_author", (q) => q.eq("authorId", user._id))
+      .collect();
+  },
+});
+
 // Create a new user pack (file must be uploaded to R2 first)
 export const create = mutation({
   args: {
