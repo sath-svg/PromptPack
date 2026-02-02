@@ -104,8 +104,15 @@ export default function DesktopAuthPage() {
   const handleSwitchAccount = async () => {
     setProcessing(true);
     setSwitchingAccount(true);
-    await signOut();
-    setProcessing(false);
+    try {
+      await signOut();
+      // After sign out, reset processing so the SignIn form shows
+      setProcessing(false);
+    } catch (err) {
+      console.error("Sign out error:", err);
+      setProcessing(false);
+      setSwitchingAccount(false);
+    }
   };
 
   if (error) {
@@ -207,7 +214,8 @@ export default function DesktopAuthPage() {
   }
 
   // If not signed in, show the Clerk sign-in component
-  if (isLoaded && !isSignedIn) {
+  // This takes priority even when switchingAccount is true (user clicked "different account")
+  if (isLoaded && !isSignedIn && !processing) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
         {/* Logo/Icon */}
@@ -220,10 +228,10 @@ export default function DesktopAuthPage() {
         </div>
 
         <h1 className="text-xl font-semibold text-foreground mb-2">
-          Sign in to PromptPack
+          {switchingAccount ? "Switch Account" : "Sign in to PromptPack"}
         </h1>
         <p className="text-muted-foreground text-sm mb-8">
-          Connect your desktop app to sync prompts
+          {switchingAccount ? "Sign in with a different account" : "Connect your desktop app to sync prompts"}
         </p>
         <SignIn
           routing="hash"
