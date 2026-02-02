@@ -9,8 +9,8 @@ import { useAuth, useUser, SignIn } from "@clerk/nextjs";
  * Flow:
  * 1. Desktop app opens this page in a popup WebView window
  * 2. User signs in via Clerk
- * 3. This page redirects to /desktop-callback?token=xxx
- * 4. The Tauri app intercepts the navigation, extracts the token, and closes the popup
+ * 3. This page redirects to /desktop-callback?token=xxx&name=xxx&email=xxx&image=xxx
+ * 4. The Tauri app intercepts the navigation, extracts the data, and closes the popup
  */
 export default function DesktopAuthPage() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
@@ -33,10 +33,19 @@ export default function DesktopAuthPage() {
           return;
         }
 
-        // Redirect to callback URL with token
+        // Build user info
+        const name = user.fullName || user.firstName || user.username || "";
+        const email = user.primaryEmailAddress?.emailAddress || "";
+        const image = user.imageUrl || "";
+
+        // Redirect to callback URL with token and user info
         // The Tauri app will intercept this navigation
         const callbackUrl = new URL("/desktop-callback", window.location.origin);
         callbackUrl.searchParams.set("token", token);
+        callbackUrl.searchParams.set("name", name);
+        callbackUrl.searchParams.set("email", email);
+        callbackUrl.searchParams.set("image", image);
+        callbackUrl.searchParams.set("user_id", user.id);
 
         window.location.href = callbackUrl.toString();
       } catch (err) {
