@@ -1,10 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PromptSource } from '../types';
-
-// API endpoints
-const CONVEX_URL = 'https://accurate-cardinal-55.convex.site';
-const WORKERS_API_URL = 'https://api.pmtpk.com';
+import { CONVEX_URL, WORKERS_API_URL } from '../lib/constants';
 
 // Cloud saved pack from Convex
 export interface CloudPack {

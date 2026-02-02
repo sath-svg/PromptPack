@@ -397,11 +397,18 @@ http.route({
 
 // CORS headers for extension and desktop app requests
 function corsHeaders(origin: string | null): HeadersInit {
-  // Allow chrome-extension://, tauri://, and localhost for dev
+  // Allow browser extensions (Chrome, Firefox, Safari), Tauri desktop app, and localhost for dev
+  // Chrome extension: chrome-extension://
+  // Firefox extension: moz-extension://
+  // Safari extension: safari-web-extension:// (macOS 11+)
+  // Tauri desktop app: tauri://, http://tauri.localhost, https://tauri.localhost
   const allowedOrigin =
     origin?.startsWith("chrome-extension://") ||
-    origin?.startsWith("tauri://") ||
     origin?.startsWith("moz-extension://") ||
+    origin?.startsWith("safari-web-extension://") ||
+    origin?.startsWith("tauri://") ||
+    origin?.startsWith("http://tauri.localhost") ||
+    origin?.startsWith("https://tauri.localhost") ||
     origin?.includes("localhost");
 
   if (allowedOrigin) {

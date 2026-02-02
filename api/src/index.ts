@@ -114,8 +114,18 @@ function parseAllowedOrigins(env: Env): {
 function isOriginAllowed(origin: string, env: Env): boolean {
   if (!origin || origin === "null") return false;
 
-  // Allow Tauri desktop app origins
-  if (origin.startsWith("tauri://") || origin.startsWith("http://tauri.localhost") || origin.startsWith("https://tauri.localhost")) {
+  // Allow browser extensions and Tauri desktop app origins
+  // Chrome extension: chrome-extension://
+  // Firefox extension: moz-extension://
+  // Safari extension: safari-web-extension:// (macOS 11+)
+  // Tauri desktop app: tauri://, http://tauri.localhost, https://tauri.localhost
+  if (
+    origin.startsWith("tauri://") ||
+    origin.startsWith("http://tauri.localhost") ||
+    origin.startsWith("https://tauri.localhost") ||
+    origin.startsWith("moz-extension://") ||
+    origin.startsWith("safari-web-extension://")
+  ) {
     return true;
   }
 
