@@ -78,7 +78,7 @@ export function FreeCard() {
         }}
       >
         <li>✓ 10 saved prompts</li>
-        <li>✓ <span className="faq-highlight">6</span> loaded <span className="gradient-text">PromptPacks</span></li>
+        <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
         <li>✓ 10 prompt enhances per day</li>
         <li>✓ 50 AI headers per day</li>
         <li>✓ Chrome, Firefox &amp; Safari extension</li>
