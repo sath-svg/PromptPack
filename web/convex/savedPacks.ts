@@ -176,3 +176,30 @@ export const setHeader = mutation({
     });
   },
 });
+
+// Update saved pack metadata (after R2 file update)
+export const update = mutation({
+  args: {
+    id: v.id("savedPacks"),
+    promptCount: v.optional(v.number()),
+    fileSize: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, promptCount, fileSize }) => {
+    const pack = await ctx.db.get(id);
+    if (!pack) throw new Error("Pack not found");
+
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (promptCount !== undefined) updates.promptCount = promptCount;
+    if (fileSize !== undefined) updates.fileSize = fileSize;
+
+    await ctx.db.patch(id, updates);
+  },
+});
+
+// Get saved pack by ID
+export const get = query({
+  args: { id: v.id("savedPacks") },
+  handler: async (ctx, { id }) => {
+    return await ctx.db.get(id);
+  },
+});
