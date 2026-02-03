@@ -890,14 +890,17 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
 
       <div className="saved-packs-list">
         {savedPacks.map((pack) => (
-          <button
+          <div
             key={pack._id}
             className={`saved-pack-item saved-pack-button${loadingPackId === pack._id ? " pack-loading" : ""}`}
-            onClick={() => handlePackClick(pack)}
-            disabled={loadingPackId !== null}
+            style={{ position: "relative" }}
           >
             {loadingPackId === pack._id ? (
-              <>
+              <button
+                className="saved-pack-item-inner"
+                onClick={() => handlePackClick(pack)}
+                disabled={loadingPackId !== null}
+              >
                 <div className="pack-title">
                   <span className="pack-spinner" />
                   <span className="pack-name">Loading...</span>
@@ -905,24 +908,30 @@ export function SavedPrompts({ userId }: SavedPromptsProps) {
                 <div className="pack-info">
                   <span className="prompt-count">{pack.promptCount} prompts</span>
                 </div>
-              </>
+              </button>
             ) : (
               <>
-                <div className="pack-title">
-                  <span className={`source-icon source-${pack.source}`}>
-                    {getSourceEmoji(pack.source)}
-                  </span>
-                  <span className="pack-name">{getSourceTitle(pack.source)}</span>
-                </div>
-                <div className="pack-info">
-                  <span className="prompt-count">{pack.promptCount} prompts</span>
-                  <span className="last-updated">
-                    {new Date(pack.updatedAt).toLocaleDateString()}
-                  </span>
-                </div>
+                <span className={`source-icon source-${pack.source}`}>
+                  {getSourceEmoji(pack.source)}
+                </span>
+                <button
+                  className="saved-pack-item-inner"
+                  onClick={() => handlePackClick(pack)}
+                  disabled={loadingPackId !== null}
+                >
+                  <div className="pack-title">
+                    <span className="pack-name">{getSourceTitle(pack.source)}</span>
+                  </div>
+                  <div className="pack-info">
+                    <span className="prompt-count">{pack.promptCount} prompts</span>
+                    <span className="last-updated">
+                      {new Date(pack.updatedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </button>
               </>
             )}
-          </button>
+          </div>
         ))}
       </div>
 
