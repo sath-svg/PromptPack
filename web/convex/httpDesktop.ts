@@ -988,7 +988,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Delete pack record from Convex
-        await ctx.runMutation(api.packs.deletePack, { id: packId as Id<"userPacks"> });
+        await ctx.runMutation(api.packs.remove, { id: packId as Id<"userPacks"> });
 
         return new Response(
           JSON.stringify({ success: true }),
@@ -1077,7 +1077,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Delete savedPack record from Convex
-        await ctx.runMutation(api.savedPacks.deletePack, { id: packId as Id<"savedPacks"> });
+        await ctx.runMutation(api.savedPacks.remove, { id: packId as Id<"savedPacks"> });
 
         return new Response(
           JSON.stringify({ success: true }),
