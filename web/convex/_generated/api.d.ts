@@ -11,6 +11,7 @@
 import type * as authStatus from "../authStatus.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
+import type * as evaluations from "../evaluations.js";
 import type * as http from "../http.js";
 import type * as httpDesktop from "../httpDesktop.js";
 import type * as httpExtension from "../httpExtension.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   authStatus: typeof authStatus;
   crons: typeof crons;
   email: typeof email;
+  evaluations: typeof evaluations;
   http: typeof http;
   httpDesktop: typeof httpDesktop;
   httpExtension: typeof httpExtension;
