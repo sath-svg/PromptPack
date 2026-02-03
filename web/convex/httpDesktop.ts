@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 
 // CORS headers for desktop and extension requests
 export function corsHeaders(origin: string | null): HeadersInit {
@@ -912,6 +913,360 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         return new Response(
           JSON.stringify({
             error: error instanceof Error ? error.message : "Failed to create pack",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
+  // Desktop: delete a userPack
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/delete-pack",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  // Desktop: delete a userPack
+  http.route({
+    path: "/api/desktop/delete-pack",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { packId } = body as { packId: string };
+
+        if (!packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing packId" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Get the pack to find the R2 key
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found" }),
+            {
+              status: 404,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Delete from R2 via Cloudflare Workers API
+        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        try {
+          const r2Response = await fetch(`${R2_API_URL}/storage/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ r2Key: pack.r2Key }),
+          });
+
+          if (!r2Response.ok) {
+            console.warn("R2 delete failed (continuing anyway):", await r2Response.text().catch(() => ""));
+          }
+        } catch (r2Error) {
+          console.warn("R2 delete error (continuing anyway):", r2Error);
+        }
+
+        // Delete pack record from Convex
+        await ctx.runMutation(api.packs.deletePack, { id: packId as Id<"userPacks"> });
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Delete pack error:", error);
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to delete pack",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
+  // Desktop: delete a savedPack
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/delete-saved-pack",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  // Desktop: delete a savedPack
+  http.route({
+    path: "/api/desktop/delete-saved-pack",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { packId } = body as { packId: string };
+
+        if (!packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing packId" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Get the savedPack to find the R2 key
+        const pack = await ctx.runQuery(api.savedPacks.get, { id: packId as Id<"savedPacks"> });
+        if (!pack) {
+          return new Response(
+            JSON.stringify({ error: "Saved pack not found" }),
+            {
+              status: 404,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Delete from R2 via Cloudflare Workers API
+        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        try {
+          const r2Response = await fetch(`${R2_API_URL}/storage/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ r2Key: pack.r2Key }),
+          });
+
+          if (!r2Response.ok) {
+            console.warn("R2 delete failed (continuing anyway):", await r2Response.text().catch(() => ""));
+          }
+        } catch (r2Error) {
+          console.warn("R2 delete error (continuing anyway):", r2Error);
+        }
+
+        // Delete savedPack record from Convex
+        await ctx.runMutation(api.savedPacks.deletePack, { id: packId as Id<"savedPacks"> });
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Delete saved pack error:", error);
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to delete saved pack",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
+  // Desktop: save prompt evaluation result
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/save-evaluation",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  // Desktop: save prompt evaluation result (called by API after Groq returns scores)
+  http.route({
+    path: "/api/desktop/save-evaluation",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, promptHash, overallScore, scores } = body as {
+          clerkId: string;
+          promptHash: string;
+          overallScore: number;
+          scores: {
+            chatgpt: number;
+            claude: number;
+            gemini: number;
+            perplexity: number;
+            grok: number;
+            deepseek: number;
+            kimi: number;
+          };
+        };
+
+        if (!clerkId || !promptHash || overallScore === undefined || !scores) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Validate scores are numbers in range 0-100
+        const allScores = [
+          overallScore,
+          scores.chatgpt,
+          scores.claude,
+          scores.gemini,
+          scores.perplexity,
+          scores.grok,
+          scores.deepseek,
+          scores.kimi,
+        ];
+        for (const score of allScores) {
+          if (typeof score !== "number" || score < 0 || score > 100) {
+            return new Response(
+              JSON.stringify({ error: "Invalid score value" }),
+              {
+                status: 400,
+                headers: { ...headers, "Content-Type": "application/json" },
+              }
+            );
+          }
+        }
+
+        // Save evaluation to Convex
+        const evaluationId = await ctx.runMutation(api.evaluations.upsert, {
+          userId: clerkId,
+          promptHash,
+          overallScore,
+          scores,
+          version: "1.0",
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            id: evaluationId,
+          }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Save evaluation error:", error);
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to save evaluation",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
+  // Desktop: get evaluations by prompt hashes
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/get-evaluations",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  // Desktop: get evaluations for multiple prompt hashes
+  http.route({
+    path: "/api/desktop/get-evaluations",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, promptHashes } = body as {
+          clerkId: string;
+          promptHashes: string[];
+        };
+
+        if (!clerkId || !promptHashes || !Array.isArray(promptHashes)) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        // Get evaluations from Convex
+        const evaluations = await ctx.runQuery(api.evaluations.listByUserHashes, {
+          userId: clerkId,
+          promptHashes,
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            evaluations,
+          }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Get evaluations error:", error);
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to get evaluations",
           }),
           {
             status: 500,

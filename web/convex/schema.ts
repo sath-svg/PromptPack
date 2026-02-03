@@ -76,6 +76,26 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_source", ["userId", "source"]),
 
+  // Prompt evaluation scores (Pro/Studio only feature)
+  promptEvaluations: defineTable({
+    userId: v.string(), // Clerk ID of the user
+    promptHash: v.string(), // SHA-256 hash of prompt text
+    overallScore: v.number(), // 0-100 average of all LLM scores
+    scores: v.object({
+      chatgpt: v.number(),
+      claude: v.number(),
+      gemini: v.number(),
+      perplexity: v.number(),
+      grok: v.number(),
+      deepseek: v.number(),
+      kimi: v.number(),
+    }),
+    evaluatedAt: v.number(),
+    version: v.string(), // Evaluation algorithm version (e.g., "1.0")
+  })
+    .index("by_user_hash", ["userId", "promptHash"])
+    .index("by_hash", ["promptHash"]),
+
   // Refresh tokens for extension authentication
   refreshTokens: defineTable({
     clerkId: v.string(),                    // User's Clerk ID

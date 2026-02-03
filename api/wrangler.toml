@@ -12,7 +12,7 @@ routes = [
 
 [vars]
 ENVIRONMENT = "production"
-CONVEX_URL = "https://determined-lark-313.convex.cloud"
+CONVEX_URL = "https://determined-lark-313.convex.site"
 ALLOWED_ORIGINS = "https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
 OLLAMA_URL = "https://ollama.pmtpk.com"
 CLERK_ISSUER = "https://clerk.pmtpk.com"

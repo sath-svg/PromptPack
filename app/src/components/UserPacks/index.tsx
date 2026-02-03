@@ -1,7 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, Sparkles, X, Save, Plus, ChevronLeft } from 'lucide-react';
-import { useSyncStore, type UserPack } from '../../stores/syncStore';
+import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, Sparkles, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2 } from 'lucide-react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { useSyncStore, encodePmtpk, encryptPmtpk, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { usePromptStore } from '../../stores/promptStore';
+import { useEvaluationStore } from '../../stores/evaluationStore';
+import { usePromptLimits } from '../../hooks/usePromptLimits';
+import { PASSWORD_MAX_LENGTH, isValidPassword } from '../../lib/constants';
+import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
+import { TemplateInputDialog } from '../TemplateInputDialog';
+import { ScoreBadge } from '../ScoreBadge';
+import { EvaluationModal } from '../EvaluationModal';
+import type { PromptEvaluation } from '../../types';
 
 // Common emojis for pack icons
 const EMOJI_OPTIONS = [
@@ -12,6 +23,7 @@ const EMOJI_OPTIONS = [
 
 export function UserPacksPage() {
   const { session } = useAuthStore();
+  const { searchQuery } = usePromptStore();
   const {
     userPacks,
     loadedUserPacks,
@@ -30,6 +42,8 @@ export function UserPacksPage() {
     generateMissingUserPackHeaders,
     addUserPackPrompt,
     updateUserPackIcon,
+    deleteUserPackPrompt,
+    deleteUserPack,
     setSelectedPackId,
     clearError,
   } = useSyncStore();
@@ -52,6 +66,30 @@ export function UserPacksPage() {
   const [addingPrompt, setAddingPrompt] = useState<string | null>(null);
   const [newPromptText, setNewPromptText] = useState('');
   const [newPromptHeader, setNewPromptHeader] = useState('');
+
+  // Export state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportPassword, setExportPassword] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Delete confirmation state
+  const [deletingPromptIndex, setDeletingPromptIndex] = useState<number | null>(null);
+  const [deletingPackId, setDeletingPackId] = useState<string | null>(null);
+
+  // Template dialog state
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateVariables, setTemplateVariables] = useState<string[]>([]);
+  const [pendingCopyText, setPendingCopyText] = useState('');
+  const [pendingCopyId, setPendingCopyId] = useState('');
+
+  // Evaluation state
+  const { evaluatePrompt, getEvaluation, getPromptHash, loadingHash, loadEvaluations } = useEvaluationStore();
+  const [promptHashes, setPromptHashes] = useState<Record<string, string>>({});
+  const [showEvaluationModal, setShowEvaluationModal] = useState<{ evaluation: PromptEvaluation; header?: string } | null>(null);
+
+  // Check if user is Pro/Studio (needed for evaluation feature)
+  const isProOrStudio = session?.tier === 'pro' || session?.tier === 'studio';
 
   // Auto-sync when user signs in
   useEffect(() => {
@@ -93,6 +131,32 @@ export function UserPacksPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Calculate prompt hashes when pack is loaded
+  useEffect(() => {
+    if (selectedPack) {
+      const loaded = loadedUserPacks[selectedPack.id];
+      if (loaded?.prompts) {
+        const calculateHashes = async () => {
+          const hashes: Record<string, string> = {};
+          for (let i = 0; i < loaded.prompts.length; i++) {
+            const key = `${selectedPack.id}-${i}`;
+            hashes[key] = await getPromptHash(loaded.prompts[i].text);
+          }
+          setPromptHashes(prev => ({ ...prev, ...hashes }));
+
+          // Load existing evaluations from Convex for Pro/Studio users
+          if (session?.user_id && isProOrStudio) {
+            const hashValues = Object.values(hashes);
+            if (hashValues.length > 0) {
+              loadEvaluations(session.user_id, hashValues);
+            }
+          }
+        };
+        calculateHashes();
+      }
+    }
+  }, [selectedPack?.id, loadedUserPacks, getPromptHash, session?.user_id, isProOrStudio, loadEvaluations]);
 
   const handleIconSelect = async (packId: string, icon: string) => {
     await updateUserPackIcon(packId, icon);
@@ -137,8 +201,27 @@ export function UserPacksPage() {
   };
 
   const handleCopy = async (text: string, promptId: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(promptId);
+    const variables = parseTemplateVariables(text);
+
+    if (variables.length > 0) {
+      // Has template variables - show dialog
+      setTemplateVariables(variables);
+      setPendingCopyText(text);
+      setPendingCopyId(promptId);
+      setShowTemplateDialog(true);
+    } else {
+      // No variables - copy directly
+      await navigator.clipboard.writeText(text);
+      setCopiedId(promptId);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  const handleTemplateSubmit = async (values: Record<string, string>) => {
+    const resolvedText = replaceTemplateVariables(pendingCopyText, values);
+    await navigator.clipboard.writeText(resolvedText);
+    setShowTemplateDialog(false);
+    setCopiedId(pendingCopyId);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -162,6 +245,22 @@ export function UserPacksPage() {
     if (success) {
       setEditingPrompt(null);
       setPromptDraft('');
+    }
+  };
+
+  // Delete handlers
+  const handleDeletePrompt = async (packId: string, index: number) => {
+    const success = await deleteUserPackPrompt(packId, index);
+    if (success) {
+      setDeletingPromptIndex(null);
+    }
+  };
+
+  const handleDeletePack = async (packId: string) => {
+    const success = await deleteUserPack(packId);
+    if (success) {
+      setDeletingPackId(null);
+      setSelectedPack(null);
     }
   };
 
@@ -191,6 +290,12 @@ export function UserPacksPage() {
     await generateUserPackHeader(packId, index, promptText);
   };
 
+  // Evaluate prompt handler
+  const handleEvaluate = async (promptText: string, promptKey: string) => {
+    if (!session?.session_token) return;
+    await evaluatePrompt(promptText, session.session_token);
+  };
+
   // Add prompt handlers
   const startAddPrompt = (packId: string) => {
     setAddingPrompt(packId);
@@ -215,6 +320,64 @@ export function UserPacksPage() {
       setAddingPrompt(null);
       setNewPromptText('');
       setNewPromptHeader('');
+    }
+  };
+
+  // Export handlers
+  const openExportModal = () => {
+    setExportPassword('');
+    setExportError(null);
+    setShowExportModal(true);
+  };
+
+  const closeExportModal = () => {
+    setShowExportModal(false);
+    setExportPassword('');
+    setExportError(null);
+  };
+
+  const handleExport = async () => {
+    if (!selectedPack) return;
+    const loaded = loadedUserPacks[selectedPack.id];
+    if (!loaded || loaded.prompts.length === 0) {
+      setExportError('No prompts to export');
+      return;
+    }
+
+    // Validate password if provided
+    if (exportPassword && !isValidPassword(exportPassword)) {
+      setExportError(`Password must be ${PASSWORD_MAX_LENGTH} characters or less`);
+      return;
+    }
+
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      // Generate the .pmtpk file data
+      let fileData: Uint8Array;
+      if (exportPassword) {
+        fileData = await encryptPmtpk(loaded.prompts, selectedPack.title, exportPassword);
+      } else {
+        fileData = await encodePmtpk(loaded.prompts, selectedPack.title);
+      }
+
+      // Open native save dialog
+      const filePath = await save({
+        defaultPath: `${selectedPack.title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
+        filters: [{ name: 'PromptPack', extensions: ['pmtpk'] }],
+      });
+
+      if (filePath) {
+        // Write the file
+        await writeFile(filePath, fileData);
+        closeExportModal();
+      }
+    } catch (err) {
+      console.error('Export failed:', err);
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -245,9 +408,27 @@ export function UserPacksPage() {
     );
   }
 
+  // Filter prompts based on search query
+  const getFilteredPrompts = (packId: string) => {
+    const loaded = loadedUserPacks[packId];
+    if (!loaded) return [];
+    if (!searchQuery) return loaded.prompts;
+
+    const query = searchQuery.toLowerCase();
+    return loaded.prompts.filter((prompt) => {
+      const matchesText = prompt.text.toLowerCase().includes(query);
+      const matchesHeader = prompt.header?.toLowerCase().includes(query);
+      return matchesText || matchesHeader;
+    });
+  };
+
+  // Prompt limits
+  const promptLimits = usePromptLimits();
+
   // Detail view for a selected pack
   if (selectedPack) {
     const loaded = loadedUserPacks[selectedPack.id];
+    const filteredPrompts = getFilteredPrompts(selectedPack.id);
     const isFetchingPack = isFetching[selectedPack.id];
     const isSavingPack = isSaving[selectedPack.id];
     const needsPassword = loaded?.isEncrypted && loaded.prompts.length === 0;
@@ -277,7 +458,7 @@ export function UserPacksPage() {
               {editingIcon === selectedPack.id && (
                 <div
                   className="absolute top-full left-0 mt-2 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg z-50"
-                  style={{ width: '320px', padding: '14px' }}
+                  style={{ width: '295px', padding: '12px' }}
                 >
                   <p className="text-xs text-[var(--muted-foreground)] mb-2">Choose an icon</p>
                   <div
@@ -314,7 +495,48 @@ export function UserPacksPage() {
                 <p className="text-sm text-[var(--muted-foreground)] mt-1">{selectedPack.description}</p>
               )}
             </div>
-            {selectedPack.isEncrypted && <Lock size={20} className="text-[var(--muted-foreground)]" />}
+            <div className="flex items-center gap-2">
+              {selectedPack.isEncrypted && <Lock size={20} className="text-[var(--muted-foreground)]" />}
+              <button
+                onClick={openExportModal}
+                disabled={!loadedUserPacks[selectedPack.id] || loadedUserPacks[selectedPack.id].prompts.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] bg-[var(--accent)] hover:bg-[var(--accent)]/80 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Export pack"
+              >
+                <Download size={16} />
+                Export
+              </button>
+              {deletingPackId === selectedPack.id ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleDeletePack(selectedPack.id)}
+                    disabled={isSavingPack}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {isSavingPack ? (
+                      <RefreshCw size={16} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={16} />
+                    )}
+                    {isSavingPack ? 'Deleting...' : 'Confirm Delete'}
+                  </button>
+                  <button
+                    onClick={() => setDeletingPackId(null)}
+                    className="px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDeletingPackId(selectedPack.id)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-red-500 bg-[var(--accent)] hover:bg-red-500/10 rounded-lg transition-colors"
+                  title="Delete pack"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Sync notice */}
@@ -380,10 +602,21 @@ export function UserPacksPage() {
           </div>
         )}
 
+        {/* No search results */}
+        {loaded && loaded.prompts.length > 0 && filteredPrompts.length === 0 && searchQuery && (
+          <div className="text-center py-12 bg-[var(--card)] rounded-xl border border-[var(--border)]">
+            <p className="text-[var(--muted-foreground)]">
+              No prompts match "{searchQuery}"
+            </p>
+          </div>
+        )}
+
         {/* Prompts card grid */}
-        {loaded && loaded.prompts.length > 0 && (
+        {loaded && filteredPrompts.length > 0 && (
           <div className="grid grid-cols-2 gap-4">
-            {loaded.prompts.map((prompt, index) => {
+            {filteredPrompts.map((prompt) => {
+              // Find the original index in the loaded prompts array for editing
+              const index = loaded.prompts.findIndex(p => p === prompt);
               const isEditingThisPrompt = editingPrompt?.packId === selectedPack.id && editingPrompt?.index === index;
               const isEditingThisHeader = editingHeader?.packId === selectedPack.id && editingHeader?.index === index;
               const isGenerating = isGeneratingHeader(selectedPack.id, index);
@@ -426,9 +659,35 @@ export function UserPacksPage() {
                         >
                           <Pencil size={12} />
                         </button>
+                        {/* Score badge */}
+                        {(() => {
+                          const promptKey = `${selectedPack.id}-${index}`;
+                          const hash = promptHashes[promptKey];
+                          const evaluation = hash ? getEvaluation(hash) : undefined;
+                          return evaluation ? (
+                            <ScoreBadge
+                              score={evaluation.overallScore}
+                              size="sm"
+                              onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
+                            />
+                          ) : null;
+                        })()}
                       </>
                     ) : (
                       <div className="flex items-center gap-2">
+                        {/* Score badge for prompts without header */}
+                        {(() => {
+                          const promptKey = `${selectedPack.id}-${index}`;
+                          const hash = promptHashes[promptKey];
+                          const evaluation = hash ? getEvaluation(hash) : undefined;
+                          return evaluation ? (
+                            <ScoreBadge
+                              score={evaluation.overallScore}
+                              size="sm"
+                              onClick={() => setShowEvaluationModal({ evaluation, header: undefined })}
+                            />
+                          ) : null;
+                        })()}
                         <button
                           onClick={() => handleGenerateHeader(selectedPack.id, index, prompt.text)}
                           disabled={isGenerating}
@@ -491,6 +750,50 @@ export function UserPacksPage() {
                         >
                           <Pencil size={14} />
                         </button>
+                        {/* Evaluate button or Score badge */}
+                        {(() => {
+                          const promptKey = `${selectedPack.id}-${index}`;
+                          const hash = promptHashes[promptKey];
+                          const evaluation = hash ? getEvaluation(hash) : undefined;
+                          const isLoading = hash === loadingHash;
+
+                          // Show score badge if already evaluated
+                          if (evaluation) {
+                            return (
+                              <ScoreBadge
+                                score={evaluation.overallScore}
+                                size="sm"
+                                onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
+                              />
+                            );
+                          }
+
+                          // Show disabled button for free users
+                          if (!isProOrStudio) {
+                            return (
+                              <button
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] opacity-50 cursor-not-allowed"
+                                title="Upgrade to Pro to evaluate prompts"
+                                disabled
+                              >
+                                <Sparkles size={14} />
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <button
+                              onClick={() => hash && handleEvaluate(prompt.text, promptKey)}
+                              disabled={isLoading || !hash}
+                              className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${
+                                isLoading ? 'text-[var(--primary)]' : 'text-[var(--muted-foreground)] hover:text-[var(--primary)]'
+                              }`}
+                              title={isLoading ? 'Evaluating...' : 'Evaluate prompt quality'}
+                            >
+                              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                            </button>
+                          );
+                        })()}
                         <button
                           onClick={() => handleCopy(prompt.text, `${selectedPack.id}-${index}`)}
                           className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
@@ -507,6 +810,31 @@ export function UserPacksPage() {
                             </>
                           )}
                         </button>
+                        {deletingPromptIndex === index ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleDeletePrompt(selectedPack.id, index)}
+                              disabled={isSaving[selectedPack.id]}
+                              className="px-2 py-1 text-xs text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                            >
+                              {isSaving[selectedPack.id] ? 'Deleting...' : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => setDeletingPromptIndex(null)}
+                              className="px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeletingPromptIndex(index)}
+                            className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-red-500 transition-colors"
+                            title="Delete prompt"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -561,15 +889,120 @@ export function UserPacksPage() {
 
             {/* Add Prompt Button */}
             {!addingPrompt && (
-              <button
-                onClick={() => startAddPrompt(selectedPack.id)}
-                className="w-full flex items-center justify-center gap-2 p-4 text-sm text-[var(--primary)] border-2 border-dashed border-[var(--border)] rounded-xl hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/5 transition-colors"
-              >
-                <Plus size={18} />
-                Add Prompt
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => startAddPrompt(selectedPack.id)}
+                  disabled={promptLimits.isAtLimit}
+                  className={`w-full flex items-center justify-center gap-2 p-4 text-sm border-2 border-dashed rounded-xl transition-colors ${
+                    promptLimits.isAtLimit
+                      ? 'text-[var(--muted-foreground)] border-[var(--border)] opacity-50 cursor-not-allowed'
+                      : 'text-[var(--primary)] border-[var(--border)] hover:border-[var(--primary)]/50 hover:bg-[var(--primary)]/5'
+                  }`}
+                >
+                  <Plus size={18} />
+                  {promptLimits.isAtLimit ? 'Prompt Limit Reached' : 'Add Prompt'}
+                </button>
+                <p className="text-xs text-center text-[var(--muted-foreground)]">
+                  {promptLimits.currentPromptCount} / {promptLimits.maxPrompts} prompts used ({promptLimits.tier} plan)
+                </p>
+              </div>
             )}
           </div>
+        )}
+
+        {/* Template Input Dialog */}
+        {showTemplateDialog && (
+          <TemplateInputDialog
+            variables={templateVariables}
+            onSubmit={handleTemplateSubmit}
+            onClose={() => setShowTemplateDialog(false)}
+          />
+        )}
+
+        {/* Export Modal */}
+        {showExportModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">Export Pack</h3>
+                <button
+                  onClick={closeExportModal}
+                  className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-sm text-[var(--muted-foreground)] mb-4">
+                Export "{selectedPack.title}" as a .pmtpk file. You can optionally add a password to encrypt the file.
+              </p>
+
+              {exportError && (
+                <div className="flex items-center gap-2 p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                  <AlertCircle size={16} className="text-red-400" />
+                  <p className="text-sm text-red-400">{exportError}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                    Password (optional)
+                  </label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                    <input
+                      type="password"
+                      value={exportPassword}
+                      onChange={(e) => setExportPassword(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleExport()}
+                      placeholder="Leave empty for no encryption"
+                      maxLength={PASSWORD_MAX_LENGTH}
+                      className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]"
+                    />
+                  </div>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-1">
+                    Max {PASSWORD_MAX_LENGTH} characters. The recipient will need this password to open the file.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeExportModal}
+                    className="flex-1 px-4 py-2 text-sm text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--accent)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    disabled={isExporting}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw size={16} className="animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={16} />
+                        Export
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Evaluation Modal */}
+        {showEvaluationModal && (
+          <EvaluationModal
+            evaluation={showEvaluationModal.evaluation}
+            promptHeader={showEvaluationModal.header}
+            onClose={() => setShowEvaluationModal(null)}
+          />
         )}
       </div>
     );
@@ -716,6 +1149,15 @@ export function UserPacksPage() {
             {userPacks.reduce((sum, p) => sum + p.promptCount, 0)} total prompts across {userPacks.length} pack{userPacks.length !== 1 ? 's' : ''}
           </p>
         </div>
+      )}
+
+      {/* Template Input Dialog */}
+      {showTemplateDialog && (
+        <TemplateInputDialog
+          variables={templateVariables}
+          onSubmit={handleTemplateSubmit}
+          onClose={() => setShowTemplateDialog(false)}
+        />
       )}
     </div>
   );

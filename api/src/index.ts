@@ -67,6 +67,28 @@ const CLASSIFY_MINUTE_LIMIT = 10;        // 10 requests/minute
 const CLASSIFY_10MIN_LIMIT = 50;         // 50 requests/10 minutes
 const CLASSIFY_IN_FLIGHT_TTL_SECONDS = 30; // 1 concurrent request per user
 
+// === EVALUATION ENDPOINT CONSTANTS ===
+// Rate limits for /api/evaluate endpoint (Pro/Studio only)
+const EVAL_PRO_DAY_LIMIT = 100;          // Pro: 100/day
+const EVAL_STUDIO_DAY_LIMIT = 500;       // Studio: 500/day
+const EVAL_MINUTE_LIMIT = 5;             // 5 requests/minute
+const EVAL_10MIN_LIMIT = 20;             // 20 requests/10 minutes
+const EVAL_IN_FLIGHT_TTL_SECONDS = 60;   // 1 concurrent request per user
+const EVAL_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day cache
+const EVAL_MAX_INPUT_CHARS = 6000;       // Same as enhance
+const EVAL_MODEL = "llama-3.3-70b-versatile"; // Use pro model for quality
+
+// LLM characteristics for evaluation criteria
+const LLM_CHARACTERISTICS: Record<string, string> = {
+  chatgpt: "General-purpose assistant, strong at explanations, creative writing, conversation, and code",
+  claude: "Strong reasoning, nuanced analysis, safety-conscious, excellent for long-form content",
+  gemini: "Multimodal understanding, factual knowledge, Google ecosystem integration",
+  perplexity: "Research-focused, citation-based, real-time information retrieval",
+  grok: "Real-time data awareness, direct responses, current events knowledge",
+  deepseek: "Code generation specialist, technical documentation, debugging tasks",
+  kimi: "Chinese language excellence, long context handling, document analysis",
+};
+
 type OriginRule = { suffix: string; scheme?: string };
 
 function parseAllowedOrigins(env: Env): {
@@ -502,7 +524,9 @@ async function callGroqChatCompletion(params: {
 }
 
 // Check user's billing status from Convex
-async function checkUserBillingStatus(userId: string, convexUrl: string): Promise<{ isPro: boolean }> {
+type BillingStatus = { isPro: boolean; isStudio: boolean; tier: "free" | "pro" | "studio" };
+
+async function checkUserBillingStatus(userId: string, convexUrl: string): Promise<BillingStatus> {
   try {
     const response = await fetch(`${convexUrl}/api/extension/billing-status`, {
       method: "POST",
@@ -510,12 +534,15 @@ async function checkUserBillingStatus(userId: string, convexUrl: string): Promis
       body: JSON.stringify({ clerkId: userId }),
     });
     if (!response.ok) {
-      return { isPro: false };
+      return { isPro: false, isStudio: false, tier: "free" };
     }
-    const data = await response.json() as { hasPro?: boolean };
-    return { isPro: data.hasPro === true };
+    const data = await response.json() as { hasPro?: boolean; isStudio?: boolean; tier?: string };
+    const isStudio = data.isStudio === true;
+    const isPro = data.hasPro === true || isStudio;
+    const tier = isStudio ? "studio" : isPro ? "pro" : "free";
+    return { isPro, isStudio, tier };
   } catch {
-    return { isPro: false };
+    return { isPro: false, isStudio: false, tier: "free" };
   }
 }
 
@@ -769,6 +796,285 @@ export default {
             }
           }
           const durationMs = Date.now() - start;
+        }
+      }
+
+      // POST /api/evaluate - Evaluate prompt quality across all LLMs
+      // Pro/Studio only feature
+      if (path === "/api/evaluate" && method === "POST") {
+        let inFlightKey: string | null = null;
+        let inFlightLocked = false;
+
+        try {
+          const groqApiKey = getGroqApiKey(env);
+          if (!groqApiKey) {
+            return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as { text?: string } | null;
+          const text = body?.text?.trim();
+
+          if (!text) {
+            return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          if (text.length > EVAL_MAX_INPUT_CHARS) {
+            return addCors(new Response(JSON.stringify({ error: "Prompt too long to evaluate" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Get user ID from auth token (required)
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          if (!userId) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Check billing status - must be Pro or Studio
+          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+          if (!billing.isPro) {
+            return addCors(new Response(JSON.stringify({
+              error: "Upgrade to Pro to evaluate prompts",
+              code: "TIER_REQUIRED"
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const rateKey = `user:${userId}:eval`;
+
+          // In-flight lock
+          inFlightKey = `${rateKey}:inflight`;
+          inFlightLocked = await acquireInFlightLock(inFlightKey, EVAL_IN_FLIGHT_TTL_SECONDS);
+          if (!inFlightLocked) {
+            return addCors(new Response(JSON.stringify({
+              error: "Evaluation already running. Please wait for it to finish.",
+              code: "IN_FLIGHT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Daily limit based on tier
+          const dayLimit = billing.isStudio ? EVAL_STUDIO_DAY_LIMIT : EVAL_PRO_DAY_LIMIT;
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            return addCors(new Response(JSON.stringify({
+              error: billing.isStudio
+                ? "Daily evaluation limit reached (500/day)"
+                : "Daily evaluation limit reached (100/day). Upgrade to Studio for more.",
+              code: "DAILY_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rolling window: 5 requests/minute
+          const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+          if (minuteCount > EVAL_MINUTE_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a moment.",
+              code: "MINUTE_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rolling window: 20 requests/10 minutes
+          const tenMinCount = await incrementRateCounter(`${rateKey}:10min`, 10 * 60);
+          if (tenMinCount > EVAL_10MIN_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a few minutes.",
+              code: "TEN_MIN_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Cache lookup by prompt hash
+          const promptHash = await sha256Hex(text);
+          const cacheKey = `eval:${promptHash}`;
+          const cachedResult = await getCachedJson<{
+            overallScore: number;
+            scores: Record<string, number>;
+          }>(cacheKey);
+
+          if (cachedResult?.overallScore !== undefined) {
+            return addCors(new Response(JSON.stringify({
+              overallScore: cachedResult.overallScore,
+              scores: cachedResult.scores,
+              promptHash,
+              cached: true,
+            }), {
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Build the evaluation system prompt (DeepEval G-Eval inspired)
+          const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
+
+## EVALUATION CRITERIA (based on G-Eval methodology)
+
+Score each dimension 0-100, then calculate weighted LLM scores:
+
+### Core Metrics:
+1. **Clarity** (weight: 25%) - Is the prompt unambiguous with clear intent?
+   - 90-100: Crystal clear, single interpretation possible
+   - 70-89: Clear with minor ambiguities
+   - 40-69: Some confusion about intent
+   - 0-39: Vague or contradictory
+
+2. **Specificity** (weight: 25%) - Does it provide sufficient context and constraints?
+   - 90-100: All necessary context, clear boundaries
+   - 70-89: Good context, few gaps
+   - 40-69: Missing important details
+   - 0-39: Too vague to produce quality output
+
+3. **Task Alignment** (weight: 20%) - How well does the task match each LLM's strengths?
+   - Score varies per LLM based on their capabilities
+
+4. **Response Predictability** (weight: 15%) - Can the LLM consistently produce quality output?
+   - 90-100: Highly predictable, well-structured request
+   - 70-89: Generally predictable
+   - 40-69: May produce inconsistent results
+   - 0-39: Unpredictable outputs likely
+
+5. **Completeness** (weight: 15%) - Does it include format, length, tone guidance?
+   - 90-100: Full output specification
+   - 70-89: Partial guidance
+   - 40-69: Minimal guidance
+   - 0-39: No output expectations
+
+## LLM-SPECIFIC TASK ALIGNMENT SCORING:
+
+- **ChatGPT**: ${LLM_CHARACTERISTICS.chatgpt} (+15 for matching tasks)
+- **Claude**: ${LLM_CHARACTERISTICS.claude} (+15 for matching tasks)
+- **Gemini**: ${LLM_CHARACTERISTICS.gemini} (+15 for matching tasks)
+- **Perplexity**: ${LLM_CHARACTERISTICS.perplexity} (+15 for matching tasks)
+- **Grok**: ${LLM_CHARACTERISTICS.grok} (+15 for matching tasks)
+- **DeepSeek**: ${LLM_CHARACTERISTICS.deepseek} (+15 for matching tasks)
+- **Kimi**: ${LLM_CHARACTERISTICS.kimi} (+15 for matching tasks)
+
+## OUTPUT FORMAT:
+Return ONLY valid JSON with integer scores 0-100:
+{"chatgpt":85,"claude":90,"gemini":75,"perplexity":82,"grok":70,"deepseek":68,"kimi":72}
+
+Do NOT include any explanation or markdown formatting.`;
+
+          // Call Groq API
+          const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqApiKey}`,
+            },
+            body: JSON.stringify({
+              model: EVAL_MODEL,
+              messages: [
+                { role: "system", content: evalSystemPrompt },
+                { role: "user", content: `Evaluate this prompt:\n\n${text}` },
+              ],
+              temperature: 0.15, // Low temperature for consistent scoring
+              max_tokens: 150,
+            }),
+          });
+
+          if (!groqResponse.ok) {
+            console.error("Groq evaluation error:", groqResponse.status, await groqResponse.text().catch(() => ""));
+            return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const groqData = await groqResponse.json() as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+
+          // Parse the JSON scores
+          let scores: Record<string, number>;
+          try {
+            // Try to extract JSON from the response (handle if wrapped in markdown)
+            const jsonMatch = content.match(/\{[^}]+\}/);
+            if (!jsonMatch) {
+              throw new Error("No JSON found in response");
+            }
+            scores = JSON.parse(jsonMatch[0]);
+
+            // Validate all expected LLMs are present
+            const expectedLLMs = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
+            for (const llm of expectedLLMs) {
+              if (typeof scores[llm] !== "number" || scores[llm] < 0 || scores[llm] > 100) {
+                throw new Error(`Invalid or missing score for ${llm}`);
+              }
+              scores[llm] = Math.round(scores[llm]); // Ensure integers
+            }
+          } catch (parseError) {
+            console.error("Failed to parse evaluation scores:", content, parseError);
+            return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
+              status: 502,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Calculate overall score (average of all LLM scores)
+          const overallScore = Math.round(
+            Object.values(scores).reduce((a, b) => a + b, 0) / 7
+          );
+
+          // Cache the result
+          await putCachedJson(cacheKey, { overallScore, scores }, EVAL_CACHE_TTL_SECONDS);
+
+          // Save to Convex
+          try {
+            await fetch(`${env.CONVEX_URL}/api/desktop/save-evaluation`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                clerkId: userId,
+                promptHash,
+                overallScore,
+                scores,
+              }),
+            });
+          } catch (saveError) {
+            // Log but don't fail - evaluation is still valid
+            console.error("Failed to save evaluation to Convex:", saveError);
+          }
+
+          return addCors(new Response(JSON.stringify({
+            overallScore,
+            scores,
+            promptHash,
+            cached: false,
+          }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+
+        } finally {
+          if (inFlightLocked && inFlightKey) {
+            try {
+              await releaseInFlightLock(inFlightKey);
+            } catch {
+              // Ignore lock release failures
+            }
+          }
         }
       }
 
@@ -1070,8 +1376,10 @@ export default {
         }
 
         // Security: Verify the r2Key pattern for packs
-        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk
-        if (!body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i)) {
+        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk OR users/{userId}/saved/{source}.pmtpk
+        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i);
+        const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
+        if (!isValidUserPack && !isValidSavedPack) {
           console.error("Invalid r2Key format for pack:", body.r2Key);
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack", r2Key: body.r2Key }), {
             status: 400,

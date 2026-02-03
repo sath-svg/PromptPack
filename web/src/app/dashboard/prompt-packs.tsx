@@ -27,6 +27,12 @@ import {
   TOAST_DURATION_MS,
   R2_API_URL,
 } from "../../lib/constants";
+import {
+  ScoreBadge,
+  EvaluationModal,
+  useEvaluation,
+  type PromptEvaluation,
+} from "../../components/evaluation";
 
 type PromptPacksProps = {
   userId: Id<"users">;
@@ -327,6 +333,45 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Emoji options for pack icons
   const EMOJI_OPTIONS = ["📦", "🎯", "💡", "🚀", "⚡", "🔥", "💎", "🎨", "📝", "🛠️", "🎮", "🌟", "📚", "🔮", "🧩"];
 
+  // Evaluation state
+  const {
+    evaluations,
+    loadingHash,
+    error: evalError,
+    getPromptHash,
+    getEvaluation,
+    loadEvaluations,
+    evaluatePrompt,
+  } = useEvaluation(clerkId, hasPro || isStudio);
+  const [promptHashes, setPromptHashes] = useState<Record<number, string>>({});
+  const [showEvaluationModal, setShowEvaluationModal] = useState<{
+    evaluation: PromptEvaluation;
+    header?: string;
+  } | null>(null);
+
+  // Calculate prompt hashes when selected pack changes
+  useEffect(() => {
+    if (selectedPack?.prompts) {
+      const calculateHashes = async () => {
+        const hashes: Record<number, string> = {};
+        for (let i = 0; i < selectedPack.prompts.length; i++) {
+          hashes[i] = await getPromptHash(selectedPack.prompts[i].text);
+        }
+        setPromptHashes(hashes);
+
+        // Load existing evaluations from Convex for Pro/Studio users
+        if (clerkId && (hasPro || isStudio)) {
+          const hashValues = Object.values(hashes);
+          if (hashValues.length > 0) {
+            loadEvaluations(hashValues);
+          }
+        }
+      };
+      calculateHashes();
+    }
+  }, [selectedPack?.prompts, getPromptHash, clerkId, hasPro, isStudio, loadEvaluations]);
+
+  // Handle evaluate prompt
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!isSignedIn) return null;
     try {
@@ -335,6 +380,19 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       return null;
     }
   }, [getToken, isSignedIn]);
+
+  // Handle evaluate prompt
+  const handleEvaluatePrompt = useCallback(
+    async (promptText: string, index: number) => {
+      const token = await getAuthToken();
+      if (!token) {
+        setError("Sign in required to evaluate prompts");
+        return;
+      }
+      await evaluatePrompt(promptText, token);
+    },
+    [evaluatePrompt, getAuthToken]
+  );
 
   // Generate header for a single prompt
   const generateHeader = useCallback(async (promptText: string, index: number) => {
@@ -1477,6 +1535,21 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
                                 <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
                               </svg>
                             </button>
+                            {/* Score badge for prompts with header */}
+                            {(() => {
+                              const hash = promptHashes[index];
+                              const evaluation = hash ? getEvaluation(hash) : undefined;
+                              if (evaluation) {
+                                return (
+                                  <ScoreBadge
+                                    score={evaluation.overallScore}
+                                    size="sm"
+                                    onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
+                                  />
+                                );
+                              }
+                              return null;
+                            })()}
                           </>
                         ) : (
                           <>
@@ -1561,6 +1634,56 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
                         >
                           Copy
                         </button>
+                        {/* Evaluate button or Score badge */}
+                        {(() => {
+                          const hash = promptHashes[index];
+                          const evaluation = hash ? getEvaluation(hash) : undefined;
+                          const isLoading = hash === loadingHash;
+
+                          // Show score badge if already evaluated
+                          if (evaluation) {
+                            return (
+                              <ScoreBadge
+                                score={evaluation.overallScore}
+                                size="sm"
+                                onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
+                              />
+                            );
+                          }
+
+                          // Show disabled button for free users
+                          if (!hasPro && !isStudio) {
+                            return (
+                              <button
+                                className="btn btn-icon btn-small"
+                                title="Upgrade to Pro to evaluate prompts"
+                                disabled
+                                style={{ opacity: 0.5 }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                </svg>
+                              </button>
+                            );
+                          }
+
+                          return (
+                            <button
+                              onClick={() => handleEvaluatePrompt(prompt.text, index)}
+                              disabled={isLoading || !hash}
+                              className="btn btn-icon btn-small"
+                              title={isLoading ? "Evaluating..." : "Evaluate prompt quality"}
+                            >
+                              {isLoading ? (
+                                <span className="loading-spinner" />
+                              ) : (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                </svg>
+                              )}
+                            </button>
+                          );
+                        })()}
                         <span className="prompt-date">
                           {new Date(prompt.createdAt).toLocaleDateString()}
                         </span>
@@ -1592,6 +1715,15 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
             </div>
           </div>
         </div>
+      )}
+
+      {/* Evaluation Modal */}
+      {showEvaluationModal && (
+        <EvaluationModal
+          evaluation={showEvaluationModal.evaluation}
+          promptHeader={showEvaluationModal.header}
+          onClose={() => setShowEvaluationModal(null)}
+        />
       )}
     </div>
   );
