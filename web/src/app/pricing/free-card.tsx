@@ -83,7 +83,7 @@ export function FreeCard() {
         <li>✓ 50 AI headers per day</li>
         <li>✓ Chrome, Firefox &amp; Safari extension</li>
         <li>✓ ChatGPT, Claude &amp; Gemini support</li>
-        <li>✓ Local storage</li>
+        <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
       </ul>
 
       <div style={{ marginTop: "auto" }}>
