@@ -3,7 +3,7 @@ import type { ManifestV3Export } from "@crxjs/vite-plugin";
 const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack – Save, Enhance & Organize AI Prompts",
-  version: "2.1.0",
+  version: "2.2.0",
   description: "Save, enhance, and organize AI prompts across ChatGPT, Claude, and Gemini with one click.",
 
   // Icons - Chrome Web Store requires 16x16, 48x48, and 128x128
@@ -28,7 +28,8 @@ const manifest: ManifestV3Export = {
     "https://grok.com/*",
     "https://x.com/*",
     "https://chat.deepseek.com/*",
-    "https://kimi.moonshot.cn/*",
+    "https://kimi.com/*",
+    "https://www.kimi.com/*",
     // API and web app
     "https://grok.pmtpk.com/*",
     "https://api.pmtpk.com/*",
@@ -80,7 +81,7 @@ const manifest: ManifestV3Export = {
       run_at: "document_idle",
     },
     {
-      matches: ["https://kimi.moonshot.cn/*"],
+      matches: ["https://kimi.com/", "https://kimi.com/*", "https://www.kimi.com/", "https://www.kimi.com/*"],
       js: ["content/kimi.ts"],
       run_at: "document_idle",
     },
@@ -107,7 +108,7 @@ const manifest: ManifestV3Export = {
         "https://grok.com/*",
         "https://x.com/*",
         "https://chat.deepseek.com/*",
-        "https://kimi.moonshot.cn/*",
+        "https://kimi.com/*",
         // Web app
         "https://pmtpk.com/*",
         "http://localhost:3000/*",

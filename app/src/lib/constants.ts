@@ -26,6 +26,16 @@ export const CONVEX_URL = 'https://determined-lark-313.convex.site';
 export const WORKERS_API_URL = 'https://api.pmtpk.com';
 
 /**
+ * Grok API URL for prompt enhancement
+ */
+export const GROK_API_URL = 'https://grok.pmtpk.com';
+
+/**
+ * Enhance API endpoint
+ */
+export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
+
+/**
  * Web app URL for OAuth redirects
  * - Used for: desktop auth flow, sign-in redirects
  * - DEV: http://localhost:3000 (local Next.js dev server)
@@ -81,3 +91,49 @@ export function isValidPassword(password: string): boolean {
 // SYNC CONFIGURATION
 // ============================================================================
 export const SYNC_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
+// ============================================================================
+// PACK LIMITS BY TIER
+// ============================================================================
+// Custom packs are user-created packs (not platform-saved packs like ChatGPT, Claude, etc.)
+// Free: 0 custom packs (can only save to platform packs)
+// Pro: 2 custom packs
+// Studio: 14 custom packs
+export const FREE_CUSTOM_PACK_LIMIT = 0;
+export const PRO_CUSTOM_PACK_LIMIT = 2;
+export const STUDIO_CUSTOM_PACK_LIMIT = 14;
+
+// Helper to get pack limit by tier
+export function getCustomPackLimit(tier: 'free' | 'pro' | 'studio'): number {
+  switch (tier) {
+    case 'free':
+      return FREE_CUSTOM_PACK_LIMIT;
+    case 'pro':
+      return PRO_CUSTOM_PACK_LIMIT;
+    case 'studio':
+      return STUDIO_CUSTOM_PACK_LIMIT;
+    default:
+      return FREE_CUSTOM_PACK_LIMIT;
+  }
+}
+
+// ============================================================================
+// PROMPT LIMITS BY TIER (total prompts across all packs)
+// ============================================================================
+export const FREE_PROMPT_LIMIT = 10;
+export const PRO_PROMPT_LIMIT = 40;
+export const STUDIO_PROMPT_LIMIT = 200;
+
+// Helper to get prompt limit by tier
+export function getPromptLimit(tier: 'free' | 'pro' | 'studio'): number {
+  switch (tier) {
+    case 'free':
+      return FREE_PROMPT_LIMIT;
+    case 'pro':
+      return PRO_PROMPT_LIMIT;
+    case 'studio':
+      return STUDIO_PROMPT_LIMIT;
+    default:
+      return FREE_PROMPT_LIMIT;
+  }
+}

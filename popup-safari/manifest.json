@@ -1,0 +1,244 @@
+{
+  "manifest_version": 3,
+  "name": "PromptPack – Save, Enhance & Organize AI Prompts",
+  "version": "2.2.0",
+  "description": "Save, enhance, and organize AI prompts across ChatGPT, Claude, and Gemini with one click.",
+  "icons": {
+    "16": "img/icon-16.png",
+    "48": "img/icon-48.png",
+    "128": "img/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.perplexity.ai/*",
+    "https://perplexity.ai/*",
+    "https://grok.com/*",
+    "https://x.com/*",
+    "https://chat.deepseek.com/*",
+    "https://kimi.com/*",
+    "https://www.kimi.com/*",
+    "https://grok.pmtpk.com/*",
+    "https://api.pmtpk.com/*",
+    "https://*.pmtpk.com/*"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_title": "PromptPack",
+    "default_icon": {
+      "16": "img/icon-16.png",
+      "48": "img/icon-48.png",
+      "128": "img/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "assets/chatgpt.ts-loader-CVj6qnP4.js"
+      ],
+      "matches": [
+        "https://chatgpt.com/",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/claude.ts-loader-DWkOsXlw.js"
+      ],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/gemini.ts-loader-e-MrxPY-.js"
+      ],
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/perplexity.ts-loader-BeOHa37Y.js"
+      ],
+      "matches": [
+        "https://www.perplexity.ai/*",
+        "https://perplexity.ai/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/grok.ts-loader-D_5unIyd.js"
+      ],
+      "matches": [
+        "https://grok.com/*",
+        "https://x.com/i/grok*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/deepseek.ts-loader-qhFFP5zE.js"
+      ],
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "js": [
+        "assets/kimi.ts-loader-txKFzGbJ.js"
+      ],
+      "matches": [
+        "https://kimi.com/",
+        "https://kimi.com/*",
+        "https://www.kimi.com/",
+        "https://www.kimi.com/*"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://chat.deepseek.com/*",
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://grok.com/*",
+        "https://kimi.com/*",
+        "https://perplexity.ai/*",
+        "https://pmtpk.com/*",
+        "https://www.perplexity.ai/*",
+        "https://x.com/*"
+      ],
+      "resources": [
+        "img/icon-16.png",
+        "auth-callback.html"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/chatgpt.ts-BuJvyPqt.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/claude.ts-Cj0vTBTz.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/gemini.ts-oJEvn3Yt.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://perplexity.ai/*",
+        "https://www.perplexity.ai/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/perplexity.ts-Be1pYpMU.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://grok.com/*",
+        "https://x.com/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/grok.ts-Cre5dmeF.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/deepseek.ts-DNzk2Ujf.js"
+      ],
+      "use_dynamic_url": false
+    },
+    {
+      "matches": [
+        "https://kimi.com/*",
+        "https://kimi.com/*",
+        "https://www.kimi.com/*",
+        "https://www.kimi.com/*"
+      ],
+      "resources": [
+        "assets/theme-CHys-yvq.js",
+        "assets/api-lEPXQ6QH.js",
+        "assets/templateParser-B4WoPzG9.js",
+        "assets/kimi.ts-Bgu8j6_f.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ],
+  "commands": {
+    "save-prompt": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Save current prompt to PromptPack"
+    }
+  },
+  "homepage_url": "https://pmtpk.com",
+  "author": {
+    "email": "sathvik.work@gmail.com"
+  }
+}

@@ -176,3 +176,11 @@ export const remove = mutation({
     await ctx.db.delete(id);
   },
 });
+
+// Alias for desktop HTTP API
+export const deletePack = mutation({
+  args: { id: v.id("userPacks") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id);
+  },
+});

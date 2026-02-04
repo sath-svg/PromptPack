@@ -75,6 +75,14 @@ export const remove = mutation({
   },
 });
 
+// Alias for desktop HTTP API
+export const deletePack = mutation({
+  args: { id: v.id("savedPacks") },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id);
+  },
+});
+
 // Delete saved pack by user and source
 export const removeByUserAndSource = mutation({
   args: {

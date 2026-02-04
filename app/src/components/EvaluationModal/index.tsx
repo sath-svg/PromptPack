@@ -2,7 +2,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import type { PromptEvaluation, PromptSource } from '../../types';
 import { SOURCE_META } from '../../types';
-import { ScoreBadge, getScoreColor, getScoreBgColor } from '../ScoreBadge';
+import { ScoreBadge, getScoreColor } from '../ScoreBadge';
 
 interface EvaluationModalProps {
   evaluation: PromptEvaluation;
@@ -82,7 +82,6 @@ export function EvaluationModal({ evaluation, promptHeader, onClose }: Evaluatio
             const score = evaluation.scores[llm];
             const meta = SOURCE_META[llm];
             const color = getScoreColor(score);
-            const bgColor = getScoreBgColor(score);
 
             return (
               <div key={llm} className="flex items-center gap-3">

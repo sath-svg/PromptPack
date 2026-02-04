@@ -85,23 +85,21 @@ export default function Home() {
               className="browser-badge"
             />
           </a>
-          <Link href="/downloads" className="browser-badge-link">
-            <Image
-              src={assetUrl("/img/Firefox.svg")}
-              alt="Add to Firefox - free"
-              width={200}
-              height={50}
-              className="browser-badge"
-            />
-          </Link>
-          <Link href="/downloads" className="browser-badge-link">
-            <Image
-              src={assetUrl("/img/Safari.svg")}
-              alt="Get Safari Extension"
-              width={200}
-              height={50}
-              className="browser-badge"
-            />
+          <Link href="/downloads" className="download-cta-link">
+            <div className="download-cta-badge">
+              <div className="download-cta-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              </div>
+              <div className="download-cta-text">
+                <span className="download-cta-title">Download Now</span>
+                <span className="download-cta-subtitle">Desktop App • Firefox • Safari</span>
+              </div>
+              <div className="download-cta-arrow">→</div>
+            </div>
           </Link>
         </div>
 

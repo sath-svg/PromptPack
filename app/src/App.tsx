@@ -1,76 +1,18 @@
 import { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
-import { PromptList } from './components/PromptList';
 import { ImportPage } from './components/ImportExport/ImportPage';
 import { ExportPage } from './components/ImportExport/ExportPage';
 import { SettingsPage } from './components/Settings';
 import { DraftPage } from './components/Draft';
-import { CloudPromptsPage } from './components/CloudPrompts';
-import { usePromptStore } from './stores/promptStore';
+import { SavedPacksPage } from './components/SavedPacks';
+import { UserPacksPage } from './components/UserPacks';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
-import type { Prompt } from './types';
-
-// Demo data for testing
-const DEMO_PROMPTS: Prompt[] = [
-  {
-    id: '1',
-    text: 'You are an expert software engineer. Help me write clean, maintainable code with best practices. Focus on readability and performance.',
-    header: 'Code Review',
-    source: 'chatgpt',
-    isFavorite: true,
-    useCount: 5,
-    createdAt: Date.now() - 86400000 * 2,
-    updatedAt: Date.now() - 86400000 * 2,
-    syncStatus: 'synced',
-  },
-  {
-    id: '2',
-    text: 'Explain {{concept}} to me like I am a {{level}} level programmer. Use practical examples and analogies.',
-    header: 'Explain Concept',
-    source: 'claude',
-    isFavorite: false,
-    useCount: 3,
-    createdAt: Date.now() - 86400000,
-    updatedAt: Date.now() - 86400000,
-    syncStatus: 'synced',
-  },
-  {
-    id: '3',
-    text: 'Write a comprehensive test suite for the following code. Include unit tests, edge cases, and integration tests where appropriate.',
-    header: 'Test Suite',
-    source: 'gemini',
-    isFavorite: false,
-    useCount: 2,
-    createdAt: Date.now() - 3600000,
-    updatedAt: Date.now() - 3600000,
-    syncStatus: 'local-only',
-  },
-  {
-    id: '4',
-    text: 'Search for the latest information about {{topic}} and summarize the key findings with sources.',
-    header: 'Research Topic',
-    source: 'perplexity',
-    isFavorite: true,
-    useCount: 8,
-    createdAt: Date.now() - 86400000 * 5,
-    updatedAt: Date.now() - 86400000 * 3,
-    syncStatus: 'synced',
-  },
-];
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('library');
-  const { setPrompts, prompts } = usePromptStore();
-  const { session } = useAuthStore();
+  const [currentPage, setCurrentPage] = useState('draft');
+  const { session, refreshTier } = useAuthStore();
   const { fetchAllPacks, cloudPacks, userPacks } = useSyncStore();
-
-  // Load demo data on first render
-  useEffect(() => {
-    if (prompts.length === 0) {
-      setPrompts(DEMO_PROMPTS);
-    }
-  }, []);
 
   // Fetch cloud and user packs when session is available
   useEffect(() => {
@@ -79,15 +21,21 @@ function App() {
     }
   }, [session?.user_id]);
 
+  // Refresh user tier on app load (in case it changed since last session)
+  useEffect(() => {
+    if (session?.user_id) {
+      refreshTier();
+    }
+  }, [session?.user_id]);
+
   const renderPage = () => {
     switch (currentPage) {
-      case 'library':
-      case 'favorites':
-        return <PromptList />;
       case 'draft':
         return <DraftPage />;
-      case 'cloud':
-        return <CloudPromptsPage />;
+      case 'saved-packs':
+        return <SavedPacksPage />;
+      case 'user-packs':
+        return <UserPacksPage />;
       case 'import':
         return <ImportPage />;
       case 'export':
@@ -95,7 +43,7 @@ function App() {
       case 'settings':
         return <SettingsPage />;
       default:
-        return <PromptList />;
+        return <DraftPage />;
     }
   };
 

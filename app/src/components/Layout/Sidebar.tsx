@@ -1,92 +1,75 @@
 import { useState } from 'react';
 import {
-  Home,
-  Star,
   Upload,
   Download,
   Settings,
-  Plus,
   ChevronDown,
   ChevronRight,
   Package,
   FileEdit,
   Cloud,
+  PanelLeftClose,
 } from 'lucide-react';
-import { usePromptStore } from '../../stores/promptStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { SOURCE_META } from '../../types';
 import type { PromptSource } from '../../types';
+import logoIcon from '../../assets/icon-512.png';
 
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
-  const [packsExpanded, setPacksExpanded] = useState(true);
-  const { selectedSource, setSelectedSource, setSelectedFolder, prompts } =
-    usePromptStore();
-  const { cloudPacks, userPacks } = useSyncStore();
+export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse }: SidebarProps) {
+  const [savedPacksExpanded, setSavedPacksExpanded] = useState(true);
+  const [userPacksExpanded, setUserPacksExpanded] = useState(true);
+  const { cloudPacks, userPacks, selectedPackId, setSelectedPackId } = useSyncStore();
   const { session } = useAuthStore();
 
-  const sourceCounts = prompts.reduce(
-    (acc, p) => {
-      acc[p.source] = (acc[p.source] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const handleSourceClick = (source: PromptSource | 'all') => {
-    setSelectedSource(source);
-    setSelectedFolder(null);
-    onNavigate('library');
-  };
-
   return (
-    <aside className="w-64 bg-[var(--card)] border-r border-[var(--border)] flex flex-col h-screen">
+    <aside
+      className={`bg-[var(--card)] border-r border-[var(--border)] flex flex-col h-screen transition-all duration-300 ease-in-out ${
+        isCollapsed ? 'w-16' : 'w-64'
+      }`}
+    >
       {/* Logo */}
-      <div className="p-4 border-b border-[var(--border)]">
-        <h1 className="text-xl font-bold text-[var(--foreground)]">
-          PromptPack
-        </h1>
+      <div className="p-3 border-b border-[var(--border)] flex items-center justify-between min-h-[57px]">
+        {!isCollapsed && (
+          <div className="flex items-center gap-2 overflow-hidden transition-all duration-300">
+            <img src={logoIcon} alt="PromptPack" className="w-8 h-8 flex-shrink-0" />
+            <h1
+              className="text-xl font-bold whitespace-nowrap"
+              style={{
+                background: 'linear-gradient(90deg, #7C5CFF, #A78BFA)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+            >
+              PromptPack
+            </h1>
+          </div>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className={`p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-all duration-300 flex-shrink-0 ${
+            isCollapsed ? 'mx-auto' : 'ml-2'
+          }`}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <div className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : 'rotate-0'}`}>
+            <PanelLeftClose size={18} />
+          </div>
+        </button>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-2">
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2">
         {/* Main Navigation */}
         <div className="space-y-1">
-          <button
-            onClick={() => {
-              handleSourceClick('all');
-            }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              currentPage === 'library' && selectedSource === 'all'
-                ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
-            }`}
-          >
-            <Home size={18} />
-            <span>All Prompts</span>
-            <span className="ml-auto text-xs opacity-70">{prompts.length}</span>
-          </button>
-
-          <button
-            onClick={() => onNavigate('favorites')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              currentPage === 'favorites'
-                ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
-            }`}
-          >
-            <Star size={18} />
-            <span>Favorites</span>
-            <span className="ml-auto text-xs opacity-70">
-              {prompts.filter((p) => p.isFavorite).length}
-            </span>
-          </button>
-
           <button
             onClick={() => onNavigate('draft')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -94,103 +77,137 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
             }`}
+            title={isCollapsed ? 'Draft' : undefined}
           >
-            <FileEdit size={18} />
-            <span>Draft</span>
+            <FileEdit size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Draft
+            </span>
           </button>
 
           <button
-            onClick={() => onNavigate('cloud')}
+            onClick={() => {
+              setSelectedPackId(null);
+              onNavigate('saved-packs');
+            }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              currentPage === 'cloud'
+              currentPage === 'saved-packs' && !selectedPackId
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
             }`}
+            title={isCollapsed ? 'Saved from Extension' : undefined}
           >
-            <Cloud size={18} />
-            <span>Cloud Prompts</span>
-            {session && (cloudPacks.length > 0 || userPacks.length > 0) && (
+            <Cloud size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Saved from Extension
+            </span>
+            {!isCollapsed && session && cloudPacks.length > 0 && (
               <span className="ml-auto text-xs opacity-70">
-                {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0) + userPacks.reduce((sum, p) => sum + p.promptCount, 0)}
+                {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0)}
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => {
+              setSelectedPackId(null);
+              onNavigate('user-packs');
+            }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentPage === 'user-packs' && !selectedPackId
+                ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
+            }`}
+            title={isCollapsed ? 'Your Prompt Packs' : undefined}
+          >
+            <Package size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Your Prompt Packs
+            </span>
+          </button>
         </div>
 
-        {/* Saved Prompt Packs */}
-        <div className="mt-6">
-          <button
-            onClick={() => setPacksExpanded(!packsExpanded)}
-            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide"
-          >
-            {packsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-            Saved Prompt Packs
-          </button>
+        {/* Saved Prompt Packs (from extension/cloud) - collapsible list */}
+        {!isCollapsed && session && cloudPacks.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setSavedPacksExpanded(!savedPacksExpanded)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide"
+            >
+              {savedPacksExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              Saved Packs
+            </button>
 
-          {packsExpanded && (
-            <div className="mt-1 space-y-1">
-              {(Object.keys(SOURCE_META) as PromptSource[]).map((source) => {
-                const meta = SOURCE_META[source];
-                const count = sourceCounts[source] || 0;
-                if (count === 0) return null;
+            {savedPacksExpanded && (
+              <div className="mt-1 space-y-1">
+                {cloudPacks.map((pack) => {
+                  const meta = SOURCE_META[pack.source as PromptSource];
+                  return (
+                    <button
+                      key={pack.id}
+                      onClick={() => {
+                        setSelectedPackId(pack.id);
+                        onNavigate('saved-packs');
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        currentPage === 'saved-packs' && selectedPackId === pack.id
+                          ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                          : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
+                      }`}
+                    >
+                      <span className="text-lg">{meta?.icon || '📦'}</span>
+                      <span className="truncate">{meta?.label || pack.source}</span>
+                      <span className="ml-auto text-xs opacity-70">{pack.promptCount}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
-                return (
+        {/* Your Prompt Packs (from Convex userPacks) - collapsible list */}
+        {!isCollapsed && session && userPacks.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setUserPacksExpanded(!userPacksExpanded)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide"
+            >
+              {userPacksExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              Your Packs
+            </button>
+
+            {userPacksExpanded && (
+              <div className="mt-1 space-y-1">
+                {userPacks.map((pack) => (
                   <button
-                    key={source}
-                    onClick={() => handleSourceClick(source)}
+                    key={pack.id}
+                    onClick={() => {
+                      setSelectedPackId(pack.id);
+                      onNavigate('user-packs');
+                    }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      selectedSource === source
+                      currentPage === 'user-packs' && selectedPackId === pack.id
                         ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                         : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
                     }`}
                   >
-                    <span>{meta.icon}</span>
-                    <span>{meta.label}</span>
-                    <span className="ml-auto text-xs opacity-70">{count}</span>
+                    {pack.icon ? (
+                      <span className="text-lg">{pack.icon}</span>
+                    ) : (
+                      <Package size={18} className={selectedPackId === pack.id ? '' : 'text-[var(--primary)]'} />
+                    )}
+                    <span className="truncate">{pack.title}</span>
+                    <span className="ml-auto text-xs opacity-70">{pack.promptCount}</span>
                   </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Your Prompt Packs (from Convex userPacks) */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">
-              Your Prompt Packs
-            </span>
-            <button
-              className="p-1 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)]"
-              title="New Prompt Pack"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
-          <div className="mt-1 space-y-1">
-            {session && userPacks.map((pack) => (
-              <button
-                key={pack.id}
-                onClick={() => onNavigate('cloud')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
-              >
-                <Package size={18} className="text-[var(--primary)]" />
-                <span className="truncate">{pack.title}</span>
-                <span className="ml-auto text-xs opacity-70">{pack.promptCount}</span>
-              </button>
-            ))}
-
-            {(!session || userPacks.length === 0) && (
-              <p className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                {session ? 'No Prompt Packs yet' : 'Sign in to see your packs'}
-              </p>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        )}
 
         {/* Import/Export */}
-        <div className="mt-6 space-y-1">
+        <div className={`space-y-1 ${isCollapsed ? 'mt-4 pt-4 border-t border-[var(--border)]' : 'mt-6'}`}>
           <button
             onClick={() => onNavigate('import')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -198,9 +215,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
             }`}
+            title={isCollapsed ? 'Import' : undefined}
           >
-            <Upload size={18} />
-            <span>Import</span>
+            <Upload size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Import
+            </span>
           </button>
 
           <button
@@ -210,9 +230,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
                 : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
             }`}
+            title={isCollapsed ? 'Export' : undefined}
           >
-            <Download size={18} />
-            <span>Export</span>
+            <Download size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Export
+            </span>
           </button>
         </div>
       </nav>
@@ -226,9 +249,12 @@ export function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
               : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
           }`}
+          title={isCollapsed ? 'Settings' : undefined}
         >
-          <Settings size={18} />
-          <span>Settings</span>
+          <Settings size={18} className="flex-shrink-0" />
+          <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+            Settings
+          </span>
         </button>
       </div>
     </aside>

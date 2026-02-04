@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, Sparkles, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2 } from 'lucide-react';
+import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2 } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import { useSyncStore, encodePmtpk, encryptPmtpk, type UserPack } from '../../stores/syncStore';
@@ -291,7 +291,7 @@ export function UserPacksPage() {
   };
 
   // Evaluate prompt handler
-  const handleEvaluate = async (promptText: string, promptKey: string) => {
+  const handleEvaluate = async (promptText: string, _promptKey: string) => {
     if (!session?.session_token) return;
     await evaluatePrompt(promptText, session.session_token);
   };
@@ -693,7 +693,7 @@ export function UserPacksPage() {
                           disabled={isGenerating}
                           className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded disabled:opacity-50"
                         >
-                          {isGenerating ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                          {isGenerating ? <RefreshCw size={12} className="animate-spin" /> : <ChartNoAxesCombined size={12} />}
                           {isGenerating ? 'Generating...' : 'Generate header'}
                         </button>
                         <button
@@ -776,7 +776,7 @@ export function UserPacksPage() {
                                 title="Upgrade to Pro to evaluate prompts"
                                 disabled
                               >
-                                <Sparkles size={14} />
+                                <ChartNoAxesCombined size={14} />
                               </button>
                             );
                           }
@@ -790,7 +790,7 @@ export function UserPacksPage() {
                               }`}
                               title={isLoading ? 'Evaluating...' : 'Evaluate prompt quality'}
                             >
-                              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <ChartNoAxesCombined size={14} />}
                             </button>
                           );
                         })()}
