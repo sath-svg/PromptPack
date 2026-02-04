@@ -1038,8 +1038,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
                       <span className="loading-spinner" />
                     ) : (
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
-                        <path d="M19 3l.75 1.9L21.5 5.5l-1.75.6L19 8l-.75-1.9L16.5 5.5l1.75-.6L19 3z"/>
+                        <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
                       </svg>
                     )}
                   </button>
@@ -1157,8 +1156,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
                                 <span className="loading-spinner" />
                               ) : (
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
-                                  <path d="M19 3l.75 1.9L21.5 5.5l-1.75.6L19 8l-.75-1.9L16.5 5.5l1.75-.6L19 3z"/>
+                                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
                                 </svg>
                               )}
                               {generatingHeaders.has(index) ? "Generating..." : "Generate header"}
@@ -1255,7 +1253,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
                                 style={{ opacity: 0.5 }}
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
                                 </svg>
                               </button>
                             );
@@ -1279,7 +1277,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
                                 <span className="loading-spinner" />
                               ) : (
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/>
+                                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
                                 </svg>
                               )}
                             </button>
