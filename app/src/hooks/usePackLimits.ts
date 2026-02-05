@@ -21,9 +21,9 @@ export function usePackLimits(): PackLimitInfo {
   const maxCustomPacks = getCustomPackLimit(tier);
   const currentUserPackCount = userPacks.length;
 
-  const canCreatePack = maxCustomPacks === -1 || currentUserPackCount < maxCustomPacks;
-  const remainingPacks = maxCustomPacks === -1 ? Infinity : Math.max(0, maxCustomPacks - currentUserPackCount);
-  const isAtLimit = maxCustomPacks !== -1 && currentUserPackCount >= maxCustomPacks;
+  const canCreatePack = currentUserPackCount < maxCustomPacks;
+  const remainingPacks = Math.max(0, maxCustomPacks - currentUserPackCount);
+  const isAtLimit = currentUserPackCount >= maxCustomPacks;
 
   return {
     tier,
