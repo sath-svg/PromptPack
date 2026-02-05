@@ -31,6 +31,7 @@ const isPublicRoute = createRouteMatcher([
   "/pricing",
   "/privacy", // Privacy policy must be public
   "/downloads", // Downloads page must be public
+  "/downloads/(.*)", // Download files must be public (installers, etc.)
   "/marketplace",
   "/marketplace/(.*)",
   "/blog",

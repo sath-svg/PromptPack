@@ -221,6 +221,40 @@ export function WindowsDownload() {
         <span className="download-meta-dot">•</span>
         <span>{isArm ? "ARM64" : "x64"} (x86 also available)</span>
       </div>
+
+      <details className="smartscreen-notice">
+        <summary className="smartscreen-notice-summary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          Windows SmartScreen Notice
+        </summary>
+        <div className="smartscreen-notice-content">
+          <p>
+            Windows may show <strong>&quot;Windows protected your PC&quot;</strong> because this app isn&apos;t code-signed yet.
+          </p>
+          <div className="smartscreen-steps">
+            <p><strong>To install:</strong></p>
+            <ol>
+              <li>Click <strong>&quot;More info&quot;</strong> on the SmartScreen popup</li>
+              <li>Click <strong>&quot;Run anyway&quot;</strong></li>
+            </ol>
+          </div>
+          <p className="smartscreen-safe">
+            This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
+          </p>
+          <div className="smartscreen-support">
+            <p>
+              <strong>Why does this happen?</strong> Code signing certificates cost $200-500/year.
+            </p>
+            <a href="/pricing" className="btn smartscreen-support-btn">
+              Support PromptPack
+            </a>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

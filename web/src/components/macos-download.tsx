@@ -123,6 +123,44 @@ export function MacOSDownload() {
           {platform === "universal" ? "~15 MB" : "~8 MB"}
         </span>
       </div>
+
+      <details className="smartscreen-notice gatekeeper-notice">
+        <summary className="smartscreen-notice-summary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          macOS Gatekeeper Notice
+        </summary>
+        <div className="smartscreen-notice-content">
+          <p>
+            macOS may show <strong>&quot;App can&apos;t be opened because it is from an unidentified developer&quot;</strong> because this app isn&apos;t code-signed yet.
+          </p>
+          <div className="smartscreen-steps">
+            <p><strong>To install:</strong></p>
+            <ol>
+              <li>Right-click (or Control-click) the app in Finder</li>
+              <li>Select <strong>&quot;Open&quot;</strong> from the menu</li>
+              <li>Click <strong>&quot;Open&quot;</strong> in the dialog that appears</li>
+            </ol>
+            <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', opacity: 0.8 }}>
+              Alternatively: Go to <strong>System Settings → Privacy &amp; Security</strong> and click &quot;Open Anyway&quot;
+            </p>
+          </div>
+          <p className="smartscreen-safe">
+            This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
+          </p>
+          <div className="smartscreen-support">
+            <p>
+              <strong>Why does this happen?</strong> Apple code signing requires a $99/year developer account.
+            </p>
+            <a href="/pricing" className="btn smartscreen-support-btn">
+              Support PromptPack
+            </a>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

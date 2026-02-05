@@ -4259,3 +4259,128 @@ h4.hero-hook {
     gap: 0.375rem;
   }
 }
+
+/* SmartScreen Notice (Windows) */
+.smartscreen-notice {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 0.5rem;
+}
+
+.smartscreen-notice-summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #b45309;
+  list-style: none;
+}
+
+.smartscreen-notice-summary::-webkit-details-marker {
+  display: none;
+}
+
+.smartscreen-notice-summary svg {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.smartscreen-notice-summary:hover {
+  color: #92400e;
+}
+
+.smartscreen-notice-content {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(251, 191, 36, 0.3);
+  font-size: 0.875rem;
+  color: var(--foreground);
+}
+
+.smartscreen-notice-content p {
+  margin: 0 0 0.5rem 0;
+  line-height: 1.5;
+}
+
+.smartscreen-steps {
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+  margin: 0.75rem 0;
+}
+
+.smartscreen-steps p {
+  margin: 0 0 0.25rem 0;
+}
+
+.smartscreen-steps ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.smartscreen-steps li {
+  margin: 0.25rem 0;
+}
+
+.smartscreen-safe {
+  color: #059669;
+  font-size: 0.8125rem;
+}
+
+.smartscreen-support {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(251, 191, 36, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.smartscreen-support p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+
+.smartscreen-support-btn {
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.75rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+
+.smartscreen-support-btn:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .smartscreen-notice {
+    background: rgba(251, 191, 36, 0.05);
+  }
+
+  .smartscreen-notice-summary {
+    color: #fbbf24;
+  }
+
+  .smartscreen-notice-summary:hover {
+    color: #fcd34d;
+  }
+
+  .smartscreen-steps {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .smartscreen-safe {
+    color: #34d399;
+  }
+}
