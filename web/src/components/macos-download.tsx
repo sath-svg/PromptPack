@@ -58,34 +58,6 @@ export function MacOSDownload() {
         Universal app for Intel and Apple Silicon Macs. Native performance with menu bar integration.
       </p>
 
-      {/* Architecture Selection */}
-      <div className="architecture-selector">
-        <label className="architecture-label">Select your Mac:</label>
-        <div className="architecture-options">
-          <button
-            onClick={() => handlePlatformChange("universal")}
-            className={`architecture-option ${platform === "universal" ? "active" : ""}`}
-          >
-            <span className="architecture-option-title">Universal</span>
-            <span className="architecture-option-subtitle">Intel + Apple Silicon</span>
-          </button>
-          <button
-            onClick={() => handlePlatformChange("silicon")}
-            className={`architecture-option ${platform === "silicon" ? "active" : ""}`}
-          >
-            <span className="architecture-option-title">Apple Silicon</span>
-            <span className="architecture-option-subtitle">M1 / M2 / M3</span>
-          </button>
-          <button
-            onClick={() => handlePlatformChange("intel")}
-            className={`architecture-option ${platform === "intel" ? "active" : ""}`}
-          >
-            <span className="architecture-option-title">Intel</span>
-            <span className="architecture-option-subtitle">x86_64</span>
-          </button>
-        </div>
-      </div>
-
       <div className="download-actions">
         <a
           href={downloadUrl}
@@ -99,6 +71,23 @@ export function MacOSDownload() {
           </svg>
           Download for macOS
         </a>
+      </div>
+
+      {/* Architecture Selection Dropdown */}
+      <div className="architecture-selector-compact">
+        <label htmlFor="mac-arch-select" className="architecture-label-compact">
+          Select your Mac:
+        </label>
+        <select
+          id="mac-arch-select"
+          value={platform}
+          onChange={(e) => handlePlatformChange(e.target.value as "universal" | "intel" | "silicon")}
+          className="architecture-dropdown"
+        >
+          <option value="universal">Universal (Intel + Apple Silicon)</option>
+          <option value="silicon">Apple Silicon (M1 / M2 / M3)</option>
+          <option value="intel">Intel (x86_64)</option>
+        </select>
       </div>
       <div className="download-meta">
         <span>macOS 10.15+</span>

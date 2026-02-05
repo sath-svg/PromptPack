@@ -121,6 +121,9 @@ export default function RootLayout({
             defer
             data-domain="pmtpk.com"
             src="https://analytics.pmtpk.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+            onError={(e) => {
+              console.warn('Analytics script failed to load:', e);
+            }}
           />
           <Script id="plausible-init">
             {`window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }`}
