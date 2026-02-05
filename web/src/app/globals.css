@@ -3620,7 +3620,6 @@ h4.hero-hook {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  margin-top: auto;
   margin-bottom: 1rem;
 }
 
@@ -3651,6 +3650,7 @@ h4.hero-hook {
   display: flex;
   justify-content: center;
   gap: 0.5rem;
+  margin-top: auto;
 }
 
 .download-meta-dot {
