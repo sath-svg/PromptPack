@@ -652,9 +652,9 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Available slots = max prompts - saved prompts already used
   const maxPrompts = isStudio ? STUDIO_PROMPT_LIMIT : (hasPro ? PRO_PROMPT_LIMIT : FREE_PROMPT_LIMIT);
   const availableSlots = Math.max(0, maxPrompts - savedPromptsCount);
-  // Studio: unlimited packs (-1), Pro: MAX_PRO_PACKS, Free: 0
+  // Studio: MAX_STUDIO_PACKS, Pro: MAX_PRO_PACKS, Free: 0
   const maxPacks = isStudio ? MAX_STUDIO_PACKS : (hasPro ? MAX_PRO_PACKS : 0);
-  const canCreate = isStudio || (hasPro && packCount < MAX_PRO_PACKS);
+  const canCreate = (isStudio && packCount < MAX_STUDIO_PACKS) || (hasPro && packCount < MAX_PRO_PACKS);
 
   const handleIconSelect = async (packId: Id<"userPacks">, icon: string) => {
     try {
@@ -1053,8 +1053,8 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     const action = undoStack[undoStack.length - 1];
     if (!action) return;
 
-    // Prevent undo if it would exceed pack limit (Studio has unlimited = -1)
-    if (action.type === "delete-pack" && maxPacks !== -1 && packCount >= maxPacks) {
+    // Prevent undo if it would exceed pack limit
+    if (action.type === "delete-pack" && packCount >= maxPacks) {
       showToast("Cannot restore: pack limit reached");
       return;
     }

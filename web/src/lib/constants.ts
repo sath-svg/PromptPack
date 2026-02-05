@@ -28,7 +28,7 @@ export const FREE_PACK_LIMIT = 6;
 export const PRO_PACK_LIMIT = 9;
 export const STUDIO_PACK_LIMIT = 21;
 export const MAX_PRO_PACKS = 2; // Maximum packs for Pro tier on web
-export const MAX_STUDIO_PACKS = -1; // -1 = unlimited packs for Studio tier
+export const MAX_STUDIO_PACKS = 14; // Maximum packs for Studio tier on web
 
 // Studio tier rate limits
 export const STUDIO_ENHANCE_LIMIT = 500; // 500 enhances per day
