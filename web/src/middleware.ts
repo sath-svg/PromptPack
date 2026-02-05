@@ -2,23 +2,17 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 // Security headers to protect against common vulnerabilities
+// Note: Some headers removed/relaxed for corporate proxy compatibility
 const securityHeaders = {
   // Prevents clickjacking by disallowing framing
   "X-Frame-Options": "DENY",
   // Prevents MIME type sniffing
   "X-Content-Type-Options": "nosniff",
   // Controls referrer information sent with requests
-  "Referrer-Policy": "no-referrer-when-downgrade",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
   // Restricts browser features/APIs
   "Permissions-Policy":
-    "camera=(), microphone=(), geolocation=(), browsing-topics=()",
-  // Forces HTTPS for 1 year (31536000 seconds) - removed preload to avoid issues
-  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-  // Prevents XSS attacks in older browsers
-  "X-XSS-Protection": "1; mode=block",
-  // Allow cross-origin requests from same site
-  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
-  "Cross-Origin-Resource-Policy": "cross-origin",
+    "camera=(), microphone=(), geolocation=()",
 };
 
 // Helper to add security headers to a response
