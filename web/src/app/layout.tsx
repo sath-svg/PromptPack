@@ -14,6 +14,7 @@ import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import { SupportButton } from "@/components/support-button";
 import { MobileNav } from "@/components/mobile-nav";
+import { PWARegister } from "@/components/pwa-register";
 import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
@@ -190,6 +191,7 @@ export default function RootLayout({
             <ConvexClientProvider>{children}</ConvexClientProvider>
           </main>
           <SupportButton />
+          <PWARegister />
         </body>
       </html>
     </ClerkProvider>

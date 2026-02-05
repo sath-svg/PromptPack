@@ -9,10 +9,28 @@ import {
   ClipOrganize,
   ClipPlatforms,
 } from "./SlideshowClips";
+import { PromptPackMerged, MERGED_DURATION_FRAMES, MERGED_FPS } from "./PromptPackMerged";
+import { PromptPackVertical, VERTICAL_DURATION_FRAMES, VERTICAL_FPS } from "./PromptPackVertical";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+      <Composition
+        id="PromptPackMerged"
+        component={PromptPackMerged}
+        durationInFrames={MERGED_DURATION_FRAMES}
+        fps={MERGED_FPS}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="PromptPackVertical"
+        component={PromptPackVertical}
+        durationInFrames={VERTICAL_DURATION_FRAMES}
+        fps={VERTICAL_FPS}
+        width={1080}
+        height={1920}
+      />
       <Composition
         id="PromptPackVideo"
         component={PromptPackVideo}

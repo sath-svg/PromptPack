@@ -1,6 +1,31 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+// Security headers to protect against common vulnerabilities
+const securityHeaders = {
+  // Prevents clickjacking by disallowing framing
+  "X-Frame-Options": "DENY",
+  // Prevents MIME type sniffing
+  "X-Content-Type-Options": "nosniff",
+  // Controls referrer information sent with requests
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  // Restricts browser features/APIs
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+  // Forces HTTPS for 1 year (31536000 seconds)
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  // Prevents XSS attacks in older browsers
+  "X-XSS-Protection": "1; mode=block",
+};
+
+// Helper to add security headers to a response
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  Object.entries(securityHeaders).forEach(([key, value]) => {
+    response.headers.set(key, value);
+  });
+  return response;
+}
+
 // Define public routes that don't require authentication
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -29,12 +54,17 @@ export default clerkMiddleware(async (auth, request) => {
   if (host.startsWith("www.")) {
     const newUrl = new URL(request.url);
     newUrl.host = host.replace("www.", "");
-    return NextResponse.redirect(newUrl, 301);
+    const redirectResponse = NextResponse.redirect(newUrl, 301);
+    return addSecurityHeaders(redirectResponse);
   }
 
   if (!isPublicRoute(request)) {
     await auth.protect();
   }
+
+  // Add security headers to all responses
+  const response = NextResponse.next();
+  return addSecurityHeaders(response);
 });
 
 export const config = {

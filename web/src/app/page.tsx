@@ -7,6 +7,8 @@ import { HeroVideo } from "@/components/hero-video";
 import { FeatureSlideshow } from "@/components/feature-slideshow";
 import { FeatureRequestLink } from "@/components/feature-request-link";
 import { RoadmapTooltip } from "@/components/roadmap-tooltip";
+import { DownloadButtons } from "@/components/download-buttons";
+import { InstallAppButton } from "@/components/install-app-button";
 import './globals.css';
 
 export default function Home() {
@@ -70,29 +72,10 @@ export default function Home() {
           Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
 
-        <div className="browser-badges">
-          <a
-            href="https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb"
-            target="_blank"
-            rel="noreferrer"
-            className="browser-badge-link"
-          >
-            <Image
-              src={assetUrl("/img/Chrome.svg")}
-              alt="Add to Chrome - free"
-              width={200}
-              height={50}
-              className="browser-badge"
-            />
-          </a>
-          <Link href="/downloads" className="download-cta-link">
-            <div className="download-cta-badge">
-              <span className="download-cta-title">Download Now</span>
-            </div>
-          </Link>
-        </div>
+        <DownloadButtons />
 
         <div className="hero-cta">
+          <InstallAppButton />
           <SignedOut>
             <SignUpButton mode="modal">
               <button className="btn btn-primary">Dashboard</button>

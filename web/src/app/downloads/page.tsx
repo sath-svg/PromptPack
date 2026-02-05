@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
+import { WindowsDownload } from "@/components/windows-download";
 
 export const metadata = {
   title: "Download PromptPack - Desktop App & Browser Extensions",
@@ -31,52 +32,8 @@ export default function DownloadsPage() {
         </p>
 
         <div className="desktop-grid">
-          {/* Windows */}
-          <div className="download-card desktop-card">
-            <div className="download-card-header">
-              <div className="browser-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 5.548l7.455-1.02v7.195H3V5.548zm0 13.054l7.455 1.02v-7.167H3v6.147zm8.295 1.132L21 21v-8.545h-9.705v7.279zm0-15.418v7.407H21V3l-9.705 1.316z" fill="#0078D4"/>
-                </svg>
-              </div>
-              <h2>Windows</h2>
-              <span className="download-badge download-badge-recommended">Recommended</span>
-            </div>
-            <p className="download-description">
-              Native Windows app with system tray integration and global hotkeys.
-            </p>
-            <div className="download-actions">
-              <a
-                href="/downloads/PromptPack_0.1.0_x64-setup.exe"
-                className="btn btn-primary download-btn"
-                download
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Download Installer
-              </a>
-              <a
-                href="/downloads/PromptPack_0.1.0_x64_en-US.msi"
-                className="btn download-btn download-btn-secondary"
-                download
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                MSI Package
-              </a>
-            </div>
-            <div className="download-meta">
-              <span>Version 0.1.0</span>
-              <span className="download-meta-dot">•</span>
-              <span>Windows 10/11</span>
-            </div>
-          </div>
+          {/* Windows - Client component with architecture detection */}
+          <WindowsDownload />
 
           {/* macOS */}
           <div className="download-card desktop-card desktop-card-coming">
