@@ -1,0 +1,156 @@
+name: Build macOS App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-macos.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Install Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app
+        run: npm run build
+
+      - name: Build Tauri app (Universal Binary)
+        working-directory: app
+        run: npm run tauri build -- --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: List build artifacts
+        run: |
+          echo "Build artifacts:"
+          ls -la app/src-tauri/target/universal-apple-darwin/release/bundle/
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptPack-macOS-Universal
+          path: app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
+      - name: Upload APP bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptPack-macOS-Universal-App
+          path: app/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+          if-no-files-found: warn
+
+  build-macos-intel:
+    runs-on: macos-13  # Intel-based runner
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app
+        run: npm run build
+
+      - name: Build Tauri app (Intel)
+        working-directory: app
+        run: npm run tauri build -- --target x86_64-apple-darwin
+
+      - name: Upload Intel DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptPack-macOS-Intel
+          path: app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
+  build-macos-silicon:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: app/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app
+        run: npm run build
+
+      - name: Build Tauri app (Apple Silicon)
+        working-directory: app
+        run: npm run tauri build -- --target aarch64-apple-darwin
+
+      - name: Upload Apple Silicon DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptPack-macOS-AppleSilicon
+          path: app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: warn

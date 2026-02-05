@@ -43,7 +43,14 @@
     ],
     "category": "Productivity",
     "shortDescription": "Prompt management for AI tools",
-    "longDescription": "PromptPack is a desktop app for managing, organizing, and syncing your AI prompts across ChatGPT, Claude, Gemini, and more."
+    "longDescription": "PromptPack is a desktop app for managing, organizing, and syncing your AI prompts across ChatGPT, Claude, Gemini, and more.",
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "",
+      "frameworks": [],
+      "entitlements": null,
+      "useBootstrapper": false
+    }
   },
   "plugins": {
     "deep-link": {

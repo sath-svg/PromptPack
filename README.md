@@ -50,6 +50,11 @@ bun run dev
 cd ../api
 bun install
 bun run dev
+
+# Build the desktop app
+cd ../app
+npm install
+npm run tauri:dev
 ```
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for detailed development setup.
@@ -63,6 +68,10 @@ PromptPack/
 │   ├── shared/         # Shared utilities (auth, crypto, storage)
 │   ├── tests/          # Unit tests (67 tests)
 │   └── popup.ts        # Main extension UI
+├── app/                # Desktop Application (Tauri)
+│   ├── src/            # React frontend
+│   ├── src-tauri/      # Rust backend
+│   └── build-macos.sh  # macOS build script
 ├── web/                # Next.js Web Application
 │   ├── src/app/        # App Router pages
 │   ├── convex/         # Convex backend functions
@@ -162,7 +171,59 @@ bun run build
 # Deploy API
 cd api
 bun run deploy
+
+# Build desktop app for production
+cd app
+
+# Windows
+npm run tauri build
+
+# macOS (on macOS only)
+./build-macos.sh
+# Or via GitHub Actions for automated builds
 ```
+
+### Building for macOS
+
+The desktop app can be built for macOS in three variants:
+
+1. **Universal Binary** (Recommended) - Works on both Intel and Apple Silicon
+   ```bash
+   npm run tauri build -- --target universal-apple-darwin
+   ```
+
+2. **Intel Only** (x86_64)
+   ```bash
+   npm run tauri build -- --target x86_64-apple-darwin
+   ```
+
+3. **Apple Silicon Only** (M1/M2/M3)
+   ```bash
+   npm run tauri build -- --target aarch64-apple-darwin
+   ```
+
+#### Prerequisites for macOS builds:
+- macOS 10.15 or later
+- Xcode Command Line Tools: `xcode-select --install`
+- Rust with macOS targets:
+  ```bash
+  rustup target add x86_64-apple-darwin
+  rustup target add aarch64-apple-darwin
+  ```
+- Node.js 20+
+
+#### Automated macOS Builds
+Use the GitHub Actions workflow for automated builds:
+- Push to `main` branch or use workflow dispatch
+- Workflow: `.github/workflows/build-macos.yml`
+- Artifacts: Universal, Intel, and Apple Silicon .dmg files
+
+#### Code Signing (Optional)
+For distribution outside the App Store:
+- Requires Apple Developer account ($99/year)
+- Set up signing certificates in Xcode
+- Configure `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets for GitHub Actions
+- Notarize with Apple for Gatekeeper approval
 
 ## License
 

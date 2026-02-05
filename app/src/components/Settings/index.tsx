@@ -3,6 +3,7 @@ import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Load
 import { useSettingsStore, getTierLimits } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { CONVEX_URL } from '../../lib/constants';
+import { formatShortcut } from '../../lib/platform';
 
 interface BillingStatus {
   tier: 'free' | 'pro' | 'studio';
@@ -109,7 +110,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <kbd className="px-3 py-1.5 rounded bg-[var(--muted)] text-sm font-mono text-[var(--foreground)]">
-                {globalHotkey.replace('CommandOrControl', 'Ctrl')}
+                {formatShortcut(globalHotkey)}
               </kbd>
             </div>
 
@@ -124,7 +125,7 @@ export function SettingsPage() {
                 </div>
               </div>
               <kbd className="px-3 py-1.5 rounded bg-[var(--muted)] text-sm font-mono text-[var(--foreground)]">
-                Ctrl+K
+                {formatShortcut('Control+K')}
               </kbd>
             </div>
           </div>
