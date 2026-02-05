@@ -28,3 +28,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Product demo videos (large files)
+Product demo/out/
+Product demo/*.mp4
+Product demo/*.mp3
+
+# Invalid download paths
+web/public/downloads•*
+web/public/downloads�*
