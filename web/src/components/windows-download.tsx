@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 type Architecture = "x64" | "arm64" | "unknown";
 
@@ -43,6 +43,9 @@ function detectArchitecture(): Architecture {
 export function WindowsDownload() {
   const [arch, setArch] = useState<Architecture>("unknown");
   const [isWindows, setIsWindows] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     const userAgent = navigator.userAgent.toLowerCase();
@@ -72,6 +75,33 @@ export function WindowsDownload() {
 
   const isArm = arch === "arm64";
 
+  const handleDownloadClick = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    e.preventDefault();
+    setPendingDownload(url);
+    setShowWarning(true);
+    dialogRef.current?.showModal();
+  };
+
+  const handleContinueDownload = () => {
+    if (pendingDownload) {
+      const link = document.createElement('a');
+      link.href = pendingDownload;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    dialogRef.current?.close();
+    setShowWarning(false);
+    setPendingDownload(null);
+  };
+
+  const handleCloseDialog = () => {
+    dialogRef.current?.close();
+    setShowWarning(false);
+    setPendingDownload(null);
+  };
+
   return (
     <div className="download-card desktop-card desktop-card-windows">
       <div className="download-card-header">
@@ -100,7 +130,7 @@ export function WindowsDownload() {
             <a
               href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
               className="btn btn-primary download-btn"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64-setup.exe")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -112,7 +142,7 @@ export function WindowsDownload() {
             <a
               href="/downloads/PromptPack_0.1.0_arm64_en-US.msi"
               className="btn download-btn download-btn-secondary"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64_en-US.msi")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -138,14 +168,14 @@ export function WindowsDownload() {
                 <a
                   href="/downloads/PromptPack_0.1.0_x64-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  download
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64-setup.exe")}
                 >
                   x64 Installer
                 </a>
                 <a
                   href="/downloads/PromptPack_0.1.0_x86-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  download
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x86-setup.exe")}
                 >
                   x86 Installer
                 </a>
@@ -159,7 +189,7 @@ export function WindowsDownload() {
             <a
               href="/downloads/PromptPack_0.1.0_x64-setup.exe"
               className="btn btn-primary download-btn"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64-setup.exe")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -171,7 +201,7 @@ export function WindowsDownload() {
             <a
               href="/downloads/PromptPack_0.1.0_x64_en-US.msi"
               className="btn download-btn download-btn-secondary"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64_en-US.msi")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -197,14 +227,14 @@ export function WindowsDownload() {
                 <a
                   href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  download
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64-setup.exe")}
                 >
                   ARM64 Installer
                 </a>
                 <a
                   href="/downloads/PromptPack_0.1.0_x86-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  download
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x86-setup.exe")}
                 >
                   x86 Installer
                 </a>
@@ -222,39 +252,50 @@ export function WindowsDownload() {
         <span>{isArm ? "ARM64" : "x64"} (x86 also available)</span>
       </div>
 
-      <details className="smartscreen-notice">
-        <summary className="smartscreen-notice-summary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          Windows SmartScreen Notice
-        </summary>
-        <div className="smartscreen-notice-content">
-          <p>
-            Windows may show <strong>&quot;Windows protected your PC&quot;</strong> because this app isn&apos;t code-signed yet.
-          </p>
-          <div className="smartscreen-steps">
-            <p><strong>To install:</strong></p>
-            <ol>
-              <li>Click <strong>&quot;More info&quot;</strong> on the SmartScreen popup</li>
-              <li>Click <strong>&quot;Run anyway&quot;</strong></li>
-            </ol>
+      <dialog ref={dialogRef} className="download-warning-dialog" onClick={(e) => { if (e.target === dialogRef.current) handleCloseDialog(); }}>
+        <div className="download-warning-content">
+          <div className="download-warning-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <h3>Windows SmartScreen Notice</h3>
+            <button className="download-warning-close" onClick={handleCloseDialog} aria-label="Close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           </div>
-          <p className="smartscreen-safe">
-            This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
-          </p>
-          <div className="smartscreen-support">
+          <div className="download-warning-body">
             <p>
-              <strong>Why does this happen?</strong> Code signing certificates cost $200-500/year.
+              Windows may show <strong>&quot;Windows protected your PC&quot;</strong> because this app isn&apos;t code-signed yet.
             </p>
-            <a href="/pricing" className="btn smartscreen-support-btn">
-              Support PromptPack
-            </a>
+            <div className="smartscreen-steps">
+              <p><strong>To install:</strong></p>
+              <ol>
+                <li>Click <strong>&quot;More info&quot;</strong> on the SmartScreen popup</li>
+                <li>Click <strong>&quot;Run anyway&quot;</strong></li>
+              </ol>
+            </div>
+            <p className="smartscreen-safe">
+              This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
+            </p>
+          </div>
+          <div className="download-warning-actions">
+            <button className="btn" onClick={handleCloseDialog}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleContinueDownload}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download Anyway
+            </button>
           </div>
         </div>
-      </details>
+      </dialog>
     </div>
   );
 }

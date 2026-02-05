@@ -4384,3 +4384,152 @@ h4.hero-hook {
     color: #34d399;
   }
 }
+
+/* Download Warning Dialog */
+.download-warning-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 480px;
+  width: 90%;
+  padding: 0;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 0.75rem;
+  background: var(--background);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+.download-warning-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.download-warning-content {
+  padding: 1.5rem;
+}
+
+.download-warning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.download-warning-header svg {
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.download-warning-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #b45309;
+  flex: 1;
+}
+
+.download-warning-close {
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  border-radius: 0.25rem;
+  transition: color 0.2s, background 0.2s;
+}
+
+.download-warning-close:hover {
+  color: var(--foreground);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.download-warning-body {
+  margin-bottom: 1.5rem;
+}
+
+.download-warning-body p {
+  margin: 0 0 0.75rem 0;
+  line-height: 1.5;
+  font-size: 0.9375rem;
+  color: white;
+}
+
+.download-warning-body .smartscreen-steps {
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.download-warning-body .smartscreen-steps ol,
+.download-warning-body .smartscreen-steps li,
+.download-warning-body .smartscreen-steps p {
+  color: white;
+}
+
+.download-warning-body .smartscreen-safe {
+  margin-bottom: 0;
+  color: #34d399 !important;
+}
+
+.download-warning-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.download-warning-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.download-warning-actions .btn:not(.btn-primary) {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+
+.download-warning-actions .btn:not(.btn-primary):hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.download-warning-actions .btn-primary {
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  color: white;
+}
+
+.download-warning-actions .btn-primary:hover {
+  background: var(--primary-hover, #4f46e5);
+}
+
+/* Dark mode for dialog */
+@media (prefers-color-scheme: dark) {
+  .download-warning-dialog {
+    background: var(--background);
+    border-color: rgba(251, 191, 36, 0.2);
+  }
+
+  .download-warning-header h3 {
+    color: #fbbf24;
+  }
+
+  .download-warning-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .download-warning-body .smartscreen-steps {
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .download-warning-actions .btn:not(.btn-primary):hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export function MacOSDownload() {
   const [downloadUrl, setDownloadUrl] = useState("/downloads/PromptPack-Universal.dmg");
   const [platform, setPlatform] = useState<"universal" | "intel" | "silicon">("universal");
+  const [showWarning, setShowWarning] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     // Detect macOS architecture if possible
@@ -43,6 +46,33 @@ export function MacOSDownload() {
     }
   };
 
+  const handleDownloadClick = (e: React.MouseEvent<HTMLAnchorElement>, url: string) => {
+    e.preventDefault();
+    setPendingDownload(url);
+    setShowWarning(true);
+    dialogRef.current?.showModal();
+  };
+
+  const handleContinueDownload = () => {
+    if (pendingDownload) {
+      const link = document.createElement('a');
+      link.href = pendingDownload;
+      link.download = '';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    dialogRef.current?.close();
+    setShowWarning(false);
+    setPendingDownload(null);
+  };
+
+  const handleCloseDialog = () => {
+    dialogRef.current?.close();
+    setShowWarning(false);
+    setPendingDownload(null);
+  };
+
   return (
     <div className="download-card desktop-card">
       <div className="download-card-header">
@@ -62,7 +92,7 @@ export function MacOSDownload() {
         <a
           href={downloadUrl}
           className="btn btn-primary download-btn"
-          download
+          onClick={(e) => handleDownloadClick(e, downloadUrl)}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -100,14 +130,14 @@ export function MacOSDownload() {
             <a
               href="/downloads/PromptPack-AppleSilicon.dmg"
               className="btn download-btn download-btn-secondary"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack-AppleSilicon.dmg")}
             >
               Apple Silicon (.dmg)
             </a>
             <a
               href="/downloads/PromptPack-Intel.dmg"
               className="btn download-btn download-btn-secondary"
-              download
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack-Intel.dmg")}
             >
               Intel (.dmg)
             </a>
@@ -124,43 +154,54 @@ export function MacOSDownload() {
         </span>
       </div>
 
-      <details className="smartscreen-notice gatekeeper-notice">
-        <summary className="smartscreen-notice-summary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          macOS Gatekeeper Notice
-        </summary>
-        <div className="smartscreen-notice-content">
-          <p>
-            macOS may show <strong>&quot;App can&apos;t be opened because it is from an unidentified developer&quot;</strong> because this app isn&apos;t code-signed yet.
-          </p>
-          <div className="smartscreen-steps">
-            <p><strong>To install:</strong></p>
-            <ol>
-              <li>Right-click (or Control-click) the app in Finder</li>
-              <li>Select <strong>&quot;Open&quot;</strong> from the menu</li>
-              <li>Click <strong>&quot;Open&quot;</strong> in the dialog that appears</li>
-            </ol>
-            <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', opacity: 0.8 }}>
-              Alternatively: Go to <strong>System Settings → Privacy &amp; Security</strong> and click &quot;Open Anyway&quot;
+      <dialog ref={dialogRef} className="download-warning-dialog" onClick={(e) => { if (e.target === dialogRef.current) handleCloseDialog(); }}>
+        <div className="download-warning-content">
+          <div className="download-warning-header">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <h3>macOS Gatekeeper Notice</h3>
+            <button className="download-warning-close" onClick={handleCloseDialog} aria-label="Close">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div className="download-warning-body">
+            <p>
+              macOS may show <strong>&quot;App can&apos;t be opened because it is from an unidentified developer&quot;</strong> because this app isn&apos;t code-signed yet.
+            </p>
+            <div className="smartscreen-steps">
+              <p><strong>To install:</strong></p>
+              <ol>
+                <li>Right-click (or Control-click) the app in Finder</li>
+                <li>Select <strong>&quot;Open&quot;</strong> from the menu</li>
+                <li>Click <strong>&quot;Open&quot;</strong> in the dialog that appears</li>
+              </ol>
+              <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', opacity: 0.8 }}>
+                Alternatively: Go to <strong>System Settings → Privacy &amp; Security</strong> and click &quot;Open Anyway&quot;
+              </p>
+            </div>
+            <p className="smartscreen-safe">
+              This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
             </p>
           </div>
-          <p className="smartscreen-safe">
-            This app is safe &mdash; it&apos;s open source and you can verify the code yourself.
-          </p>
-          <div className="smartscreen-support">
-            <p>
-              <strong>Why does this happen?</strong> Apple code signing requires a $99/year developer account.
-            </p>
-            <a href="/pricing" className="btn smartscreen-support-btn">
-              Support PromptPack
-            </a>
+          <div className="download-warning-actions">
+            <button className="btn" onClick={handleCloseDialog}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleContinueDownload}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download Anyway
+            </button>
           </div>
         </div>
-      </details>
+      </dialog>
     </div>
   );
 }
