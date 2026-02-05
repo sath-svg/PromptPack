@@ -1,22 +1,12 @@
 name: Build macOS App
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'app/**'
-      - '.github/workflows/build-macos.yml'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'app/**'
-  workflow_dispatch:
+  workflow_dispatch:  # Manual trigger only for now
 
 jobs:
-  build-macos:
+  build-macos-universal:
     runs-on: macos-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -26,22 +16,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
 
-      - name: Install Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-
       - name: Install dependencies
         working-directory: app
-        run: npm ci
+        run: |
+          npm install
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
 
       - name: Build frontend
         working-directory: app
@@ -55,26 +41,22 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: List build artifacts
+        if: always()
         run: |
           echo "Build artifacts:"
-          ls -la app/src-tauri/target/universal-apple-darwin/release/bundle/
+          find app/src-tauri/target -name "*.dmg" -o -name "*.app" | head -20
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: PromptPack-macOS-Universal
           path: app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-          if-no-files-found: warn
-
-      - name: Upload APP bundle artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PromptPack-macOS-Universal-App
-          path: app/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
-          if-no-files-found: warn
+          if-no-files-found: error
 
   build-macos-intel:
-    runs-on: macos-13  # Intel-based runner
+    runs-on: macos-13
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -84,20 +66,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-
       - name: Install dependencies
         working-directory: app
-        run: npm ci
+        run: npm install
 
       - name: Build frontend
         working-directory: app
@@ -109,13 +84,15 @@ jobs:
 
       - name: Upload Intel DMG artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: PromptPack-macOS-Intel
           path: app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
-          if-no-files-found: warn
+          if-no-files-found: error
 
   build-macos-silicon:
     runs-on: macos-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -125,20 +102,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: app/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri
-
       - name: Install dependencies
         working-directory: app
-        run: npm ci
+        run: npm install
 
       - name: Build frontend
         working-directory: app
@@ -150,7 +120,8 @@ jobs:
 
       - name: Upload Apple Silicon DMG artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: PromptPack-macOS-AppleSilicon
           path: app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-          if-no-files-found: warn
+          if-no-files-found: error
