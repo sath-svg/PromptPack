@@ -173,6 +173,7 @@ export function StudioCard() {
         <li>✓ <span className="faq-highlight">200</span> saved prompts</li>
         <li>✓ <span className="faq-highlight">500</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">2000</span> AI headers per day</li>
+        <li>✓ Desktop app</li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>MCP server</span> <span style={{ fontSize: "0.7rem", background: "#8b5cf6", color: "white", padding: "0.1rem 0.3rem", borderRadius: "4px", marginLeft: "0.25rem" }}>SOON</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>API key</span> <span style={{ fontSize: "0.7rem", background: "#8b5cf6", color: "white", padding: "0.1rem 0.3rem", borderRadius: "4px", marginLeft: "0.25rem" }}>SOON</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Claude Skill</span> <span style={{ fontSize: "0.7rem", background: "#8b5cf6", color: "white", padding: "0.1rem 0.3rem", borderRadius: "4px", marginLeft: "0.25rem" }}>SOON</span></li>

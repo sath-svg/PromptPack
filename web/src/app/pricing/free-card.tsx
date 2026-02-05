@@ -81,6 +81,7 @@ export function FreeCard() {
         <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
         <li>✓ 10 prompt enhances per day</li>
         <li>✓ 50 AI headers per day</li>
+        <li>✓ Desktop app</li>
         <li>✓ Chrome, Firefox &amp; Safari extension</li>
         <li>✓ ChatGPT, Claude &amp; Gemini support</li>
         <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>

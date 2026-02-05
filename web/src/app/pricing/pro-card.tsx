@@ -205,6 +205,7 @@ export function ProCard() {
         <li>✓ <span className="faq-highlight">9</span> loaded <span className="gradient-text">PromptPacks</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(2 custom + 7 saved)</span></li>
         <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
+        <li>✓ Desktop app</li>
         <li>✓ Chrome, Firefox &amp; Safari extension</li>
         <li>✓ ChatGPT, Claude &amp; Gemini support</li>
         <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
