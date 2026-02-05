@@ -8,14 +8,17 @@ const securityHeaders = {
   // Prevents MIME type sniffing
   "X-Content-Type-Options": "nosniff",
   // Controls referrer information sent with requests
-  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Referrer-Policy": "no-referrer-when-downgrade",
   // Restricts browser features/APIs
   "Permissions-Policy":
     "camera=(), microphone=(), geolocation=(), browsing-topics=()",
-  // Forces HTTPS for 1 year (31536000 seconds)
+  // Forces HTTPS for 1 year (31536000 seconds) - removed preload to avoid issues
   "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   // Prevents XSS attacks in older browsers
   "X-XSS-Protection": "1; mode=block",
+  // Allow cross-origin requests from same site
+  "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+  "Cross-Origin-Resource-Policy": "cross-origin",
 };
 
 // Helper to add security headers to a response

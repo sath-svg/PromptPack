@@ -71,23 +71,20 @@ export function MacOSDownload() {
           </svg>
           Download for macOS
         </a>
-      </div>
 
-      {/* Architecture Selection Dropdown */}
-      <div className="architecture-selector-compact">
-        <label htmlFor="mac-arch-select" className="architecture-label-compact">
-          Select your Mac:
-        </label>
-        <select
-          id="mac-arch-select"
-          value={platform}
-          onChange={(e) => handlePlatformChange(e.target.value as "universal" | "intel" | "silicon")}
-          className="architecture-dropdown"
-        >
-          <option value="universal">Universal (Intel + Apple Silicon)</option>
-          <option value="silicon">Apple Silicon (M1 / M2 / M3)</option>
-          <option value="intel">Intel (x86_64)</option>
-        </select>
+        {/* Architecture Selection Dropdown styled as button */}
+        <div>
+          <select
+            id="mac-arch-select"
+            value={platform}
+            onChange={(e) => handlePlatformChange(e.target.value as "universal" | "intel" | "silicon")}
+            className="architecture-dropdown"
+          >
+            <option value="universal">Universal (Intel + Apple Silicon)</option>
+            <option value="silicon">Apple Silicon (M1 / M2 / M3)</option>
+            <option value="intel">Intel (x86_64)</option>
+          </select>
+        </div>
       </div>
       <div className="download-meta">
         <span>macOS 10.15+</span>
