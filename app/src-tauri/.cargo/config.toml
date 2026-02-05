@@ -1,0 +1,11 @@
+[target.aarch64-pc-windows-msvc]
+linker = "rust-lld"
+
+[env]
+CC_aarch64_pc_windows_msvc = "C:\\Program Files\\LLVM\\bin\\clang-cl.exe"
+CXX_aarch64_pc_windows_msvc = "C:\\Program Files\\LLVM\\bin\\clang-cl.exe"
+AR_aarch64_pc_windows_msvc = "C:\\Program Files\\LLVM\\bin\\llvm-lib.exe"
+CFLAGS_aarch64_pc_windows_msvc = "--target=aarch64-pc-windows-msvc"
+INCLUDE = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\include;C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\ucrt;C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\um;C:\\Program Files (x86)\\Windows Kits\\10\\Include\\10.0.26100.0\\shared"
+LIB = "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.44.35207\\lib\\arm64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\ucrt\\arm64;C:\\Program Files (x86)\\Windows Kits\\10\\Lib\\10.0.26100.0\\um\\arm64"
+PATH = "C:\\Program Files\\LLVM\\bin;${PATH}"
