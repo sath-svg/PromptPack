@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { usePromptStore } from '../../stores/promptStore';
 import { useEvaluationStore } from '../../stores/evaluationStore';
 import { usePromptLimits } from '../../hooks/usePromptLimits';
+import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
 import { PASSWORD_MAX_LENGTH, isValidPassword } from '../../lib/constants';
 import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
 import { TemplateInputDialog } from '../TemplateInputDialog';
@@ -44,6 +45,7 @@ export function UserPacksPage() {
     updateUserPackIcon,
     deleteUserPackPrompt,
     deleteUserPack,
+    createUserPack,
     setSelectedPackId,
     clearError,
   } = useSyncStore();
@@ -76,6 +78,12 @@ export function UserPacksPage() {
   // Delete confirmation state
   const [deletingPromptIndex, setDeletingPromptIndex] = useState<number | null>(null);
   const [deletingPackId, setDeletingPackId] = useState<string | null>(null);
+
+  // Create pack state
+  const [showCreatePackModal, setShowCreatePackModal] = useState(false);
+  const [newPackTitle, setNewPackTitle] = useState('');
+  const [isCreatingPack, setIsCreatingPack] = useState(false);
+  const [createPackError, setCreatePackError] = useState<string | null>(null);
 
   // Template dialog state
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
@@ -394,6 +402,50 @@ export function UserPacksPage() {
     return set?.has(index) ?? false;
   };
 
+  // Create pack handlers
+  const openCreatePackModal = () => {
+    setNewPackTitle('');
+    setCreatePackError(null);
+    setShowCreatePackModal(true);
+  };
+
+  const closeCreatePackModal = () => {
+    setShowCreatePackModal(false);
+    setNewPackTitle('');
+    setCreatePackError(null);
+  };
+
+  const handleCreatePack = async () => {
+    if (!session?.user_id || !newPackTitle.trim()) return;
+
+    // Check limits
+    if (!packLimits.canCreatePack) {
+      setCreatePackError(getPackLimitMessage(packLimits.tier, packLimits.currentUserPackCount));
+      return;
+    }
+
+    setIsCreatingPack(true);
+    setCreatePackError(null);
+
+    try {
+      // Create empty pack (user can add prompts after)
+      const newPack = await createUserPack(session.user_id, newPackTitle.trim(), []);
+
+      if (newPack) {
+        closeCreatePackModal();
+        // Select the new pack to open it
+        handlePackClick(newPack);
+      } else {
+        setCreatePackError('Failed to create pack. Please try again.');
+      }
+    } catch (err) {
+      console.error('Create pack failed:', err);
+      setCreatePackError(err instanceof Error ? err.message : 'Failed to create pack');
+    } finally {
+      setIsCreatingPack(false);
+    }
+  };
+
   if (!session) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -424,6 +476,9 @@ export function UserPacksPage() {
 
   // Prompt limits
   const promptLimits = usePromptLimits();
+
+  // Pack limits
+  const packLimits = usePackLimits();
 
   // Detail view for a selected pack
   if (selectedPack) {
@@ -1030,12 +1085,21 @@ export function UserPacksPage() {
             </span>
           )}
           <button
+            onClick={openCreatePackModal}
+            disabled={!packLimits.canCreatePack}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            title={packLimits.canCreatePack ? 'Create a new prompt pack' : getPackLimitMessage(packLimits.tier, packLimits.currentUserPackCount)}
+          >
+            <Plus size={16} />
+            Create Pack
+          </button>
+          <button
             onClick={handleSync}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--accent)] text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--accent)]/80 transition-opacity disabled:opacity-50"
           >
             <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-            {isLoading ? 'Syncing...' : 'Sync'}
+            Sync
           </button>
         </div>
       </div>
@@ -1056,9 +1120,22 @@ export function UserPacksPage() {
         <div className="text-center py-12 bg-[var(--card)] rounded-xl border border-[var(--border)]">
           <Package size={48} className="mx-auto text-[var(--muted-foreground)] mb-4" />
           <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No prompt packs yet</h3>
-          <p className="text-[var(--muted-foreground)] max-w-sm mx-auto">
-            Create prompt packs on the web dashboard to see them here.
+          <p className="text-[var(--muted-foreground)] max-w-sm mx-auto mb-4">
+            Create your first prompt pack to organize and save your prompts.
           </p>
+          {packLimits.canCreatePack ? (
+            <button
+              onClick={openCreatePackModal}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity"
+            >
+              <Plus size={16} />
+              Create Your First Pack
+            </button>
+          ) : (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {getPackLimitMessage(packLimits.tier, packLimits.currentUserPackCount)}
+            </p>
+          )}
         </div>
       )}
 
@@ -1158,6 +1235,82 @@ export function UserPacksPage() {
           onSubmit={handleTemplateSubmit}
           onClose={() => setShowTemplateDialog(false)}
         />
+      )}
+
+      {/* Create Pack Modal */}
+      {showCreatePackModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Create New Pack</h3>
+              <button
+                onClick={closeCreatePackModal}
+                className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-sm text-[var(--muted-foreground)] mb-4">
+              Create a new prompt pack. You can add prompts to it after creation.
+            </p>
+
+            {createPackError && (
+              <div className="flex items-center gap-2 p-3 mb-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <AlertCircle size={16} className="text-red-400" />
+                <p className="text-sm text-red-400">{createPackError}</p>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
+                  Pack Name
+                </label>
+                <input
+                  type="text"
+                  value={newPackTitle}
+                  onChange={(e) => setNewPackTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreatePack()}
+                  placeholder="e.g., Marketing Prompts"
+                  maxLength={100}
+                  className="w-full px-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]"
+                  autoFocus
+                />
+              </div>
+
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {packLimits.currentUserPackCount} / {packLimits.maxCustomPacks} packs used ({packLimits.tier} plan)
+              </p>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={closeCreatePackModal}
+                  className="flex-1 px-4 py-2 text-sm text-[var(--foreground)] border border-[var(--border)] rounded-lg hover:bg-[var(--accent)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreatePack}
+                  disabled={isCreatingPack || !newPackTitle.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {isCreatingPack ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} />
+                      Create Pack
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
