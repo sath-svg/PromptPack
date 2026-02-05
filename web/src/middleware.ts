@@ -55,11 +55,14 @@ export default clerkMiddleware(async (auth, request) => {
   // Redirect www to non-www for SEO canonicalization
   const host = request.headers.get("host") || "";
   if (host.startsWith("www.")) {
-    const newUrl = new URL(request.url);
-    // Remove www and strip port if it's the standard port (3000 internal)
-    const newHost = host.replace("www.", "").replace(":3000", "");
-    newUrl.host = newHost;
-    const redirectResponse = NextResponse.redirect(newUrl, 301);
+    const url = new URL(request.url);
+    // Build the redirect URL without the port
+    const protocol = url.protocol;
+    const newHost = host.replace(/^www\./, "");
+    const pathname = url.pathname;
+    const search = url.search;
+    const redirectUrl = `${protocol}//${newHost}${pathname}${search}`;
+    const redirectResponse = NextResponse.redirect(redirectUrl, 301);
     return addSecurityHeaders(redirectResponse);
   }
 
