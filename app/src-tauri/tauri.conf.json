@@ -48,8 +48,7 @@
       "minimumSystemVersion": "10.15",
       "exceptionDomain": "",
       "frameworks": [],
-      "entitlements": null,
-      "useBootstrapper": false
+      "entitlements": null
     }
   },
   "plugins": {
