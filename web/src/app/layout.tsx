@@ -146,18 +146,6 @@ export default function RootLayout({
             />
             </Link>
             <nav className="header-nav">
-              <Link href="/downloads" className="header-link">
-                Downloads
-              </Link>
-              <Link href="/marketplace" className="header-link">
-                Marketplace
-              </Link>
-              <Link href="/pricing" className="header-link">
-                Pricing
-              </Link>
-              <Link href="/blog" className="header-link">
-                Blog
-              </Link>
               <SignedIn>
                 <Link href="/dashboard" className="header-link">
                   Dashboard
@@ -170,6 +158,18 @@ export default function RootLayout({
                   </span>
                 </SignInButton>
               </SignedOut>
+              <Link href="/downloads" className="header-link">
+                Downloads
+              </Link>
+              <Link href="/marketplace" className="header-link">
+                Marketplace
+              </Link>
+              <Link href="/pricing" className="header-link">
+                Pricing
+              </Link>
+              <Link href="/blog" className="header-link">
+                Blog
+              </Link>
             </nav>
 
             <div className="header-auth">

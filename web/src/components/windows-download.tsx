@@ -122,25 +122,34 @@ export function WindowsDownload() {
               MSI Package
             </a>
           </div>
-          <details style={{ marginTop: "1rem" }}>
-            <summary style={{ cursor: "pointer", fontSize: "0.9rem", opacity: 0.8 }}>
-              Other architectures
+          <details className="other-architectures">
+            <summary className="other-architectures-summary">
+              ▸ Other architectures
             </summary>
-            <div className="download-actions" style={{ marginTop: "0.5rem" }}>
-              <a
-                href="/downloads/PromptPack_0.1.0_x64-setup.exe"
-                className="btn download-btn download-btn-secondary"
-                download
-              >
-                x64 Installer
-              </a>
-              <a
-                href="/downloads/PromptPack_0.1.0_x86-setup.exe"
-                className="btn download-btn download-btn-secondary"
-                download
-              >
-                x86 Installer
-              </a>
+            <div className="other-architectures-content">
+              <div className="other-architectures-info">
+                <span>Version 0.1.0</span>
+                <span className="download-meta-dot">•</span>
+                <span>Windows 10/11</span>
+                <span className="download-meta-dot">•</span>
+                <span>x64 (x86 also available)</span>
+              </div>
+              <div className="download-actions">
+                <a
+                  href="/downloads/PromptPack_0.1.0_x64-setup.exe"
+                  className="btn download-btn download-btn-secondary"
+                  download
+                >
+                  x64 Installer
+                </a>
+                <a
+                  href="/downloads/PromptPack_0.1.0_x86-setup.exe"
+                  className="btn download-btn download-btn-secondary"
+                  download
+                >
+                  x86 Installer
+                </a>
+              </div>
             </div>
           </details>
         </>
@@ -172,25 +181,34 @@ export function WindowsDownload() {
               MSI Package
             </a>
           </div>
-          <details style={{ marginTop: "1rem" }}>
-            <summary style={{ cursor: "pointer", fontSize: "0.9rem", opacity: 0.8 }}>
-              Other architectures
+          <details className="other-architectures">
+            <summary className="other-architectures-summary">
+              ▸ Other architectures
             </summary>
-            <div className="download-actions" style={{ marginTop: "0.5rem" }}>
-              <a
-                href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
-                className="btn download-btn download-btn-secondary"
-                download
-              >
-                ARM64 Installer
-              </a>
-              <a
-                href="/downloads/PromptPack_0.1.0_x86-setup.exe"
-                className="btn download-btn download-btn-secondary"
-                download
-              >
-                x86 Installer
-              </a>
+            <div className="other-architectures-content">
+              <div className="other-architectures-info">
+                <span>Version 0.1.0</span>
+                <span className="download-meta-dot">•</span>
+                <span>Windows 10/11</span>
+                <span className="download-meta-dot">•</span>
+                <span>x64 (x86 also available)</span>
+              </div>
+              <div className="download-actions">
+                <a
+                  href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
+                  className="btn download-btn download-btn-secondary"
+                  download
+                >
+                  ARM64 Installer
+                </a>
+                <a
+                  href="/downloads/PromptPack_0.1.0_x86-setup.exe"
+                  className="btn download-btn download-btn-secondary"
+                  download
+                >
+                  x86 Installer
+                </a>
+              </div>
             </div>
           </details>
         </>
