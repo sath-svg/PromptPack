@@ -56,7 +56,9 @@ export default clerkMiddleware(async (auth, request) => {
   const host = request.headers.get("host") || "";
   if (host.startsWith("www.")) {
     const newUrl = new URL(request.url);
-    newUrl.host = host.replace("www.", "");
+    // Remove www and strip port if it's the standard port (3000 internal)
+    const newHost = host.replace("www.", "").replace(":3000", "");
+    newUrl.host = newHost;
     const redirectResponse = NextResponse.redirect(newUrl, 301);
     return addSecurityHeaders(redirectResponse);
   }
