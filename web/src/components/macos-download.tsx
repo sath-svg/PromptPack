@@ -86,6 +86,34 @@ export function MacOSDownload() {
           </select>
         </div>
       </div>
+      <details className="other-architectures">
+        <summary className="other-architectures-summary">
+          ▸ Other architectures
+        </summary>
+        <div className="other-architectures-content">
+          <div className="other-architectures-info">
+            <span>Version 0.1.0</span>
+            <span className="download-meta-dot">•</span>
+            <span>macOS 10.15+</span>
+          </div>
+          <div className="download-actions">
+            <a
+              href="/downloads/PromptPack-AppleSilicon.dmg"
+              className="btn download-btn download-btn-secondary"
+              download
+            >
+              Apple Silicon (.dmg)
+            </a>
+            <a
+              href="/downloads/PromptPack-Intel.dmg"
+              className="btn download-btn download-btn-secondary"
+              download
+            >
+              Intel (.dmg)
+            </a>
+          </div>
+        </div>
+      </details>
       <div className="download-meta">
         <span>macOS 10.15+</span>
         <span className="download-meta-dot">•</span>

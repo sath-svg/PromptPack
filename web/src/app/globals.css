@@ -3464,6 +3464,13 @@ h4.hero-hook {
   border: 1px solid rgba(99, 102, 241, 0.2);
 }
 
+/* Align download buttons across desktop cards by setting equal description heights */
+.desktop-card .download-description {
+  height: 4.5rem;
+  overflow: hidden;
+  flex: none;
+}
+
 .desktop-card:hover {
   border-color: var(--primary);
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);

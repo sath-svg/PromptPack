@@ -73,7 +73,7 @@ export function WindowsDownload() {
   const isArm = arch === "arm64";
 
   return (
-    <div className="download-card desktop-card">
+    <div className="download-card desktop-card desktop-card-windows">
       <div className="download-card-header">
         <div className="browser-icon">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
