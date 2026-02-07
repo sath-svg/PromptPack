@@ -184,10 +184,12 @@ export function UserPacksPage() {
   const handlePackClick = async (pack: UserPack) => {
     setSelectedPack(pack);
     setSelectedPackId(pack.id);
+    setAddingPrompt(null);
 
-    // Check if already loaded
-    const loaded = loadedUserPacks[pack.id];
-    if (loaded && loaded.prompts.length > 0) {
+    // Check if already loaded (including empty packs)
+    // Use getState() to read fresh store state, not the stale closure value
+    const freshLoaded = useSyncStore.getState().loadedUserPacks[pack.id];
+    if (freshLoaded) {
       return;
     }
 
@@ -899,8 +901,27 @@ export function UserPacksPage() {
           </div>
         )}
 
+        {/* Empty pack state - show when no prompts and not loading */}
+        {(!loaded || loaded.prompts.length === 0) && !isFetchingPack && !needsPassword && !addingPrompt && (
+          <div className="text-center py-12 bg-[var(--card)] rounded-xl border border-[var(--border)]">
+            <Package size={48} className="mx-auto text-[var(--muted-foreground)] mb-4" />
+            <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No prompts yet</h3>
+            <p className="text-[var(--muted-foreground)] max-w-sm mx-auto mb-4">
+              Add your first prompt to get started.
+            </p>
+            <button
+              onClick={() => startAddPrompt(selectedPack.id)}
+              disabled={promptLimits.isAtLimit}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 disabled:opacity-50"
+            >
+              <Plus size={16} />
+              Add Prompt
+            </button>
+          </div>
+        )}
+
         {/* Add Prompt Form - outside the grid */}
-        {loaded && loaded.prompts.length > 0 && (
+        {(loaded || !isFetchingPack) && (
           <div className="mt-4">
             {addingPrompt === selectedPack.id && (
               <div className="p-4 bg-[var(--card)] rounded-xl border border-[var(--border)]">
@@ -943,7 +964,7 @@ export function UserPacksPage() {
             )}
 
             {/* Add Prompt Button */}
-            {!addingPrompt && (
+            {!addingPrompt && loaded && loaded.prompts.length > 0 && (
               <div className="space-y-2">
                 <button
                   onClick={() => startAddPrompt(selectedPack.id)}
