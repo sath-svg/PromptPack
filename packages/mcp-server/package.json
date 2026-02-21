@@ -1,0 +1,28 @@
+{
+  "name": "pmtpk",
+  "version": "1.0.0",
+  "description": "PromptPack MCP server - access your saved prompts from AI assistants like OpenClaw and Claude",
+  "type": "module",
+  "bin": {
+    "pmtpk": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["mcp", "promptpack", "openclaw", "claude", "prompts", "ai"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

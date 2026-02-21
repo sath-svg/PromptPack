@@ -9,6 +9,7 @@
 
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
+import { handleMcpRequest } from "./mcp";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -249,13 +250,19 @@ type ClerkJwtPayload = {
   nbf?: number;
 };
 
-async function getClerkJwks(jwksUrl: string): Promise<{ keys: JsonWebKey[] } | null> {
+// Extends built-in JsonWebKey with standard JWK fields (kid, use) that TypeScript omits
+interface JwksKey extends JsonWebKey {
+  kid?: string;
+  use?: string;
+}
+
+async function getClerkJwks(jwksUrl: string): Promise<{ keys: JwksKey[] } | null> {
   const cache = caches.default;
   const req = new Request(jwksUrl, { method: "GET" });
   const cached = await cache.match(req);
   if (cached) {
     try {
-      return await cached.json() as { keys: JsonWebKey[] };
+      return await cached.json() as { keys: JwksKey[] };
     } catch {
       await cache.delete(req);
     }
@@ -263,7 +270,7 @@ async function getClerkJwks(jwksUrl: string): Promise<{ keys: JsonWebKey[] } | n
 
   const response = await fetch(req);
   if (!response.ok) return null;
-  const data = await response.json() as { keys: JsonWebKey[] };
+  const data = await response.json() as { keys: JwksKey[] };
   const res = new Response(JSON.stringify(data), {
     headers: {
       "Content-Type": "application/json",
@@ -1878,6 +1885,93 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             await releaseInFlightLock(inFlightKey);
           }
         }
+      }
+
+      // === MCP (Model Context Protocol) endpoint ===
+      if (path === "/mcp" && method === "POST") {
+        const mcpResponse = await handleMcpRequest(
+          request,
+          env,
+          verifyClerkJwt,
+          checkUserBillingStatus,
+        );
+        return addCors(mcpResponse);
+      }
+
+      // === Device auth for MCP CLI bridge ===
+
+      // Generate a device auth code for CLI login
+      if (path === "/auth/device-code" && method === "POST") {
+        const code = crypto.randomUUID().slice(0, 8);
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
+        const cacheRes = new Response(JSON.stringify({ status: "pending" }), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+        });
+        await cache.put(cacheReq, cacheRes);
+
+        return addCors(new Response(JSON.stringify({
+          code,
+          authUrl: `https://pmtpk.com/mcp-auth?code=${code}`,
+          expiresIn: 300,
+        }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Poll for device auth completion
+      if (path === "/auth/device-poll" && method === "GET") {
+        const code = url.searchParams.get("code");
+        if (!code) {
+          return addCors(new Response(JSON.stringify({ error: "Missing code" }), {
+            status: 400, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
+        const hit = await cache.match(cacheReq);
+        if (!hit) {
+          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
+            status: 404, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const data = await hit.json() as Record<string, unknown>;
+        return addCors(new Response(JSON.stringify(data), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Complete device auth (called by web app after user signs in)
+      if (path === "/auth/device-complete" && method === "POST") {
+        const body = await request.json().catch(() => null) as {
+          code?: string; clerkId?: string; refreshToken?: string;
+        } | null;
+        if (!body?.code || !body.clerkId || !body.refreshToken) {
+          return addCors(new Response(JSON.stringify({ error: "Missing code, clerkId, or refreshToken" }), {
+            status: 400, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${body.code}`, { method: "GET" });
+        const hit = await cache.match(cacheReq);
+        if (!hit) {
+          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
+            status: 404, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        // Update cache with completion data
+        const cacheRes = new Response(JSON.stringify({
+          status: "complete",
+          clerkId: body.clerkId,
+          refreshToken: body.refreshToken,
+        }), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+        });
+        await cache.put(cacheReq, cacheRes);
+
+        return addCors(new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        }));
       }
 
       // 404 for unknown routes
