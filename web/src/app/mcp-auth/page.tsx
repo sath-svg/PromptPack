@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useAuth, useUser, SignIn } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 
@@ -16,7 +16,7 @@ const API_BASE = "https://api.pmtpk.com";
  * 4. This page calls POST /auth/device-complete with { code, clerkId, refreshToken }
  * 5. CLI polls GET /auth/device-poll?code=xxx and receives the refresh token
  */
-export default function McpAuthPage() {
+function McpAuthContent() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
   const searchParams = useSearchParams();
@@ -155,5 +155,20 @@ export default function McpAuthPage() {
         {status === "completing" ? "Linking your account to the MCP server" : "Please wait..."}
       </p>
     </div>
+  );
+}
+
+export default function McpAuthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+          <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mb-4" />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </div>
+      }
+    >
+      <McpAuthContent />
+    </Suspense>
   );
 }
