@@ -1,6 +1,6 @@
 {
   "name": "pmtpk",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "PromptPack MCP server - access your saved prompts from AI assistants like OpenClaw and Claude",
   "type": "module",
   "bin": {

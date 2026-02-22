@@ -3,12 +3,13 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { CONVEX_URL } from '../lib/constants';
+import { tauriFetch } from '../lib/tauriFetch';
 import { useSyncStore } from './syncStore';
 
 // Helper to fetch user's billing tier from the backend
 async function fetchUserTier(clerkId: string): Promise<string> {
   try {
-    const response = await fetch(`${CONVEX_URL}/api/extension/billing-status`, {
+    const response = await tauriFetch(`${CONVEX_URL}/api/extension/billing-status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clerkId }),

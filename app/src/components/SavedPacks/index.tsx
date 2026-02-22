@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Cloud, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Trash2 } from 'lucide-react';
+import { Cloud, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Trash2, Workflow } from 'lucide-react';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { mkdir, exists, writeTextFile } from '@tauri-apps/plugin-fs';
 import { useSyncStore, type CloudPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePromptStore } from '../../stores/promptStore';
@@ -7,6 +9,7 @@ import { usePromptLimits } from '../../hooks/usePromptLimits';
 import { SOURCE_META } from '../../types';
 import type { PromptSource } from '../../types';
 import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
+import { generateWorkflow, getSkillDirName } from '../../lib/workflowExporter';
 import { TemplateInputDialog } from '../TemplateInputDialog';
 
 export function SavedPacksPage() {
@@ -240,6 +243,42 @@ export function SavedPacksPage() {
     }
   };
 
+  const handleConvertToWorkflow = async () => {
+    if (!selectedPack) return;
+    const loaded = loadedPacks[selectedPack.id];
+    if (!loaded || loaded.prompts.length === 0) return;
+
+    const meta = SOURCE_META[selectedPack.source as PromptSource];
+    const packTitle = meta?.label || selectedPack.source;
+
+    try {
+      const projectDir = await openDialog({
+        directory: true,
+        title: 'Select your project folder to install the skill',
+      });
+
+      if (!projectDir) return;
+
+      const markdown = generateWorkflow({
+        format: 'claude-skill',
+        packTitle,
+        prompts: loaded.prompts.map(p => ({ text: p.text, header: p.header })),
+      });
+
+      const slug = getSkillDirName(packTitle);
+      const sep = projectDir.includes('/') ? '/' : '\\';
+      const skillDir = `${projectDir}${sep}.claude${sep}skills${sep}${slug}`;
+
+      if (!(await exists(skillDir))) {
+        await mkdir(skillDir, { recursive: true });
+      }
+
+      await writeTextFile(`${skillDir}${sep}SKILL.md`, markdown);
+    } catch (err) {
+      console.error('Workflow export failed:', err);
+    }
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString(undefined, {
       month: 'short',
@@ -320,6 +359,15 @@ export function SavedPacksPage() {
               {loaded?.isEncrypted && (
                 <Lock size={20} className="text-[var(--muted-foreground)]" />
               )}
+              <button
+                onClick={handleConvertToWorkflow}
+                disabled={!loaded || loaded.prompts.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] bg-[var(--accent)] hover:bg-[var(--accent)]/80 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Convert to Claude Skill workflow"
+              >
+                <Workflow size={16} />
+                Install Claude Skill
+              </button>
               {deletingPackId === selectedPack.id ? (
                 <div className="flex items-center gap-2">
                   <button

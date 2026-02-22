@@ -21,6 +21,7 @@ export interface Env {
   CLERK_ISSUER: string;
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
+  MCP_TOKEN_SECRET: string;
 }
 
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
@@ -328,6 +329,60 @@ async function verifyClerkJwt(token: string, env: Env): Promise<ClerkJwtPayload 
   if (!verified) return null;
 
   return payload;
+}
+
+// --- MCP long-lived token helpers (HS256) ---
+
+function encodeBase64Url(data: Uint8Array): string {
+  let binary = "";
+  for (const byte of data) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function getHmacKey(secret: string): Promise<CryptoKey> {
+  const keyData = new TextEncoder().encode(secret);
+  return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+
+async function mintMcpToken(clerkId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + 30 * 24 * 60 * 60; // 30 days
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = { sub: clerkId, iat: now, exp: expiresAt, type: "mcp" };
+  const enc = new TextEncoder();
+  const headerB64 = encodeBase64Url(enc.encode(JSON.stringify(header)));
+  const payloadB64 = encodeBase64Url(enc.encode(JSON.stringify(payload)));
+  const signingInput = `${headerB64}.${payloadB64}`;
+  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signingInput));
+  const sigB64 = encodeBase64Url(new Uint8Array(sig));
+  return { token: `${signingInput}.${sigB64}`, expiresAt };
+}
+
+async function verifyMcpToken(token: string, env: Env): Promise<{ sub?: string } | null> {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  const header = parseJwtPart<{ alg?: string; typ?: string }>(headerB64);
+  if (!header || header.alg !== "HS256") return null;
+  const payload = parseJwtPart<{ sub?: string; exp?: number; type?: string }>(payloadB64);
+  if (!payload || payload.type !== "mcp") return null;
+  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = decodeBase64Url(sigB64);
+  const valid = await crypto.subtle.verify("HMAC", key, signature, signingInput);
+  if (!valid) return null;
+  return { sub: payload.sub };
+}
+
+async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Try Clerk RS256 first (no conflict: verifyClerkJwt checks alg === "RS256")
+  const clerk = await verifyClerkJwt(token, env);
+  if (clerk) return clerk;
+  // Fall back to MCP HS256 token
+  if (!env.MCP_TOKEN_SECRET) return null;
+  return verifyMcpToken(token, env);
 }
 
 function getEnhanceMode(input: unknown): EnhanceMode | null {
@@ -1892,7 +1947,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         const mcpResponse = await handleMcpRequest(
           request,
           env,
-          verifyClerkJwt,
+          verifyMcpOrClerkJwt,
           checkUserBillingStatus,
         );
         return addCors(mcpResponse);
@@ -1959,17 +2014,64 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             status: 404, headers: { "Content-Type": "application/json" },
           }));
         }
+
+        // Mint a long-lived MCP token if secret is configured
+        let tokenToStore = body.refreshToken;
+        let expiresAt: number | undefined;
+        if (env.MCP_TOKEN_SECRET) {
+          // Verify the Clerk JWT to confirm identity
+          const clerkPayload = await verifyClerkJwt(body.refreshToken, env);
+          if (!clerkPayload || clerkPayload.sub !== body.clerkId) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid Clerk token" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const minted = await mintMcpToken(body.clerkId, env);
+          tokenToStore = minted.token;
+          expiresAt = minted.expiresAt;
+        }
+
         // Update cache with completion data
         const cacheRes = new Response(JSON.stringify({
           status: "complete",
           clerkId: body.clerkId,
-          refreshToken: body.refreshToken,
+          refreshToken: tokenToStore,
+          ...(expiresAt ? { expiresAt } : {}),
         }), {
           headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
         });
         await cache.put(cacheReq, cacheRes);
 
         return addCors(new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Refresh an MCP token (exchange valid MCP token for a fresh 30-day token)
+      if (path === "/auth/mcp-refresh" && method === "POST") {
+        if (!env.MCP_TOKEN_SECRET) {
+          return addCors(new Response(JSON.stringify({ error: "MCP token refresh not configured" }), {
+            status: 501, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader?.startsWith("Bearer ")) {
+          return addCors(new Response(JSON.stringify({ error: "Missing Bearer token" }), {
+            status: 401, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const oldToken = authHeader.slice(7);
+        const payload = await verifyMcpToken(oldToken, env);
+        if (!payload?.sub) {
+          return addCors(new Response(JSON.stringify({ error: "Invalid or expired MCP token" }), {
+            status: 401, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const minted = await mintMcpToken(payload.sub, env);
+        return addCors(new Response(JSON.stringify({
+          refreshToken: minted.token,
+          expiresAt: minted.expiresAt,
+        }), {
           headers: { "Content-Type": "application/json" },
         }));
       }

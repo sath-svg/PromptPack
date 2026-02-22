@@ -206,13 +206,13 @@ export function ProCard() {
         <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
         <li>✓ Desktop app</li>
+        <li>✓ MCP server <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(500 calls/day)</span></li>
         <li>✓ Chrome, Firefox &amp; Safari extension</li>
         <li>✓ ChatGPT, Claude &amp; Gemini support</li>
         <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
         {/* Pro-only features */}
                 <li>✓ <span style={{ color: "#20B8CD" }}>Perplexity</span>, Grok, <span style={{ color: "#4D6BFE" }}>DeepSeek</span>, <span style={{ color: "#6B4FBB" }}>Kimi</span> support</li>
-        <li>✓ Priority support</li>
-        <li>✓ Early access to features</li>
+        <li>✓ <span style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Priority support</span></li>
       </ul>
 
       <div style={{ marginTop: "auto" }}>

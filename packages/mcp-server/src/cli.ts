@@ -2,8 +2,23 @@
 // Calls cloud MCP API directly and formats output for terminal
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { resolve, basename } from 'node:path';
-import { API_BASE, getToken } from './config.js';
+import { API_BASE, getTokenWithRefresh } from './config.js';
+
+function isEncryptedPmtpk(data: Buffer): boolean {
+  return data.length >= 4 && data[0] === 0x50 && data[1] === 0x50 && data[2] === 0x4B && data[3] === 0x01;
+}
+
+function promptPassword(message: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  return new Promise((resolve) => {
+    rl.question(message, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
@@ -13,7 +28,7 @@ interface JsonRpcResponse {
 }
 
 async function callTool(toolName: string, args: Record<string, unknown> = {}): Promise<unknown> {
-  const token = getToken();
+  const token = await getTokenWithRefresh();
   if (!token) {
     console.error('Not authenticated. Run `pmtpk login` first.');
     process.exit(1);
@@ -60,14 +75,14 @@ export async function cliList(): Promise<void> {
   }
 
   console.log('\nYour PromptPacks:\n');
-  console.log('  Name                    Type     Prompts  Encrypted');
-  console.log('  ' + '-'.repeat(60));
+  console.log('  Name                    Type              Prompts  Encrypted');
+  console.log('  ' + '-'.repeat(68));
   for (const pack of result) {
     const name = pack.name.padEnd(24);
-    const type = pack.type.padEnd(8);
+    const typeLabel = (pack.type === 'saved' ? 'From Extension' : 'Custom').padEnd(16);
     const count = String(pack.prompt_count).padEnd(8);
     const enc = pack.encrypted ? 'Yes' : 'No';
-    console.log(`  ${name}${type}${count}${enc}`);
+    console.log(`  ${name}${typeLabel}${count}${enc}`);
   }
   console.log(`\n  Total: ${result.length} packs\n`);
 }
@@ -151,10 +166,21 @@ export async function cliExport(packName: string, password?: string, outputPath?
   const args: Record<string, unknown> = { name: packName };
   if (password) args.password = password;
 
-  const result = await callTool('export_pack', args) as {
+  let result = await callTool('export_pack', args) as {
     success?: boolean; data?: string; file_name?: string;
     name?: string; encrypted?: boolean; size?: number; error?: string;
   } | null;
+
+  // If encrypted and no password was provided, prompt and retry
+  if (result?.error && !password && result.error.includes('encrypted')) {
+    const pw = await promptPassword('This pack is encrypted. Enter password: ');
+    if (!pw) {
+      console.error('Password is required for encrypted packs.');
+      return;
+    }
+    args.password = pw;
+    result = await callTool('export_pack', args) as typeof result;
+  }
 
   if (result?.error) {
     console.error(`Error: ${result.error}`);
@@ -184,6 +210,15 @@ export async function cliImport(filePath: string, name?: string, password?: stri
   } catch {
     console.error(`Error: Could not read file ${resolvedPath}`);
     return;
+  }
+
+  // Detect encrypted pack and prompt for password if not provided
+  if (!password && isEncryptedPmtpk(fileBuffer)) {
+    password = await promptPassword('This pack is encrypted. Enter password: ');
+    if (!password) {
+      console.error('Password is required for encrypted packs.');
+      return;
+    }
   }
 
   const base64Data = fileBuffer.toString('base64');

@@ -5,6 +5,7 @@ import type { PromptSource } from '../../types';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { ENHANCE_API_URL } from '../../lib/constants';
+import { tauriFetch } from '../../lib/tauriFetch';
 
 type EnhanceMode = 'structured' | 'clarity' | 'concise' | 'strict';
 
@@ -273,7 +274,7 @@ export function DraftPage() {
     setEnhanceError(null);
 
     try {
-      const response = await fetch(ENHANCE_API_URL, {
+      const response = await tauriFetch(ENHANCE_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

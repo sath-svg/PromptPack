@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { WORKERS_API_URL, CONVEX_URL } from '../lib/constants';
+import { tauriFetch } from '../lib/tauriFetch';
 import type { PromptEvaluation, EvaluationScores } from '../types';
 
 // Helper to compute SHA-256 hash of prompt text
@@ -60,7 +61,7 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
       const authToken = sessionToken;
 
       // Call the evaluation endpoint
-      const response = await fetch(`${WORKERS_API_URL}/api/evaluate`, {
+      const response = await tauriFetch(`${WORKERS_API_URL}/api/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +109,7 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
     if (promptHashes.length === 0) return;
 
     try {
-      const response = await fetch(`${CONVEX_URL}/api/desktop/get-evaluations`, {
+      const response = await tauriFetch(`${CONVEX_URL}/api/desktop/get-evaluations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -12,28 +12,108 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 function printHelp(): void {
+  const CYAN = '\x1b[36m';
+  const GREEN = '\x1b[32m';
+  const YELLOW = '\x1b[33m';
+  const DIM = '\x1b[2m';
+  const BOLD = '\x1b[1m';
+  const RESET = '\x1b[0m';
+
   console.log(`
-pmtpk - PromptPack MCP Server
+${BOLD}pmtpk${RESET} - PromptPack MCP Server & CLI
+Access your prompt packs from AI assistants or the command line.
 
-Usage:
-  pmtpk                          Start MCP stdio server (for OpenClaw/Claude Desktop)
-  pmtpk login                    Sign in to your PromptPack account
-  pmtpk logout                   Sign out and clear stored tokens
-  pmtpk list                     List all your prompt packs
-  pmtpk run <pack-name>          Output a pack as a multi-step workflow
-  pmtpk create <pack-name>       Create a new empty user pack
-  pmtpk add <pack-name> <prompt> Add a prompt to a user pack
-  pmtpk del <pack-name>          Delete an entire user pack
-  pmtpk del <pack-name> <index>  Remove a prompt by index from a user pack
-  pmtpk export <name> [--password <pw>] [--output <file>]   Export pack to .pmtpk file
-  pmtpk import <file> [--name <name>] [--password <pw>]     Import .pmtpk file as new pack
-  pmtpk help                     Show this help message
+${BOLD}USAGE${RESET}
+  ${CYAN}pmtpk${RESET}                                          Start MCP server ${DIM}(stdio, for AI clients)${RESET}
+  ${CYAN}pmtpk${RESET} ${GREEN}<command>${RESET} [options]                       Run a CLI command
 
-OpenClaw config (openclaw.json):
+${BOLD}AUTH${RESET}
+  ${GREEN}login${RESET}                                            Sign in via browser (device auth flow)
+  ${GREEN}logout${RESET}                                           Sign out and clear stored tokens
+
+${BOLD}COMMANDS${RESET}
+  ${GREEN}list${RESET}                                             List all your prompt packs
+  ${GREEN}run${RESET} <pack>                                       Run a pack as a multi-step workflow
+  ${GREEN}create${RESET} <name>                                    Create a new empty user pack
+  ${GREEN}add${RESET} <pack> <prompt>                               Add a prompt to a user pack
+  ${GREEN}del${RESET} <pack>                                       Delete an entire user pack
+  ${GREEN}del${RESET} <pack> <index>                                Remove a single prompt by index (0-based)
+  ${GREEN}export${RESET} <pack> [--password <pw>] [--output <file>] Export a pack to a .pmtpk file
+  ${GREEN}import${RESET} <file> [--name <name>] [--password <pw>]   Import a .pmtpk file as a new pack
+  ${GREEN}help${RESET}                                             Show this help message
+
+${BOLD}MCP TOOLS${RESET} ${DIM}(available to AI assistants when running as MCP server)${RESET}
+  ${YELLOW}list_packs${RESET}        List all packs with metadata
+                    ${DIM}options: type ("saved" | "user" | "all", default: "all")${RESET}
+
+  ${YELLOW}get_pack${RESET}          Get all prompts from a pack
+                    ${DIM}required: name${RESET}
+                    ${DIM}options:  password (for encrypted packs)${RESET}
+
+  ${YELLOW}search_prompts${RESET}    Search prompt headers across all packs
+                    ${DIM}required: query${RESET}
+
+  ${YELLOW}run_workflow${RESET}      Get formatted multi-step workflow from a pack
+                    ${DIM}required: name${RESET}
+                    ${DIM}options:  format ("json" | "markdown"), password, variables${RESET}
+
+  ${YELLOW}create_pack${RESET}       Create a new empty user pack
+                    ${DIM}required: name${RESET}
+                    ${DIM}options:  description${RESET}
+
+  ${YELLOW}add_prompt${RESET}        Add a prompt to a user pack
+                    ${DIM}required: pack_name, prompt_text${RESET}
+
+  ${YELLOW}delete_prompt${RESET}     Remove a prompt by index (0-based)
+                    ${DIM}required: pack_name, prompt_index${RESET}
+
+  ${YELLOW}delete_pack${RESET}       Delete an entire user pack
+                    ${DIM}required: pack_name${RESET}
+
+  ${YELLOW}export_pack${RESET}       Export a pack as base64-encoded .pmtpk data
+                    ${DIM}required: name${RESET}
+                    ${DIM}options:  password (encrypts with AES-GCM)${RESET}
+
+  ${YELLOW}import_pack${RESET}       Import a base64-encoded .pmtpk file as a new pack
+                    ${DIM}required: file_data (base64), name${RESET}
+                    ${DIM}options:  password (if file is encrypted)${RESET}
+
+${BOLD}TEMPLATE VARIABLES${RESET}
+  Prompts can contain {{variables}}. Pass values with the "variables" option
+  when running a workflow. Example: ${DIM}variables: {"Stock": "AAPL"}${RESET}
+
+${BOLD}RATE LIMITS${RESET}  ${DIM}(MCP tool calls)${RESET}
+  Free    50/day    5/min
+  Pro     500/day   15/min
+  Studio  2000/day  30/min
+
+${BOLD}PACK LIMITS${RESET}
+  Free    0 custom packs    10 prompts/pack
+  Pro     2 custom packs    40 prompts/pack
+  Studio  14 custom packs   200 prompts/pack
+
+${BOLD}SETUP${RESET}
+  ${DIM}# Claude Desktop (claude_desktop_config.json)${RESET}
+  { "mcpServers": { "pmtpk": { "command": "npx", "args": ["-y", "pmtpk"] } } }
+
+  ${DIM}# OpenClaw (openclaw.json)${RESET}
   { "name": "pmtpk", "command": "npx", "args": ["-y", "pmtpk"] }
 
-Claude Desktop config (claude_desktop_config.json):
-  { "mcpServers": { "pmtpk": { "command": "npx", "args": ["-y", "pmtpk"] } } }
+  ${DIM}# Claude Code (.mcp.json)${RESET}
+  { "mcpServers": { "pmtpk": { "type": "stdio", "command": "npx", "args": ["-y", "pmtpk"] } } }
+
+${BOLD}EXAMPLES${RESET}
+  ${CYAN}pmtpk login${RESET}                                      Sign in to PromptPack
+  ${CYAN}pmtpk list${RESET}                                       Show all your packs
+  ${CYAN}pmtpk run "SEO Pack"${RESET}                              Run pack as workflow
+  ${CYAN}pmtpk create "Code Review"${RESET}                        Create a new pack
+  ${CYAN}pmtpk add "Code Review" "Review this: {{code}}"${RESET}   Add a templated prompt
+  ${CYAN}pmtpk del "Code Review" 0${RESET}                         Remove first prompt
+  ${CYAN}pmtpk del "Code Review"${RESET}                           Delete entire pack
+  ${CYAN}pmtpk export "My Pack" -p secret -o my.pmtpk${RESET}     Export encrypted
+  ${CYAN}pmtpk import my.pmtpk -n "Imported" -p secret${RESET}    Import encrypted file
+
+${DIM}Docs: https://pmtpk.com    API: https://api.pmtpk.com/mcp${RESET}
 `);
 }
 

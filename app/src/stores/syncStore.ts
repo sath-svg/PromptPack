@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PromptSource, UserTier } from '../types';
 import { CONVEX_URL, WORKERS_API_URL, getPromptLimit } from '../lib/constants';
+import { tauriFetch } from '../lib/tauriFetch';
 import { useAuthStore } from './authStore';
 
 // Cloud saved pack from Convex (extension-saved prompts)
@@ -501,7 +502,7 @@ export const useSyncStore = create<SyncState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const response = await fetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -537,7 +538,7 @@ export const useSyncStore = create<SyncState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const response = await fetch(`${CONVEX_URL}/api/desktop/user-packs`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/user-packs`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -576,12 +577,12 @@ export const useSyncStore = create<SyncState>()(
         try {
           // Fetch both savedPacks and userPacks metadata in parallel
           const [savedResponse, userResponse] = await Promise.all([
-            fetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
+            tauriFetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ clerkId }),
             }),
-            fetch(`${CONVEX_URL}/api/desktop/user-packs`, {
+            tauriFetch(`${CONVEX_URL}/api/desktop/user-packs`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ clerkId }),
@@ -642,7 +643,7 @@ export const useSyncStore = create<SyncState>()(
 
         try {
           // Fetch from R2 via workers API
-          const response = await fetch(`${WORKERS_API_URL}/storage/fetch`, {
+          const response = await tauriFetch(`${WORKERS_API_URL}/storage/fetch`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -709,7 +710,7 @@ export const useSyncStore = create<SyncState>()(
             const mergedFileData = bytesToBase64(encoded);
 
             // Upload merged data to server (fire and forget, don't block UI)
-            fetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
+            tauriFetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -746,7 +747,7 @@ export const useSyncStore = create<SyncState>()(
 
         try {
           // Fetch from R2 via workers API
-          const response = await fetch(`${WORKERS_API_URL}/storage/fetch`, {
+          const response = await tauriFetch(`${WORKERS_API_URL}/storage/fetch`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -812,7 +813,7 @@ export const useSyncStore = create<SyncState>()(
             const mergedFileData = bytesToBase64(encoded);
 
             // Upload merged data to server (fire and forget, don't block UI)
-            fetch(`${CONVEX_URL}/api/desktop/update-pack`, {
+            tauriFetch(`${CONVEX_URL}/api/desktop/update-pack`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -854,7 +855,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -908,7 +909,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update pack file via Convex HTTP API
-          const updateResponse = await fetch(`${CONVEX_URL}/api/desktop/update-pack`, {
+          const updateResponse = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -925,7 +926,7 @@ export const useSyncStore = create<SyncState>()(
 
           // Also update header metadata in Convex
           const promptKey = getPromptKey(updatedPrompts[promptIndex]);
-          await fetch(`${CONVEX_URL}/api/desktop/set-header`, {
+          await tauriFetch(`${CONVEX_URL}/api/desktop/set-header`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -972,7 +973,7 @@ export const useSyncStore = create<SyncState>()(
         set({ generatingHeaders: { ...generatingHeaders, [packId]: newGenerating } });
 
         try {
-          const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
+          const response = await tauriFetch(`${WORKERS_API_URL}/classify-website`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ promptText, maxWords: 2 }),
@@ -1051,7 +1052,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1105,7 +1106,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update pack file via Convex HTTP API
-          const updateResponse = await fetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
+          const updateResponse = await tauriFetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1122,7 +1123,7 @@ export const useSyncStore = create<SyncState>()(
 
           // Also update header metadata in Convex
           const promptKey = getPromptKey(updatedPrompts[promptIndex]);
-          await fetch(`${CONVEX_URL}/api/desktop/set-saved-pack-header`, {
+          await tauriFetch(`${CONVEX_URL}/api/desktop/set-saved-pack-header`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1169,7 +1170,7 @@ export const useSyncStore = create<SyncState>()(
         set({ generatingHeaders: { ...generatingHeaders, [packId]: newGenerating } });
 
         try {
-          const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
+          const response = await tauriFetch(`${WORKERS_API_URL}/classify-website`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ promptText, maxWords: 2 }),
@@ -1288,7 +1289,7 @@ export const useSyncStore = create<SyncState>()(
           set({ generatingHeaders: { ...generatingHeaders, [packId]: newGenerating } });
 
           try {
-            const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
+            const response = await tauriFetch(`${WORKERS_API_URL}/classify-website`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ promptText: text, maxWords: 2 }),
@@ -1342,7 +1343,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1387,7 +1388,7 @@ export const useSyncStore = create<SyncState>()(
 
         try {
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-pack-icon`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack-icon`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1445,7 +1446,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1493,7 +1494,7 @@ export const useSyncStore = create<SyncState>()(
 
         try {
           // Delete via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/delete-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ packId }),
@@ -1586,7 +1587,7 @@ export const useSyncStore = create<SyncState>()(
           set({ generatingHeaders: { ...generatingHeaders, [packId]: newGenerating } });
 
           try {
-            const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
+            const response = await tauriFetch(`${WORKERS_API_URL}/classify-website`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ promptText: text, maxWords: 2 }),
@@ -1640,7 +1641,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1694,7 +1695,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Update via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1742,7 +1743,7 @@ export const useSyncStore = create<SyncState>()(
 
         try {
           // Delete via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/delete-saved-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ packId }),
@@ -1784,7 +1785,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Create pack via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/create-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/create-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1863,7 +1864,7 @@ export const useSyncStore = create<SyncState>()(
               const results = await Promise.all(
                 batch.map(async ({ prompt, index }) => {
                   try {
-                    const response = await fetch(`${WORKERS_API_URL}/classify-website`, {
+                    const response = await tauriFetch(`${WORKERS_API_URL}/classify-website`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ promptText: prompt.text, maxWords: 2 }),
@@ -1910,7 +1911,7 @@ export const useSyncStore = create<SyncState>()(
           const fileData = bytesToBase64(encoded);
 
           // Upload via Convex HTTP API
-          const response = await fetch(`${CONVEX_URL}/api/desktop/sync-saved-pack`, {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/sync-saved-pack`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2006,7 +2007,7 @@ export const useSyncStore = create<SyncState>()(
               const fileData = bytesToBase64(encoded);
 
               // Upload via Convex HTTP API
-              const response = await fetch(`${CONVEX_URL}/api/desktop/sync-saved-pack`, {
+              const response = await tauriFetch(`${CONVEX_URL}/api/desktop/sync-saved-pack`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

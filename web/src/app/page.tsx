@@ -9,6 +9,7 @@ import { FeatureRequestLink } from "@/components/feature-request-link";
 import { RoadmapTooltip } from "@/components/roadmap-tooltip";
 import { DownloadButtons } from "@/components/download-buttons";
 import { InstallAppButton } from "@/components/install-app-button";
+import { NpxInstall } from "@/components/npx-install";
 import './globals.css';
 
 export default function Home() {
@@ -71,6 +72,8 @@ export default function Home() {
           <br />
           Turn them into repeatable workflows. Move faster with a library of your best prompts.
         </p>
+
+        <NpxInstall />
 
         <DownloadButtons />
 
@@ -207,6 +210,65 @@ export default function Home() {
             <p style={{ marginTop: '1rem', color: 'var(--muted-foreground)', fontSize: '0.90rem' }}>
               Create your <span className="gradient-text">PromptPacks</span> in the dashboard after sign-in
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="testimonials-section">
+        <div className="testimonials-inner">
+          <h2 className="testimonials-title">Loved by prompt engineers</h2>
+          <p className="testimonials-subtitle">
+            See what our users are saying on the <a href="https://chromewebstore.google.com/detail/promptpack-%E2%80%93-save-enhance/ajfgnekiofhiblifmiimnlmcnfhibnbl/reviews" target="_blank" rel="noopener noreferrer" className="testimonials-link">Chrome Web Store</a>
+          </p>
+          <div className="testimonials-grid">
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Absolutely loving PromptPack, saves me so much time. I use it for ChatGPT and Gemini all the time.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#5C6BC0' }}>H</div>
+                <span className="testimonial-name">Herderson Alpha</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Saving and enhancing prompts for ChatGPT and Claude in one place has really boosted my efficiency.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#26A69A' }}>B</div>
+                <span className="testimonial-name">Blessing Mahmood</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Simple but powerful tool that improve my workflow.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#7E57C2' }}>A</div>
+                <span className="testimonial-name">Alfred Jacob</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Loved using this for creating workflows at work and at home!&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#EF5350' }}>J</div>
+                <span className="testimonial-name">Joshua Liang</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;REALLY AMAZING&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#FF7043' }}>K</div>
+                <span className="testimonial-name">Kendra Brasfield</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Very useful for my work.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar" style={{ background: '#66BB6A' }}>E</div>
+                <span className="testimonial-name">Ethan So</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>

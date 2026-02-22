@@ -7,7 +7,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { API_BASE, getToken } from './config.js';
+import { API_BASE, getTokenWithRefresh } from './config.js';
 
 interface JsonRpcResponse {
   jsonrpc: '2.0';
@@ -17,7 +17,7 @@ interface JsonRpcResponse {
 }
 
 async function callCloud(method: string, params?: unknown): Promise<unknown> {
-  const token = getToken();
+  const token = await getTokenWithRefresh();
   if (!token) {
     throw new Error('Not authenticated. Run `promptpack-mcp login` first.');
   }

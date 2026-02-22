@@ -40,12 +40,13 @@ export async function login(): Promise<void> {
       process.exit(1);
     }
 
-    const data = await pollRes.json() as { status: string; clerkId?: string; refreshToken?: string };
+    const data = await pollRes.json() as { status: string; clerkId?: string; refreshToken?: string; expiresAt?: number };
 
     if (data.status === 'complete' && data.clerkId && data.refreshToken) {
       saveConfig({
         clerkId: data.clerkId,
         refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
       });
       console.log('\nAuthenticated successfully! You can now use pmtpk MCP tools.');
       return;

@@ -107,16 +107,23 @@ function buildHtml() {
                         Hi Ivan,
                       </p>
                       <p class="email-muted" style="margin:0 0 16px;font-size:15px;line-height:1.7;color:${themeLight.muted};">
-                        Thank you for reaching out and for taking the time to report a potential security vulnerability on our platform. We take security matters seriously and appreciate your responsible approach.
+                        Thank you for your detailed security report and for taking the time to document these findings so thoroughly. We appreciate your responsible disclosure approach.
                       </p>
                       <p class="email-muted" style="margin:0 0 16px;font-size:15px;line-height:1.7;color:${themeLight.muted};">
-                        This email thread is the appropriate channel to discuss the issue. Please go ahead and share the details of the vulnerability you've identified, including any steps to reproduce it or supporting documentation you may have.
+                        We've reviewed each of the vulnerabilities you identified:
                       </p>
+                      <ul class="email-muted" style="margin:0 0 16px;padding-left:20px;font-size:15px;line-height:1.7;color:${themeLight.muted};">
+                        <li style="margin-bottom:8px;"><strong>Clickjacking / X-Frame-Options</strong> - Noted. We're evaluating this for implementation.</li>
+                        <li style="margin-bottom:8px;"><strong>DNSSEC</strong> - We've assessed this against our infrastructure and user base requirements.</li>
+                        <li style="margin-bottom:8px;"><strong>DMARC Record</strong> - This has been addressed and is now configured.</li>
+                        <li style="margin-bottom:8px;"><strong>TLS/SSL Version</strong> - We're reviewing our current TLS configuration.</li>
+                        <li><strong>Security Headers</strong> - We're prioritizing which headers to implement based on our application's threat model and deployment context (many of our users access PromptPack via corporate VPNs with existing security layers).</li>
+                      </ul>
                       <p class="email-muted" style="margin:0 0 16px;font-size:15px;line-height:1.7;color:${themeLight.muted};">
-                        We're currently formalizing our responsible disclosure policy and will be happy to share more details on that in due course. In the meantime, rest assured that any information you share will be handled with care.
+                        As a token of appreciation for your report, we'd like to offer you a discounted PromptPack Pro subscription at $1.99. Only 9 spots remain at this price.
                       </p>
                       <p class="email-muted" style="margin:0;font-size:15px;line-height:1.7;color:${themeLight.muted};">
-                        We look forward to hearing from you.
+                        Thank you again for helping us improve PromptPack's security posture.
                       </p>
                     </td>
                   </tr>

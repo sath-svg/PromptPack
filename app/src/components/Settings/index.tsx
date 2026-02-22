@@ -3,6 +3,7 @@ import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Load
 import { useSettingsStore, getTierLimits } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { CONVEX_URL } from '../../lib/constants';
+import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
 
 interface BillingStatus {
@@ -27,7 +28,7 @@ export function SettingsPage() {
     const fetchBillingStatus = async () => {
       setIsLoadingBilling(true);
       try {
-        const response = await fetch(`${CONVEX_URL}/api/extension/billing-status`, {
+        const response = await tauriFetch(`${CONVEX_URL}/api/extension/billing-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ clerkId: session.user_id }),

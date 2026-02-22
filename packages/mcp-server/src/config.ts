@@ -52,3 +52,39 @@ export function getToken(): string | null {
   if (!config?.refreshToken) return null;
   return config.refreshToken;
 }
+
+async function refreshTokenIfNeeded(): Promise<void> {
+  const config = loadConfig();
+  if (!config?.refreshToken || !config.expiresAt) return;
+
+  // Refresh if within 7 days of expiry
+  const sevenDays = 7 * 24 * 60 * 60;
+  const now = Math.floor(Date.now() / 1000);
+  if (config.expiresAt - now > sevenDays) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/mcp-refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.refreshToken}`,
+      },
+    });
+    if (!res.ok) return;
+    const data = await res.json() as { refreshToken?: string; expiresAt?: number };
+    if (data.refreshToken) {
+      saveConfig({
+        clerkId: config.clerkId,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+      });
+    }
+  } catch {
+    // Silently ignore refresh failures — token is still valid
+  }
+}
+
+export async function getTokenWithRefresh(): Promise<string | null> {
+  await refreshTokenIfNeeded();
+  return getToken();
+}

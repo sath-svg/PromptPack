@@ -3,6 +3,7 @@ import Link from "next/link";
 import { assetUrl } from "@/lib/constants";
 import { WindowsDownload } from "@/components/windows-download";
 import { MacOSDownload } from "@/components/macos-download";
+import { NpxInstall } from "@/components/npx-install";
 
 export const metadata = {
   title: "Download PromptPack - Desktop App & Browser Extensions",
@@ -66,6 +67,40 @@ export default function DownloadsPage() {
               <span>Ubuntu 20.04+</span>
               <span className="download-meta-dot">•</span>
               <span>AppImage / .deb</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* MCP Server Section */}
+      <div className="desktop-section">
+        <h2 className="desktop-section-title">
+          <span className="desktop-icon">🔌</span>
+          MCP Server
+          <span className="desktop-badge-new">New</span>
+        </h2>
+        <p className="desktop-section-subtitle">
+          Connect your prompt packs to Claude Desktop, Claude Code, and OpenClaw via the Model Context Protocol.
+        </p>
+
+        <div className="desktop-grid" style={{ gridTemplateColumns: "1fr", maxWidth: "500px", margin: "0 auto 3rem" }}>
+          <div className="download-card desktop-card">
+            <div className="download-card-header">
+              <div className="browser-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="1.5">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+              <h2>npx</h2>
+            </div>
+            <p className="download-description">
+              Install via npm — works as a stdio bridge for Claude Desktop, Claude Code, and any MCP-compatible client. Requires Node.js 18+.
+            </p>
+            <NpxInstall />
+            <div className="download-meta" style={{ marginTop: "1rem" }}>
+              <span>npm</span>
+              <span className="download-meta-dot">•</span>
+              <span>Claude Desktop / Claude Code</span>
             </div>
           </div>
         </div>

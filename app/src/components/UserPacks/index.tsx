@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2 } from 'lucide-react';
-import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2, Workflow } from 'lucide-react';
+import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
+import { writeFile, mkdir, exists, writeTextFile } from '@tauri-apps/plugin-fs';
 import { useSyncStore, encodePmtpk, encryptPmtpk, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePromptStore } from '../../stores/promptStore';
@@ -10,6 +10,7 @@ import { usePromptLimits } from '../../hooks/usePromptLimits';
 import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
 import { PASSWORD_MAX_LENGTH, isValidPassword } from '../../lib/constants';
 import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
+import { generateWorkflow, getSkillDirName } from '../../lib/workflowExporter';
 import { TemplateInputDialog } from '../TemplateInputDialog';
 import { ScoreBadge } from '../ScoreBadge';
 import { EvaluationModal } from '../EvaluationModal';
@@ -391,6 +392,39 @@ export function UserPacksPage() {
     }
   };
 
+  const handleConvertToWorkflow = async () => {
+    if (!selectedPack) return;
+    const loaded = loadedUserPacks[selectedPack.id];
+    if (!loaded || loaded.prompts.length === 0) return;
+
+    try {
+      const projectDir = await openDialog({
+        directory: true,
+        title: 'Select your project folder to install the skill',
+      });
+
+      if (!projectDir) return;
+
+      const markdown = generateWorkflow({
+        format: 'claude-skill',
+        packTitle: selectedPack.title,
+        prompts: loaded.prompts.map(p => ({ text: p.text, header: p.header })),
+      });
+
+      const slug = getSkillDirName(selectedPack.title);
+      const sep = projectDir.includes('/') ? '/' : '\\';
+      const skillDir = `${projectDir}${sep}.claude${sep}skills${sep}${slug}`;
+
+      if (!(await exists(skillDir))) {
+        await mkdir(skillDir, { recursive: true });
+      }
+
+      await writeTextFile(`${skillDir}${sep}SKILL.md`, markdown);
+    } catch (err) {
+      console.error('Workflow export failed:', err);
+    }
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleDateString(undefined, {
       month: 'short',
@@ -562,6 +596,15 @@ export function UserPacksPage() {
               >
                 <Download size={16} />
                 Export
+              </button>
+              <button
+                onClick={handleConvertToWorkflow}
+                disabled={!loadedUserPacks[selectedPack.id] || loadedUserPacks[selectedPack.id].prompts.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] bg-[var(--accent)] hover:bg-[var(--accent)]/80 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Convert to Claude Skill workflow"
+              >
+                <Workflow size={16} />
+                Install Claude Skill
               </button>
               {deletingPackId === selectedPack.id ? (
                 <div className="flex items-center gap-2">

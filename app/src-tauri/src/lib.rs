@@ -16,6 +16,12 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(commands::AuthState::default())
+        .manage(commands::HttpClient(
+            reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("failed to create HTTP client"),
+        ))
         .setup(|app| {
             // Initialize database
             let app_handle = app.handle().clone();
@@ -79,6 +85,7 @@ pub fn run() {
             commands::logout,
             commands::open_auth_window,
             commands::close_auth_window,
+            commands::proxy_fetch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

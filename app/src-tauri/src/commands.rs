@@ -2,6 +2,7 @@ use crate::auth::{self, AuthSession};
 use crate::crypto;
 use crate::db;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State};
 
@@ -684,4 +685,73 @@ pub fn close_auth_window(app_handle: AppHandle) -> Result<(), String> {
         let _ = window.close();
     }
     Ok(())
+}
+
+// ============ HTTP Proxy ============
+
+/// Shared reqwest client that auto-detects system proxy and trusts OS certificates.
+pub struct HttpClient(pub reqwest::Client);
+
+const ALLOWED_API_HOSTS: &[&str] = &[
+    "https://determined-lark-313.convex.site",
+    "https://api.pmtpk.com",
+    "https://grok.pmtpk.com",
+];
+
+#[derive(Debug, Deserialize)]
+pub struct ProxyFetchRequest {
+    pub url: String,
+    pub method: String,
+    pub headers: HashMap<String, String>,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProxyFetchResponse {
+    pub status: u16,
+    pub headers: HashMap<String, String>,
+    pub body: String,
+}
+
+#[tauri::command]
+pub async fn proxy_fetch(
+    request: ProxyFetchRequest,
+    client: State<'_, HttpClient>,
+) -> Result<ProxyFetchResponse, String> {
+    // Validate URL against allowlist
+    if !ALLOWED_API_HOSTS.iter().any(|host| request.url.starts_with(host)) {
+        return Err(format!("URL not allowed: {}", request.url));
+    }
+
+    let method: reqwest::Method = request.method.parse().map_err(|_| {
+        format!("Invalid HTTP method: {}", request.method)
+    })?;
+
+    let mut req_builder = client.0.request(method, &request.url);
+
+    for (key, value) in &request.headers {
+        req_builder = req_builder.header(key.as_str(), value.as_str());
+    }
+
+    if let Some(body) = request.body {
+        req_builder = req_builder.body(body);
+    }
+
+    let response = req_builder.send().await.map_err(|e| e.to_string())?;
+
+    let status = response.status().as_u16();
+    let mut headers = HashMap::new();
+    for (key, value) in response.headers() {
+        if let Ok(v) = value.to_str() {
+            headers.insert(key.to_string(), v.to_string());
+        }
+    }
+
+    let body = response.text().await.map_err(|e| e.to_string())?;
+
+    Ok(ProxyFetchResponse {
+        status,
+        headers,
+        body,
+    })
 }

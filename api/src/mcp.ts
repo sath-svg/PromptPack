@@ -3,7 +3,7 @@
 // Exposes prompt packs as MCP tools for OpenClaw, Claude Desktop, etc.
 
 import type { Env } from './index';
-import { decodePack, encodePack, encryptPack, isEncrypted, type PackData } from './pmtpk';
+import { decodePack, encodePmtpk, encryptPmtpk, isEncrypted, type PackData } from './pmtpk';
 import { parseTemplateVariables } from './templateParser';
 import { generateMarkdownWorkflow, generateStructuredWorkflow } from './workflowExporter';
 
@@ -124,12 +124,16 @@ async function fetchConvexSavedPacks(clerkId: string, convexUrl: string): Promis
     body: JSON.stringify({ clerkId }),
   });
   if (!res.ok) return [];
-  const data = await res.json() as Array<{
-    _id: string; source: string; r2Key: string; promptCount: number;
-    fileSize: number; headers?: Record<string, string>;
-  }>;
+  const body = await res.json() as {
+    success?: boolean;
+    packs?: Array<{
+      id: string; source: string; r2Key: string; promptCount: number;
+      fileSize: number; headers?: Record<string, string>;
+    }>;
+  };
+  const data = body.packs ?? [];
   return data.map(p => ({
-    id: p._id,
+    id: p.id,
     name: p.source,
     type: 'saved' as const,
     promptCount: p.promptCount,
@@ -146,13 +150,17 @@ async function fetchConvexUserPacks(clerkId: string, convexUrl: string): Promise
     body: JSON.stringify({ clerkId }),
   });
   if (!res.ok) return [];
-  const data = await res.json() as Array<{
-    _id: string; title: string; description?: string; category?: string;
-    r2Key: string; promptCount: number; isEncrypted?: boolean;
-    headers?: Record<string, string>;
-  }>;
+  const body = await res.json() as {
+    success?: boolean;
+    packs?: Array<{
+      id: string; title: string; description?: string; category?: string;
+      r2Key: string; promptCount: number; isEncrypted?: boolean;
+      headers?: Record<string, string>;
+    }>;
+  };
+  const data = body.packs ?? [];
   return data.map(p => ({
-    id: p._id,
+    id: p.id,
     name: p.title,
     type: 'user' as const,
     promptCount: p.promptCount,
@@ -240,7 +248,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'run_workflow',
-    description: 'Get a formatted multi-step workflow from a pack. Returns sequential prompts for execution.',
+    description: 'Get a formatted multi-step workflow from a pack. Returns sequential prompts for execution. If the workflow contains template variables ({Variable}), you will receive a missing_variables error listing ALL required variables. You MUST ask the user for EVERY variable — never skip any, never guess defaults — then call again with all values in the "variables" parameter.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -414,6 +422,30 @@ async function handleRunWorkflow(
     header: meta.headers?.[`prompt_${i}`] ?? p.header,
   }));
 
+  // Collect all template variables from the pack's prompts
+  const allVars = new Set<string>();
+  for (const prompt of prompts) {
+    for (const v of parseTemplateVariables(prompt.text)) {
+      allVars.add(v);
+    }
+  }
+
+  // If the pack has template variables, check which ones are missing
+  if (allVars.size > 0) {
+    const provided = variables ?? {};
+    const missing = Array.from(allVars).filter(v => !provided[v]?.trim());
+
+    if (missing.length > 0) {
+      return {
+        error: 'missing_variables',
+        message: `STOP. This workflow has ${missing.length} required variables that need values. You MUST ask the user for ALL ${missing.length} variables listed below — do NOT skip any, do NOT use defaults, do NOT guess values. Ask for every single one. Then call run_workflow again with all values in the "variables" parameter as {"variable_name": "value"}.`,
+        missing_variables: missing,
+        all_variables: Array.from(allVars),
+        provided_variables: Object.keys(provided).filter(k => provided[k]?.trim()),
+      };
+    }
+  }
+
   if (format === 'markdown') {
     return { format: 'markdown', content: generateMarkdownWorkflow(meta.name, prompts, variables) };
   }
@@ -435,38 +467,32 @@ async function handleCreatePack(
     return { error: `Pack limit reached (${userPacks.length}/${limit}). Upgrade your plan for more.` };
   }
 
-  // Create empty pack file
-  const packData: PackData = { version: 1, exportedAt: Date.now(), prompts: [] };
-  const fileBytes = await encodePack(packData);
-  const rand = crypto.randomUUID().slice(0, 8);
-  const r2Key = `users/${userId}/userpacks/pack_${Date.now()}_${rand}.pmtpk`;
+  // Create empty pack file in app-compatible format
+  const storeData = {
+    version: "1.0",
+    source: "mcp",
+    title: name,
+    exportedAt: new Date().toISOString(),
+    prompts: [] as Array<{ text: string; url: string; createdAt?: number; header?: string }>,
+  };
+  const fileBytes = await encodePmtpk(JSON.stringify(storeData));
+  const fileDataBase64 = toBase64(fileBytes);
 
-  await env.BUCKET.put(r2Key, fileBytes, {
-    customMetadata: { userId, promptCount: '0', uploadedAt: String(Date.now()) },
-  });
-
-  // Register in Convex
-  const description = (params.description as string) || '';
+  // Create pack via Convex (handles R2 upload + record creation)
   const convexRes = await fetch(`${env.CONVEX_URL}/api/desktop/create-pack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       clerkId: userId,
       title: name,
-      description,
-      r2Key,
+      fileData: fileDataBase64,
       promptCount: 0,
-      fileSize: fileBytes.length,
-      version: '1.0',
-      price: 0,
-      isPublic: false,
     }),
   });
 
   if (!convexRes.ok) {
-    // Clean up R2 on failure
-    await env.BUCKET.delete(r2Key);
-    return { error: 'Failed to register pack metadata' };
+    const errText = await convexRes.text().catch(() => '');
+    return { error: `Failed to register pack metadata: ${errText}` };
   }
 
   return { success: true, name, message: `Pack "${name}" created` };
@@ -485,19 +511,29 @@ async function handleAddPrompt(
   if (!meta) return { error: `User pack "${packName}" not found. Only user-created packs can be modified.` };
 
   const packData = await downloadAndDecodePack(env, userId, meta);
-  packData.prompts.push({ text: promptText, createdAt: Date.now() });
-  packData.exportedAt = Date.now();
+  packData.prompts.push({ text: promptText, url: "", createdAt: Date.now() } as PackData['prompts'][0]);
 
-  const fileBytes = await encodePack(packData);
-  await env.BUCKET.put(meta.r2Key, fileBytes, {
-    customMetadata: { userId, promptCount: String(packData.prompts.length), uploadedAt: String(Date.now()) },
-  });
+  // Re-encode in app-compatible format
+  const storeData = {
+    version: "1.0",
+    source: (packData as Record<string, unknown>).source || "mcp",
+    title: (packData as Record<string, unknown>).title || packName,
+    exportedAt: new Date().toISOString(),
+    prompts: packData.prompts.map((p: PackData['prompts'][0]) => ({
+      text: p.text,
+      url: (p as Record<string, unknown>).url || "",
+      createdAt: p.createdAt,
+      header: p.header,
+    })),
+  };
+  const fileBytes = await encodePmtpk(JSON.stringify(storeData));
+  const fileDataBase64 = toBase64(fileBytes);
 
-  // Update Convex metadata
+  // Update pack via Convex (handles R2 upload + metadata update)
   await fetch(`${env.CONVEX_URL}/api/desktop/update-pack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clerkId: userId, packId: meta.id, promptCount: packData.prompts.length, fileSize: fileBytes.length }),
+    body: JSON.stringify({ packId: meta.id, fileData: fileDataBase64, promptCount: packData.prompts.length }),
   });
 
   await invalidatePackCache(userId, meta.r2Key);
@@ -528,17 +564,28 @@ async function handleDeletePrompt(
   }
 
   const removed = packData.prompts.splice(promptIndex, 1)[0];
-  packData.exportedAt = Date.now();
 
-  const fileBytes = await encodePack(packData);
-  await env.BUCKET.put(meta.r2Key, fileBytes, {
-    customMetadata: { userId, promptCount: String(packData.prompts.length), uploadedAt: String(Date.now()) },
-  });
+  // Re-encode in app-compatible format
+  const storeData = {
+    version: "1.0",
+    source: (packData as Record<string, unknown>).source || "mcp",
+    title: (packData as Record<string, unknown>).title || packName,
+    exportedAt: new Date().toISOString(),
+    prompts: packData.prompts.map((p: PackData['prompts'][0]) => ({
+      text: p.text,
+      url: (p as Record<string, unknown>).url || "",
+      createdAt: p.createdAt,
+      header: p.header,
+    })),
+  };
+  const fileBytes = await encodePmtpk(JSON.stringify(storeData));
+  const fileDataBase64 = toBase64(fileBytes);
 
+  // Update pack via Convex (handles R2 upload + metadata update)
   await fetch(`${env.CONVEX_URL}/api/desktop/update-pack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clerkId: userId, packId: meta.id, promptCount: packData.prompts.length, fileSize: fileBytes.length }),
+    body: JSON.stringify({ packId: meta.id, fileData: fileDataBase64, promptCount: packData.prompts.length }),
   });
 
   await invalidatePackCache(userId, meta.r2Key);
@@ -619,20 +666,40 @@ async function handleExportPack(
   if (!obj) return { error: `Pack file not found in storage: ${meta.name}` };
   const rawBytes = new Uint8Array(await obj.arrayBuffer());
 
+  // Decode the stored pack to get prompts
+  let packData: PackData;
+  try {
+    packData = await decodePack(rawBytes, meta.isEncrypted ? password : undefined);
+  } catch {
+    if (meta.isEncrypted && !password) {
+      return { error: 'This pack is encrypted. Provide a password to export it.' };
+    }
+    return { error: 'Failed to decode pack from storage' };
+  }
+
+  // Re-encode using the standard app format (matching desktop/popup export)
+  const exportData = {
+    version: "1.0",
+    source: "mcp",
+    title: meta.name,
+    exportedAt: new Date().toISOString(),
+    prompts: packData.prompts.map((p: PackData['prompts'][0]) => ({
+      text: p.text,
+      url: (p as Record<string, unknown>).url || "",
+      createdAt: p.createdAt,
+      header: p.header,
+    })),
+  };
+  const exportJson = JSON.stringify(exportData);
+
   let exportBytes: Uint8Array;
   let encrypted = false;
 
   if (password) {
-    // Decode R2 bytes (may be obfuscated or encrypted) then re-encrypt with user's password
-    const packData = await decodePack(rawBytes, meta.isEncrypted ? password : undefined);
-    exportBytes = await encryptPack(packData, password);
+    exportBytes = await encryptPmtpk(exportJson, password);
     encrypted = true;
-  } else if (meta.isEncrypted) {
-    // Pack is encrypted in storage but no password provided — can't export
-    return { error: 'This pack is encrypted. Provide a password to export it.' };
   } else {
-    // Pack is XOR obfuscated in R2 — use raw bytes directly
-    exportBytes = rawBytes;
+    exportBytes = await encodePmtpk(exportJson);
   }
 
   // Size guard: reject if > 10MB
@@ -693,36 +760,37 @@ async function handleImportPack(
     return { error: 'Invalid pack file: missing prompts array' };
   }
 
-  // Re-encode as obfuscated for R2 storage
-  const storeData: PackData = { version: 1, exportedAt: Date.now(), prompts: packData.prompts };
-  const storeBytes = await encodePack(storeData);
-  const rand = crypto.randomUUID().slice(0, 8);
-  const r2Key = `users/${userId}/userpacks/pack_${Date.now()}_${rand}.pmtpk`;
+  // Re-encode as obfuscated for R2 storage, preserving app-compatible format
+  const storeData = {
+    version: "1.0",
+    source: (packData as Record<string, unknown>).source || "mcp",
+    title: (packData as Record<string, unknown>).title || name,
+    exportedAt: new Date().toISOString(),
+    prompts: packData.prompts.map((p: PackData['prompts'][0]) => ({
+      text: p.text,
+      url: (p as Record<string, unknown>).url || "",
+      createdAt: p.createdAt,
+      header: p.header,
+    })),
+  };
+  const storeBytes = await encodePmtpk(JSON.stringify(storeData));
+  const fileDataBase64 = toBase64(storeBytes);
 
-  await env.BUCKET.put(r2Key, storeBytes, {
-    customMetadata: { userId, promptCount: String(storeData.prompts.length), uploadedAt: String(Date.now()) },
-  });
-
-  // Register in Convex
+  // Create pack via Convex (handles R2 upload + record creation)
   const convexRes = await fetch(`${env.CONVEX_URL}/api/desktop/create-pack`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       clerkId: userId,
       title: name,
-      description: 'Imported from .pmtpk file',
-      r2Key,
+      fileData: fileDataBase64,
       promptCount: storeData.prompts.length,
-      fileSize: storeBytes.length,
-      version: '1.0',
-      price: 0,
-      isPublic: false,
     }),
   });
 
   if (!convexRes.ok) {
-    await env.BUCKET.delete(r2Key);
-    return { error: 'Failed to register pack metadata' };
+    const errText = await convexRes.text().catch(() => '');
+    return { error: `Failed to register pack metadata: ${errText}` };
   }
 
   return {
