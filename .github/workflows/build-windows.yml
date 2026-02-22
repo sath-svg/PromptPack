@@ -1,0 +1,55 @@
+name: Build Windows
+
+on:
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust targets
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          rustup target add aarch64-pc-windows-msvc
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build x64
+        working-directory: app
+        run: npx tauri build --target x86_64-pc-windows-msvc
+
+      - name: Build ARM64
+        working-directory: app
+        run: npx tauri build --target aarch64-pc-windows-msvc
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          # x64 installers
+          cp app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi artifacts/ || true
+          cp app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe artifacts/ || true
+          # ARM64 installers
+          cp app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/*.msi artifacts/ || true
+          cp app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/*.exe artifacts/ || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-builds
+          path: artifacts/
+          retention-days: 30
