@@ -39,7 +39,7 @@ export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
 // ============================================================================
 // PROMPT & PACK LIMITS
 // ============================================================================
-export const FREE_PROMPT_LIMIT = 10;
+export const FREE_PROMPT_LIMIT = 5;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
 export const FREE_PACK_LIMIT = 6;

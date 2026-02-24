@@ -120,7 +120,7 @@ export function getCustomPackLimit(tier: 'free' | 'pro' | 'studio'): number {
 // ============================================================================
 // PROMPT LIMITS BY TIER (total prompts across all packs)
 // ============================================================================
-export const FREE_PROMPT_LIMIT = 10;
+export const FREE_PROMPT_LIMIT = 5;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
 

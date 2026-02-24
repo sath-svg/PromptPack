@@ -469,6 +469,7 @@ export function DraftPage() {
             placeholder="Start drafting your prompt here..."
             rows={16}
             className="w-full px-3 py-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] resize-none"
+            data-tutorial="draft"
           />
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
             Use {'{variable}'} for arguments

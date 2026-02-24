@@ -21,7 +21,7 @@ export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.co
 // ============================================================================
 // PROMPT & PACK LIMITS
 // ============================================================================
-export const FREE_PROMPT_LIMIT = 10;
+export const FREE_PROMPT_LIMIT = 5;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
 export const FREE_PACK_LIMIT = 6;

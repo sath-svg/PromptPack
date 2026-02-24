@@ -6,12 +6,17 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { SavedPrompts } from "./saved-prompts";
 import { ManageSubscriptionButton } from "./manage-subscription-button";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { PromptPacks } from "./prompt-packs";
 import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, STUDIO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT, STUDIO_PACK_LIMIT } from "@/lib/constants";
+import { trackEvent } from "@/lib/analytics";
+import { TutorialOverlay } from "@/components/onboarding/tutorial-overlay";
 
 export function DashboardContent() {
   const { user: clerkUser, isLoaded } = useUser();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const convexUser = useQuery(
     api.users.getByClerkId,
     clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
@@ -21,11 +26,19 @@ export function DashboardContent() {
     api.savedPacks.listByUser,
     convexUser?._id ? { userId: convexUser._id } : "skip"
   );
+  const completeOnboarding = useMutation(api.users.completeOnboarding);
+  const [toast, setToast] = useState<string | null>(null);
+  const signupTracked = useRef(false);
 
   // Auto-sync Clerk user to Convex if not exists
   useEffect(() => {
     async function syncUser() {
       if (isLoaded && clerkUser && convexUser === null) {
+        // Track first-time sign-up
+        if (!signupTracked.current) {
+          signupTracked.current = true;
+          trackEvent("sign-up");
+        }
         await upsertUser({
           clerkId: clerkUser.id,
           email: clerkUser.primaryEmailAddress?.emailAddress || "",
@@ -36,6 +49,23 @@ export function DashboardContent() {
     }
     syncUser();
   }, [isLoaded, clerkUser, convexUser, upsertUser]);
+
+  // Track post-checkout success
+  useEffect(() => {
+    if (searchParams.get("checkout") === "success") {
+      trackEvent("subscription-activated", { plan: "pro" });
+      setToast("You're now on Pro! Enjoy 40 prompts, evaluation, and more.");
+      router.replace("/dashboard");
+    }
+  }, [searchParams, router]);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   if (!isLoaded || convexUser === undefined) {
     return <div className="loading">Loading dashboard...</div>;
@@ -57,15 +87,70 @@ export function DashboardContent() {
   // Calculate saved prompts count
   const savedPromptsCount = savedPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
 
+  const usagePercent = Math.min(100, (savedPromptsCount / promptLimit) * 100);
+  const isNearLimit = !hasPro && !isStudio && savedPromptsCount >= promptLimit - 1;
+  const isAtLimit = !hasPro && !isStudio && savedPromptsCount >= promptLimit;
+
+  // Show tutorial for first-time free users with no saved prompts
+  const showTutorial =
+    convexUser?.onboardingCompleted !== true &&
+    isLoaded &&
+    !hasPro &&
+    !isStudio &&
+    savedPromptsCount === 0;
+
+  const handleCompleteOnboarding = async () => {
+    if (clerkUser?.id) {
+      await completeOnboarding({ clerkId: clerkUser.id });
+    }
+  };
+
   return (
     <div className="dashboard">
+      {toast && (
+        <div style={{
+          position: "fixed", top: "1rem", right: "1rem", zIndex: 1000,
+          background: "#10b981", color: "white", padding: "0.75rem 1.25rem",
+          borderRadius: "0.5rem", fontSize: "0.9rem", fontWeight: 500,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)", animation: "fadeIn 0.3s ease",
+        }}>
+          {toast}
+        </div>
+      )}
+
+      {showTutorial && (
+        <TutorialOverlay onComplete={handleCompleteOnboarding} />
+      )}
+
       <h1>Welcome back, {clerkUser?.firstName || "there"}!</h1>
 
       <div className="dashboard-grid">
         <div className="dashboard-card">
           <h2>Saved Prompts</h2>
           <p className="stat-value">{savedPromptsCount}</p>
-          <p>of {promptLimit} {isStudio ? "studio" : (hasPro ? "pro" : "free")} prompts used</p>
+          <div style={{ marginTop: "0.25rem" }}>
+            <div style={{
+              height: "6px", borderRadius: "3px",
+              background: "rgba(128,128,128,0.2)",
+              overflow: "hidden",
+            }}>
+              <div style={{
+                height: "100%",
+                width: `${usagePercent}%`,
+                background: isAtLimit ? "#ef4444" : isNearLimit ? "#f59e0b" : "var(--accent)",
+                borderRadius: "3px",
+                transition: "width 0.3s ease",
+              }} />
+            </div>
+            <p style={{ fontSize: "0.85rem", marginTop: "0.35rem", color: "var(--muted)" }}>
+              {savedPromptsCount} of {promptLimit} prompts used
+              {isNearLimit && (
+                <Link href="/pricing" style={{ color: "var(--accent)", marginLeft: "0.5rem", textDecoration: "underline" }}>
+                  Upgrade for {PRO_PROMPT_LIMIT} →
+                </Link>
+              )}
+            </p>
+          </div>
           {savedPacks && savedPacks.length > 0 && (
             <div className="saved-sources">
               {savedPacks.map((pack) => (

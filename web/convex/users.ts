@@ -474,6 +474,48 @@ export const checkWebhookSecret = query({
  * 2. Pass arguments: { "clerkId": "user_xxx", "plan": "pro" }
  * 3. Or from your Clerk user ID: { "clerkId": "user_2abc123", "plan": "free" }
  */
+// Get remaining free evaluation trials for a user
+export const getEvalTrials = query({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+    if (!user) return { used: 0, remaining: 3 };
+    const used = user.evalTrialsUsed ?? 0;
+    return { used, remaining: Math.max(0, 3 - used) };
+  },
+});
+
+// Increment evaluation trial counter (for free users)
+export const incrementEvalTrial = mutation({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+    if (!user) throw new Error("User not found");
+    const used = (user.evalTrialsUsed ?? 0) + 1;
+    await ctx.db.patch(user._id, { evalTrialsUsed: used });
+    return { used, remaining: Math.max(0, 3 - used) };
+  },
+});
+
+// Mark onboarding tutorial as completed
+export const completeOnboarding = mutation({
+  args: { clerkId: v.string() },
+  handler: async (ctx, { clerkId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+    if (!user) throw new Error("User not found");
+    await ctx.db.patch(user._id, { onboardingCompleted: true });
+  },
+});
+
 export const syncPlanFromClerk = mutation({
   args: {
     clerkId: v.string(),

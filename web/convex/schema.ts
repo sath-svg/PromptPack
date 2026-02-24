@@ -14,6 +14,10 @@ export default defineSchema({
     createdAt: v.number(),
     // Grace period for downgraded users (timestamp when packs will be deleted)
     packDeletionAt: v.optional(v.number()),
+    // Lifetime free evaluation trials used (max 3 for free users)
+    evalTrialsUsed: v.optional(v.number()),
+    // Whether the user has completed the onboarding tutorial
+    onboardingCompleted: v.optional(v.boolean()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_stripe_customer_id", ["stripeCustomerId"]),

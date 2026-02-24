@@ -77,7 +77,7 @@ export function FreeCard() {
           flex: "1",
         }}
       >
-        <li>✓ 10 saved prompts</li>
+        <li>✓ 5 saved prompts</li>
         <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
         <li>✓ 10 prompt enhances per day</li>
         <li>✓ 50 AI headers per day</li>

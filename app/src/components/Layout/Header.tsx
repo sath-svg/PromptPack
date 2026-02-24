@@ -83,7 +83,7 @@ export function Header() {
           </button>
 
           {/* User Menu */}
-          <div className="px-2">
+          <div className="px-2" data-tutorial="sign-in">
             <UserMenu onLoginClick={() => setShowLoginModal(true)} />
           </div>
 

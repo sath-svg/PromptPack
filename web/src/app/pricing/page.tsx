@@ -1,10 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
 import { FreeCard } from "./free-card";
 import { ProCard } from "./pro-card";
 import { StudioCard } from "./studio-card";
+import { trackEvent } from "@/lib/analytics";
 
 export default function PricingPage() {
+  useEffect(() => {
+    trackEvent("upgrade-page-viewed");
+  }, []);
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", textAlign: "center" }}>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>

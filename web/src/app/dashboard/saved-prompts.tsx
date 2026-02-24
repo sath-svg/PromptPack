@@ -18,9 +18,11 @@ import { WORKERS_API_URL, PASSWORD_MAX_LENGTH, isValidPassword } from "../../lib
 import {
   ScoreBadge,
   EvaluationModal,
+  EvalUpgradeCTA,
   useEvaluation,
   type PromptEvaluation,
 } from "../../components/evaluation";
+import { trackEvent } from "../../lib/analytics";
 
 type SavedPromptsProps = {
   userId: Id<"users">;
@@ -155,6 +157,24 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
   const [headerAuthBlocked, setHeaderAuthBlocked] = useState(false);
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
 
+  // Evaluation trial state (for free users)
+  const evalTrials = useQuery(
+    api.users.getEvalTrials,
+    clerkId ? { clerkId } : "skip"
+  );
+  const incrementTrialMutation = useMutation(api.users.incrementEvalTrial);
+
+  const trialsRemaining = (!hasPro && !isStudio)
+    ? (evalTrials?.remaining ?? 3)
+    : 0;
+
+  const handleTrialUsed = useCallback(async () => {
+    if (clerkId) {
+      trackEvent("eval-trial-used", { remaining: trialsRemaining - 1 });
+      await incrementTrialMutation({ clerkId });
+    }
+  }, [clerkId, incrementTrialMutation, trialsRemaining]);
+
   // Evaluation state
   const {
     evaluations,
@@ -164,7 +184,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
     getEvaluation,
     loadEvaluations,
     evaluatePrompt,
-  } = useEvaluation(clerkId, hasPro || isStudio);
+  } = useEvaluation(clerkId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
   const [promptHashes, setPromptHashes] = useState<Record<number, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{
     evaluation: PromptEvaluation;
@@ -1243,20 +1263,45 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
                             );
                           }
 
-                          // Show disabled button for free users
+                          // Show trial button or upgrade CTA for free users
                           if (!hasPro && !isStudio) {
-                            return (
-                              <button
-                                className="btn btn-icon btn-small"
-                                title="Upgrade to Pro to evaluate prompts"
-                                disabled
-                                style={{ opacity: 0.5 }}
-                              >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
-                                </svg>
-                              </button>
-                            );
+                            if (trialsRemaining > 0) {
+                              return (
+                                <div style={{ position: "relative", display: "inline-flex" }}>
+                                  <button
+                                    onClick={async () => {
+                                      const token = await getAuthToken();
+                                      if (!token) {
+                                        setError("Sign in required to evaluate prompts");
+                                        return;
+                                      }
+                                      await evaluatePrompt(prompt.text, token);
+                                    }}
+                                    disabled={isLoading || !hash}
+                                    className="btn btn-icon btn-small"
+                                    title={`Evaluate prompt (${trialsRemaining} free trial${trialsRemaining !== 1 ? "s" : ""} remaining)`}
+                                  >
+                                    {isLoading ? (
+                                      <span className="loading-spinner" />
+                                    ) : (
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+                                      </svg>
+                                    )}
+                                  </button>
+                                  <span style={{
+                                    position: "absolute", top: "-6px", right: "-8px",
+                                    background: "#f59e0b", color: "white",
+                                    borderRadius: "999px", fontSize: "0.55rem",
+                                    fontWeight: 700, padding: "1px 4px",
+                                    lineHeight: 1.3, whiteSpace: "nowrap",
+                                  }}>
+                                    {trialsRemaining} free
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return <EvalUpgradeCTA />;
                           }
 
                           return (

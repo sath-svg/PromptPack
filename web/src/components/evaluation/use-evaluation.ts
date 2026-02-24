@@ -34,8 +34,15 @@ async function sha256(text: string): Promise<string> {
 
 /**
  * Hook for managing prompt evaluations
+ * @param trialsRemaining - Number of free evaluation trials remaining (for free users)
+ * @param onTrialUsed - Callback fired after a free user successfully uses a trial evaluation
  */
-export function useEvaluation(clerkId: string | undefined, hasPro: boolean) {
+export function useEvaluation(
+  clerkId: string | undefined,
+  hasPro: boolean,
+  trialsRemaining: number = 0,
+  onTrialUsed?: () => void
+) {
   const [evaluations, setEvaluations] = useState<Record<string, PromptEvaluation>>({});
   const [loadingHash, setLoadingHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -117,8 +124,9 @@ export function useEvaluation(clerkId: string | undefined, hasPro: boolean) {
    */
   const evaluatePrompt = useCallback(
     async (promptText: string, sessionToken: string): Promise<PromptEvaluation | null> => {
-      if (!hasPro) {
-        setError("Upgrade to Pro to evaluate prompts");
+      const canEvaluate = hasPro || trialsRemaining > 0;
+      if (!canEvaluate) {
+        setError("trial_exhausted");
         return null;
       }
 
@@ -165,6 +173,11 @@ export function useEvaluation(clerkId: string | undefined, hasPro: boolean) {
         setEvaluations((prev) => ({ ...prev, [promptHash]: evaluation }));
         setLoadingHash(null);
 
+        // Notify caller that a free trial was used
+        if (!hasPro && onTrialUsed) {
+          onTrialUsed();
+        }
+
         return evaluation;
       } catch (error) {
         const message = error instanceof Error ? error.message : "Evaluation failed";
@@ -173,7 +186,7 @@ export function useEvaluation(clerkId: string | undefined, hasPro: boolean) {
         return null;
       }
     },
-    [hasPro, evaluations]
+    [hasPro, trialsRemaining, evaluations, onTrialUsed]
   );
 
   /**

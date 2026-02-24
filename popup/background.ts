@@ -140,3 +140,10 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
 
   return true;
 });
+
+// Set onboarding flag on fresh install so the tutorial shows in the popup
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    chrome.storage.local.set({ pp_onboarded: false });
+  }
+});

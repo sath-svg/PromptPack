@@ -30,9 +30,12 @@ import {
 import {
   ScoreBadge,
   EvaluationModal,
+  EvalUpgradeCTA,
   useEvaluation,
   type PromptEvaluation,
 } from "../../components/evaluation";
+import Link from "next/link";
+import { trackEvent } from "../../lib/analytics";
 
 type PromptPacksProps = {
   userId: Id<"users">;
@@ -333,6 +336,24 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Emoji options for pack icons
   const EMOJI_OPTIONS = ["📦", "🎯", "💡", "🚀", "⚡", "🔥", "💎", "🎨", "📝", "🛠️", "🎮", "🌟", "📚", "🔮", "🧩"];
 
+  // Evaluation trial state (for free users)
+  const evalTrials = useQuery(
+    api.users.getEvalTrials,
+    clerkId ? { clerkId } : "skip"
+  );
+  const incrementTrialMutation = useMutation(api.users.incrementEvalTrial);
+
+  const trialsRemaining = (!hasPro && !isStudio)
+    ? (evalTrials?.remaining ?? 3)
+    : 0;
+
+  const handleTrialUsed = useCallback(async () => {
+    if (clerkId) {
+      trackEvent("eval-trial-used", { remaining: trialsRemaining - 1 });
+      await incrementTrialMutation({ clerkId });
+    }
+  }, [clerkId, incrementTrialMutation, trialsRemaining]);
+
   // Evaluation state
   const {
     evaluations,
@@ -342,7 +363,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     getEvaluation,
     loadEvaluations,
     evaluatePrompt,
-  } = useEvaluation(clerkId, hasPro || isStudio);
+  } = useEvaluation(clerkId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
   const [promptHashes, setPromptHashes] = useState<Record<number, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{
     evaluation: PromptEvaluation;
@@ -816,6 +837,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     }
     // Check if adding this prompt would exceed the prompt limit
     if (webPackPrompts >= availableSlots) {
+      trackEvent("limit-hit", { type: "prompts" });
       setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). Delete some prompts to add more.`);
       return;
     }
@@ -880,6 +902,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
     // Check if adding this prompt would exceed the limit
     if (webPackPrompts >= availableSlots) {
+      trackEvent("limit-hit", { type: "prompts" });
       setError(`Prompt limit reached (${webPackPrompts}/${availableSlots}). ${hasPro ? "Delete some prompts to add more." : "Upgrade to Pro for 40 prompts."}`);
       return;
     }
@@ -1174,6 +1197,27 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
 
       {!hasPro && !gracePeriodInfo && (
         <p className="upgrade-notice">Upgrade to Pro to create prompt packs.</p>
+      )}
+
+      {!hasPro && !isStudio && savedPromptsCount >= maxPrompts && (
+        <div style={{
+          padding: "0.75rem 1rem",
+          background: "rgba(245, 158, 11, 0.1)",
+          border: "1px solid rgba(245, 158, 11, 0.3)",
+          borderRadius: "0.5rem",
+          marginBottom: "1rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+        }}>
+          <span style={{ fontSize: "0.9rem" }}>
+            You&apos;ve used all {maxPrompts} free prompts. Pro gives you {PRO_PROMPT_LIMIT}.
+          </span>
+          <Link href="/pricing">
+            <button className="btn btn-primary btn-sm">Upgrade</button>
+          </Link>
+        </div>
       )}
 
       {webPacks.length === 0 ? (
@@ -1649,20 +1693,38 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
                             );
                           }
 
-                          // Show disabled button for free users
+                          // Show trial button or upgrade CTA for free users
                           if (!hasPro && !isStudio) {
-                            return (
-                              <button
-                                className="btn btn-icon btn-small"
-                                title="Upgrade to Pro to evaluate prompts"
-                                disabled
-                                style={{ opacity: 0.5 }}
-                              >
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
-                                </svg>
-                              </button>
-                            );
+                            if (trialsRemaining > 0) {
+                              return (
+                                <div style={{ position: "relative", display: "inline-flex" }}>
+                                  <button
+                                    onClick={() => handleEvaluatePrompt(prompt.text, index)}
+                                    disabled={isLoading || !hash}
+                                    className="btn btn-icon btn-small"
+                                    title={`Evaluate prompt (${trialsRemaining} free trial${trialsRemaining !== 1 ? "s" : ""} remaining)`}
+                                  >
+                                    {isLoading ? (
+                                      <span className="loading-spinner" />
+                                    ) : (
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
+                                      </svg>
+                                    )}
+                                  </button>
+                                  <span style={{
+                                    position: "absolute", top: "-6px", right: "-8px",
+                                    background: "#f59e0b", color: "white",
+                                    borderRadius: "999px", fontSize: "0.55rem",
+                                    fontWeight: 700, padding: "1px 4px",
+                                    lineHeight: 1.3, whiteSpace: "nowrap",
+                                  }}>
+                                    {trialsRemaining} free
+                                  </span>
+                                </div>
+                              );
+                            }
+                            return <EvalUpgradeCTA />;
                           }
 
                           return (

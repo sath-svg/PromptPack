@@ -14,6 +14,7 @@ import {
   isValidPassword,
   TOAST_DURATION_MS,
   DASHBOARD_URL,
+  PRICING_URL,
   PACKS_CREATE_API,
 } from "./shared/config";
 
@@ -228,7 +229,11 @@ async function importPmtpk(file: File) {
     const newTotalPrompts = currentPromptCount + packPromptCount;
 
     if (newTotalPrompts > promptLimit) {
-      toast(`Cannot import: would exceed ${promptLimit} prompt limit (${currentPromptCount} + ${packPromptCount} = ${newTotalPrompts})`);
+      toast(
+        `Limit reached (${currentPromptCount}/${promptLimit})`,
+        { label: "Upgrade to Pro", onClick: () => chrome.tabs.create({ url: PRICING_URL }) },
+        3000
+      );
       return;
     }
 
@@ -305,7 +310,7 @@ function esc(s: string) {
   });
 }
 
-function toast(msg: string) {
+function toast(msg: string, action?: { label: string; onClick: () => void }, duration = TOAST_DURATION_MS) {
   let el = document.getElementById("pp-popup-toast");
   if (!el) {
     el = document.createElement("div");
@@ -323,16 +328,47 @@ function toast(msg: string) {
       font-size: 12px;
       opacity: 0;
       transition: opacity 140ms ease;
-      pointer-events: none;
       border: 1px solid var(--border);
       box-shadow: 0 8px 24px rgba(0,0,0,0.2);
       font-family: "Open Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     `;
     document.body.appendChild(el);
   }
-  el.textContent = msg;
+  // Clear previous content
+  el.textContent = "";
+  el.style.pointerEvents = action ? "auto" : "none";
+
+  const span = document.createElement("span");
+  span.textContent = msg;
+  el.appendChild(span);
+
+  if (action) {
+    const link = document.createElement("button");
+    link.textContent = action.label;
+    link.style.cssText = `
+      background: none;
+      border: none;
+      color: #6366f1;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline;
+      white-space: nowrap;
+      font-family: inherit;
+    `;
+    link.addEventListener("click", (e) => {
+      e.stopPropagation();
+      action.onClick();
+    });
+    el.appendChild(link);
+  }
+
   el.style.opacity = "1";
-  setTimeout(() => (el!.style.opacity = "0"), TOAST_DURATION_MS);
+  setTimeout(() => (el!.style.opacity = "0"), duration);
 }
 
 type GroupedPrompts = {
@@ -1330,6 +1366,128 @@ async function render(forceRefresh = false) {
   setupEventDelegation();
 }
 
+// Tutorial overlay (appended to document.body, outside #app to survive re-renders)
+async function showTutorial() {
+  const { pp_onboarded } = await chrome.storage.local.get("pp_onboarded");
+  if (pp_onboarded) return;
+
+  const steps: { target: string | null; text: string; title: string }[] = [
+    { target: null, text: "Welcome to PromptPack! Here's how it works.", title: "Welcome" },
+    { target: ".pp-sub", text: "Sign in to save prompts to the cloud and get AI-powered headers.", title: "Sign In" },
+    { target: "details.pp-sec[data-source='chatgpt']", text: "Your saved prompts appear here, organized by AI platform.", title: "Your Prompts" },
+    { target: "#pp-search", text: "Search across all your saved prompts instantly.", title: "Search" },
+  ];
+
+  let currentStep = 0;
+
+  // Create overlay container (appended to body, not #app)
+  const overlay = document.createElement("div");
+  overlay.className = "pp-tutorial-overlay";
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "pp-tutorial-backdrop";
+
+  const spotlight = document.createElement("div");
+  spotlight.className = "pp-tutorial-spotlight";
+
+  const card = document.createElement("div");
+  card.className = "pp-tutorial-card";
+
+  overlay.appendChild(backdrop);
+  overlay.appendChild(spotlight);
+  overlay.appendChild(card);
+
+  function renderStep() {
+    const step = steps[currentStep];
+    const isLast = currentStep === steps.length - 1;
+
+    // Position spotlight on target element
+    if (step.target) {
+      const el = document.querySelector(step.target);
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const pad = 6;
+        spotlight.style.display = "block";
+        spotlight.style.top = `${rect.top - pad}px`;
+        spotlight.style.left = `${rect.left - pad}px`;
+        spotlight.style.width = `${rect.width + pad * 2}px`;
+        spotlight.style.height = `${rect.height + pad * 2}px`;
+        backdrop.style.display = "none"; // spotlight box-shadow provides the backdrop
+
+        // Position card below or above the target
+        const cardWidth = 260;
+        const cardGap = 12;
+        let cardTop = rect.bottom + cardGap;
+        let cardLeft = Math.max(8, rect.left);
+
+        // If card would overflow right edge, nudge left
+        if (cardLeft + cardWidth > window.innerWidth - 8) {
+          cardLeft = window.innerWidth - cardWidth - 8;
+        }
+
+        // If card would overflow bottom, show above
+        if (cardTop + 140 > window.innerHeight) {
+          cardTop = rect.top - 140 - cardGap;
+        }
+
+        card.classList.remove("pp-tutorial-centered");
+        card.style.top = `${cardTop}px`;
+        card.style.left = `${cardLeft}px`;
+        card.style.transform = "none";
+      } else {
+        // Target not found, center the card
+        spotlight.style.display = "none";
+        backdrop.style.display = "block";
+        card.classList.add("pp-tutorial-centered");
+        card.style.top = "50%";
+        card.style.left = "50%";
+        card.style.transform = "translate(-50%, -50%)";
+      }
+    } else {
+      // No target - centered card (welcome step)
+      spotlight.style.display = "none";
+      backdrop.style.display = "block";
+      card.classList.add("pp-tutorial-centered");
+      card.style.top = "50%";
+      card.style.left = "50%";
+      card.style.transform = "translate(-50%, -50%)";
+    }
+
+    // Build card content
+    card.innerHTML = `
+      <h3>${esc(step.title)}</h3>
+      <p>${esc(step.text)}</p>
+      <div class="pp-tutorial-footer">
+        <button class="pp-tutorial-skip" type="button">Skip tour</button>
+        <span class="pp-tutorial-counter">${currentStep + 1} / ${steps.length}</span>
+        <button class="pp-tutorial-next" type="button">${isLast ? "Got it" : "Next"}</button>
+      </div>
+    `;
+
+    // Bind card button events
+    const skipBtn = card.querySelector(".pp-tutorial-skip") as HTMLButtonElement;
+    const nextBtn = card.querySelector(".pp-tutorial-next") as HTMLButtonElement;
+
+    skipBtn.addEventListener("click", complete);
+    nextBtn.addEventListener("click", () => {
+      if (isLast) {
+        complete();
+      } else {
+        currentStep++;
+        renderStep();
+      }
+    });
+  }
+
+  function complete() {
+    chrome.storage.local.set({ pp_onboarded: true });
+    overlay.remove();
+  }
+
+  document.body.appendChild(overlay);
+  renderStep();
+}
+
 // Get initial auth state
 (async () => {
   // Try to get cached auth state first for instant rendering
@@ -1371,4 +1529,7 @@ async function render(forceRefresh = false) {
       void maybeRequeueMissingHeadersOnSignin(authState);
     }
   }
+
+  // Show tutorial overlay on first install (after UI is ready)
+  void showTutorial();
 })();

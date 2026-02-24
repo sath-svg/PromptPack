@@ -15,6 +15,7 @@ const applyTheme = (theme: 'light' | 'dark' | 'system') => {
 
 interface SettingsState extends AppSettings {
   session: UserSession | null;
+  hasCompletedOnboarding: boolean;
 
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -24,6 +25,7 @@ interface SettingsState extends AppSettings {
   setSession: (session: UserSession | null) => void;
   logout: () => void;
   initTheme: () => void;
+  completeOnboarding: () => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -35,6 +37,7 @@ export const useSettingsStore = create<SettingsState>()(
       storageLocation: '',
       syncEnabled: false,
       session: null,
+      hasCompletedOnboarding: false,
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -45,6 +48,7 @@ export const useSettingsStore = create<SettingsState>()(
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
       setSession: (session) => set({ session }),
       logout: () => set({ session: null, syncEnabled: false }),
+      completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       initTheme: () => {
         const { theme } = get();
         applyTheme(theme);

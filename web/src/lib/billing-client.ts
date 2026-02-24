@@ -1,3 +1,5 @@
+import { trackEvent } from "@/lib/analytics";
+
 type CheckoutInterval = "month" | "annual";
 type CheckoutPlan = "pro" | "studio";
 
@@ -14,6 +16,8 @@ export async function startStripeCheckout(
   interval: CheckoutInterval,
   plan: CheckoutPlan = "pro"
 ): Promise<void> {
+  trackEvent("checkout-started", { plan, interval });
+
   const response = await fetch("/api/stripe/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

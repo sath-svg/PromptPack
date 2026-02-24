@@ -699,3 +699,92 @@ details[open].pp-item .pp-item-arrow {
   font-size: 13px;
   color: var(--muted);
 }
+
+/* Tutorial overlay */
+.pp-tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+.pp-tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.pp-tutorial-spotlight {
+  position: absolute;
+  border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.pp-tutorial-card {
+  position: absolute;
+  z-index: 10001;
+  background: var(--card);
+  border: 1px solid rgba(128, 128, 128, 0.3);
+  border-radius: 12px;
+  padding: 16px;
+  width: 260px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.pp-tutorial-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pp-tutorial-card p {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.pp-tutorial-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pp-tutorial-skip {
+  font-size: 11px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.pp-tutorial-next {
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  background: var(--accent, #6366f1);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.pp-tutorial-next:hover {
+  opacity: 0.9;
+}
+
+.pp-tutorial-counter {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Centered card (for welcome/completion steps) */
+.pp-tutorial-card.pp-tutorial-centered {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}

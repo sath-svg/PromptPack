@@ -8,11 +8,14 @@ import { SavedPacksPage } from './components/SavedPacks';
 import { UserPacksPage } from './components/UserPacks';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
+import { useSettingsStore } from './stores/settingsStore';
+import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('draft');
   const { session, refreshTier } = useAuthStore();
   const { fetchAllPacks, cloudPacks, userPacks } = useSyncStore();
+  const { hasCompletedOnboarding, completeOnboarding } = useSettingsStore();
 
   // Fetch cloud and user packs when session is available
   useEffect(() => {
@@ -50,6 +53,9 @@ function App() {
   return (
     <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
       {renderPage()}
+      {!hasCompletedOnboarding && (
+        <TutorialOverlay onComplete={completeOnboarding} />
+      )}
     </Layout>
   );
 }
