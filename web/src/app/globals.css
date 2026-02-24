@@ -2582,6 +2582,151 @@ h4.hero-hook {
   }
 }
 
+/* ═══════════════════════════════════════════
+   EXTRA FEATURES (Desktop / CLI exclusive)
+   ═══════════════════════════════════════════ */
+.extras-section {
+  padding: 4rem 0 5rem;
+  background: linear-gradient(180deg, transparent 0%, rgba(99, 102, 241, 0.03) 40%, rgba(99, 102, 241, 0.06) 60%, transparent 100%);
+}
+
+.extras-inner {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.extras-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.extras-subtitle {
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  margin-bottom: 2.5rem;
+}
+
+.extras-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.extras-grid-3col {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.extras-card {
+  position: relative;
+  padding: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--card);
+  text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.extras-card:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.06);
+}
+
+.extras-card-glow {
+  border-color: rgba(99, 102, 241, 0.35);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(139, 92, 246, 0.1) 100%);
+  box-shadow: 0 0 32px rgba(99, 102, 241, 0.12), 0 0 64px rgba(139, 92, 246, 0.06);
+}
+
+.extras-card-glow:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow: 0 0 40px rgba(99, 102, 241, 0.18), 0 0 80px rgba(139, 92, 246, 0.08);
+}
+
+.extras-card-badge-soon {
+  background: rgba(139, 92, 246, 0.2);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: #a78bfa;
+}
+
+.extras-card-wide {
+  grid-column: span 2;
+}
+
+.extras-card-icon {
+  margin-bottom: 1rem;
+  line-height: 0;
+}
+
+.extras-card-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.2rem 0.55rem;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+}
+
+.extras-card h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+.extras-card p {
+  color: var(--muted-foreground);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.extras-card code {
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.85em;
+  color: #a78bfa;
+  font-family: "SF Mono", "Fira Code", "Fira Mono", "Roboto Mono", monospace;
+}
+
+.extras-card em {
+  color: var(--foreground);
+  font-style: italic;
+}
+
+@media (max-width: 1000px) {
+  .extras-grid-3col {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .extras-grid,
+  .extras-grid-3col {
+    grid-template-columns: 1fr;
+  }
+  .extras-card-wide {
+    grid-column: span 1;
+  }
+  .extras-inner {
+    padding: 0 1rem;
+  }
+  .extras-card {
+    padding: 1.25rem;
+  }
+}
+
 /* Upcoming features section */
 .upcoming-section {
   padding: 4rem 0 5rem;
@@ -2663,9 +2808,26 @@ h4.hero-hook {
   margin: 0;
 }
 
+.roadmap-section {
+  padding: 3rem 2rem 4rem;
+  display: flex;
+  justify-content: center;
+}
+
 .upcoming-cta {
-  margin-top: 2.5rem;
+  margin: 0 auto;
+  padding: 2rem 2.5rem;
   text-align: center;
+  max-width: 480px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.06) 100%);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.upcoming-cta:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 24px rgba(99, 102, 241, 0.06);
 }
 
 .upcoming-cta-header {
@@ -2673,8 +2835,8 @@ h4.hero-hook {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin: 0 0 0.75rem 0;
-  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--foreground);
 }

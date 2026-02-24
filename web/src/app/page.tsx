@@ -5,11 +5,12 @@ import { assetUrl } from "@/lib/constants";
 import { HowItWorks } from "@/components/how-it-works";
 import { HeroVideo } from "@/components/hero-video";
 import { FeatureSlideshow } from "@/components/feature-slideshow";
-import { FeatureRequestLink } from "@/components/feature-request-link";
-import { RoadmapTooltip } from "@/components/roadmap-tooltip";
 import { DownloadButtons } from "@/components/download-buttons";
 import { InstallAppButton } from "@/components/install-app-button";
 import { NpxInstall } from "@/components/npx-install";
+import { ExtraFeatures } from "@/components/extra-features";
+import { FeatureRequestLink } from "@/components/feature-request-link";
+import { RoadmapTooltip } from "@/components/roadmap-tooltip";
 import './globals.css';
 
 export default function Home() {
@@ -214,9 +215,11 @@ export default function Home() {
         </div>
       </section>
 
+      <ExtraFeatures />
+
       <section className="testimonials-section">
         <div className="testimonials-inner">
-          <h2 className="testimonials-title">Loved by prompt engineers</h2>
+          <h2 className="upcoming-title">Loved by <span className="gradient-text">prompt engineers</span></h2>
           <p className="testimonials-subtitle">
             See what our users are saying on the <a href="https://chromewebstore.google.com/detail/promptpack-%E2%80%93-save-enhance/ajfgnekiofhiblifmiimnlmcnfhibnbl/reviews" target="_blank" rel="noopener noreferrer" className="testimonials-link">Chrome Web Store</a>
           </p>
@@ -347,56 +350,16 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="upcoming-section">
-        <div className="upcoming-inner">
-          <h2 className="upcoming-title">Coming Soon</h2>
-          <p className="upcoming-subtitle">
-            The future of prompt management is being built.
+      <section className="roadmap-section">
+        <div className="upcoming-cta">
+          <p className="upcoming-cta-header">
+            <span className="upcoming-cta-icon">🟣</span>
+            <RoadmapTooltip />
           </p>
-
-          <div className="upcoming-grid">
-            <div className="upcoming-card">
-              <div className="upcoming-badge">Marketplace</div>
-              <div className="upcoming-icon">🏪</div>
-              <h3><span className="gradient-text">PromptPack</span> Marketplace</h3>
-              <p>
-                Discover and purchase curated <span className="gradient-text">PromptPacks</span> from creators.
-                Monetize your expertise by selling your best workflows to the community.
-              </p>
-            </div>
-
-            <div className="upcoming-card">
-              <div className="upcoming-badge">Modular</div>
-              <div className="upcoming-icon">🧩</div>
-              <h3>Modular <span className="gradient-text">PromptPacks</span></h3>
-              <p>
-                Add dynamic arguments to your prompts. When you quick-select a prompt,
-                it will ask for your inputs — making every prompt reusable and customizable.
-              </p>
-            </div>
-
-            <div className="upcoming-card upcoming-card-wide">
-              <div className="upcoming-badge">Automation</div>
-              <div className="upcoming-icon">⚙️</div>
-              <h3>Workflow Automation</h3>
-              <p>
-                Automate repetitive tasks with <span className="gradient-text">PromptPack</span>. Chain prompts together,
-                schedule workflows, and integrate with your favorite tools to streamline your AI-powered processes.
-              </p>
-            </div>
-          </div>
-
-          <div className="upcoming-cta">
-            <p className="upcoming-cta-header">
-              <span className="upcoming-cta-icon">🟣</span>
-              <RoadmapTooltip />
-            </p>
-            <p className="upcoming-cta-footer">
-              Have a feature in mind?{" "}
-              <FeatureRequestLink />
-            </p>
-          </div>
-
+          <p className="upcoming-cta-footer">
+            Have a feature in mind?{" "}
+            <FeatureRequestLink />
+          </p>
         </div>
       </section>
 
