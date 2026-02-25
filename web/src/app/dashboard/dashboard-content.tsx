@@ -26,6 +26,10 @@ export function DashboardContent() {
     api.savedPacks.listByUser,
     convexUser?._id ? { userId: convexUser._id } : "skip"
   );
+  const userPacks = useQuery(
+    api.packs.listByAuthor,
+    convexUser?._id ? { authorId: convexUser._id } : "skip"
+  );
   const completeOnboarding = useMutation(api.users.completeOnboarding);
   const [toast, setToast] = useState<string | null>(null);
   const signupTracked = useRef(false);
@@ -86,10 +90,12 @@ export function DashboardContent() {
 
   // Calculate saved prompts count
   const savedPromptsCount = savedPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
+  const userPackPromptsCount = userPacks?.reduce((sum, pack) => sum + pack.promptCount, 0) ?? 0;
+  const adjustedPromptLimit = Math.max(0, promptLimit - userPackPromptsCount);
 
-  const usagePercent = Math.min(100, (savedPromptsCount / promptLimit) * 100);
-  const isNearLimit = !hasPro && !isStudio && savedPromptsCount >= promptLimit - 1;
-  const isAtLimit = !hasPro && !isStudio && savedPromptsCount >= promptLimit;
+  const usagePercent = adjustedPromptLimit > 0 ? Math.min(100, (savedPromptsCount / adjustedPromptLimit) * 100) : 100;
+  const isNearLimit = !hasPro && !isStudio && savedPromptsCount >= adjustedPromptLimit - 1;
+  const isAtLimit = !hasPro && !isStudio && savedPromptsCount >= adjustedPromptLimit;
 
   // Show tutorial for first-time free users with no saved prompts
   const showTutorial =
@@ -143,7 +149,7 @@ export function DashboardContent() {
               }} />
             </div>
             <p style={{ fontSize: "0.85rem", marginTop: "0.35rem", color: "var(--muted)" }}>
-              {savedPromptsCount} of {promptLimit} prompts used
+              {savedPromptsCount} of {adjustedPromptLimit} prompts used
               {isNearLimit && (
                 <Link href="/pricing" style={{ color: "var(--accent)", marginLeft: "0.5rem", textDecoration: "underline" }}>
                   Upgrade for {PRO_PROMPT_LIMIT} →
