@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { FreeCard } from "./free-card";
 import { ProCard } from "./pro-card";
 import { StudioCard } from "./studio-card";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 
 export default function PricingPage() {
+  const searchParams = useSearchParams();
+
   useEffect(() => {
     trackEvent("upgrade-page-viewed");
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get("checkout") === "cancel") {
+      trackEvent("checkout-cancelled");
+      trackLinkedInConversion(24381844);
+    }
+  }, [searchParams]);
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", textAlign: "center" }}>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>

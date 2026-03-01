@@ -7,6 +7,10 @@ declare global {
       event: string,
       options?: { props?: Record<string, string | number> }
     ) => void;
+    lintrk?: (
+      action: string,
+      data: { conversion_id: number }
+    ) => void;
   }
 }
 
@@ -16,5 +20,13 @@ export function trackEvent(
 ): void {
   if (typeof window !== "undefined" && typeof window.plausible === "function") {
     window.plausible(name, props ? { props } : undefined);
+  }
+}
+
+// LinkedIn Insight Tag conversion tracking
+// Conversion IDs are configured in LinkedIn Campaign Manager > Conversions
+export function trackLinkedInConversion(conversionId: number): void {
+  if (typeof window !== "undefined" && typeof window.lintrk === "function") {
+    window.lintrk("track", { conversion_id: conversionId });
   }
 }

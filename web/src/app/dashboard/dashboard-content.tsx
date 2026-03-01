@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PromptPacks } from "./prompt-packs";
 import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, STUDIO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT, STUDIO_PACK_LIMIT } from "@/lib/constants";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 import { TutorialOverlay } from "@/components/onboarding/tutorial-overlay";
 
 export function DashboardContent() {
@@ -42,6 +42,7 @@ export function DashboardContent() {
         if (!signupTracked.current) {
           signupTracked.current = true;
           trackEvent("sign-up");
+          trackLinkedInConversion(24381820);
         }
         await upsertUser({
           clerkId: clerkUser.id,
@@ -58,6 +59,7 @@ export function DashboardContent() {
   useEffect(() => {
     if (searchParams.get("checkout") === "success") {
       trackEvent("subscription-activated", { plan: "pro" });
+      trackLinkedInConversion(24381828);
       setToast("You're now on Pro! Enjoy 40 prompts, evaluation, and more.");
       router.replace("/dashboard");
     }
