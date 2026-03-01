@@ -63,6 +63,13 @@ export function MobileNav() {
               Marketplace
             </Link>
             <Link
+              href="/tools"
+              className="mobile-nav-link"
+              onClick={() => setIsOpen(false)}
+            >
+              Tools
+            </Link>
+            <Link
               href="/pricing"
               className="mobile-nav-link"
               onClick={() => setIsOpen(false)}

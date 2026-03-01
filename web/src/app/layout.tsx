@@ -188,6 +188,9 @@ s.parentNode.insertBefore(b, s);})(window.lintrk);`}
               <Link href="/marketplace" className="header-link">
                 Marketplace
               </Link>
+              <Link href="/tools" className="header-link">
+                Tools
+              </Link>
               <Link href="/pricing" className="header-link">
                 Pricing
               </Link>

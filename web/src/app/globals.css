@@ -3546,6 +3546,22 @@ h4.hero-hook {
   gap: 1.5rem;
 }
 
+/* pSEO card link (server component safe - no JS hover handlers) */
+.pseo-card-link {
+  display: block;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--border, #27272a);
+  background: var(--card, #18181b);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.pseo-card-link:hover {
+  border-color: #6366f1;
+}
+
 /* Card */
 .blog-card {
   display: block;

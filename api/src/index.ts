@@ -36,6 +36,14 @@ const ENHANCE_MAX_INPUT_CHARS = 6000;
 const ENHANCE_FREE_DAY_LIMIT = 10;      // Free (logged in): 10/day
 const ENHANCE_PRO_DAY_LIMIT = 100;      // Pro: 100/day
 
+// Web tool limits (anonymous + authenticated, for /api/web/* endpoints)
+const WEB_ENHANCE_ANON_DAY = 1;         // Anonymous: 1/day
+const WEB_ENHANCE_FREE_DAY = 10;        // Free logged in: 10/day
+const WEB_ENHANCE_PRO_DAY = 100;        // Pro: 100/day
+const WEB_EVALUATE_ANON_DAY = 1;        // Anonymous: 1/day
+const WEB_EVALUATE_FREE_DAY = 5;        // Free logged in: 5/day
+const WEB_EVALUATE_PRO_DAY = 50;        // Pro: 50/day
+
 // Rolling window limits (applies to all users)
 const ENHANCE_MINUTE_LIMIT = 2;         // 2 requests/minute
 const ENHANCE_10MIN_LIMIT = 10;         // 10 requests/10 minutes
@@ -640,19 +648,20 @@ export default {
     const path = url.pathname;
     const method = request.method;
     const isEnhanceRoute = path === "/api/enhance";
+    const isWebToolRoute = path === "/api/web/enhance" || path === "/api/web/evaluate";
 
     // Handle CORS preflight
     if (method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: isEnhanceRoute ? corsHeadersForEnhance(request, env) : corsHeaders(request, env),
-      });
+      const corsH = (isEnhanceRoute || isWebToolRoute)
+        ? corsHeadersForEnhance(request, env)
+        : corsHeaders(request, env);
+      return new Response(null, { status: 204, headers: corsH });
     }
 
     // Add CORS headers to all responses
     const addCors = (response: Response, enhanceOnly = false): Response => {
       const headers = new Headers(response.headers);
-      const cors = enhanceOnly ? corsHeadersForEnhance(request, env) : corsHeaders(request, env);
+      const cors = (enhanceOnly || isWebToolRoute) ? corsHeadersForEnhance(request, env) : corsHeaders(request, env);
       Object.entries(cors).forEach(([k, v]) => {
         headers.set(k, v);
       });
@@ -1137,6 +1146,293 @@ Do NOT include any explanation or markdown formatting.`;
               // Ignore lock release failures
             }
           }
+        }
+      }
+
+      // ── Web Tool: POST /api/web/enhance ────────────────────────────────
+      // Public-facing enhance endpoint with IP-based rate limiting for anonymous users
+      if (path === "/api/web/enhance" && method === "POST") {
+        try {
+          const groqApiKey = getGroqApiKey(env);
+          if (!groqApiKey) {
+            return addCors(new Response(JSON.stringify({ error: "Service unavailable" }), {
+              status: 500, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as { text?: string; mode?: string } | null;
+          const text = body?.text?.trim();
+          const mode = getEnhanceMode(body?.mode);
+
+          if (!text) {
+            return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          if (!mode) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid mode" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          if (text.length > ENHANCE_MAX_INPUT_CHARS) {
+            return addCors(new Response(JSON.stringify({ error: "Prompt too long" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Optionally authenticate (not required)
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          let isPro = false;
+          let dayLimit = WEB_ENHANCE_ANON_DAY;
+          let rateKey: string;
+
+          if (userId) {
+            const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+            isPro = billing.isPro;
+            dayLimit = isPro ? WEB_ENHANCE_PRO_DAY : WEB_ENHANCE_FREE_DAY;
+            rateKey = `webuser:${userId}:enhance`;
+          } else {
+            const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+            rateKey = `webip:${ip}:enhance`;
+          }
+
+          // Burst limit: 1 req/min for anonymous
+          if (!userId) {
+            const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+            if (minuteCount > 1) {
+              return addCors(new Response(JSON.stringify({
+                error: "Please wait a moment before trying again.",
+                code: "MINUTE_LIMIT",
+              }), { status: 429, headers: { "Content-Type": "application/json" } }));
+            }
+          }
+
+          // Daily limit
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            const errorMsg = !userId
+              ? "Sign up free for more daily uses."
+              : isPro
+                ? "Daily limit reached."
+                : "Daily limit reached. Upgrade to Pro for more.";
+            return addCors(new Response(JSON.stringify({
+              error: errorMsg,
+              code: "DAILY_LIMIT",
+              remaining: 0,
+            }), { status: 429, headers: { "Content-Type": "application/json" } }));
+          }
+
+          // Cache lookup
+          const model = getModel(isPro);
+          const cacheKey = await sha256Hex(`${text}${mode}${model}`);
+          const cachedResult = await getCachedJson<{ enhanced: string; mode: EnhanceMode; model: string }>(cacheKey);
+          if (cachedResult?.enhanced) {
+            return addCors(new Response(JSON.stringify({
+              enhanced: cachedResult.enhanced,
+              mode,
+              model,
+              cached: true,
+              remaining: Math.max(0, dayLimit - dayCount),
+            }), { headers: { "Content-Type": "application/json" } }));
+          }
+
+          // Call Groq
+          const result = await callGroqChatCompletion({ apiKey: groqApiKey, model, mode, text, isPro });
+          if (!result.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Enhancement failed. Please try again." }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          await putCachedJson(cacheKey, { enhanced: result.content, mode, model }, ENHANCE_CACHE_TTL_SECONDS);
+
+          return addCors(new Response(JSON.stringify({
+            enhanced: result.content,
+            mode,
+            model,
+            cached: false,
+            remaining: Math.max(0, dayLimit - dayCount),
+          }), { headers: { "Content-Type": "application/json" } }));
+        } catch {
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // ── Web Tool: POST /api/web/evaluate ───────────────────────────────
+      // Public-facing evaluate endpoint with IP-based rate limiting for anonymous users
+      if (path === "/api/web/evaluate" && method === "POST") {
+        try {
+          const groqApiKey = getGroqApiKey(env);
+          if (!groqApiKey) {
+            return addCors(new Response(JSON.stringify({ error: "Service unavailable" }), {
+              status: 500, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as { text?: string } | null;
+          const text = body?.text?.trim();
+
+          if (!text) {
+            return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          if (text.length > EVAL_MAX_INPUT_CHARS) {
+            return addCors(new Response(JSON.stringify({ error: "Prompt too long" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Optionally authenticate
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          let dayLimit = WEB_EVALUATE_ANON_DAY;
+          let rateKey: string;
+
+          if (userId) {
+            const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+            dayLimit = billing.isPro ? WEB_EVALUATE_PRO_DAY : WEB_EVALUATE_FREE_DAY;
+            rateKey = `webuser:${userId}:eval`;
+          } else {
+            const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+            rateKey = `webip:${ip}:eval`;
+          }
+
+          // Burst limit for anonymous
+          if (!userId) {
+            const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+            if (minuteCount > 1) {
+              return addCors(new Response(JSON.stringify({
+                error: "Please wait a moment before trying again.",
+                code: "MINUTE_LIMIT",
+              }), { status: 429, headers: { "Content-Type": "application/json" } }));
+            }
+          }
+
+          // Daily limit
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            const errorMsg = !userId
+              ? "Sign up free for more daily uses."
+              : "Daily limit reached. Upgrade to Pro for more.";
+            return addCors(new Response(JSON.stringify({
+              error: errorMsg,
+              code: "DAILY_LIMIT",
+              remaining: 0,
+            }), { status: 429, headers: { "Content-Type": "application/json" } }));
+          }
+
+          // Cache lookup
+          const promptHash = await sha256Hex(text);
+          const cacheKey = `eval:web:${promptHash}`;
+          const cachedResult = await getCachedJson<{
+            overallScore: number;
+            scores: Record<string, number>;
+          }>(cacheKey);
+
+          if (cachedResult?.overallScore !== undefined) {
+            return addCors(new Response(JSON.stringify({
+              overallScore: cachedResult.overallScore,
+              scores: cachedResult.scores,
+              promptHash,
+              cached: true,
+              remaining: Math.max(0, dayLimit - dayCount),
+            }), { headers: { "Content-Type": "application/json" } }));
+          }
+
+          // Build evaluation prompt (same as the Pro endpoint)
+          const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
+
+## EVALUATION CRITERIA (based on G-Eval methodology)
+
+Score each dimension 0-100, then calculate weighted LLM scores:
+
+### Core Metrics:
+1. **Clarity** (weight: 25%) - Is the prompt unambiguous with clear intent?
+2. **Specificity** (weight: 25%) - Does it provide sufficient context and constraints?
+3. **Task Alignment** (weight: 20%) - How well does the task match each LLM's strengths?
+4. **Response Predictability** (weight: 15%) - Can the LLM consistently produce quality output?
+5. **Completeness** (weight: 15%) - Does it include format, length, tone guidance?
+
+## LLM-SPECIFIC TASK ALIGNMENT SCORING:
+- **ChatGPT**: ${LLM_CHARACTERISTICS.chatgpt}
+- **Claude**: ${LLM_CHARACTERISTICS.claude}
+- **Gemini**: ${LLM_CHARACTERISTICS.gemini}
+- **Perplexity**: ${LLM_CHARACTERISTICS.perplexity}
+- **Grok**: ${LLM_CHARACTERISTICS.grok}
+- **DeepSeek**: ${LLM_CHARACTERISTICS.deepseek}
+- **Kimi**: ${LLM_CHARACTERISTICS.kimi}
+
+## OUTPUT FORMAT:
+Return ONLY valid JSON with integer scores 0-100:
+{"chatgpt":85,"claude":90,"gemini":75,"perplexity":82,"grok":70,"deepseek":68,"kimi":72}
+
+Do NOT include any explanation or markdown formatting.`;
+
+          const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqApiKey}`,
+            },
+            body: JSON.stringify({
+              model: EVAL_MODEL,
+              messages: [
+                { role: "system", content: evalSystemPrompt },
+                { role: "user", content: `Evaluate this prompt:\n\n${text}` },
+              ],
+              temperature: 0.15,
+              max_tokens: 150,
+            }),
+          });
+
+          if (!groqResponse.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const groqData = await groqResponse.json() as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+
+          let scores: Record<string, number>;
+          try {
+            const jsonMatch = content.match(/\{[^}]+\}/);
+            if (!jsonMatch) throw new Error("No JSON found");
+            scores = JSON.parse(jsonMatch[0]);
+            const expectedLLMs = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
+            for (const llm of expectedLLMs) {
+              if (typeof scores[llm] !== "number" || scores[llm] < 0 || scores[llm] > 100) {
+                throw new Error(`Invalid score for ${llm}`);
+              }
+              scores[llm] = Math.round(scores[llm]);
+            }
+          } catch {
+            return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const overallScore = Math.round(
+            Object.values(scores).reduce((a, b) => a + b, 0) / 7
+          );
+
+          await putCachedJson(cacheKey, { overallScore, scores }, EVAL_CACHE_TTL_SECONDS);
+
+          return addCors(new Response(JSON.stringify({
+            overallScore,
+            scores,
+            promptHash,
+            cached: false,
+            remaining: Math.max(0, dayLimit - dayCount),
+          }), { headers: { "Content-Type": "application/json" } }));
+        } catch {
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
         }
       }
 
