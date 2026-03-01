@@ -1,18 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { FreeCard } from "./free-card";
 import { ProCard } from "./pro-card";
 import { StudioCard } from "./studio-card";
 import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 
-export default function PricingPage() {
+function CheckoutCancelTracker() {
   const searchParams = useSearchParams();
-
-  useEffect(() => {
-    trackEvent("upgrade-page-viewed");
-  }, []);
 
   useEffect(() => {
     if (searchParams.get("checkout") === "cancel") {
@@ -20,8 +16,19 @@ export default function PricingPage() {
       trackLinkedInConversion(24381844);
     }
   }, [searchParams]);
+
+  return null;
+}
+
+export default function PricingPage() {
+  useEffect(() => {
+    trackEvent("upgrade-page-viewed");
+  }, []);
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto", textAlign: "center" }}>
+      <Suspense>
+        <CheckoutCancelTracker />
+      </Suspense>
       <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
         Choose a plan that fits your needs.
       </h1>
