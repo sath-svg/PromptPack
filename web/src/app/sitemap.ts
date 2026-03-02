@@ -33,6 +33,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.9,
     },
+    {
+      url: `${baseUrl}/tools/chatgpt-to-claude`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
   ]
 
   // Prompt template pages
@@ -104,6 +110,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...toolEntries,
     ...promptEntries,
     ...compareEntries,
+    {
+      url: `${baseUrl}/downloads`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
     {
       url: `${baseUrl}/privacy`,
       lastModified: new Date(),

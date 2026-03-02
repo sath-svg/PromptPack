@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
         '/sign-up',
         '/auth',
         '/extension-auth',
+        '/mcp-auth',
         '/api/',
         '/_next/',
       ],
