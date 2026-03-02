@@ -36,6 +36,9 @@ const isPublicRoute = createRouteMatcher([
   "/marketplace/(.*)",
   "/blog",
   "/blog/(.*)",
+  "/tools(.*)",      // Prompt enhancer + evaluator (pSEO)
+  "/prompts(.*)",    // Prompt template pages (pSEO)
+  "/compare(.*)",    // Comparison pages (pSEO)
   "/privacy",
   "/manifest.json",
   "/sitemap.xml",
