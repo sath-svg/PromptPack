@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Free AI Prompt Tools - Enhancer & Evaluator | PromptPack",
+  title: "Free AI Prompt Tools - Enhancer, Evaluator & Memory Migrator | PromptPack",
   description:
-    "Improve and evaluate your AI prompts for free. Enhance prompts for ChatGPT, Claude, and Gemini with 4 optimization modes, or score your prompts across 7 LLMs.",
+    "Improve and evaluate your AI prompts for free. Enhance prompts for ChatGPT, Claude, and Gemini with 4 optimization modes, score your prompts across 7 LLMs, or migrate your ChatGPT memory to Claude.",
   keywords: [
     "prompt tools",
     "AI prompt improver",
@@ -12,6 +12,8 @@ export const metadata: Metadata = {
     "prompt evaluator",
     "free prompt tools",
     "ChatGPT prompt enhancer",
+    "chatgpt to claude",
+    "migrate chatgpt memory",
   ],
   alternates: { canonical: "https://pmtpk.com/tools" },
 };
@@ -31,6 +33,14 @@ const tools = [
       "Score your prompt across 7 major LLMs. See how well it performs on ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, and Kimi.",
     href: "/tools/prompt-evaluator",
     icon: "📊",
+    badge: "Free",
+  },
+  {
+    title: "ChatGPT to Claude Migrator",
+    description:
+      "Switching to Claude? Paste your ChatGPT memories or chat history and get an organized cognitive profile ready to import into Claude's memory.",
+    href: "/tools/chatgpt-to-claude",
+    icon: "🔄",
     badge: "Free",
   },
 ];
@@ -87,7 +97,7 @@ export default function ToolsPage() {
           The quality of your prompt directly determines the quality of AI output. A well-structured prompt with clear constraints, context, and format guidance consistently produces better results than a vague request — regardless of which LLM you use.
         </p>
         <p style={{ color: "var(--muted-foreground)", lineHeight: 1.7 }}>
-          Our tools help you close that gap. The Enhancer rewrites your prompt using proven prompt engineering techniques, while the Evaluator scores it across 7 different LLMs so you know which AI will give you the best results.
+          Our tools help you close that gap. The Enhancer rewrites your prompt using proven prompt engineering techniques, the Evaluator scores it across 7 different LLMs so you know which AI will give you the best results, and the Memory Migrator lets you transfer years of ChatGPT context to Claude so you don&apos;t have to start from scratch.
         </p>
       </section>
 

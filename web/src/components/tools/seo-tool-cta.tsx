@@ -21,7 +21,7 @@ export function SEOToolCTA({ variant = "extension" }: SEOToolCTAProps) {
           Try our free AI prompt tools
         </h3>
         <p style={{ color: "var(--muted-foreground)", margin: "0 0 1.25rem", fontSize: "0.95rem" }}>
-          Enhance and evaluate your prompts with AI — no sign-up required for your first use.
+          Enhance and evaluate your prompts with AI, or migrate your ChatGPT context to Claude — no sign-up required for your first use.
         </p>
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", flexWrap: "wrap" }}>
           <Link href="/tools/prompt-enhancer" className="btn btn-primary" style={{ padding: "0.6rem 1.5rem" }}>
@@ -29,6 +29,9 @@ export function SEOToolCTA({ variant = "extension" }: SEOToolCTAProps) {
           </Link>
           <Link href="/tools/prompt-evaluator" className="btn btn-secondary" style={{ padding: "0.6rem 1.5rem" }}>
             Evaluate a Prompt
+          </Link>
+          <Link href="/tools/chatgpt-to-claude" className="btn btn-secondary" style={{ padding: "0.6rem 1.5rem" }}>
+            Migrate to Claude
           </Link>
         </div>
       </div>

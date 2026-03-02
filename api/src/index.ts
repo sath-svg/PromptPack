@@ -43,6 +43,12 @@ const WEB_ENHANCE_PRO_DAY = 100;        // Pro: 100/day
 const WEB_EVALUATE_ANON_DAY = 1;        // Anonymous: 1/day
 const WEB_EVALUATE_FREE_DAY = 5;        // Free logged in: 5/day
 const WEB_EVALUATE_PRO_DAY = 50;        // Pro: 50/day
+const WEB_MIGRATE_ANON_DAY = 1;         // Anonymous: 1/day
+const WEB_MIGRATE_FREE_DAY = 5;         // Free logged in: 5/day
+const WEB_MIGRATE_PRO_DAY = 50;         // Pro: 50/day
+const MIGRATE_MAX_INPUT_CHARS = 15000;   // Memories + conversation excerpts
+const MIGRATE_MODEL = "llama-3.3-70b-versatile";
+const MIGRATE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day cache
 
 // Rolling window limits (applies to all users)
 const ENHANCE_MINUTE_LIMIT = 2;         // 2 requests/minute
@@ -648,7 +654,7 @@ export default {
     const path = url.pathname;
     const method = request.method;
     const isEnhanceRoute = path === "/api/enhance";
-    const isWebToolRoute = path === "/api/web/enhance" || path === "/api/web/evaluate";
+    const isWebToolRoute = path === "/api/web/enhance" || path === "/api/web/evaluate" || path === "/api/web/migrate-memory";
 
     // Handle CORS preflight
     if (method === "OPTIONS") {
@@ -1426,6 +1432,214 @@ Do NOT include any explanation or markdown formatting.`;
             overallScore,
             scores,
             promptHash,
+            cached: false,
+            remaining: Math.max(0, dayLimit - dayCount),
+          }), { headers: { "Content-Type": "application/json" } }));
+        } catch {
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // ── Web Tool: POST /api/web/migrate-memory ──────────────────────────
+      // Public-facing ChatGPT-to-Claude memory migration endpoint
+      if (path === "/api/web/migrate-memory" && method === "POST") {
+        try {
+          const groqApiKey = getGroqApiKey(env);
+          if (!groqApiKey) {
+            return addCors(new Response(JSON.stringify({ error: "Service unavailable" }), {
+              status: 500, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as { text?: string; format?: string } | null;
+          const text = body?.text?.trim();
+          const format = body?.format === "claude-md" ? "claude-md" : "memory";
+
+          if (!text) {
+            return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          if (text.length > MIGRATE_MAX_INPUT_CHARS) {
+            return addCors(new Response(JSON.stringify({ error: "Text too long (max 15,000 characters)" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Optionally authenticate
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          let dayLimit = WEB_MIGRATE_ANON_DAY;
+          let rateKey: string;
+
+          if (userId) {
+            const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+            dayLimit = billing.isPro ? WEB_MIGRATE_PRO_DAY : WEB_MIGRATE_FREE_DAY;
+            rateKey = `webuser:${userId}:migrate`;
+          } else {
+            const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+            rateKey = `webip:${ip}:migrate`;
+          }
+
+          // Burst limit for anonymous
+          if (!userId) {
+            const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+            if (minuteCount > 1) {
+              return addCors(new Response(JSON.stringify({
+                error: "Please wait a moment before trying again.",
+                code: "MINUTE_LIMIT",
+              }), { status: 429, headers: { "Content-Type": "application/json" } }));
+            }
+          }
+
+          // Daily limit
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            const errorMsg = !userId
+              ? "Sign up free for more daily uses."
+              : "Daily limit reached. Upgrade to Pro for more.";
+            return addCors(new Response(JSON.stringify({
+              error: errorMsg,
+              code: "DAILY_LIMIT",
+              remaining: 0,
+            }), { status: 429, headers: { "Content-Type": "application/json" } }));
+          }
+
+          // Cache lookup
+          const promptHash = await sha256Hex(text + "|" + format);
+          const cacheKey = `migrate:web:${promptHash}`;
+          const cachedResult = await getCachedJson<{ organized: string }>(cacheKey);
+
+          if (cachedResult?.organized) {
+            return addCors(new Response(JSON.stringify({
+              organized: cachedResult.organized,
+              cached: true,
+              remaining: Math.max(0, dayLimit - dayCount),
+            }), { headers: { "Content-Type": "application/json" } }));
+          }
+
+          const migrateSystemPrompt = format === "claude-md"
+            ? `You are an expert at analyzing AI conversation history and extracting durable, high-signal knowledge about a person.
+
+The user will paste content from their ChatGPT history — this may be raw memories, conversation excerpts, or chat logs. Your job is to synthesize a comprehensive cognitive profile formatted as a CLAUDE.md file for use with Claude Code.
+
+## OUTPUT FORMAT
+
+Output a CLAUDE.md file with this structure:
+
+# User Profile
+
+## Identity & Background
+Who they are professionally and personally. Role, industry, experience level.
+
+## Personality & Thinking Style
+How they approach problems, make decisions, process information.
+
+## Communication Preferences
+How they like to receive information. Preferred tone, length, detail level, formality.
+
+## Technical Skills & Tools
+Languages, frameworks, platforms, tools they use with proficiency levels.
+
+## Active Projects & Interests
+What they're currently working on. Domain expertise.
+
+## Decision-Making Patterns
+How they evaluate options, what they prioritize, recurring frameworks.
+
+## Working Style
+How they organize work, collaborate, manage time.
+
+## Output Preferences
+How they want AI responses formatted. Constraints and formatting preferences.
+
+## RULES:
+- Extract ONLY what is clearly supported by the input — never invent or assume
+- Use second person ("You prefer...", "You tend to...")
+- Be specific and concrete, not generic
+- Merge overlapping signals into clear statements
+- Prioritize durable traits over one-time mentions
+- Skip sections with no supporting evidence
+- Output clean markdown, no code fences around the whole output, no preamble, no commentary`
+            : `You are an expert at analyzing AI conversation history and extracting durable, high-signal knowledge about a person.
+
+The user will paste content from their ChatGPT history — this may be raw memories, conversation excerpts, or chat logs. Your job is to synthesize a comprehensive cognitive profile that captures who this person is, how they think, and how they work. This profile will be pasted into Claude's memory settings.
+
+## OUTPUT STRUCTURE
+
+Create a profile with these sections (skip any section with no supporting evidence):
+
+### Identity & Background
+Who they are professionally and personally. Role, industry, experience level, location.
+
+### Personality & Thinking Style
+How they approach problems, make decisions, and process information. Cognitive patterns and tendencies.
+
+### Communication Preferences
+How they like to receive information. Preferred tone, length, level of detail, formality.
+
+### Technical Skills & Tools
+Languages, frameworks, platforms, and tools they use. Proficiency levels where evident.
+
+### Active Projects & Interests
+What they're currently working on or care about. Domain expertise.
+
+### Decision-Making Patterns
+How they evaluate options, what they prioritize, recurring decision frameworks.
+
+### Working Style
+How they organize work, collaborate, manage time. Preferences for structure vs flexibility.
+
+### Output Preferences
+How they want AI responses formatted. Constraints, formatting preferences.
+
+## RULES:
+- Extract ONLY what is clearly supported by the input — never invent or assume
+- Use second person ("You prefer...", "You tend to...")
+- Be specific and concrete, not generic
+- Merge overlapping signals into clear statements
+- Prioritize durable traits over one-time mentions
+- Output clean markdown, no code fences, no preamble, no commentary`;
+
+          const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqApiKey}`,
+            },
+            body: JSON.stringify({
+              model: MIGRATE_MODEL,
+              messages: [
+                { role: "system", content: migrateSystemPrompt },
+                { role: "user", content: text },
+              ],
+              temperature: 0.2,
+              max_tokens: 2500,
+            }),
+          });
+
+          if (!groqResponse.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Migration failed. Please try again." }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const groqData = await groqResponse.json() as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const organized = groqData.choices?.[0]?.message?.content?.trim() || "";
+
+          if (!organized) {
+            return addCors(new Response(JSON.stringify({ error: "Failed to generate profile. Please try again." }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          await putCachedJson(cacheKey, { organized }, MIGRATE_CACHE_TTL_SECONDS);
+
+          return addCors(new Response(JSON.stringify({
+            organized,
             cached: false,
             remaining: Math.max(0, dayLimit - dayCount),
           }), { headers: { "Content-Type": "application/json" } }));
