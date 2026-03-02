@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { SignUpButton } from "@clerk/nextjs";
 import Link from "next/link";
@@ -16,6 +16,115 @@ const formats: { value: OutputFormat; label: string; description: string }[] = [
   { value: "claude-md", label: "CLAUDE.md", description: "For Claude Code projects" },
 ];
 
+/**
+ * Extract text content from a ChatGPT data export ZIP.
+ * Looks for chat.html or conversations.json and extracts a representative sample.
+ */
+async function extractFromZip(file: File, maxChars: number): Promise<{ text: string; source: string }> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(file);
+
+  // Look for conversations.json first (structured, easier to parse)
+  const conversationsFile = zip.file("conversations.json");
+  if (conversationsFile) {
+    const raw = await conversationsFile.async("string");
+    const conversations = JSON.parse(raw) as Array<{
+      title?: string;
+      mapping?: Record<string, {
+        message?: {
+          author?: { role?: string };
+          content?: { parts?: string[] };
+        };
+      }>;
+    }>;
+
+    const lines: string[] = [];
+    for (const convo of conversations) {
+      if (lines.join("\n").length > maxChars) break;
+      if (convo.title) lines.push(`\n--- ${convo.title} ---`);
+      if (convo.mapping) {
+        for (const node of Object.values(convo.mapping)) {
+          if (!node.message?.content?.parts) continue;
+          const role = node.message.author?.role || "unknown";
+          if (role === "system") continue;
+          const text = node.message.content.parts.filter(p => typeof p === "string").join(" ").trim();
+          if (text) {
+            const prefix = role === "user" ? "User:" : "Assistant:";
+            lines.push(`${prefix} ${text}`);
+          }
+        }
+      }
+    }
+
+    const extracted = lines.join("\n").slice(0, maxChars);
+    return {
+      text: extracted,
+      source: `Extracted ${conversations.length} conversations from conversations.json`,
+    };
+  }
+
+  // Fall back to chat.html
+  const chatHtml = zip.file("chat.html");
+  if (chatHtml) {
+    const html = await chatHtml.async("string");
+    // Parse HTML and extract text content from conversation elements
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    const lines: string[] = [];
+
+    // ChatGPT exports use various structures — try common patterns
+    const messageEls = doc.querySelectorAll("[data-message-author-role], .message, .conversation-turn, p, li");
+    if (messageEls.length > 0) {
+      for (const el of messageEls) {
+        if (lines.join("\n").length > maxChars) break;
+        const role = el.getAttribute("data-message-author-role");
+        const text = (el as HTMLElement).innerText?.trim() || el.textContent?.trim() || "";
+        if (!text || text.length < 3) continue;
+        if (role) {
+          const prefix = role === "user" ? "User:" : "Assistant:";
+          lines.push(`${prefix} ${text}`);
+        } else {
+          lines.push(text);
+        }
+      }
+    }
+
+    // If structured parsing got nothing, fall back to raw text extraction
+    if (lines.length === 0) {
+      const bodyText = doc.body?.textContent || "";
+      lines.push(bodyText);
+    }
+
+    const extracted = lines.join("\n").slice(0, maxChars);
+    return {
+      text: extracted,
+      source: `Extracted content from chat.html (${(html.length / 1024 / 1024).toFixed(1)} MB)`,
+    };
+  }
+
+  // Last resort: try any .json or .txt file
+  const textFiles = Object.keys(zip.files).filter(
+    (name) => name.endsWith(".json") || name.endsWith(".txt") || name.endsWith(".md")
+  );
+
+  if (textFiles.length > 0) {
+    const lines: string[] = [];
+    for (const fname of textFiles) {
+      if (lines.join("\n").length > maxChars) break;
+      const content = await zip.file(fname)!.async("string");
+      lines.push(`--- ${fname} ---\n${content}`);
+    }
+    const extracted = lines.join("\n").slice(0, maxChars);
+    return {
+      text: extracted,
+      source: `Extracted ${textFiles.length} text file(s) from ZIP`,
+    };
+  }
+
+  throw new Error("Could not find chat.html, conversations.json, or any text files in the ZIP.");
+}
+
 export function MemoryMigratorTool() {
   const { getToken, isSignedIn } = useAuth();
   const [format, setFormat] = useState<OutputFormat>("memory");
@@ -25,8 +134,59 @@ export function MemoryMigratorTool() {
   const [rateLimited, setRateLimited] = useState<"signup" | "upgrade" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [fileStatus, setFileStatus] = useState<string | null>(null);
+  const [isProcessingFile, setIsProcessingFile] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const maxLength = 15000;
+
+  const processFile = useCallback(async (file: File) => {
+    if (!file.name.endsWith(".zip")) {
+      setError("Please upload a .zip file (the ChatGPT data export).");
+      return;
+    }
+
+    // 500MB max for client-side processing
+    if (file.size > 500 * 1024 * 1024) {
+      setError("File is too large (max 500 MB). Try exporting a smaller date range from ChatGPT, or copy-paste your memories directly.");
+      return;
+    }
+
+    setIsProcessingFile(true);
+    setError(null);
+    setFileStatus(null);
+
+    try {
+      const result = await extractFromZip(file, maxLength);
+      setText(result.text);
+      setFileStatus(result.source);
+      trackEvent("migrate-memory-zip-uploaded", { size: Math.round(file.size / 1024).toString() });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to process ZIP file.");
+    } finally {
+      setIsProcessingFile(false);
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, [maxLength]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  }, [processFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  }, []);
 
   const handleSubmit = async () => {
     if (!text.trim() || isLoading) return;
@@ -107,6 +267,61 @@ export function MemoryMigratorTool() {
             {f.label}
           </button>
         ))}
+      </div>
+
+      {/* ZIP file upload zone */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => fileInputRef.current?.click()}
+        style={{
+          padding: "1.25rem",
+          borderRadius: "8px",
+          border: `2px dashed ${isDragOver ? "#6366f1" : "var(--border, #27272a)"}`,
+          backgroundColor: isDragOver ? "rgba(99, 102, 241, 0.08)" : "transparent",
+          textAlign: "center",
+          cursor: isProcessingFile ? "wait" : "pointer",
+          transition: "all 0.15s",
+        }}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) processFile(file);
+          }}
+        />
+        {isProcessingFile ? (
+          <p style={{ margin: 0, color: "#818cf8", fontSize: "0.9rem" }}>
+            Extracting conversations from ZIP...
+          </p>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 0.25rem", fontSize: "0.95rem", fontWeight: 600 }}>
+              Drop your ChatGPT data export ZIP here
+            </p>
+            <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: "0.8rem" }}>
+              or click to browse &mdash; we&apos;ll extract your conversations client-side (nothing uploaded until you submit)
+            </p>
+          </>
+        )}
+      </div>
+
+      {fileStatus && (
+        <p style={{ margin: 0, fontSize: "0.8rem", color: "#22c55e" }}>
+          &#10003; {fileStatus}
+        </p>
+      )}
+
+      {/* Divider */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border, #27272a)" }} />
+        <span style={{ fontSize: "0.8rem", color: "var(--muted-foreground)" }}>or paste manually</span>
+        <div style={{ flex: 1, height: "1px", backgroundColor: "var(--border, #27272a)" }} />
       </div>
 
       {/* Input textarea */}

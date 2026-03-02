@@ -75,8 +75,8 @@ export default function ChatGPTToClaudePage() {
             },
             {
               step: "2",
-              title: "Paste your content",
-              desc: "Paste your ChatGPT memories, conversation excerpts, or text from your exported chat.html file. The more context you provide, the richer your profile will be.",
+              title: "Upload or paste your content",
+              desc: "Drop your data export ZIP file directly — we'll extract your conversations client-side. Or paste your ChatGPT memories, conversation excerpts, or text manually. The more context you provide, the richer your profile will be.",
             },
             {
               step: "3",
@@ -128,7 +128,7 @@ export default function ChatGPTToClaudePage() {
             },
             {
               q: "Is this really free?",
-              a: "Yes. You get 1 free use per day without signing up. Create a free account for 5 daily uses, or upgrade to Pro for 50.",
+              a: "Yes. You get 1 free migration per day — enough to transfer your context in one go. Pro users get 3 daily uses to refine their profile.",
             },
             {
               q: "What can I paste in?",
