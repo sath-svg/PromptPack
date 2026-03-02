@@ -125,6 +125,155 @@ async function extractFromZip(file: File, maxChars: number): Promise<{ text: str
   throw new Error("Could not find chat.html, conversations.json, or any text files in the ZIP.");
 }
 
+const exportSteps = [
+  {
+    number: "1",
+    title: "Open ChatGPT Settings",
+    desc: "Click your profile icon in the bottom-left corner of ChatGPT, then click Settings.",
+  },
+  {
+    number: "2",
+    title: "Go to Data Controls",
+    desc: "In the settings sidebar, click Data Controls.",
+  },
+  {
+    number: "3",
+    title: "Export your data",
+    desc: "Click Export Data, then confirm by clicking Export. ChatGPT will prepare your data and email you a download link.",
+  },
+  {
+    number: "4",
+    title: "Download the ZIP",
+    desc: "Check your email (can take a few minutes to 24 hours). Click the download link to get your data.zip file.",
+  },
+  {
+    number: "5",
+    title: "Upload it here",
+    desc: "Drop the ZIP file into the upload area above or click to browse. We\u2019ll extract your conversations client-side \u2014 nothing leaves your browser until you hit \u201CCreate My Profile\u201D.",
+  },
+];
+
+function ExportHelpDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: "1rem",
+      }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        style={{
+          backgroundColor: "var(--card, #18181b)",
+          border: "1px solid var(--border, #27272a)",
+          borderRadius: "12px",
+          padding: "2rem",
+          maxWidth: 520,
+          width: "100%",
+          position: "relative",
+          maxHeight: "85vh",
+          overflowY: "auto",
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: "0.75rem",
+            right: "0.75rem",
+            background: "none",
+            border: "none",
+            color: "var(--muted-foreground)",
+            cursor: "pointer",
+            fontSize: "1.2rem",
+            padding: "0.25rem",
+          }}
+        >
+          &times;
+        </button>
+
+        <h3 style={{ margin: "0 0 0.25rem", fontSize: "1.2rem", fontWeight: 700 }}>
+          How to export your ChatGPT data
+        </h3>
+        <p style={{ color: "var(--muted-foreground)", margin: "0 0 1.25rem", fontSize: "0.85rem" }}>
+          Follow these steps to download your ChatGPT history as a ZIP file.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {exportSteps.map((step) => (
+            <div key={step.number} style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 26,
+                  height: 26,
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(99, 102, 241, 0.15)",
+                  color: "#818cf8",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                {step.number}
+              </span>
+              <div>
+                <h4 style={{ margin: "0 0 0.15rem", fontSize: "0.9rem", fontWeight: 600 }}>
+                  {step.title}
+                </h4>
+                <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: "0.85rem", lineHeight: 1.5 }}>
+                  {step.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            marginTop: "1.25rem",
+            padding: "0.75rem 1rem",
+            borderRadius: "8px",
+            backgroundColor: "rgba(99, 102, 241, 0.05)",
+            border: "1px solid var(--border, #27272a)",
+          }}
+        >
+          <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--muted-foreground)", lineHeight: 1.5 }}>
+            <strong style={{ color: "var(--foreground, #ededed)" }}>Don&apos;t want to wait for the export?</strong>{" "}
+            You can also copy your memories directly from ChatGPT Settings &gt; Personalization &gt; Manage Memories and paste them in the text area instead.
+          </p>
+        </div>
+
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: "1.25rem",
+            padding: "0.6rem 1.5rem",
+            width: "100%",
+            fontSize: "0.9rem",
+            fontWeight: 600,
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: "#6366f1",
+            color: "#fff",
+            cursor: "pointer",
+          }}
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MemoryMigratorTool() {
   const { getToken, isSignedIn } = useAuth();
   const [format, setFormat] = useState<OutputFormat>("memory");
@@ -134,6 +283,7 @@ export function MemoryMigratorTool() {
   const [rateLimited, setRateLimited] = useState<"signup" | "upgrade" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showUpsell, setShowUpsell] = useState(false);
+  const [showExportHelp, setShowExportHelp] = useState(false);
   const [fileStatus, setFileStatus] = useState<string | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -310,6 +460,27 @@ export function MemoryMigratorTool() {
           </>
         )}
       </div>
+
+      {/* Help link */}
+      <div style={{ display: "flex", justifyContent: "center", marginTop: "-0.75rem" }}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowExportHelp(true); }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#6366f1",
+            cursor: "pointer",
+            fontSize: "0.8rem",
+            padding: 0,
+            textDecoration: "underline",
+            textUnderlineOffset: "2px",
+          }}
+        >
+          How do I get the data export ZIP?
+        </button>
+      </div>
+
+      {showExportHelp && <ExportHelpDialog onClose={() => setShowExportHelp(false)} />}
 
       {fileStatus && (
         <p style={{ margin: 0, fontSize: "0.8rem", color: "#22c55e" }}>
