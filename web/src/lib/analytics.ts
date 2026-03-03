@@ -30,3 +30,12 @@ export function trackLinkedInConversion(conversionId: number): void {
     window.lintrk("track", { conversion_id: conversionId });
   }
 }
+
+// Fires LinkedIn conversion and waits briefly for the pixel to send.
+// Use before page navigations (e.g. redirect to Stripe) to avoid losing the event.
+export function trackLinkedInConversionAndFlush(
+  conversionId: number
+): Promise<void> {
+  trackLinkedInConversion(conversionId);
+  return new Promise((resolve) => setTimeout(resolve, 300));
+}

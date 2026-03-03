@@ -1,4 +1,4 @@
-import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
+import { trackEvent, trackLinkedInConversionAndFlush } from "@/lib/analytics";
 
 type CheckoutInterval = "month" | "annual";
 type CheckoutPlan = "pro" | "studio";
@@ -17,7 +17,7 @@ export async function startStripeCheckout(
   plan: CheckoutPlan = "pro"
 ): Promise<void> {
   trackEvent("checkout-started", { plan, interval });
-  trackLinkedInConversion(24381836);
+  await trackLinkedInConversionAndFlush(24381836);
 
   const response = await fetch("/api/stripe/checkout", {
     method: "POST",
