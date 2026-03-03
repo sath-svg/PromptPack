@@ -117,29 +117,6 @@ export default function RootLayout({
           <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16.png" />
           <link rel="icon" type="image/png" sizes="48x48" href="/img/icon-48.png" />
           <link rel="shortcut icon" href="/favicon.ico" />
-          <Script
-            defer
-            data-domain="pmtpk.com"
-            src="https://analytics.pmtpk.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
-          />
-          <Script id="plausible-init">
-            {`window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }`}
-          </Script>
-          <Script id="linkedin-insight" strategy="afterInteractive">
-            {`_linkedin_partner_id = "8748108";
-window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
-window._linkedin_data_partner_ids.push(_linkedin_partner_id);`}
-          </Script>
-          <Script id="linkedin-insight-loader" strategy="afterInteractive">
-            {`(function(l) {
-if (!l){window.lintrk = function(a,b){window.lintrk.q.push([a,b])};
-window.lintrk.q=[]}
-var s = document.getElementsByTagName("script")[0];
-var b = document.createElement("script");
-b.type = "text/javascript";b.async = true;
-b.src = "https://snap.licdn.com/li.lms-analytics/insight.min.js";
-s.parentNode.insertBefore(b, s);})(window.lintrk);`}
-          </Script>
           <noscript>
             <img
               height="1"
@@ -219,6 +196,29 @@ s.parentNode.insertBefore(b, s);})(window.lintrk);`}
           </main>
           <SupportButton />
           <PWARegister />
+          <Script
+            defer
+            data-domain="pmtpk.com"
+            src="https://analytics.pmtpk.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+          />
+          <Script id="plausible-init">
+            {`window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }`}
+          </Script>
+          <Script id="linkedin-insight" strategy="afterInteractive">
+            {`_linkedin_partner_id = "8748108";
+window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+window._linkedin_data_partner_ids.push(_linkedin_partner_id);`}
+          </Script>
+          <Script id="linkedin-insight-loader" strategy="afterInteractive">
+            {`(function(l) {
+if (!l){window.lintrk = function(a,b){window.lintrk.q.push([a,b])};
+window.lintrk.q=[]}
+var s = document.getElementsByTagName("script")[0];
+var b = document.createElement("script");
+b.type = "text/javascript";b.async = true;
+b.src = "https://snap.licdn.com/li.lms-analytics/insight.min.js";
+s.parentNode.insertBefore(b, s);})(window.lintrk);`}
+          </Script>
         </body>
       </html>
     </ClerkProvider>
