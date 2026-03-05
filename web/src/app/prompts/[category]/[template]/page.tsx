@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { promptCategories, getCategory, getTemplate, getRelatedTemplates } from "@/lib/pseo/prompts";
+import { platformPages } from "@/lib/pseo/platforms";
 import { TemplateCard } from "@/components/pseo/template-card";
 import { CopyPromptButton } from "./copy-button";
 import { SEOToolCTA } from "@/components/tools/seo-tool-cta";
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!template) return {};
 
   return {
-    title: `${template.title} - Free AI Prompt Template | PromptPack`,
+    title: `${template.title} - Copy & Paste Prompt for ChatGPT & Claude | PromptPack`,
     description: template.description,
     keywords: template.targetKeywords,
     alternates: { canonical: `https://pmtpk.com/prompts/${catSlug}/${tplSlug}` },
@@ -204,6 +205,46 @@ export default async function TemplatePage({ params }: Props) {
           Evaluate This Prompt
         </Link>
       </div>
+
+      {/* Platform links */}
+      <section style={{ marginBottom: "1.5rem" }}>
+        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.5rem" }}>Use this prompt with</h2>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          {template.platforms.map((p) => {
+            const platform = platformPages.find((pp) => pp.slug === p);
+            return platform ? (
+              <Link
+                key={p}
+                href={`/prompts/for/${p}`}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border, #27272a)",
+                  fontSize: "0.8rem",
+                  color: "#818cf8",
+                  textDecoration: "none",
+                }}
+              >
+                {platform.icon} {platform.name}
+              </Link>
+            ) : (
+              <span
+                key={p}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  borderRadius: "6px",
+                  border: "1px solid var(--border, #27272a)",
+                  fontSize: "0.8rem",
+                  color: "var(--muted-foreground)",
+                  textTransform: "capitalize",
+                }}
+              >
+                {p}
+              </span>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Related templates */}
       {related.length > 0 && (

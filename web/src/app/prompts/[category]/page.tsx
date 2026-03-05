@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!category) return {};
 
   return {
-    title: `${category.title} - Free AI Prompt Templates | PromptPack`,
+    title: `${category.templates.length} Free ${category.title} for ChatGPT, Claude & Gemini (2026) | PromptPack`,
     description: category.description,
     keywords: category.keywords,
     alternates: { canonical: `https://pmtpk.com/prompts/${slug}` },
@@ -41,8 +41,57 @@ export default async function CategoryPage({ params }: Props) {
     .map((s) => getCategory(s))
     .filter((c): c is NonNullable<typeof c> => c !== undefined);
 
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: category.title,
+    description: category.description,
+    url: `https://pmtpk.com/prompts/${slug}`,
+    publisher: {
+      "@type": "Organization",
+      name: "PromptPack",
+      url: "https://pmtpk.com",
+    },
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: category.templates.length,
+      itemListElement: category.templates.map((t, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: t.title,
+        url: `https://pmtpk.com/prompts/${slug}/${t.slug}`,
+      })),
+    },
+  };
+
+  const faqJsonLd = category.faqs?.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: category.faqs.map((faq) => ({
+          "@type": "Question",
+          name: faq.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: faq.answer,
+          },
+        })),
+      }
+    : null;
+
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "3rem 1.5rem" }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
+      />
+      {faqJsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+        />
+      )}
+
       <nav style={{ marginBottom: "1.5rem", fontSize: "0.85rem", color: "var(--muted-foreground)" }}>
         <Link href="/prompts" style={{ color: "#6366f1", textDecoration: "none" }}>Prompts</Link>
         <span style={{ margin: "0 0.5rem" }}>/</span>
@@ -89,6 +138,49 @@ export default async function CategoryPage({ params }: Props) {
           >
             {relatedCategories.map((rc) => (
               <CategoryCard key={rc.slug} category={rc} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* FAQ section */}
+      {category.faqs && category.faqs.length > 0 && (
+        <section style={{ marginBottom: "2rem" }}>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>
+            Frequently Asked Questions
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {category.faqs.map((faq, i) => (
+              <details
+                key={i}
+                style={{
+                  padding: "1rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border, #27272a)",
+                  backgroundColor: "var(--card, #18181b)",
+                }}
+              >
+                <summary
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                    listStyle: "none",
+                  }}
+                >
+                  {faq.question}
+                </summary>
+                <p
+                  style={{
+                    margin: "0.75rem 0 0",
+                    color: "var(--muted-foreground)",
+                    lineHeight: 1.6,
+                    fontSize: "0.9rem",
+                  }}
+                >
+                  {faq.answer}
+                </p>
+              </details>
             ))}
           </div>
         </section>

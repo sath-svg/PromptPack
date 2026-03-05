@@ -2,6 +2,8 @@ import { MetadataRoute } from 'next'
 import { blogPosts } from '@/lib/blog-posts'
 import { promptCategories } from '@/lib/pseo/prompts'
 import { comparisonPages } from '@/lib/pseo/comparisons'
+import { platformPages } from '@/lib/pseo/platforms'
+import { rolePages } from '@/lib/pseo/roles'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://pmtpk.com'
@@ -65,6 +67,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ),
   ]
 
+  // Platform & role landing pages
+  const platformEntries: MetadataRoute.Sitemap = platformPages.map((page) => ({
+    url: `${baseUrl}/prompts/for/${page.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.8,
+  }))
+
+  const roleEntries: MetadataRoute.Sitemap = rolePages.map((page) => ({
+    url: `${baseUrl}/prompts/for/${page.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }))
+
   // Comparison pages
   const compareEntries: MetadataRoute.Sitemap = [
     {
@@ -109,6 +126,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...blogEntries,
     ...toolEntries,
     ...promptEntries,
+    ...platformEntries,
+    ...roleEntries,
     ...compareEntries,
     {
       url: `${baseUrl}/downloads`,

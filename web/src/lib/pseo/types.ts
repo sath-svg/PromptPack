@@ -1,3 +1,17 @@
+export type Platform =
+  | "chatgpt"
+  | "claude"
+  | "gemini"
+  | "midjourney"
+  | "dall-e"
+  | "stable-diffusion"
+  | "flux"
+  | "grok"
+  | "deepseek"
+  | "perplexity"
+  | "copilot"
+  | "cursor";
+
 export interface PromptTemplate {
   slug: string;
   title: string;
@@ -11,7 +25,12 @@ export interface PromptTemplate {
   targetKeywords: string[];
   relatedTemplates: string[];
   difficulty: "beginner" | "intermediate" | "advanced";
-  platforms: ("chatgpt" | "claude" | "gemini")[];
+  platforms: Platform[];
+}
+
+export interface FAQ {
+  question: string;
+  answer: string;
 }
 
 export interface PromptCategory {
@@ -23,6 +42,29 @@ export interface PromptCategory {
   keywords: string[];
   relatedCategories: string[];
   templates: PromptTemplate[];
+  faqs?: FAQ[];
+}
+
+export interface PlatformPage {
+  slug: string;
+  name: string;
+  title: string;
+  description: string;
+  longDescription: string;
+  keywords: string[];
+  icon: string;
+}
+
+export interface RolePage {
+  slug: string;
+  role: string;
+  title: string;
+  description: string;
+  longDescription: string;
+  keywords: string[];
+  icon: string;
+  relevantCategories: string[];
+  relevantTags: string[];
 }
 
 export interface ComparisonPoint {
