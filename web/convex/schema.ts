@@ -55,6 +55,10 @@ export default defineSchema({
     r2Key: v.string(), // R2 key for this version's .pmtpk snapshot
     fileSize: v.number(),
     promptCount: v.number(),
+    prompts: v.optional(v.array(v.object({
+      text: v.string(),
+      header: v.optional(v.string()),
+    }))), // Stored prompt content for version preview
     message: v.optional(v.string()), // Optional version description
     createdAt: v.number(),
   })

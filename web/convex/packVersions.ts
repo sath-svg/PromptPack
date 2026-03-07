@@ -50,6 +50,10 @@ export const create = mutation({
     r2Key: v.string(),
     fileSize: v.number(),
     promptCount: v.number(),
+    prompts: v.optional(v.array(v.object({
+      text: v.string(),
+      header: v.optional(v.string()),
+    }))),
     message: v.optional(v.string()),
   },
   handler: async (ctx, args) => {

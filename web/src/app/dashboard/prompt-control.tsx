@@ -40,6 +40,7 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
 
   const selectedPack = userPacks.find((p) => p._id === selectedPackId);
 
@@ -164,61 +165,124 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {versions.map((v) => (
-              <div
-                key={v.versionNumber}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "0.75rem 1rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "var(--card-bg, rgba(255,255,255,0.03))",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>
-                      v{v.versionNumber}
-                    </span>
-                    <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                      {formatRelativeTime(v.createdAt)}
-                    </span>
-                  </div>
-                  <p style={{ margin: "0.15rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                    {v.message || "Auto-saved"} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
-                  </p>
-                </div>
+            {versions.map((v) => {
+              const isExpanded = expandedVersion === v.versionNumber;
+              return (
+                <div
+                  key={v.versionNumber}
+                  style={{
+                    borderRadius: "0.5rem",
+                    border: "1px solid var(--border)",
+                    background: "var(--card-bg, rgba(255,255,255,0.03))",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "0.75rem 1rem",
+                  }}>
+                    <button
+                      onClick={() => setExpandedVersion(isExpanded ? null : v.versionNumber)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, minWidth: 0,
+                        background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "inherit",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0 }}>
+                        {isExpanded ? "▾" : "▸"}
+                      </span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>
+                            v{v.versionNumber}
+                          </span>
+                          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                            {formatRelativeTime(v.createdAt)}
+                          </span>
+                        </div>
+                        <p style={{ margin: "0.15rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
+                          {v.message || "Auto-saved"} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
+                        </p>
+                      </div>
+                    </button>
 
-                <div style={{ display: "flex", gap: "0.25rem", marginLeft: "0.75rem" }}>
-                  {confirmRestore === v.versionNumber ? (
-                    <>
-                      <button onClick={() => handleRestore(v.versionNumber)} disabled={loading} className="btn-sm btn-primary">Confirm</button>
-                      <button onClick={() => setConfirmRestore(null)} className="btn-sm">Cancel</button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
-                      title="Restore"
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
-                    >
-                      &#x21BA;
-                    </button>
-                  )}
-                  {confirmDelete === v.versionNumber ? (
-                    <>
-                      <button onClick={() => handleDelete(v.versionNumber)} disabled={loading} className="btn-sm" style={{ background: "#ef4444", color: "white" }}>Delete</button>
-                      <button onClick={() => setConfirmDelete(null)} className="btn-sm">Cancel</button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
-                      title="Delete"
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
-                    >
-                      &#x1F5D1;
-                    </button>
+                    <div style={{ display: "flex", gap: "0.25rem", marginLeft: "0.75rem" }}>
+                      {confirmRestore === v.versionNumber ? (
+                        <>
+                          <button onClick={() => handleRestore(v.versionNumber)} disabled={loading} className="btn-sm btn-primary">Confirm</button>
+                          <button onClick={() => setConfirmRestore(null)} className="btn-sm">Cancel</button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
+                          title="Restore"
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
+                        >
+                          &#x21BA;
+                        </button>
+                      )}
+                      {confirmDelete === v.versionNumber ? (
+                        <>
+                          <button onClick={() => handleDelete(v.versionNumber)} disabled={loading} className="btn-sm" style={{ background: "#ef4444", color: "white" }}>Delete</button>
+                          <button onClick={() => setConfirmDelete(null)} className="btn-sm">Cancel</button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
+                          title="Delete"
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
+                        >
+                          &#x1F5D1;
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Expanded prompt preview */}
+                  {isExpanded && (
+                    <div style={{
+                      borderTop: "1px solid var(--border)",
+                      padding: "0.75rem 1rem",
+                      background: "rgba(128, 128, 128, 0.05)",
+                    }}>
+                      {v.prompts && v.prompts.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {v.prompts.map((prompt: { text: string; header?: string }, i: number) => (
+                            <div key={i} style={{
+                              fontSize: "0.85rem",
+                              borderRadius: "0.375rem",
+                              padding: "0.5rem 0.75rem",
+                              background: "var(--card-bg, rgba(255,255,255,0.03))",
+                              border: "1px solid var(--border)",
+                            }}>
+                              {prompt.header && (
+                                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent)", marginBottom: "0.25rem", margin: "0 0 0.25rem 0" }}>
+                                  {prompt.header}
+                                </p>
+                              )}
+                              <p style={{
+                                color: "var(--muted)",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                fontSize: "0.8125rem",
+                                lineHeight: "1.4",
+                                margin: 0,
+                              }}>
+                                {prompt.text.length > 300 ? prompt.text.slice(0, 300) + "..." : prompt.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p style={{ fontSize: "0.8rem", color: "var(--muted)", fontStyle: "italic", margin: 0 }}>
+                          Prompt preview not available for this version.
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

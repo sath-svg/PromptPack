@@ -1410,10 +1410,11 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, packId, message } = body as {
+        const { clerkId, packId, message, prompts } = body as {
           clerkId: string;
           packId: string;
           message?: string;
+          prompts?: { text: string; header?: string }[];
         };
 
         if (!clerkId || !packId) {
@@ -1509,6 +1510,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           r2Key: versionR2Key,
           fileSize,
           promptCount: pack.promptCount,
+          prompts: prompts || undefined,
           message: message || undefined,
         });
 

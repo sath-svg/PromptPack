@@ -117,9 +117,17 @@ export function UserPacksPage() {
     if (!isStudio && !pack.versionControlEnabled) return;
     if (!session?.user_id) return;
 
+    // Get loaded prompts for this pack to store in version
+    const { loadedUserPacks } = useSyncStore.getState();
+    const loaded = loadedUserPacks[packId];
+    const prompts = loaded?.prompts?.map((p) => ({
+      text: p.text,
+      header: p.header || undefined,
+    }));
+
     autoSavingRef.current = true;
     try {
-      const ok = await savePackVersion(session.user_id, packId);
+      const ok = await savePackVersion(session.user_id, packId, undefined, prompts);
       if (!ok) {
         // Check if it's the version limit error
         const { error } = useSyncStore.getState();

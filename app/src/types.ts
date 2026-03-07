@@ -104,6 +104,7 @@ export interface PackVersion {
   r2Key: string;
   fileSize: number;
   promptCount: number;
+  prompts?: { text: string; header?: string }[];
   message?: string;
   createdAt: number;
 }

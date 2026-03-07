@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { History, ArrowLeft, Trash2, RotateCcw, ToggleLeft, ToggleRight } from 'lucide-react';
+import { History, ArrowLeft, Trash2, RotateCcw, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSyncStore, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -46,6 +46,7 @@ export function PromptControlPage() {
   const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
 
   const tier = session?.tier || 'free';
   const clerkId = session?.user_id || '';
@@ -158,79 +159,118 @@ export function PromptControlPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {versions.map((v) => (
-              <div
-                key={v.versionNumber}
-                className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--card)]"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-semibold text-[var(--primary)]">
-                      v{v.versionNumber}
-                    </span>
-                    <span className="text-xs text-[var(--muted-foreground)]">
-                      {formatRelativeTime(v.createdAt)}
-                    </span>
+            {versions.map((v) => {
+              const isExpanded = expandedVersion === v.versionNumber;
+              return (
+                <div
+                  key={v.versionNumber}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden"
+                >
+                  <div className="flex items-center justify-between p-3">
+                    <button
+                      onClick={() => setExpandedVersion(isExpanded ? null : v.versionNumber)}
+                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown size={14} className="text-[var(--muted-foreground)] flex-shrink-0" />
+                      ) : (
+                        <ChevronRight size={14} className="text-[var(--muted-foreground)] flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-[var(--primary)]">
+                            v{v.versionNumber}
+                          </span>
+                          <span className="text-xs text-[var(--muted-foreground)]">
+                            {formatRelativeTime(v.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[var(--muted-foreground)] truncate mt-0.5">
+                          {v.message || 'Auto-saved'} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
+                        </p>
+                      </div>
+                    </button>
+
+                    <div className="flex items-center gap-1 ml-3">
+                      {confirmRestore === v.versionNumber ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleRestore(v.versionNumber)}
+                            disabled={isSaving[selectedPack.id]}
+                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setConfirmRestore(null)}
+                            className="px-2 py-1 text-xs bg-[var(--accent)] rounded hover:opacity-80"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
+                          className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                          title="Restore this version"
+                        >
+                          <RotateCcw size={14} />
+                        </button>
+                      )}
+
+                      {confirmDelete === v.versionNumber ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDelete(v.versionNumber)}
+                            className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="px-2 py-1 text-xs bg-[var(--accent)] rounded hover:opacity-80"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
+                          className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-red-400"
+                          title="Delete this version"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-[var(--muted-foreground)] truncate mt-0.5">
-                    {v.message || 'Auto-saved'} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-1 ml-3">
-                  {confirmRestore === v.versionNumber ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleRestore(v.versionNumber)}
-                        disabled={isSaving[selectedPack.id]}
-                        className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() => setConfirmRestore(null)}
-                        className="px-2 py-1 text-xs bg-[var(--accent)] rounded hover:opacity-80"
-                      >
-                        Cancel
-                      </button>
+                  {/* Expanded prompt preview */}
+                  {isExpanded && (
+                    <div className="border-t border-[var(--border)] px-3 py-2 bg-[var(--accent)]/30">
+                      {v.prompts && v.prompts.length > 0 ? (
+                        <div className="space-y-2">
+                          {v.prompts.map((prompt, i) => (
+                            <div key={i} className="text-sm rounded p-2 bg-[var(--card)] border border-[var(--border)]">
+                              {prompt.header && (
+                                <p className="text-xs font-medium text-[var(--primary)] mb-1">{prompt.header}</p>
+                              )}
+                              <p className="text-[var(--muted-foreground)] whitespace-pre-wrap break-words" style={{ fontSize: '0.8125rem', lineHeight: '1.4' }}>
+                                {prompt.text.length > 300 ? prompt.text.slice(0, 300) + '...' : prompt.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--muted-foreground)] italic py-1">
+                          Prompt preview not available for this version.
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
-                      className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                      title="Restore this version"
-                    >
-                      <RotateCcw size={14} />
-                    </button>
-                  )}
-
-                  {confirmDelete === v.versionNumber ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => handleDelete(v.versionNumber)}
-                        className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(null)}
-                        className="px-2 py-1 text-xs bg-[var(--accent)] rounded hover:opacity-80"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
-                      className="p-1.5 rounded hover:bg-[var(--accent)] text-[var(--muted-foreground)] hover:text-red-400"
-                      title="Delete this version"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

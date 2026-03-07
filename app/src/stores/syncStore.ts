@@ -117,7 +117,7 @@ interface SyncState {
   // PromptControl (version control) actions
   packVersions: Record<string, PackVersion[]>;
   fetchPackVersions: (packId: string) => Promise<PackVersion[]>;
-  savePackVersion: (clerkId: string, packId: string, message?: string) => Promise<boolean>;
+  savePackVersion: (clerkId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => Promise<boolean>;
   restorePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
   deletePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
   toggleVersionControl: (clerkId: string, packId: string, enabled: boolean) => Promise<boolean>;
@@ -2114,12 +2114,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      savePackVersion: async (clerkId: string, packId: string, message?: string) => {
+      savePackVersion: async (clerkId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/save-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, message }),
+            body: JSON.stringify({ clerkId, packId, message, prompts }),
           });
           const data = await response.json();
           if (data.success) {

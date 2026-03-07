@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -629,6 +629,28 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     const updatedPrompt = { ...currentPrompt, text: trimmed };
     updatedPrompts[editingPromptIndex] = updatedPrompt;
 
+    // PromptControl: snapshot current state before applying edit
+    if (!autoSavingRef.current && clerkId) {
+      const packMeta = webPacks.find((p) => p._id === previousPack.id);
+      if (packMeta && (isStudio || packMeta.versionControlEnabled)) {
+        autoSavingRef.current = true;
+        try {
+          // Pass current prompts to store in version for preview
+          const versionPrompts = previousPack.prompts.map((p) => ({
+            text: p.text,
+            header: p.header || undefined,
+          }));
+          await fetch("/api/packs/save-version", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clerkId, packId: previousPack.id, prompts: versionPrompts }),
+          });
+        } catch { /* best-effort */ } finally {
+          autoSavingRef.current = false;
+        }
+      }
+    }
+
     setSelectedPack({ ...selectedPack, prompts: updatedPrompts });
     cancelPromptEdit();
     showToast("Prompt updated");
@@ -663,7 +685,8 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       setSelectedPack(previousPack);
       setError("Failed to sync prompt. Please try again.");
     }
-  }, [selectedPack, editingPromptIndex, promptDraft, cancelPromptEdit, showToast, updatePackViaAPI, setPackHeader]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPack, editingPromptIndex, promptDraft, cancelPromptEdit, showToast, updatePackViaAPI, setPackHeader, clerkId, isStudio]);
 
   // All packs are now stored in R2 with metadata in Convex
   // No need to filter - just display all packs
@@ -676,6 +699,9 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Studio: MAX_STUDIO_PACKS, Pro: MAX_PRO_PACKS, Free: 0
   const maxPacks = isStudio ? MAX_STUDIO_PACKS : (hasPro ? MAX_PRO_PACKS : 0);
   const canCreate = (isStudio && packCount < MAX_STUDIO_PACKS) || (hasPro && packCount < MAX_PRO_PACKS);
+
+  // PromptControl: ref guard for auto-save (used in savePromptEdit)
+  const autoSavingRef = useRef(false);
 
   const handleIconSelect = async (packId: Id<"userPacks">, icon: string) => {
     try {
