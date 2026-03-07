@@ -202,7 +202,7 @@ export function ProCard() {
       >
         {/* Aligned with Free plan */}
         <li>✓ <span className="faq-highlight">40</span> saved prompts</li>
-        <li>✓ <span className="faq-highlight">9</span> loaded <span className="gradient-text">PromptPacks</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(2 custom + 7 saved)</span></li>
+        <li>✓ <span className="faq-highlight">10</span> loaded <span className="gradient-text">PromptPacks</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(3 custom + 7 saved)</span></li>
         <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
         <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
         <li>✓ Desktop app</li>
@@ -212,6 +212,7 @@ export function ProCard() {
         <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
         {/* Pro-only features */}
                 <li>✓ <span style={{ color: "#20B8CD" }}>Perplexity</span>, Grok, <span style={{ color: "#4D6BFE" }}>DeepSeek</span>, <span style={{ color: "#6B4FBB" }}>Kimi</span> support</li>
+        <li>✓ <span style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>PromptControl</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(1 pack)</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Priority support</span></li>
       </ul>
 

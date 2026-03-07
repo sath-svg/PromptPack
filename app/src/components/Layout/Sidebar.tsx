@@ -9,6 +9,7 @@ import {
   FileEdit,
   Cloud,
   PanelLeftClose,
+  History,
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -204,6 +205,26 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* PromptControl (version control) - Pro+ only */}
+        {session && session.tier !== 'free' && (
+          <div className={`space-y-1 ${isCollapsed ? 'mt-4 pt-4 border-t border-[var(--border)]' : 'mt-6'}`}>
+            <button
+              onClick={() => onNavigate('prompt-control')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+                currentPage === 'prompt-control'
+                  ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                  : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
+              }`}
+              title={isCollapsed ? 'PromptControl' : undefined}
+            >
+              <History size={18} className="flex-shrink-0" />
+              <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+                PromptControl
+              </span>
+            </button>
           </div>
         )}
 

@@ -96,6 +96,18 @@ export interface PromptEvaluation {
   evaluatedAt: number;
 }
 
+// PromptControl: Version snapshot metadata
+export interface PackVersion {
+  id: string;
+  packId: string;
+  versionNumber: number;
+  r2Key: string;
+  fileSize: number;
+  promptCount: number;
+  message?: string;
+  createdAt: number;
+}
+
 // Source metadata for UI
 export const SOURCE_META: Record<PromptSource, { label: string; color: string; icon: string }> = {
   chatgpt: { label: 'ChatGPT', color: '#10a37f', icon: '🤖' },

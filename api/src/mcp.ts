@@ -46,7 +46,9 @@ const MCP_RATE_LIMITS = {
 const MCP_CACHE_TTL = 300; // 5 minutes for decoded pack cache
 
 // Pack limits for create_pack (mirrors app/src/lib/constants.ts:102-104)
-const PACK_LIMITS = { free: 0, pro: 2, studio: 14 } as const;
+const PACK_LIMITS = { free: 0, pro: 3, studio: 14 } as const;
+const VERSION_CONTROL_LIMITS = { free: 0, pro: 1, studio: 14 } as const;
+const MAX_VERSIONS_PER_PACK = 10;
 
 // --- Helpers ---
 
@@ -330,6 +332,41 @@ const TOOL_DEFINITIONS = [
         password: { type: 'string', description: 'Password to decrypt the file (required if file is encrypted)' },
       },
       required: ['file_data', 'name'],
+    },
+  },
+  {
+    name: 'list_versions',
+    description: 'List all saved version snapshots for a user pack. Returns version history with timestamps.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pack_name: { type: 'string', description: 'Name of the user pack' },
+      },
+      required: ['pack_name'],
+    },
+  },
+  {
+    name: 'save_version',
+    description: 'Save a snapshot of the current pack state. Maximum 10 versions per pack. Blocks when limit is reached.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pack_name: { type: 'string', description: 'Name of the user pack to snapshot' },
+        message: { type: 'string', description: 'Optional description for this version' },
+      },
+      required: ['pack_name'],
+    },
+  },
+  {
+    name: 'restore_version',
+    description: 'Restore a pack to a previous version. This replaces the current pack contents.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        pack_name: { type: 'string', description: 'Name of the user pack' },
+        version: { type: 'number', description: 'Version number to restore (from list_versions)' },
+      },
+      required: ['pack_name', 'version'],
     },
   },
 ];
@@ -801,6 +838,85 @@ async function handleImportPack(
   };
 }
 
+// --- PromptControl (version control) handlers ---
+
+async function handleListVersions(
+  userId: string, env: Env, params: Record<string, unknown>
+): Promise<unknown> {
+  const packName = params.pack_name as string;
+  if (!packName) return { error: 'Missing pack_name' };
+
+  const userPacks = await fetchConvexUserPacks(userId, env.CONVEX_URL);
+  const pack = findPackByName(userPacks, packName);
+  if (!pack) return { error: `Pack "${packName}" not found` };
+
+  const res = await fetch(`${env.CONVEX_URL}/api/desktop/list-versions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ packId: pack.id }),
+  });
+
+  if (!res.ok) return { error: 'Failed to list versions' };
+  const data = await res.json() as { success?: boolean; versions?: unknown[] };
+  return data.success ? { versions: data.versions } : { error: 'Failed to list versions' };
+}
+
+async function handleSaveVersion(
+  userId: string, env: Env, params: Record<string, unknown>, tier: string
+): Promise<unknown> {
+  const packName = params.pack_name as string;
+  if (!packName) return { error: 'Missing pack_name' };
+
+  const userPacks = await fetchConvexUserPacks(userId, env.CONVEX_URL);
+  const pack = findPackByName(userPacks, packName);
+  if (!pack) return { error: `Pack "${packName}" not found` };
+
+  const message = params.message as string | undefined;
+
+  const res = await fetch(`${env.CONVEX_URL}/api/desktop/save-version`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clerkId: userId, packId: pack.id, message }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({})) as { error?: string };
+    return { error: errData.error || 'Failed to save version' };
+  }
+
+  const data = await res.json() as { success?: boolean; version?: unknown };
+  return data.success ? { success: true, version: data.version } : { error: 'Failed to save version' };
+}
+
+async function handleRestoreVersion(
+  userId: string, env: Env, params: Record<string, unknown>
+): Promise<unknown> {
+  const packName = params.pack_name as string;
+  const versionNumber = params.version as number;
+  if (!packName) return { error: 'Missing pack_name' };
+  if (versionNumber === undefined) return { error: 'Missing version number' };
+
+  const userPacks = await fetchConvexUserPacks(userId, env.CONVEX_URL);
+  const pack = findPackByName(userPacks, packName);
+  if (!pack) return { error: `Pack "${packName}" not found` };
+
+  const res = await fetch(`${env.CONVEX_URL}/api/desktop/restore-version`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clerkId: userId, packId: pack.id, versionNumber }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({})) as { error?: string };
+    return { error: errData.error || 'Failed to restore version' };
+  }
+
+  const data = await res.json() as { success?: boolean; restoredVersion?: number; promptCount?: number };
+  return data.success
+    ? { success: true, restored_version: data.restoredVersion, prompt_count: data.promptCount }
+    : { error: 'Failed to restore version' };
+}
+
 // --- Main handler ---
 
 // Import verifyClerkJwt and checkUserBillingStatus types - these are called from index.ts
@@ -913,6 +1029,15 @@ export async function handleMcpRequest(
           break;
         case 'import_pack':
           result = await handleImportPack(userId, env, toolArgs, tier);
+          break;
+        case 'list_versions':
+          result = await handleListVersions(userId, env, toolArgs);
+          break;
+        case 'save_version':
+          result = await handleSaveVersion(userId, env, toolArgs, tier);
+          break;
+        case 'restore_version':
+          result = await handleRestoreVersion(userId, env, toolArgs);
           break;
         default:
           return toResponse(jsonRpcError(rpc.id, -32601, `Unknown tool: ${toolName}`));

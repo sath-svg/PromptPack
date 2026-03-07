@@ -177,6 +177,21 @@ export const remove = mutation({
   },
 });
 
+// Toggle PromptControl (version control) on a pack
+export const toggleVersionControl = mutation({
+  args: {
+    id: v.id("userPacks"),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, { id, enabled }) => {
+    await ctx.db.patch(id, {
+      versionControlEnabled: enabled,
+      updatedAt: Date.now(),
+    });
+    return id;
+  },
+});
+
 // Alias for desktop HTTP API
 export const deletePack = mutation({
   args: { id: v.id("userPacks") },

@@ -31,7 +31,7 @@ const STEPS: TutorialStep[] = [
     selectorIndex: 1,
     title: "Your Saved Prompts",
     description:
-      "Organize prompts into packs. Pro users can create up to 2 custom packs.",
+      "Organize prompts into packs. Pro users can create up to 3 custom packs.",
   },
   {
     selector: ".dashboard-card",

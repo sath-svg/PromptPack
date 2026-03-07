@@ -89,7 +89,7 @@ ${BOLD}RATE LIMITS${RESET}  ${DIM}(MCP tool calls)${RESET}
 
 ${BOLD}PACK LIMITS${RESET}
   Free    0 custom packs    10 prompts/pack
-  Pro     2 custom packs    40 prompts/pack
+  Pro     3 custom packs    40 prompts/pack
   Studio  14 custom packs   200 prompts/pack
 
 ${BOLD}SETUP${RESET}

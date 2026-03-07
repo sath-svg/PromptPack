@@ -9,6 +9,7 @@ import { ManageSubscriptionButton } from "./manage-subscription-button";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PromptPacks } from "./prompt-packs";
+import { PromptControl } from "./prompt-control";
 import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, STUDIO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT, STUDIO_PACK_LIMIT } from "@/lib/constants";
 import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 import { TutorialOverlay } from "@/components/onboarding/tutorial-overlay";
@@ -223,6 +224,13 @@ export function DashboardContent() {
           <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
         )}
       </div>
+
+      {/* PromptControl Section (Pro+ only) */}
+      {(hasPro || isStudio) && convexUser?._id && clerkUser?.id && (
+        <div className="dashboard-section">
+          <PromptControl userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={clerkUser.id} />
+        </div>
+      )}
 
       {/* Saved Prompts Section */}
       <div className="dashboard-section">

@@ -39,12 +39,28 @@ export default defineSchema({
     isEncrypted: v.optional(v.boolean()), // Whether the pack has a password
     headers: v.optional(v.record(v.string(), v.string())),
     downloads: v.number(),
+    versionControlEnabled: v.optional(v.boolean()), // PromptControl: Pro users toggle on 1 pack, Studio all packs
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_author", ["authorId"])
     .index("by_public", ["isPublic"])
     .index("by_category", ["category", "isPublic"]),
+
+  // PromptControl: version snapshots for user packs (up to 10 per pack)
+  packVersions: defineTable({
+    packId: v.id("userPacks"),
+    authorId: v.id("users"),
+    versionNumber: v.number(), // Sequential: 1, 2, 3... max 10
+    r2Key: v.string(), // R2 key for this version's .pmtpk snapshot
+    fileSize: v.number(),
+    promptCount: v.number(),
+    message: v.optional(v.string()), // Optional version description
+    createdAt: v.number(),
+  })
+    .index("by_pack", ["packId"])
+    .index("by_pack_version", ["packId", "versionNumber"])
+    .index("by_author", ["authorId"]),
 
   // Purchased marketplace packs (what shows in their "Purchased" section)
   purchasedPacks: defineTable({

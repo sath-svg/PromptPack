@@ -43,7 +43,7 @@ export const FREE_PROMPT_LIMIT = 5;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
 export const FREE_PACK_LIMIT = 6;
-export const PRO_PACK_LIMIT = 9;
+export const PRO_PACK_LIMIT = 10;
 export const STUDIO_PACK_LIMIT = 21;
 export const STUDIO_LOADED_PACK_LIMIT = 10;
 

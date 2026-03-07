@@ -97,11 +97,20 @@ export const SYNC_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 // ============================================================================
 // Custom packs are user-created packs (not platform-saved packs like ChatGPT, Claude, etc.)
 // Free: 0 custom packs (can only save to platform packs)
-// Pro: 2 custom packs
+// Pro: 3 custom packs (was 2, +1 for PromptControl)
 // Studio: 14 custom packs
 export const FREE_CUSTOM_PACK_LIMIT = 0;
-export const PRO_CUSTOM_PACK_LIMIT = 2;
+export const PRO_CUSTOM_PACK_LIMIT = 3;
 export const STUDIO_CUSTOM_PACK_LIMIT = 14;
+
+// ============================================================================
+// PROMPTCONTROL (VERSION CONTROL) LIMITS
+// ============================================================================
+// Pro: 1 pack can have version control enabled (user chooses which)
+// Studio: all packs can have version control
+export const PRO_VERSION_CONTROL_LIMIT = 1;
+export const STUDIO_VERSION_CONTROL_LIMIT = 14;
+export const MAX_VERSIONS_PER_PACK = 10;
 
 // Helper to get pack limit by tier
 export function getCustomPackLimit(tier: 'free' | 'pro' | 'studio'): number {

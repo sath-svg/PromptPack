@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PromptSource, UserTier } from '../types';
+import type { PromptSource, UserTier, PackVersion } from '../types';
 import { CONVEX_URL, WORKERS_API_URL, getPromptLimit } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 import { useAuthStore } from './authStore';
@@ -31,6 +31,7 @@ export interface UserPack {
   isPublic: boolean;
   isEncrypted?: boolean;
   headers?: Record<string, string>;
+  versionControlEnabled?: boolean; // PromptControl
   createdAt: number;
   updatedAt: number;
 }
@@ -112,6 +113,14 @@ interface SyncState {
 
   // Sync local prompts to cloud savedPacks
   syncLocalPromptsToCloud: (clerkId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => Promise<{ synced: string[]; failed: string[] }>;
+
+  // PromptControl (version control) actions
+  packVersions: Record<string, PackVersion[]>;
+  fetchPackVersions: (packId: string) => Promise<PackVersion[]>;
+  savePackVersion: (clerkId: string, packId: string, message?: string) => Promise<boolean>;
+  restorePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
+  deletePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
+  toggleVersionControl: (clerkId: string, packId: string, enabled: boolean) => Promise<boolean>;
 
   // UI actions
   setSelectedPackId: (packId: string | null) => void;
@@ -491,6 +500,7 @@ export const useSyncStore = create<SyncState>()(
       loadedPacks: {},
       loadedUserPacks: {},
       selectedPackId: null,
+      packVersions: {},
       isLoading: false,
       isFetching: {},
       isSaving: {},
@@ -2082,6 +2092,146 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
+      // PromptControl (version control) actions
+      fetchPackVersions: async (packId: string) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/list-versions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packId }),
+          });
+          const data = await response.json();
+          if (data.success && Array.isArray(data.versions)) {
+            set((state) => ({
+              packVersions: { ...state.packVersions, [packId]: data.versions },
+            }));
+            return data.versions;
+          }
+          return [];
+        } catch (error) {
+          console.error('Failed to fetch versions:', error);
+          return [];
+        }
+      },
+
+      savePackVersion: async (clerkId: string, packId: string, message?: string) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/save-version`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, message }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            // Refresh versions list
+            await get().fetchPackVersions(packId);
+            return true;
+          }
+          if (data.error) {
+            set({ error: data.error });
+          }
+          return false;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to save version' });
+          return false;
+        }
+      },
+
+      restorePackVersion: async (clerkId: string, packId: string, versionNumber: number) => {
+        const { isSaving } = get();
+        if (isSaving[packId]) return false;
+
+        set({ isSaving: { ...get().isSaving, [packId]: true }, error: null });
+
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/restore-version`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, versionNumber }),
+          });
+          const data = await response.json();
+
+          if (data.success) {
+            // Update pack metadata
+            set((state) => ({
+              userPacks: state.userPacks.map((p) =>
+                p.id === packId ? { ...p, promptCount: data.promptCount, updatedAt: Date.now() } : p
+              ),
+              // Clear loaded prompts so they'll be re-fetched
+              loadedUserPacks: Object.fromEntries(
+                Object.entries(state.loadedUserPacks).filter(([id]) => id !== packId)
+              ),
+              isSaving: { ...state.isSaving, [packId]: false },
+            }));
+            return true;
+          }
+          set((state) => ({
+            error: data.error || 'Failed to restore version',
+            isSaving: { ...state.isSaving, [packId]: false },
+          }));
+          return false;
+        } catch (error) {
+          set((state) => ({
+            error: error instanceof Error ? error.message : 'Failed to restore version',
+            isSaving: { ...state.isSaving, [packId]: false },
+          }));
+          return false;
+        }
+      },
+
+      deletePackVersion: async (clerkId: string, packId: string, versionNumber: number) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-version`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, versionNumber }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            // Remove from local state
+            set((state) => ({
+              packVersions: {
+                ...state.packVersions,
+                [packId]: (state.packVersions[packId] || []).filter(
+                  (v) => v.versionNumber !== versionNumber
+                ),
+              },
+            }));
+            return true;
+          }
+          return false;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to delete version' });
+          return false;
+        }
+      },
+
+      toggleVersionControl: async (clerkId: string, packId: string, enabled: boolean) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/toggle-version-control`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, enabled }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            set((state) => ({
+              userPacks: state.userPacks.map((p) =>
+                p.id === packId ? { ...p, versionControlEnabled: enabled } : p
+              ),
+            }));
+            return true;
+          }
+          if (data.error) {
+            set({ error: data.error });
+          }
+          return false;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to toggle version control' });
+          return false;
+        }
+      },
+
       // UI action to set selected pack
       setSelectedPackId: (packId: string | null) => set({ selectedPackId: packId }),
 
@@ -2092,6 +2242,7 @@ export const useSyncStore = create<SyncState>()(
         userPacks: [],
         loadedPacks: {},
         loadedUserPacks: {},
+        packVersions: {},
         lastSyncAt: null,
       }),
     }),

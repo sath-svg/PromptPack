@@ -175,6 +175,7 @@ export function StudioCard() {
         <li>✓ <span className="faq-highlight">2000</span> AI headers per day</li>
         <li>✓ Desktop app</li>
         <li>✓ MCP server <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(2000 calls/day)</span></li>
+        <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>PromptControl</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(all packs)</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>API key</span> <span style={{ fontSize: "0.7rem", background: "#8b5cf6", color: "white", padding: "0.1rem 0.3rem", borderRadius: "4px", marginLeft: "0.25rem" }}>SOON</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Priority beta features</span></li>
         <li>✓ <span style={{ background: "linear-gradient(135deg, #8b5cf6, #d946ef)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Priority support</span></li>

@@ -49,6 +49,7 @@ export function UserPacksPage() {
     createUserPack,
     setSelectedPackId,
     clearError,
+    savePackVersion,
   } = useSyncStore();
 
   const [selectedPack, setSelectedPack] = useState<UserPack | null>(null);
@@ -96,6 +97,32 @@ export function UserPacksPage() {
   const { evaluatePrompt, getEvaluation, getPromptHash, loadingHash, loadEvaluations } = useEvaluationStore();
   const [promptHashes, setPromptHashes] = useState<Record<string, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{ evaluation: PromptEvaluation; header?: string } | null>(null);
+
+  // PromptControl: auto-save version before edits
+  const [versionToast, setVersionToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (versionToast) {
+      const t = setTimeout(() => setVersionToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [versionToast]);
+
+  const autoSaveVersion = async (packId: string) => {
+    const pack = userPacks.find((p) => p.id === packId);
+    if (!pack) return;
+    const isStudio = session?.tier === 'studio';
+    if (!isStudio && !pack.versionControlEnabled) return;
+    if (!session?.user_id) return;
+
+    const ok = await savePackVersion(session.user_id, packId);
+    if (!ok) {
+      // Check if it's the version limit error
+      const { error } = useSyncStore.getState();
+      if (error?.includes('Version limit reached')) {
+        setVersionToast('Version limit reached (10/10) — free up space in PromptControl');
+      }
+    }
+  };
 
   // Check if user is Pro/Studio (needed for evaluation feature)
   const isProOrStudio = session?.tier === 'pro' || session?.tier === 'studio';
@@ -194,6 +221,18 @@ export function UserPacksPage() {
       return;
     }
 
+    // If the pack has 0 prompts, skip fetching and cache an empty loaded pack
+    // so the "Add Prompt" empty state shows immediately instead of a loading spinner
+    if (pack.promptCount === 0) {
+      useSyncStore.setState((state) => ({
+        loadedUserPacks: {
+          ...state.loadedUserPacks,
+          [pack.id]: { ...pack, prompts: [] },
+        },
+      }));
+      return;
+    }
+
     // Fetch pack prompts
     await fetchUserPackPrompts(pack);
   };
@@ -251,6 +290,7 @@ export function UserPacksPage() {
   const saveEditPrompt = async () => {
     if (!editingPrompt || !promptDraft.trim()) return;
 
+    await autoSaveVersion(editingPrompt.packId);
     const success = await updateUserPackPrompt(editingPrompt.packId, editingPrompt.index, promptDraft.trim());
 
     if (success) {
@@ -261,6 +301,7 @@ export function UserPacksPage() {
 
   // Delete handlers
   const handleDeletePrompt = async (packId: string, index: number) => {
+    await autoSaveVersion(packId);
     const success = await deleteUserPackPrompt(packId, index);
     if (success) {
       setDeletingPromptIndex(null);
@@ -325,6 +366,7 @@ export function UserPacksPage() {
   const saveNewPrompt = async () => {
     if (!addingPrompt || !newPromptText.trim()) return;
 
+    await autoSaveVersion(addingPrompt);
     const success = await addUserPackPrompt(addingPrompt, newPromptText.trim(), newPromptHeader.trim() || undefined);
 
     if (success) {
@@ -526,6 +568,11 @@ export function UserPacksPage() {
 
     return (
       <div className="max-w-4xl mx-auto">
+        {versionToast && (
+          <div className="fixed top-4 right-4 z-50 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+            {versionToast}
+          </div>
+        )}
         {/* Back button and header */}
         <div className="mb-6">
           <button

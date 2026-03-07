@@ -1948,8 +1948,8 @@ How they want AI responses formatted. Constraints, formatting preferences.
         }
 
         // Security: Verify the r2Key pattern for packs
-        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk OR users/{userId}/saved/{source}.pmtpk
-        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i);
+        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk (or /versions/v{n}.pmtpk) OR users/{userId}/saved/{source}.pmtpk
+        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
         if (!isValidUserPack && !isValidSavedPack) {
           console.error("Invalid r2Key format for pack:", body.r2Key);
@@ -1996,8 +1996,8 @@ How they want AI responses formatted. Constraints, formatting preferences.
         // Security: Verify the r2Key pattern matches expected formats
         // users/{userId}/saved/{source}.pmtpk OR users/{userId}/userpacks/pack_{id}.pmtpk
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
-        // userPacks: pack_<timestamp>_<random> where random is base36 (lowercase + digits)
-        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+\.pmtpk$/i);
+        // userPacks: pack_<timestamp>_<random> where random is base36 (lowercase + digits), optionally with /versions/v{n}
+        const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
 
         if (!isValidSavedPack && !isValidUserPack) {
           console.error("Invalid r2Key format:", body.r2Key);
@@ -2040,8 +2040,10 @@ How they want AI responses formatted. Constraints, formatting preferences.
           }));
         }
 
-        // Security: Verify the r2Key pattern matches expected format
-        if (!body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/)) {
+        // Security: Verify the r2Key pattern matches expected format (saved packs or user packs incl. versions)
+        const isValidSavedKey = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
+        const isValidUserPackKey = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
+        if (!isValidSavedKey && !isValidUserPackKey) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },

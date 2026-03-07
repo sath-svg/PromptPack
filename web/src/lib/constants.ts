@@ -25,10 +25,15 @@ export const FREE_PROMPT_LIMIT = 5;
 export const PRO_PROMPT_LIMIT = 40;
 export const STUDIO_PROMPT_LIMIT = 200;
 export const FREE_PACK_LIMIT = 6;
-export const PRO_PACK_LIMIT = 9;
+export const PRO_PACK_LIMIT = 10;
 export const STUDIO_PACK_LIMIT = 21;
-export const MAX_PRO_PACKS = 2; // Maximum packs for Pro tier on web
+export const MAX_PRO_PACKS = 3; // Maximum packs for Pro tier on web (was 2, +1 for PromptControl)
 export const MAX_STUDIO_PACKS = 14; // Maximum packs for Studio tier on web
+
+// PromptControl (version control) limits
+export const PRO_VERSION_CONTROL_LIMIT = 1; // Pro: 1 pack can have version control
+export const STUDIO_VERSION_CONTROL_LIMIT = 14; // Studio: all packs
+export const MAX_VERSIONS_PER_PACK = 10;
 
 // Studio tier rate limits
 export const STUDIO_ENHANCE_LIMIT = 500; // 500 enhances per day

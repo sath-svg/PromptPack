@@ -42,7 +42,7 @@ export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
 export const FREE_PROMPT_LIMIT = 10;
 export const PRO_PROMPT_LIMIT = 40;
 export const FREE_PACK_LIMIT = 6;
-export const PRO_PACK_LIMIT = 9;
+export const PRO_PACK_LIMIT = 10;
 
 // Legacy constants for backwards compatibility
 export const MAX_PROMPTS = FREE_PROMPT_LIMIT;

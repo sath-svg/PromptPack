@@ -15,6 +15,7 @@ import type * as evaluations from "../evaluations.js";
 import type * as http from "../http.js";
 import type * as httpDesktop from "../httpDesktop.js";
 import type * as httpExtension from "../httpExtension.js";
+import type * as packVersions from "../packVersions.js";
 import type * as packs from "../packs.js";
 import type * as purchasedPacks from "../purchasedPacks.js";
 import type * as refreshTokens from "../refreshTokens.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   httpDesktop: typeof httpDesktop;
   httpExtension: typeof httpExtension;
+  packVersions: typeof packVersions;
   packs: typeof packs;
   purchasedPacks: typeof purchasedPacks;
   refreshTokens: typeof refreshTokens;

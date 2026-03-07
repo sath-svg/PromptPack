@@ -971,10 +971,29 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Delete from R2 via Cloudflare Workers API
+        // Delete version snapshots from R2 first (PromptControl cascade)
         const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
         try {
-          const r2Response = await fetch(`${R2_API_URL}/storage/delete`, {
+          const versions = await ctx.runQuery(api.packVersions.listByPack, { packId: packId as Id<"userPacks"> });
+          for (const version of versions) {
+            try {
+              await fetch(`${R2_API_URL}/storage/remove`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ r2Key: version.r2Key }),
+              });
+            } catch (vErr) {
+              console.warn("R2 version delete error (continuing):", vErr);
+            }
+          }
+          await ctx.runMutation(api.packVersions.removeAllForPack, { packId: packId as Id<"userPacks"> });
+        } catch (versionErr) {
+          console.warn("Version cleanup error (continuing):", versionErr);
+        }
+
+        // Delete pack file from R2 via Cloudflare Workers API
+        try {
+          const r2Response = await fetch(`${R2_API_URL}/storage/remove`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ r2Key: pack.r2Key }),
@@ -1272,6 +1291,521 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
             status: 500,
             headers: { ...headers, "Content-Type": "application/json" },
           }
+        );
+      }
+    }),
+  });
+
+  // ============================================================================
+  // PromptControl: Version Control Endpoints
+  // ============================================================================
+
+  // Toggle version control on a pack
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/toggle-version-control",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/toggle-version-control",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, packId, enabled } = body as {
+          clerkId: string;
+          packId: string;
+          enabled: boolean;
+        };
+
+        if (!clerkId || !packId || enabled === undefined) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Verify pack ownership
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack || pack.authorId !== user._id) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found or not owned by user" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Pro users: only 1 pack can have version control enabled
+        if (enabled && user.plan === "pro") {
+          const allPacks = await ctx.runQuery(api.packs.listByAuthor, { authorId: user._id });
+          const alreadyEnabled = allPacks.filter(
+            (p) => p.versionControlEnabled && p._id !== packId
+          );
+          if (alreadyEnabled.length >= 1) {
+            return new Response(
+              JSON.stringify({ error: "Pro plan allows version control on 1 pack only. Disable it on another pack first." }),
+              { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
+        await ctx.runMutation(api.packs.toggleVersionControl, {
+          id: packId as Id<"userPacks">,
+          enabled,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, enabled }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Toggle version control error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to toggle version control" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // Save a version snapshot of the current pack state
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/save-version",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/save-version",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, packId, message } = body as {
+          clerkId: string;
+          packId: string;
+          message?: string;
+        };
+
+        if (!clerkId || !packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get pack and verify ownership
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack || pack.authorId !== user._id) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found or not owned by user" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Check version control is enabled (Studio: always allowed, Pro: must be toggled)
+        if (user.plan !== "studio" && !pack.versionControlEnabled) {
+          return new Response(
+            JSON.stringify({ error: "Version control not enabled on this pack" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Check version limit (max 10)
+        const existingVersions = await ctx.runQuery(api.packVersions.listByPack, { packId: packId as Id<"userPacks"> });
+        if (existingVersions.length >= 10) {
+          return new Response(
+            JSON.stringify({ error: "Version limit reached (10/10). Delete old versions to continue." }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Determine next version number
+        const maxVersion = existingVersions.reduce((max, v) => Math.max(max, v.versionNumber), 0);
+        const nextVersion = maxVersion + 1;
+
+        // Fetch current pack file from R2
+        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const fetchResponse = await fetch(`${R2_API_URL}/storage/fetch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ r2Key: pack.r2Key }),
+        });
+
+        if (!fetchResponse.ok) {
+          throw new Error(`Failed to fetch current pack from R2: ${fetchResponse.status}`);
+        }
+
+        const fetchData = await fetchResponse.json() as { fileData: string };
+
+        // Upload copy to version-specific R2 key
+        // Extract pack basename from r2Key: "users/{id}/userpacks/pack_xxx.pmtpk" -> "pack_xxx"
+        const packBasename = pack.r2Key.replace(/\.pmtpk$/, "").split("/").pop();
+        const versionR2Key = `users/${user._id}/userpacks/${packBasename}/versions/v${nextVersion}.pmtpk`;
+
+        const uploadResponse = await fetch(`${R2_API_URL}/storage/pack-upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            r2Key: versionR2Key,
+            fileData: fetchData.fileData,
+            metadata: {
+              versionNumber: nextVersion.toString(),
+              packId,
+              title: pack.title,
+            },
+          }),
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload version to R2: ${uploadResponse.status}`);
+        }
+
+        // Compute file size from base64
+        const fileSize = Math.ceil((fetchData.fileData.length * 3) / 4);
+
+        // Create version record in Convex
+        const versionId = await ctx.runMutation(api.packVersions.create, {
+          packId: packId as Id<"userPacks">,
+          authorId: user._id,
+          versionNumber: nextVersion,
+          r2Key: versionR2Key,
+          fileSize,
+          promptCount: pack.promptCount,
+          message: message || undefined,
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            version: {
+              id: versionId,
+              versionNumber: nextVersion,
+              promptCount: pack.promptCount,
+              fileSize,
+              message: message || null,
+              createdAt: Date.now(),
+            },
+          }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Save version error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to save version" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // List versions for a pack
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/list-versions",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/list-versions",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { packId } = body as { packId: string };
+
+        if (!packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing packId" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const versions = await ctx.runQuery(api.packVersions.listByPack, { packId: packId as Id<"userPacks"> });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            versions: versions.map((v) => ({
+              id: v._id,
+              versionNumber: v.versionNumber,
+              promptCount: v.promptCount,
+              fileSize: v.fileSize,
+              message: v.message || null,
+              createdAt: v.createdAt,
+            })),
+          }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("List versions error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to list versions" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // Restore a pack to a previous version
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/restore-version",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/restore-version",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, packId, versionNumber } = body as {
+          clerkId: string;
+          packId: string;
+          versionNumber: number;
+        };
+
+        if (!clerkId || !packId || versionNumber === undefined) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get pack and verify ownership
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack || pack.authorId !== user._id) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found or not owned by user" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get the version to restore
+        const version = await ctx.runQuery(api.packVersions.getByPackAndVersion, {
+          packId: packId as Id<"userPacks">,
+          versionNumber,
+        });
+        if (!version) {
+          return new Response(
+            JSON.stringify({ error: "Version not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Fetch the version's file from R2
+        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const fetchResponse = await fetch(`${R2_API_URL}/storage/fetch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ r2Key: version.r2Key }),
+        });
+
+        if (!fetchResponse.ok) {
+          throw new Error(`Failed to fetch version from R2: ${fetchResponse.status}`);
+        }
+
+        const fetchData = await fetchResponse.json() as { fileData: string };
+
+        // Overwrite the pack's current R2 file with the version's data
+        const uploadResponse = await fetch(`${R2_API_URL}/storage/pack-upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            r2Key: pack.r2Key,
+            fileData: fetchData.fileData,
+            metadata: {
+              title: pack.title,
+              promptCount: version.promptCount.toString(),
+              restoredFrom: `v${versionNumber}`,
+            },
+          }),
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to restore version to R2: ${uploadResponse.status}`);
+        }
+
+        // Update pack metadata in Convex
+        const fileSize = Math.ceil((fetchData.fileData.length * 3) / 4);
+        await ctx.runMutation(api.packs.update, {
+          id: packId as Id<"userPacks">,
+          promptCount: version.promptCount,
+          fileSize,
+        });
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            restoredVersion: versionNumber,
+            promptCount: version.promptCount,
+          }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Restore version error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to restore version" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // Delete a specific version
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/delete-version",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/delete-version",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { clerkId, packId, versionNumber } = body as {
+          clerkId: string;
+          packId: string;
+          versionNumber: number;
+        };
+
+        if (!clerkId || !packId || versionNumber === undefined) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Verify pack ownership
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack || pack.authorId !== user._id) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found or not owned by user" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Get the version
+        const version = await ctx.runQuery(api.packVersions.getByPackAndVersion, {
+          packId: packId as Id<"userPacks">,
+          versionNumber,
+        });
+        if (!version) {
+          return new Response(
+            JSON.stringify({ error: "Version not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Delete from R2
+        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        try {
+          await fetch(`${R2_API_URL}/storage/remove`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ r2Key: version.r2Key }),
+          });
+        } catch (r2Error) {
+          console.warn("R2 version delete error (continuing):", r2Error);
+        }
+
+        // Delete Convex record
+        await ctx.runMutation(api.packVersions.remove, { id: version._id });
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Delete version error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to delete version" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
         );
       }
     }),
