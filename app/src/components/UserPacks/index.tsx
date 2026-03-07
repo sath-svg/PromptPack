@@ -98,8 +98,9 @@ export function UserPacksPage() {
   const [promptHashes, setPromptHashes] = useState<Record<string, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{ evaluation: PromptEvaluation; header?: string } | null>(null);
 
-  // PromptControl: auto-save version before edits
+  // PromptControl: auto-save version when exiting edit mode
   const [versionToast, setVersionToast] = useState<string | null>(null);
+  const autoSavingRef = useRef(false);
   useEffect(() => {
     if (versionToast) {
       const t = setTimeout(() => setVersionToast(null), 3000);
@@ -108,19 +109,26 @@ export function UserPacksPage() {
   }, [versionToast]);
 
   const autoSaveVersion = async (packId: string) => {
+    // Guard: prevent concurrent/duplicate auto-saves
+    if (autoSavingRef.current) return;
     const pack = userPacks.find((p) => p.id === packId);
     if (!pack) return;
     const isStudio = session?.tier === 'studio';
     if (!isStudio && !pack.versionControlEnabled) return;
     if (!session?.user_id) return;
 
-    const ok = await savePackVersion(session.user_id, packId);
-    if (!ok) {
-      // Check if it's the version limit error
-      const { error } = useSyncStore.getState();
-      if (error?.includes('Version limit reached')) {
-        setVersionToast('Version limit reached (10/10) — free up space in PromptControl');
+    autoSavingRef.current = true;
+    try {
+      const ok = await savePackVersion(session.user_id, packId);
+      if (!ok) {
+        // Check if it's the version limit error
+        const { error } = useSyncStore.getState();
+        if (error?.includes('Version limit reached')) {
+          setVersionToast('Version limit reached (10/10) — free up space in PromptControl');
+        }
       }
+    } finally {
+      autoSavingRef.current = false;
     }
   };
 
@@ -301,7 +309,6 @@ export function UserPacksPage() {
 
   // Delete handlers
   const handleDeletePrompt = async (packId: string, index: number) => {
-    await autoSaveVersion(packId);
     const success = await deleteUserPackPrompt(packId, index);
     if (success) {
       setDeletingPromptIndex(null);
@@ -366,7 +373,6 @@ export function UserPacksPage() {
   const saveNewPrompt = async () => {
     if (!addingPrompt || !newPromptText.trim()) return;
 
-    await autoSaveVersion(addingPrompt);
     const success = await addUserPackPrompt(addingPrompt, newPromptText.trim(), newPromptHeader.trim() || undefined);
 
     if (success) {
