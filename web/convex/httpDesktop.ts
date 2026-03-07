@@ -180,6 +180,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
               isPublic: pack.isPublic,
               isEncrypted: pack.isEncrypted,
               headers: pack.headers,
+              versionControlEnabled: pack.versionControlEnabled ?? false,
               createdAt: pack.createdAt,
               updatedAt: pack.updatedAt,
             })),
