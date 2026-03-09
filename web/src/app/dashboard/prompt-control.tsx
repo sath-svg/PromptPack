@@ -3,8 +3,9 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { useState, useEffect } from "react";
-import { R2_API_URL, MAX_VERSIONS_PER_PACK, PRO_VERSION_CONTROL_LIMIT } from "@/lib/constants";
+import { useState, useEffect, useCallback } from "react";
+import { MAX_VERSIONS_PER_PACK, PRO_VERSION_CONTROL_LIMIT, R2_API_URL } from "@/lib/constants";
+import { decodePmtpk, isObfuscated } from "@/lib/crypto";
 
 function formatRelativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
@@ -18,10 +19,11 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
 }
 
 interface PromptControlProps {
@@ -31,22 +33,30 @@ interface PromptControlProps {
   clerkId: string;
 }
 
+interface PackPrompt {
+  text: string;
+  header?: string;
+  createdAt: number;
+}
+
 export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptControlProps) {
   const userPacks = useQuery(api.packs.listByAuthor, { authorId: userId }) ?? [];
   const toggleVersionControl = useMutation(api.packs.toggleVersionControl);
 
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [selectedPromptCreatedAt, setSelectedPromptCreatedAt] = useState<number | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
+  const [packPrompts, setPackPrompts] = useState<PackPrompt[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
 
   const selectedPack = userPacks.find((p) => p._id === selectedPackId);
 
-  // Fetch versions for selected pack
-  const versions = useQuery(
-    api.packVersions.listByPack,
+  // Fetch prompt versions for selected pack
+  const promptVersions = useQuery(
+    api.promptVersions.listByPack,
     selectedPackId ? { packId: selectedPackId as Id<"userPacks"> } : "skip"
   ) ?? [];
 
@@ -60,46 +70,65 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
     }
   }, [toast]);
 
+  // Fetch pack prompts from R2 when a pack is selected
+  const fetchPackPrompts = useCallback(async (pack: typeof userPacks[0]) => {
+    setLoadingPrompts(true);
+    try {
+      const response = await fetch(`${R2_API_URL}/storage/fetch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ r2Key: pack.r2Key }),
+      });
+      if (!response.ok) throw new Error("Failed to fetch");
+      const { fileData } = await response.json();
+
+      // Decode the file
+      const bytes = base64ToBytes(fileData);
+      let jsonStr: string;
+      if (isObfuscated(bytes)) {
+        jsonStr = await decodePmtpk(bytes);
+      } else {
+        jsonStr = atob(fileData);
+      }
+      const data = JSON.parse(jsonStr);
+      const prompts: PackPrompt[] = (data.prompts || []).map((p: PackPrompt) => ({
+        text: p.text,
+        header: p.header,
+        createdAt: p.createdAt,
+      }));
+      setPackPrompts(prompts);
+    } catch {
+      setPackPrompts([]);
+    } finally {
+      setLoadingPrompts(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedPack) {
+      fetchPackPrompts(selectedPack);
+    } else {
+      setPackPrompts([]);
+    }
+  }, [selectedPackId]);
+
   const handleToggle = async (packId: string, enabled: boolean) => {
     try {
       await toggleVersionControl({ id: packId as Id<"userPacks">, enabled });
       setToast(enabled ? "PromptControl enabled" : "PromptControl disabled");
-    } catch (err: any) {
-      setToast(err.message || "Failed to toggle");
+    } catch (err: unknown) {
+      setToast(err instanceof Error ? err.message : "Failed to toggle");
     }
   };
 
-  const handleRestore = async (versionNumber: number) => {
+  const handleDeleteVersion = async (promptCreatedAt: number, versionNumber: number) => {
     if (!selectedPackId) return;
     setLoading(true);
     try {
-      const res = await fetch("/api/packs/restore-version", {
+      const res = await fetch("/api/packs/delete-prompt-version", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clerkId, packId: selectedPackId, versionNumber }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setToast(`Restored to v${versionNumber}`);
-        setConfirmRestore(null);
-      } else {
-        setToast(data.error || "Restore failed");
-      }
-    } catch {
-      setToast("Restore failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (versionNumber: number) => {
-    if (!selectedPackId) return;
-    setLoading(true);
-    try {
-      const res = await fetch("/api/packs/delete-version", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clerkId, packId: selectedPackId, versionNumber }),
+        body: JSON.stringify({ clerkId, packId: selectedPackId, promptCreatedAt, versionNumber }),
       });
       const data = await res.json();
       if (data.success) {
@@ -115,22 +144,152 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
     }
   };
 
-  // Version History View
+  const handleRestore = async (version: typeof promptVersions[0]) => {
+    if (!selectedPackId || !selectedPack) return;
+    // TODO: implement restore (update the prompt text in the pack via R2)
+    setToast(`Restore not yet implemented`);
+    setConfirmRestore(null);
+  };
+
+  // Toast overlay
+  const toastEl = toast ? (
+    <div style={{
+      position: "fixed", top: "1rem", right: "1rem", zIndex: 1000,
+      background: "#10b981", color: "white", padding: "0.75rem 1.25rem",
+      borderRadius: "0.5rem", fontSize: "0.9rem",
+    }}>
+      {toast}
+    </div>
+  ) : null;
+
+  // === VIEW 3: Prompt Version History ===
+  if (selectedPack && selectedPromptCreatedAt !== null) {
+    const versions = promptVersions
+      .filter((v) => v.promptCreatedAt === selectedPromptCreatedAt)
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+
+    const currentPrompt = packPrompts.find((p) => p.createdAt === selectedPromptCreatedAt);
+
+    return (
+      <div className="prompt-control">
+        {toastEl}
+
+        <button
+          onClick={() => { setSelectedPromptCreatedAt(null); setConfirmDelete(null); setConfirmRestore(null); }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
+        >
+          &larr; Back to prompts
+        </button>
+
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ margin: "0 0 0.5rem" }}>Version History</h3>
+          {currentPrompt && (
+            <div style={{
+              padding: "0.75rem", borderRadius: "0.5rem", marginBottom: "0.75rem",
+              border: "1px solid var(--border)", background: "var(--card-bg, rgba(255,255,255,0.03))",
+            }}>
+              {currentPrompt.header && (
+                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent)", margin: "0 0 0.25rem" }}>
+                  {currentPrompt.header}
+                </p>
+              )}
+              <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: "1.4" }}>
+                {currentPrompt.text.length > 200 ? currentPrompt.text.slice(0, 200) + "..." : currentPrompt.text}
+              </p>
+              <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem", color: "var(--muted)", opacity: 0.6 }}>Current version</p>
+            </div>
+          )}
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
+            {versions.length}/{MAX_VERSIONS_PER_PACK} versions saved
+          </p>
+        </div>
+
+        {versions.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted)" }}>
+            <p>No versions saved yet.</p>
+            <p style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>Versions are auto-saved when you edit this prompt.</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {versions.map((v) => (
+              <div
+                key={v.versionNumber}
+                style={{
+                  borderRadius: "0.5rem",
+                  border: "1px solid var(--border)",
+                  background: "var(--card-bg, rgba(255,255,255,0.03))",
+                  padding: "0.75rem 1rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>
+                      v{v.versionNumber}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      {formatRelativeTime(v.savedAt)}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.25rem" }}>
+                    {confirmRestore === v.versionNumber ? (
+                      <>
+                        <button onClick={() => handleRestore(v)} disabled={loading} className="btn-sm btn-primary">Confirm</button>
+                        <button onClick={() => setConfirmRestore(null)} className="btn-sm">Cancel</button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
+                        title="Restore"
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
+                      >
+                        &#x21BA;
+                      </button>
+                    )}
+                    {confirmDelete === v.versionNumber ? (
+                      <>
+                        <button onClick={() => handleDeleteVersion(v.promptCreatedAt, v.versionNumber)} disabled={loading} className="btn-sm" style={{ background: "#ef4444", color: "white" }}>Delete</button>
+                        <button onClick={() => setConfirmDelete(null)} className="btn-sm">Cancel</button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
+                        title="Delete"
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
+                      >
+                        &#x1F5D1;
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {v.header && (
+                  <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent)", margin: "0 0 0.25rem" }}>
+                    {v.header}
+                  </p>
+                )}
+                <p style={{
+                  margin: 0, color: "var(--muted)", whiteSpace: "pre-wrap",
+                  wordBreak: "break-word", fontSize: "0.8125rem", lineHeight: "1.4",
+                }}>
+                  {v.text.length > 500 ? v.text.slice(0, 500) + "..." : v.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // === VIEW 2: Prompt List for selected pack ===
   if (selectedPack) {
     return (
       <div className="prompt-control">
-        {toast && (
-          <div style={{
-            position: "fixed", top: "1rem", right: "1rem", zIndex: 1000,
-            background: "#10b981", color: "white", padding: "0.75rem 1.25rem",
-            borderRadius: "0.5rem", fontSize: "0.9rem",
-          }}>
-            {toast}
-          </div>
-        )}
+        {toastEl}
 
         <button
-          onClick={() => { setSelectedPackId(null); setConfirmRestore(null); setConfirmDelete(null); }}
+          onClick={() => { setSelectedPackId(null); setPackPrompts([]); }}
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted)", marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}
         >
           &larr; Back to packs
@@ -141,146 +300,42 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
           <div>
             <h3 style={{ margin: 0, fontSize: "1.25rem" }}>{selectedPack.title}</h3>
             <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--muted)" }}>
-              {versions.length}/{MAX_VERSIONS_PER_PACK} versions &middot; {selectedPack.promptCount} prompts
+              {packPrompts.length} prompts &middot; Select a prompt to view its version history
             </p>
           </div>
         </div>
 
-        {versions.length >= MAX_VERSIONS_PER_PACK && (
-          <div style={{
-            padding: "0.75rem", borderRadius: "0.5rem", marginBottom: "1rem",
-            background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)",
-            color: "#f59e0b", fontSize: "0.85rem",
-          }}>
-            Version limit reached. Delete old versions to continue auto-saving.
-          </div>
-        )}
-
-        {versions.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "3rem 0", color: "var(--muted)" }}>
-            <p>No versions saved yet.</p>
-            <p style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
-              Versions are auto-saved when you edit prompts in this pack.
-            </p>
-          </div>
+        {loadingPrompts ? (
+          <p style={{ color: "var(--muted)" }}>Loading prompts...</p>
+        ) : packPrompts.length === 0 ? (
+          <p style={{ color: "var(--muted)" }}>No prompts in this pack yet.</p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {versions.map((v) => {
-              const isExpanded = expandedVersion === v.versionNumber;
+            {packPrompts.map((prompt, i) => {
+              const versionCount = promptVersions.filter((v) => v.promptCreatedAt === prompt.createdAt).length;
               return (
-                <div
-                  key={v.versionNumber}
+                <button
+                  key={prompt.createdAt}
+                  onClick={() => setSelectedPromptCreatedAt(prompt.createdAt)}
                   style={{
-                    borderRadius: "0.5rem",
-                    border: "1px solid var(--border)",
-                    background: "var(--card-bg, rgba(255,255,255,0.03))",
-                    overflow: "hidden",
+                    display: "block", width: "100%", textAlign: "left",
+                    padding: "0.75rem 1rem", borderRadius: "0.5rem",
+                    border: "1px solid var(--border)", background: "var(--card-bg, rgba(255,255,255,0.03))",
+                    cursor: "pointer", color: "inherit",
                   }}
                 >
-                  <div style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "0.75rem 1rem",
-                  }}>
-                    <button
-                      onClick={() => setExpandedVersion(isExpanded ? null : v.versionNumber)}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "0.5rem", flex: 1, minWidth: 0,
-                        background: "none", border: "none", cursor: "pointer", textAlign: "left", color: "inherit",
-                      }}
-                    >
-                      <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0 }}>
-                        {isExpanded ? "▾" : "▸"}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <span style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 600, color: "var(--accent)" }}>
-                            v{v.versionNumber}
-                          </span>
-                          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                            {formatRelativeTime(v.createdAt)}
-                          </span>
-                        </div>
-                        <p style={{ margin: "0.15rem 0 0", fontSize: "0.8rem", color: "var(--muted)" }}>
-                          {v.message || "Auto-saved"} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
-                        </p>
-                      </div>
-                    </button>
-
-                    <div style={{ display: "flex", gap: "0.25rem", marginLeft: "0.75rem" }}>
-                      {confirmRestore === v.versionNumber ? (
-                        <>
-                          <button onClick={() => handleRestore(v.versionNumber)} disabled={loading} className="btn-sm btn-primary">Confirm</button>
-                          <button onClick={() => setConfirmRestore(null)} className="btn-sm">Cancel</button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => { setConfirmRestore(v.versionNumber); setConfirmDelete(null); }}
-                          title="Restore"
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
-                        >
-                          &#x21BA;
-                        </button>
-                      )}
-                      {confirmDelete === v.versionNumber ? (
-                        <>
-                          <button onClick={() => handleDelete(v.versionNumber)} disabled={loading} className="btn-sm" style={{ background: "#ef4444", color: "white" }}>Delete</button>
-                          <button onClick={() => setConfirmDelete(null)} className="btn-sm">Cancel</button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => { setConfirmDelete(v.versionNumber); setConfirmRestore(null); }}
-                          title="Delete"
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: "0.25rem", color: "var(--muted)" }}
-                        >
-                          &#x1F5D1;
-                        </button>
-                      )}
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+                    <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--accent)" }}>
+                      {prompt.header || `Prompt ${i + 1}`}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      {versionCount}/{MAX_VERSIONS_PER_PACK} versions &rsaquo;
+                    </span>
                   </div>
-
-                  {/* Expanded prompt preview */}
-                  {isExpanded && (
-                    <div style={{
-                      borderTop: "1px solid var(--border)",
-                      padding: "0.75rem 1rem",
-                      background: "rgba(128, 128, 128, 0.05)",
-                    }}>
-                      {v.prompts && v.prompts.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                          {v.prompts.map((prompt: { text: string; header?: string }, i: number) => (
-                            <div key={i} style={{
-                              fontSize: "0.85rem",
-                              borderRadius: "0.375rem",
-                              padding: "0.5rem 0.75rem",
-                              background: "var(--card-bg, rgba(255,255,255,0.03))",
-                              border: "1px solid var(--border)",
-                            }}>
-                              {prompt.header && (
-                                <p style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--accent)", marginBottom: "0.25rem", margin: "0 0 0.25rem 0" }}>
-                                  {prompt.header}
-                                </p>
-                              )}
-                              <p style={{
-                                color: "var(--muted)",
-                                whiteSpace: "pre-wrap",
-                                wordBreak: "break-word",
-                                fontSize: "0.8125rem",
-                                lineHeight: "1.4",
-                                margin: 0,
-                              }}>
-                                {prompt.text.length > 300 ? prompt.text.slice(0, 300) + "..." : prompt.text}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p style={{ fontSize: "0.8rem", color: "var(--muted)", fontStyle: "italic", margin: 0 }}>
-                          Prompt preview not available for this version.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {prompt.text.length > 150 ? prompt.text.slice(0, 150) + "..." : prompt.text}
+                  </p>
+                </button>
               );
             })}
           </div>
@@ -289,22 +344,14 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
     );
   }
 
-  // Pack List View
+  // === VIEW 1: Pack List ===
   return (
     <div className="prompt-control">
-      {toast && (
-        <div style={{
-          position: "fixed", top: "1rem", right: "1rem", zIndex: 1000,
-          background: "#10b981", color: "white", padding: "0.75rem 1.25rem",
-          borderRadius: "0.5rem", fontSize: "0.9rem",
-        }}>
-          {toast}
-        </div>
-      )}
+      {toastEl}
 
       <h2>PromptControl</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-        Version control for your PromptPacks. Up to {MAX_VERSIONS_PER_PACK} snapshots per pack.
+        Version control for your prompts. Up to {MAX_VERSIONS_PER_PACK} versions per prompt.
         {!isStudio && (
           <span> Pro: {enabledCount}/{versionControlLimit} pack enabled.</span>
         )}

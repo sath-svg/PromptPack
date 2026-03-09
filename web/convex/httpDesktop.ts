@@ -1813,4 +1813,221 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
       }
     }),
   });
+
+  // =======================================
+  // PromptControl v2: Per-prompt versioning
+  // =======================================
+
+  // Save a prompt version (stores old text before edit)
+  http.route({
+    path: "/api/desktop/save-prompt-version",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/save-prompt-version",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { clerkId, packId, promptCreatedAt, text, header } = body as {
+          clerkId: string;
+          packId: string;
+          promptCreatedAt: number;
+          text: string;
+          header?: string;
+        };
+
+        if (!clerkId || !packId || !promptCreatedAt || !text) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const pack = await ctx.runQuery(api.packs.get, { id: packId as Id<"userPacks"> });
+        if (!pack || pack.authorId !== user._id) {
+          return new Response(
+            JSON.stringify({ error: "Pack not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (user.plan !== "studio" && !pack.versionControlEnabled) {
+          return new Response(
+            JSON.stringify({ error: "Version control not enabled" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Check version limit (max 10 per prompt)
+        const existing = await ctx.runQuery(api.promptVersions.listByPrompt, {
+          packId: packId as Id<"userPacks">,
+          promptCreatedAt,
+        });
+        if (existing.length >= 10) {
+          return new Response(
+            JSON.stringify({ error: "Version limit reached (10/10) for this prompt" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Don't save duplicate if text hasn't changed from latest version
+        if (existing.length > 0 && existing[0].text === text) {
+          return new Response(
+            JSON.stringify({ success: true, skipped: true }),
+            { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const nextVersion = existing.reduce((max, v) => Math.max(max, v.versionNumber), 0) + 1;
+
+        await ctx.runMutation(api.promptVersions.create, {
+          packId: packId as Id<"userPacks">,
+          authorId: user._id,
+          promptCreatedAt,
+          versionNumber: nextVersion,
+          text,
+          header: header || undefined,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, versionNumber: nextVersion }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        console.error("Save prompt version error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to save prompt version" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // List prompt versions for a pack (returns all prompt versions grouped by prompt)
+  http.route({
+    path: "/api/desktop/list-prompt-versions",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/list-prompt-versions",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { packId } = body as { packId: string };
+
+        if (!packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing packId" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const versions = await ctx.runQuery(api.promptVersions.listByPack, {
+          packId: packId as Id<"userPacks">,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, versions }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to list prompt versions" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // Delete a prompt version
+  http.route({
+    path: "/api/desktop/delete-prompt-version",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+    }),
+  });
+
+  http.route({
+    path: "/api/desktop/delete-prompt-version",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { clerkId, packId, promptCreatedAt, versionNumber } = body as {
+          clerkId: string;
+          packId: string;
+          promptCreatedAt: number;
+          versionNumber: number;
+        };
+
+        if (!clerkId || !packId || !promptCreatedAt || !versionNumber) {
+          return new Response(
+            JSON.stringify({ error: "Missing required fields" }),
+            { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        if (!user) {
+          return new Response(
+            JSON.stringify({ error: "User not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Find the version
+        const allVersions = await ctx.runQuery(api.promptVersions.listByPrompt, {
+          packId: packId as Id<"userPacks">,
+          promptCreatedAt,
+        });
+        const version = allVersions.find((v) => v.versionNumber === versionNumber);
+        if (!version) {
+          return new Response(
+            JSON.stringify({ error: "Version not found" }),
+            { status: 404, headers: { ...headers, "Content-Type": "application/json" } }
+          );
+        }
+
+        await ctx.runMutation(api.promptVersions.remove, { id: version._id });
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to delete prompt version" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
 }

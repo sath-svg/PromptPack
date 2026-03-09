@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PromptSource, UserTier, PackVersion } from '../types';
+import type { PromptSource, UserTier, PackVersion, PromptVersion } from '../types';
 import { CONVEX_URL, WORKERS_API_URL, getPromptLimit } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 import { useAuthStore } from './authStore';
@@ -114,13 +114,19 @@ interface SyncState {
   // Sync local prompts to cloud savedPacks
   syncLocalPromptsToCloud: (clerkId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => Promise<{ synced: string[]; failed: string[] }>;
 
-  // PromptControl (version control) actions
+  // PromptControl (version control) actions - legacy pack-level
   packVersions: Record<string, PackVersion[]>;
   fetchPackVersions: (packId: string) => Promise<PackVersion[]>;
   savePackVersion: (clerkId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => Promise<boolean>;
   restorePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
   deletePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
   toggleVersionControl: (clerkId: string, packId: string, enabled: boolean) => Promise<boolean>;
+
+  // PromptControl v2: per-prompt versioning
+  promptVersions: Record<string, PromptVersion[]>; // keyed by packId
+  fetchPromptVersions: (packId: string) => Promise<PromptVersion[]>;
+  savePromptVersion: (clerkId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => Promise<boolean>;
+  deletePromptVersion: (clerkId: string, packId: string, promptCreatedAt: number, versionNumber: number) => Promise<boolean>;
 
   // UI actions
   setSelectedPackId: (packId: string | null) => void;
@@ -501,6 +507,7 @@ export const useSyncStore = create<SyncState>()(
       loadedUserPacks: {},
       selectedPackId: null,
       packVersions: {},
+      promptVersions: {},
       isLoading: false,
       isFetching: {},
       isSaving: {},
@@ -2232,6 +2239,73 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
+      // PromptControl v2: per-prompt versioning
+      fetchPromptVersions: async (packId: string) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/list-prompt-versions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packId }),
+          });
+          const data = await response.json();
+          if (data.success && Array.isArray(data.versions)) {
+            set((state) => ({
+              promptVersions: { ...state.promptVersions, [packId]: data.versions },
+            }));
+            return data.versions;
+          }
+          return [];
+        } catch (error) {
+          console.error('Failed to fetch prompt versions:', error);
+          return [];
+        }
+      },
+
+      savePromptVersion: async (clerkId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/save-prompt-version`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, promptCreatedAt, text, header }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            // Refresh prompt versions for this pack
+            await get().fetchPromptVersions(packId);
+            return true;
+          }
+          if (data.error) {
+            set({ error: data.error });
+          }
+          return false;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to save prompt version' });
+          return false;
+        }
+      },
+
+      deletePromptVersion: async (clerkId: string, packId: string, promptCreatedAt: number, versionNumber: number) => {
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-prompt-version`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clerkId, packId, promptCreatedAt, versionNumber }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            await get().fetchPromptVersions(packId);
+            return true;
+          }
+          if (data.error) {
+            set({ error: data.error });
+          }
+          return false;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Failed to delete prompt version' });
+          return false;
+        }
+      },
+
       // UI action to set selected pack
       setSelectedPackId: (packId: string | null) => set({ selectedPackId: packId }),
 
@@ -2243,6 +2317,7 @@ export const useSyncStore = create<SyncState>()(
         loadedPacks: {},
         loadedUserPacks: {},
         packVersions: {},
+        promptVersions: {},
         lastSyncAt: null,
       }),
     }),

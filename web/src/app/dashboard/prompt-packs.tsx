@@ -629,21 +629,22 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     const updatedPrompt = { ...currentPrompt, text: trimmed };
     updatedPrompts[editingPromptIndex] = updatedPrompt;
 
-    // PromptControl: snapshot current state before applying edit
+    // PromptControl v2: save the OLD prompt text before applying edit
     if (!autoSavingRef.current && clerkId) {
       const packMeta = webPacks.find((p) => p._id === previousPack.id);
       if (packMeta && (isStudio || packMeta.versionControlEnabled)) {
         autoSavingRef.current = true;
         try {
-          // Pass current prompts to store in version for preview
-          const versionPrompts = previousPack.prompts.map((p) => ({
-            text: p.text,
-            header: p.header || undefined,
-          }));
-          await fetch("/api/packs/save-version", {
+          await fetch("/api/packs/save-prompt-version", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ clerkId, packId: previousPack.id, prompts: versionPrompts }),
+            body: JSON.stringify({
+              clerkId,
+              packId: previousPack.id,
+              promptCreatedAt: currentPrompt.createdAt,
+              text: currentPrompt.text,
+              header: currentPrompt.header || undefined,
+            }),
           });
         } catch { /* best-effort */ } finally {
           autoSavingRef.current = false;

@@ -49,7 +49,7 @@ export function UserPacksPage() {
     createUserPack,
     setSelectedPackId,
     clearError,
-    savePackVersion,
+    savePromptVersion,
   } = useSyncStore();
 
   const [selectedPack, setSelectedPack] = useState<UserPack | null>(null);
@@ -108,7 +108,7 @@ export function UserPacksPage() {
     }
   }, [versionToast]);
 
-  const autoSaveVersion = async (packId: string) => {
+  const autoSavePromptVersion = async (packId: string, promptIndex: number) => {
     // Guard: prevent concurrent/duplicate auto-saves
     if (autoSavingRef.current) return;
     const pack = userPacks.find((p) => p.id === packId);
@@ -117,22 +117,25 @@ export function UserPacksPage() {
     if (!isStudio && !pack.versionControlEnabled) return;
     if (!session?.user_id) return;
 
-    // Get loaded prompts for this pack to store in version
+    // Get the current (pre-edit) prompt
     const { loadedUserPacks } = useSyncStore.getState();
     const loaded = loadedUserPacks[packId];
-    const prompts = loaded?.prompts?.map((p) => ({
-      text: p.text,
-      header: p.header || undefined,
-    }));
+    const prompt = loaded?.prompts?.[promptIndex];
+    if (!prompt) return;
 
     autoSavingRef.current = true;
     try {
-      const ok = await savePackVersion(session.user_id, packId, undefined, prompts);
+      const ok = await savePromptVersion(
+        session.user_id,
+        packId,
+        prompt.createdAt,
+        prompt.text,
+        prompt.header || undefined,
+      );
       if (!ok) {
-        // Check if it's the version limit error
         const { error } = useSyncStore.getState();
         if (error?.includes('Version limit reached')) {
-          setVersionToast('Version limit reached (10/10) — free up space in PromptControl');
+          setVersionToast('Version limit reached (10/10) for this prompt');
         }
       }
     } finally {
@@ -306,7 +309,7 @@ export function UserPacksPage() {
   const saveEditPrompt = async () => {
     if (!editingPrompt || !promptDraft.trim()) return;
 
-    await autoSaveVersion(editingPrompt.packId);
+    await autoSavePromptVersion(editingPrompt.packId, editingPrompt.index);
     const success = await updateUserPackPrompt(editingPrompt.packId, editingPrompt.index, promptDraft.trim());
 
     if (success) {

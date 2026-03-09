@@ -17,6 +17,7 @@ import type * as httpDesktop from "../httpDesktop.js";
 import type * as httpExtension from "../httpExtension.js";
 import type * as packVersions from "../packVersions.js";
 import type * as packs from "../packs.js";
+import type * as promptVersions from "../promptVersions.js";
 import type * as purchasedPacks from "../purchasedPacks.js";
 import type * as refreshTokens from "../refreshTokens.js";
 import type * as savedPacks from "../savedPacks.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   httpExtension: typeof httpExtension;
   packVersions: typeof packVersions;
   packs: typeof packs;
+  promptVersions: typeof promptVersions;
   purchasedPacks: typeof purchasedPacks;
   refreshTokens: typeof refreshTokens;
   savedPacks: typeof savedPacks;

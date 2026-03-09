@@ -66,6 +66,20 @@ export default defineSchema({
     .index("by_pack_version", ["packId", "versionNumber"])
     .index("by_author", ["authorId"]),
 
+  // PromptControl: per-prompt version history (up to 10 versions per prompt)
+  promptVersions: defineTable({
+    packId: v.id("userPacks"),
+    authorId: v.id("users"),
+    promptCreatedAt: v.number(), // Stable prompt identifier (the prompt's createdAt timestamp)
+    versionNumber: v.number(), // Sequential: 1, 2, 3... max 10 per prompt
+    text: v.string(), // The prompt text at this version
+    header: v.optional(v.string()), // The prompt header at this version
+    savedAt: v.number(), // When this version was saved
+  })
+    .index("by_pack_prompt", ["packId", "promptCreatedAt"])
+    .index("by_pack", ["packId"])
+    .index("by_author", ["authorId"]),
+
   // Purchased marketplace packs (what shows in their "Purchased" section)
   purchasedPacks: defineTable({
     userId: v.id("users"),

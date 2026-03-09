@@ -96,7 +96,7 @@ export interface PromptEvaluation {
   evaluatedAt: number;
 }
 
-// PromptControl: Version snapshot metadata
+// PromptControl: Version snapshot metadata (legacy pack-level)
 export interface PackVersion {
   id: string;
   packId: string;
@@ -107,6 +107,17 @@ export interface PackVersion {
   prompts?: { text: string; header?: string }[];
   message?: string;
   createdAt: number;
+}
+
+// PromptControl v2: Per-prompt version
+export interface PromptVersion {
+  _id: string;
+  packId: string;
+  promptCreatedAt: number;
+  versionNumber: number;
+  text: string;
+  header?: string;
+  savedAt: number;
 }
 
 // Source metadata for UI

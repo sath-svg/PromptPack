@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { History, ArrowLeft, Trash2, RotateCcw, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSyncStore, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import type { PromptVersion } from '../../types';
 
 import {
   PRO_VERSION_CONTROL_LIMIT,
@@ -21,32 +22,25 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export function PromptControlPage() {
   const { session } = useAuthStore();
   const {
     userPacks,
-    packVersions,
-    fetchPackVersions,
-
-    restorePackVersion,
-    deletePackVersion,
+    loadedUserPacks,
+    promptVersions,
+    fetchPromptVersions,
+    deletePromptVersion,
+    updateUserPackPrompt,
     toggleVersionControl,
-    isSaving,
     error,
     clearError,
   } = useSyncStore();
 
   const [selectedPack, setSelectedPack] = useState<UserPack | null>(null);
-  const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
+  const [selectedPromptCreatedAt, setSelectedPromptCreatedAt] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
 
   const tier = session?.tier || 'free';
   const clerkId = session?.user_id || '';
@@ -56,14 +50,13 @@ export function PromptControlPage() {
 
   const enabledCount = userPacks.filter((p) => p.versionControlEnabled).length;
 
-  // Fetch versions when a pack is selected
+  // Fetch prompt versions when a pack is selected
   useEffect(() => {
     if (selectedPack) {
-      fetchPackVersions(selectedPack.id);
+      fetchPromptVersions(selectedPack.id);
     }
   }, [selectedPack?.id]);
 
-  // Auto-dismiss toast
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
@@ -71,7 +64,8 @@ export function PromptControlPage() {
     }
   }, [toast]);
 
-  const versions = selectedPack ? (packVersions[selectedPack.id] || []) : [];
+  // Get prompt versions for current pack, grouped by promptCreatedAt
+  const allVersions: PromptVersion[] = selectedPack ? (promptVersions[selectedPack.id] || []) : [];
 
   const handleToggle = async (pack: UserPack, enabled: boolean) => {
     clearError();
@@ -81,23 +75,29 @@ export function PromptControlPage() {
     }
   };
 
-  const handleRestore = async (versionNumber: number) => {
+  const handleDeleteVersion = async (promptCreatedAt: number, versionNumber: number) => {
     if (!selectedPack) return;
     clearError();
-    const ok = await restorePackVersion(clerkId, selectedPack.id, versionNumber);
-    if (ok) {
-      setToast(`Restored to v${versionNumber}`);
-      setConfirmRestore(null);
-    }
-  };
-
-  const handleDelete = async (versionNumber: number) => {
-    if (!selectedPack) return;
-    clearError();
-    const ok = await deletePackVersion(clerkId, selectedPack.id, versionNumber);
+    const ok = await deletePromptVersion(clerkId, selectedPack.id, promptCreatedAt, versionNumber);
     if (ok) {
       setToast(`Deleted v${versionNumber}`);
       setConfirmDelete(null);
+    }
+  };
+
+  const handleRestore = async (version: PromptVersion) => {
+    if (!selectedPack) return;
+    clearError();
+    // Find the prompt index by createdAt
+    const loaded = loadedUserPacks[selectedPack.id];
+    if (!loaded) return;
+    const promptIndex = loaded.prompts.findIndex((p) => p.createdAt === version.promptCreatedAt);
+    if (promptIndex === -1) return;
+
+    const ok = await updateUserPackPrompt(selectedPack.id, promptIndex, version.text);
+    if (ok) {
+      setToast(`Restored to v${version.versionNumber}`);
+      setConfirmRestore(null);
     }
   };
 
@@ -106,98 +106,98 @@ export function PromptControlPage() {
       <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">PromptControl</h1>
         <p className="text-[var(--muted-foreground)]">
-          Version control for your PromptPacks. Upgrade to Pro to get started.
+          Version control for your prompts. Upgrade to Pro to get started.
         </p>
       </div>
     );
   }
 
-  // Version History View
-  if (selectedPack) {
+  // Toast + Error overlay
+  const overlay = (
+    <>
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          {toast}
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          {error}
+        </div>
+      )}
+    </>
+  );
+
+  // === VIEW 3: Prompt Version History ===
+  if (selectedPack && selectedPromptCreatedAt !== null) {
+    const promptVersionsForPrompt = allVersions
+      .filter((v) => v.promptCreatedAt === selectedPromptCreatedAt)
+      .sort((a, b) => b.versionNumber - a.versionNumber);
+
+    // Find the prompt info
+    const loaded = loadedUserPacks[selectedPack.id];
+    const currentPrompt = loaded?.prompts.find((p) => p.createdAt === selectedPromptCreatedAt);
+
     return (
       <div className="p-6 max-w-3xl">
-        {toast && (
-          <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
-            {toast}
-          </div>
-        )}
-        {error && (
-          <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
-            {error}
-          </div>
-        )}
+        {overlay}
 
         <button
-          onClick={() => { setSelectedPack(null); setConfirmRestore(null); setConfirmDelete(null); }}
+          onClick={() => { setSelectedPromptCreatedAt(null); setConfirmDelete(null); setConfirmRestore(null); }}
           className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
         >
           <ArrowLeft size={16} />
-          Back to packs
+          Back to prompts
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
-          <span className="text-2xl">{selectedPack.icon || '📦'}</span>
-          <div>
-            <h1 className="text-xl font-bold">{selectedPack.title}</h1>
-            <p className="text-sm text-[var(--muted-foreground)]">
-              {versions.length}/{MAX_VERSIONS_PER_PACK} versions saved &middot; {selectedPack.promptCount} prompts
-            </p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-xl font-bold mb-1">Version History</h1>
+          {currentPrompt && (
+            <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--card)] mb-3">
+              {currentPrompt.header && (
+                <p className="text-xs font-medium text-[var(--primary)] mb-1">{currentPrompt.header}</p>
+              )}
+              <p className="text-sm text-[var(--muted-foreground)] whitespace-pre-wrap break-words" style={{ lineHeight: '1.4' }}>
+                {currentPrompt.text.length > 200 ? currentPrompt.text.slice(0, 200) + '...' : currentPrompt.text}
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)] mt-2 opacity-60">Current version</p>
+            </div>
+          )}
+          <p className="text-sm text-[var(--muted-foreground)]">
+            {promptVersionsForPrompt.length}/{MAX_VERSIONS_PER_PACK} versions saved
+          </p>
         </div>
 
-        {versions.length >= MAX_VERSIONS_PER_PACK && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-500">
-            Version limit reached ({MAX_VERSIONS_PER_PACK}/{MAX_VERSIONS_PER_PACK}). Delete old versions to continue auto-saving.
-          </div>
-        )}
-
-        {versions.length === 0 ? (
+        {promptVersionsForPrompt.length === 0 ? (
           <div className="text-center py-12 text-[var(--muted-foreground)]">
             <History size={48} className="mx-auto mb-3 opacity-30" />
             <p>No versions saved yet.</p>
-            <p className="text-sm mt-1">Versions are auto-saved when you edit prompts in this pack.</p>
+            <p className="text-sm mt-1">Versions are auto-saved when you edit this prompt.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            {versions.map((v) => {
-              const isExpanded = expandedVersion === v.versionNumber;
-              return (
-                <div
-                  key={v.versionNumber}
-                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden"
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => setExpandedVersion(isExpanded ? null : v.versionNumber)}
-                      className="flex items-center gap-2 flex-1 min-w-0 text-left"
-                    >
-                      {isExpanded ? (
-                        <ChevronDown size={14} className="text-[var(--muted-foreground)] flex-shrink-0" />
-                      ) : (
-                        <ChevronRight size={14} className="text-[var(--muted-foreground)] flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-sm font-semibold text-[var(--primary)]">
-                            v{v.versionNumber}
-                          </span>
-                          <span className="text-xs text-[var(--muted-foreground)]">
-                            {formatRelativeTime(v.createdAt)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-[var(--muted-foreground)] truncate mt-0.5">
-                          {v.message || 'Auto-saved'} &middot; {v.promptCount} prompts &middot; {formatBytes(v.fileSize)}
-                        </p>
-                      </div>
-                    </button>
+            {promptVersionsForPrompt.map((v) => (
+              <div
+                key={v.versionNumber}
+                className="rounded-lg border border-[var(--border)] bg-[var(--card)] overflow-hidden"
+              >
+                <div className="p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-semibold text-[var(--primary)]">
+                        v{v.versionNumber}
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {formatRelativeTime(v.savedAt)}
+                      </span>
+                    </div>
 
-                    <div className="flex items-center gap-1 ml-3">
+                    <div className="flex items-center gap-1">
                       {confirmRestore === v.versionNumber ? (
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => handleRestore(v.versionNumber)}
-                            disabled={isSaving[selectedPack.id]}
-                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                            onClick={() => handleRestore(v)}
+                            className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
                           >
                             Confirm
                           </button>
@@ -221,7 +221,7 @@ export function PromptControlPage() {
                       {confirmDelete === v.versionNumber ? (
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => handleDelete(v.versionNumber)}
+                            onClick={() => handleDeleteVersion(v.promptCreatedAt, v.versionNumber)}
                             className="px-2 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600"
                           >
                             Delete
@@ -245,30 +245,78 @@ export function PromptControlPage() {
                     </div>
                   </div>
 
-                  {/* Expanded prompt preview */}
-                  {isExpanded && (
-                    <div className="border-t border-[var(--border)] px-3 py-2 bg-[var(--accent)]/30">
-                      {v.prompts && v.prompts.length > 0 ? (
-                        <div className="space-y-2">
-                          {v.prompts.map((prompt, i) => (
-                            <div key={i} className="text-sm rounded p-2 bg-[var(--card)] border border-[var(--border)]">
-                              {prompt.header && (
-                                <p className="text-xs font-medium text-[var(--primary)] mb-1">{prompt.header}</p>
-                              )}
-                              <p className="text-[var(--muted-foreground)] whitespace-pre-wrap break-words" style={{ fontSize: '0.8125rem', lineHeight: '1.4' }}>
-                                {prompt.text.length > 300 ? prompt.text.slice(0, 300) + '...' : prompt.text}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-[var(--muted-foreground)] italic py-1">
-                          Prompt preview not available for this version.
-                        </p>
-                      )}
-                    </div>
+                  {/* Version text preview */}
+                  {v.header && (
+                    <p className="text-xs font-medium text-[var(--primary)] mb-1">{v.header}</p>
                   )}
+                  <p className="text-[var(--muted-foreground)] whitespace-pre-wrap break-words" style={{ fontSize: '0.8125rem', lineHeight: '1.4' }}>
+                    {v.text.length > 500 ? v.text.slice(0, 500) + '...' : v.text}
+                  </p>
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // === VIEW 2: Prompt List for selected pack ===
+  if (selectedPack) {
+    const loaded = loadedUserPacks[selectedPack.id];
+    const prompts = loaded?.prompts || [];
+
+    return (
+      <div className="p-6 max-w-3xl">
+        {overlay}
+
+        <button
+          onClick={() => { setSelectedPack(null); }}
+          className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-4"
+        >
+          <ArrowLeft size={16} />
+          Back to packs
+        </button>
+
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-2xl">{selectedPack.icon || '📦'}</span>
+          <div>
+            <h1 className="text-xl font-bold">{selectedPack.title}</h1>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              {prompts.length} prompts &middot; Select a prompt to view its version history
+            </p>
+          </div>
+        </div>
+
+        {prompts.length === 0 ? (
+          <div className="text-center py-12 text-[var(--muted-foreground)]">
+            <p>No prompts in this pack yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {prompts.map((prompt, i) => {
+              const versionCount = allVersions.filter((v) => v.promptCreatedAt === prompt.createdAt).length;
+              return (
+                <button
+                  key={prompt.createdAt}
+                  onClick={() => setSelectedPromptCreatedAt(prompt.createdAt)}
+                  className="w-full text-left p-3 rounded-lg border border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)]/30 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-[var(--primary)]">
+                      {prompt.header || `Prompt ${i + 1}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {versionCount}/{MAX_VERSIONS_PER_PACK} versions
+                      </span>
+                      <ChevronRight size={14} className="text-[var(--muted-foreground)]" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-[var(--muted-foreground)] truncate" style={{ lineHeight: '1.4' }}>
+                    {prompt.text.length > 150 ? prompt.text.slice(0, 150) + '...' : prompt.text}
+                  </p>
+                </button>
               );
             })}
           </div>
@@ -277,19 +325,10 @@ export function PromptControlPage() {
     );
   }
 
-  // Pack List View
+  // === VIEW 1: Pack List ===
   return (
     <div className="p-6 max-w-3xl">
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
-          {toast}
-        </div>
-      )}
-      {error && (
-        <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
-          {error}
-        </div>
-      )}
+      {overlay}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -297,7 +336,7 @@ export function PromptControlPage() {
           PromptControl
         </h1>
         <p className="text-sm text-[var(--muted-foreground)] mt-1">
-          Version control for your PromptPacks. Each pack can store up to {MAX_VERSIONS_PER_PACK} version snapshots.
+          Version control for your prompts. Each prompt can store up to {MAX_VERSIONS_PER_PACK} versions.
         </p>
         {isPro && (
           <p className="text-xs text-[var(--muted-foreground)] mt-1">
@@ -315,7 +354,6 @@ export function PromptControlPage() {
           {userPacks.map((pack) => {
             const isEnabled = isStudio || pack.versionControlEnabled;
             const canEnable = isStudio || enabledCount < versionControlLimit;
-            const versionCount = packVersions[pack.id]?.length ?? 0;
 
             return (
               <div
@@ -334,12 +372,10 @@ export function PromptControlPage() {
                     <p className="font-medium truncate">{pack.title}</p>
                     <p className="text-xs text-[var(--muted-foreground)]">
                       {pack.promptCount} prompts
-                      {isEnabled && ` \u00b7 ${versionCount}/${MAX_VERSIONS_PER_PACK} versions`}
                     </p>
                   </div>
                 </button>
 
-                {/* Toggle for Pro (Studio has all enabled by default) */}
                 {!isStudio && (
                   <button
                     onClick={() => handleToggle(pack, !pack.versionControlEnabled)}
