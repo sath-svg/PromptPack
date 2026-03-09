@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { History, ArrowLeft, Trash2, RotateCcw, ToggleLeft, ToggleRight, ChevronDown, ChevronRight } from 'lucide-react';
+import { History, ArrowLeft, Trash2, RotateCcw, ToggleLeft, ToggleRight, ChevronRight } from 'lucide-react';
 import { useSyncStore, type UserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import type { PromptVersion } from '../../types';
