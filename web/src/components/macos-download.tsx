@@ -122,7 +122,7 @@ export function MacOSDownload() {
         </summary>
         <div className="other-architectures-content">
           <div className="other-architectures-info">
-            <span>Version 0.1.0</span>
+            <span>Version 1.0.0</span>
             <span className="download-meta-dot">•</span>
             <span>macOS 10.15+</span>
           </div>
@@ -147,7 +147,7 @@ export function MacOSDownload() {
       <div className="download-meta">
         <span>macOS 10.15+</span>
         <span className="download-meta-dot">•</span>
-        <span>v0.1.0</span>
+        <span>v1.0.0</span>
         <span className="download-meta-dot">•</span>
         <span className="download-meta-size">
           {platform === "universal" ? "~15 MB" : "~8 MB"}

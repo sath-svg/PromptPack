@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PromptPack – Save, Enhance & Organize AI Prompts",
-  "version": "2.2.0",
+  "version": "2.4.0",
   "description": "Save, enhance, and organize AI prompts across ChatGPT, Claude, and Gemini with one click.",
   "icons": {
     "16": "img/icon-16.png",

@@ -178,6 +178,7 @@ export const remove = mutation({
 });
 
 // Toggle PromptControl (version control) on a pack
+// When disabling, all prompt versions for this pack are permanently deleted
 export const toggleVersionControl = mutation({
   args: {
     id: v.id("userPacks"),
@@ -188,6 +189,18 @@ export const toggleVersionControl = mutation({
       versionControlEnabled: enabled,
       updatedAt: Date.now(),
     });
+
+    // When disabling, remove all prompt versions for this pack
+    if (!enabled) {
+      const versions = await ctx.db
+        .query("promptVersions")
+        .withIndex("by_pack", (q) => q.eq("packId", id))
+        .collect();
+      for (const version of versions) {
+        await ctx.db.delete(version._id);
+      }
+    }
+
     return id;
   },
 });

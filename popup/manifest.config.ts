@@ -3,7 +3,7 @@ import type { ManifestV3Export } from "@crxjs/vite-plugin";
 const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: "PromptPack – Save, Enhance & Organize AI Prompts",
-  version: "2.2.0",
+  version: "2.4.0",
   description: "Save, enhance, and organize AI prompts across ChatGPT, Claude, and Gemini with one click.",
 
   // Icons - Chrome Web Store requires 16x16, 48x48, and 128x128

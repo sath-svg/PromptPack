@@ -46,9 +46,9 @@ export function DownloadButtons() {
           <span>macOS</span>
         </a>
         <a
-          href="/downloads/PromptPack_0.1.0_x64-setup.exe"
+          href="/downloads/PromptPack_1.0.0_x64-setup.exe"
           className="download-pill"
-          onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64-setup.exe")}
+          onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x64-setup.exe")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 5.548l7.455-1.02v7.195H3V5.548zm0 13.054l7.455 1.02v-7.167H3v6.147zm8.295 1.132L21 21v-8.545h-9.705v7.279zm0-15.418v7.407H21V3l-9.705 1.316z"/>
@@ -56,9 +56,9 @@ export function DownloadButtons() {
           <span>Windows (x64)</span>
         </a>
         <a
-          href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
+          href="/downloads/PromptPack_1.0.0_arm64-setup.exe"
           className="download-pill"
-          onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64-setup.exe")}
+          onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_arm64-setup.exe")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 5.548l7.455-1.02v7.195H3V5.548zm0 13.054l7.455 1.02v-7.167H3v6.147zm8.295 1.132L21 21v-8.545h-9.705v7.279zm0-15.418v7.407H21V3l-9.705 1.316z"/>

@@ -1,6 +1,6 @@
 export function ExtraFeatures() {
   return (
-    <section className="extras-section">
+    <section className="extras-section" id="beyond-the-extension">
       <div className="extras-inner">
         <h2 className="upcoming-title">
           Beyond the Extension

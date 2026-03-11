@@ -29,7 +29,7 @@ export default function Home() {
     "aggregateRating": {
       "@type": "AggregateRating",
       "ratingValue": "5",
-      "ratingCount": "1"
+      "ratingCount": "10"
     },
     "description": "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries, create PromptPacks, and discover community prompts.",
     "url": "https://pmtpk.com",
@@ -217,6 +217,10 @@ export default function Home() {
 
       <ExtraFeatures />
 
+      <p className="how-footnote" style={{ textAlign: 'center', maxWidth: '800px', margin: '0 auto', padding: '0 1.5rem 2rem' }}>
+        Saving prompts for personal use? Free does the job. Building and sharing polished prompt packs? Go <Link className="pro-link" href="/pricing">Pro</Link>.
+      </p>
+
       <section className="testimonials-section">
         <div className="testimonials-inner">
           <h2 className="upcoming-title">Loved by <span className="gradient-text">prompt engineers</span></h2>
@@ -226,50 +230,50 @@ export default function Home() {
           <div className="testimonials-grid">
             <div className="testimonial-card">
               <div className="testimonial-stars">★★★★★</div>
-              <p className="testimonial-text">&ldquo;Absolutely loving PromptPack, saves me so much time. I use it for ChatGPT and Gemini all the time.&rdquo;</p>
+              <p className="testimonial-text">&ldquo;Writing quality prompt so much easier now. Really amazing idea.&rdquo;</p>
               <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#5C6BC0' }}>H</div>
-                <span className="testimonial-name">Herderson Alpha</span>
+                <div className="testimonial-avatar"><img src="/img/reviewers/bergen-bergwin.jpg" alt="Bergen Bergwin" /></div>
+                <span className="testimonial-name">Bergen Bergwin</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;A huge help for my writing and coding tasks keeping all my best prompt organized.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar"><img src="/img/reviewers/mike-edwin.jpg" alt="Mike Edwin" /></div>
+                <span className="testimonial-name">Mike Edwin</span>
+              </div>
+            </div>
+            <div className="testimonial-card">
+              <div className="testimonial-stars">★★★★★</div>
+              <p className="testimonial-text">&ldquo;Amazing time saver.&rdquo;</p>
+              <div className="testimonial-author">
+                <div className="testimonial-avatar"><img src="/img/reviewers/robert-beckett.jpg" alt="Robert Beckett" /></div>
+                <span className="testimonial-name">Robert Beckett</span>
               </div>
             </div>
             <div className="testimonial-card">
               <div className="testimonial-stars">★★★★★</div>
               <p className="testimonial-text">&ldquo;Saving and enhancing prompts for ChatGPT and Claude in one place has really boosted my efficiency.&rdquo;</p>
               <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#26A69A' }}>B</div>
+                <div className="testimonial-avatar"><img src="/img/reviewers/blessing-mahmood.jpg" alt="Blessing Mahmood" /></div>
                 <span className="testimonial-name">Blessing Mahmood</span>
-              </div>
-            </div>
-            <div className="testimonial-card">
-              <div className="testimonial-stars">★★★★★</div>
-              <p className="testimonial-text">&ldquo;Simple but powerful tool that improve my workflow.&rdquo;</p>
-              <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#7E57C2' }}>A</div>
-                <span className="testimonial-name">Alfred Jacob</span>
-              </div>
-            </div>
-            <div className="testimonial-card">
-              <div className="testimonial-stars">★★★★★</div>
-              <p className="testimonial-text">&ldquo;Loved using this for creating workflows at work and at home!&rdquo;</p>
-              <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#EF5350' }}>J</div>
-                <span className="testimonial-name">Joshua Liang</span>
               </div>
             </div>
             <div className="testimonial-card">
               <div className="testimonial-stars">★★★★★</div>
               <p className="testimonial-text">&ldquo;REALLY AMAZING&rdquo;</p>
               <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#FF7043' }}>K</div>
+                <div className="testimonial-avatar"><img src="/img/reviewers/kendra-brasfield.jpg" alt="Kendra Brasfield" /></div>
                 <span className="testimonial-name">Kendra Brasfield</span>
               </div>
             </div>
             <div className="testimonial-card">
               <div className="testimonial-stars">★★★★★</div>
-              <p className="testimonial-text">&ldquo;Very useful for my work.&rdquo;</p>
+              <p className="testimonial-text">&ldquo;Simple but powerful tool that improve my workflow.&rdquo;</p>
               <div className="testimonial-author">
-                <div className="testimonial-avatar" style={{ background: '#66BB6A' }}>E</div>
-                <span className="testimonial-name">Ethan So</span>
+                <div className="testimonial-avatar"><img src="/img/reviewers/alfred-jacob.jpg" alt="Alfred Jacob" /></div>
+                <span className="testimonial-name">Alfred Jacob</span>
               </div>
             </div>
           </div>
@@ -303,7 +307,7 @@ export default function Home() {
               <div className="mindmap-card">
                 <div className="mindmap-icon">💎</div>
                 <h4>Digital Asset</h4>
-                <p>License your <span className="gradient-text">PromptPacks</span> — own and monetize your work.</p>
+                <p>Export your encrypted <span className="gradient-text">PromptPack</span> and license them to monetize your work.</p>
               </div>
             </div>
 
@@ -314,7 +318,7 @@ export default function Home() {
                 <div className="mindmap-icon">🤖</div>
                 <h4>Workflow Automater</h4>
                 <p>Automate workflows with AI agents using modular <span className="gradient-text">PromptPacks</span>.</p>
-                <span className="mindmap-soon">Coming Soon</span>
+                <span className="mindmap-new">NEW!</span>
               </div>
             </div>
           </div>

@@ -40,6 +40,7 @@ export function PromptControlPage() {
   const [selectedPromptCreatedAt, setSelectedPromptCreatedAt] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
+  const [confirmDisable, setConfirmDisable] = useState<string | null>(null); // packId to confirm disable
   const [toast, setToast] = useState<string | null>(null);
 
   const tier = session?.tier || 'free';
@@ -68,11 +69,33 @@ export function PromptControlPage() {
   const allVersions: PromptVersion[] = selectedPack ? (promptVersions[selectedPack.id] || []) : [];
 
   const handleToggle = async (pack: UserPack, enabled: boolean) => {
+    // Show confirmation when disabling (versions will be permanently deleted)
+    if (!enabled) {
+      setConfirmDisable(pack.id);
+      return;
+    }
     clearError();
     const ok = await toggleVersionControl(clerkId, pack.id, enabled);
     if (ok) {
-      setToast(enabled ? `PromptControl enabled for "${pack.title}"` : `PromptControl disabled for "${pack.title}"`);
+      setToast(`PromptControl enabled for "${pack.title}"`);
     }
+  };
+
+  const handleConfirmDisable = async () => {
+    if (!confirmDisable) return;
+    const pack = userPacks.find((p) => p.id === confirmDisable);
+    if (!pack) return;
+    clearError();
+    const ok = await toggleVersionControl(clerkId, pack.id, false);
+    if (ok) {
+      // Clear local prompt versions for this pack
+      useSyncStore.setState((state) => {
+        const { [pack.id]: _, ...rest } = state.promptVersions;
+        return { promptVersions: rest };
+      });
+      setToast(`PromptControl disabled for "${pack.title}"`);
+    }
+    setConfirmDisable(null);
   };
 
   const handleDeleteVersion = async (promptCreatedAt: number, versionNumber: number) => {
@@ -325,10 +348,37 @@ export function PromptControlPage() {
     );
   }
 
+  // Confirmation dialog for disabling version control
+  const disableDialog = confirmDisable ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 max-w-sm mx-4 shadow-xl">
+        <h3 className="text-lg font-semibold mb-2">Disable PromptControl?</h3>
+        <p className="text-sm text-[var(--muted-foreground)] mb-4">
+          All saved versions for this pack will be permanently deleted. This cannot be undone.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => setConfirmDisable(null)}
+            className="px-3 py-1.5 text-sm rounded-lg bg-[var(--accent)] hover:opacity-80"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirmDisable}
+            className="px-3 py-1.5 text-sm rounded-lg bg-red-500 text-white hover:bg-red-600"
+          >
+            Disable & Delete Versions
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // === VIEW 1: Pack List ===
   return (
     <div className="p-6 max-w-3xl">
       {overlay}
+      {disableDialog}
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">

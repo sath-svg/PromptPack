@@ -30,22 +30,16 @@ export function HowItWorks() {
           <p className="how-subtitle">
             From a &quot;good prompt&quot; to reusable workflow — in under a minute.
           </p>
+          <p className="how-subtitle-note">(extension only)</p>
 
           <div className="how-steps how-steps-3col">
-            <div
-              className="how-step how-step-clickable"
-              onClick={() => openModal({
-                title: "Organize Your Prompts",
-                image: "/img/PromptPack..png",
-                description: "The extension is where you organize your prompts into different PromptPacks (folders). Headers are generated via AI based on your current plan limits, or you can add your own custom headers."
-              })}
-            >
+            <Link href="/downloads" className="how-step how-step-clickable how-step-link">
               <div className="how-step-icon">⬇️</div>
-              <h3>Download Extension</h3>
+              <h3>Download Extension or App</h3>
               <p>
                 <span className="pro-link">Install</span> once and you&apos;re ready to save prompts anywhere.
               </p>
-            </div>
+            </Link>
 
             <div
               className="how-step how-step-clickable"
@@ -141,7 +135,8 @@ export function HowItWorks() {
           </div>
 
           <p className="how-footnote">
-            Saving prompts for personal use? Free does the job. Building and sharing polished prompt packs? Go <Link className="pro-link" href="/pricing">Pro</Link>.
+            The app features are much more vast. For power users —{" "}
+            <a href="#beyond-the-extension" className="how-beyond-link">Beyond the Extension</a>.
           </p>
         </div>
       </section>

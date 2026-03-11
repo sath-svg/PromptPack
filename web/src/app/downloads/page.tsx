@@ -151,7 +151,7 @@ export default function DownloadsPage() {
               Chrome Web Store
             </a>
             <a
-              href="/downloads/promptpack-chrome-v2.3.0.zip"
+              href="/downloads/promptpack-chrome-v2.4.0.zip"
               className="btn download-btn download-btn-secondary"
               download
             >
@@ -164,7 +164,7 @@ export default function DownloadsPage() {
             </a>
           </div>
           <div className="download-meta">
-            <span>Version 2.3.0</span>
+            <span>Version 2.4.0</span>
             <span className="download-meta-dot">•</span>
             <span>Manifest V3</span>
           </div>
@@ -203,7 +203,7 @@ export default function DownloadsPage() {
               Firefox Add-ons
             </a>
             <a
-              href="/downloads/promptpack-firefox-v2.3.0.zip"
+              href="/downloads/promptpack-firefox-v2.4.0.zip"
               className="btn download-btn download-btn-secondary"
               download
             >
@@ -216,7 +216,7 @@ export default function DownloadsPage() {
             </a>
           </div>
           <div className="download-meta">
-            <span>Version 2.3.0</span>
+            <span>Version 2.4.0</span>
             <span className="download-meta-dot">•</span>
             <span>Firefox 112+</span>
           </div>
@@ -242,7 +242,7 @@ export default function DownloadsPage() {
           </p>
           <div className="download-actions">
             <a
-              href="/downloads/promptpack-safari-v2.3.0-source.zip"
+              href="/downloads/promptpack-safari-v2.4.0-source.zip"
               className="btn btn-primary download-btn"
               download
             >
@@ -266,7 +266,7 @@ export default function DownloadsPage() {
             </a>
           </div>
           <div className="download-meta">
-            <span>Version 2.3.0</span>
+            <span>Version 2.4.0</span>
             <span className="download-meta-dot">•</span>
             <span>macOS 11.0+</span>
           </div>

@@ -1373,6 +1373,13 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           enabled,
         });
 
+        // When disabling, also explicitly remove all prompt versions for this pack
+        if (!enabled) {
+          await ctx.runMutation(api.promptVersions.removeAllForPack, {
+            packId: packId as Id<"userPacks">,
+          });
+        }
+
         return new Response(
           JSON.stringify({ success: true, enabled }),
           { status: 200, headers: { ...headers, "Content-Type": "application/json" } }

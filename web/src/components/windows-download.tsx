@@ -128,9 +128,9 @@ export function WindowsDownload() {
         <>
           <div className="download-actions">
             <a
-              href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
+              href="/downloads/PromptPack_1.0.0_arm64-setup.exe"
               className="btn btn-primary download-btn"
-              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64-setup.exe")}
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_arm64-setup.exe")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -140,9 +140,9 @@ export function WindowsDownload() {
               Download ARM64 Installer
             </a>
             <a
-              href="/downloads/PromptPack_0.1.0_arm64_en-US.msi"
+              href="/downloads/PromptPack_1.0.0_arm64_en-US.msi"
               className="btn download-btn download-btn-secondary"
-              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64_en-US.msi")}
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_arm64_en-US.msi")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -158,7 +158,7 @@ export function WindowsDownload() {
             </summary>
             <div className="other-architectures-content">
               <div className="other-architectures-info">
-                <span>Version 0.1.0</span>
+                <span>Version 1.0.0</span>
                 <span className="download-meta-dot">•</span>
                 <span>Windows 10/11</span>
                 <span className="download-meta-dot">•</span>
@@ -166,16 +166,16 @@ export function WindowsDownload() {
               </div>
               <div className="download-actions">
                 <a
-                  href="/downloads/PromptPack_0.1.0_x64-setup.exe"
+                  href="/downloads/PromptPack_1.0.0_x64-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64-setup.exe")}
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x64-setup.exe")}
                 >
                   x64 Installer
                 </a>
                 <a
-                  href="/downloads/PromptPack_0.1.0_x86-setup.exe"
+                  href="/downloads/PromptPack_1.0.0_x86-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x86-setup.exe")}
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x86-setup.exe")}
                 >
                   x86 Installer
                 </a>
@@ -187,9 +187,9 @@ export function WindowsDownload() {
         <>
           <div className="download-actions">
             <a
-              href="/downloads/PromptPack_0.1.0_x64-setup.exe"
+              href="/downloads/PromptPack_1.0.0_x64-setup.exe"
               className="btn btn-primary download-btn"
-              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64-setup.exe")}
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x64-setup.exe")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -199,9 +199,9 @@ export function WindowsDownload() {
               Download x64 Installer
             </a>
             <a
-              href="/downloads/PromptPack_0.1.0_x64_en-US.msi"
+              href="/downloads/PromptPack_1.0.0_x64_en-US.msi"
               className="btn download-btn download-btn-secondary"
-              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x64_en-US.msi")}
+              onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x64_en-US.msi")}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -217,7 +217,7 @@ export function WindowsDownload() {
             </summary>
             <div className="other-architectures-content">
               <div className="other-architectures-info">
-                <span>Version 0.1.0</span>
+                <span>Version 1.0.0</span>
                 <span className="download-meta-dot">•</span>
                 <span>Windows 10/11</span>
                 <span className="download-meta-dot">•</span>
@@ -225,16 +225,16 @@ export function WindowsDownload() {
               </div>
               <div className="download-actions">
                 <a
-                  href="/downloads/PromptPack_0.1.0_arm64-setup.exe"
+                  href="/downloads/PromptPack_1.0.0_arm64-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_arm64-setup.exe")}
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_arm64-setup.exe")}
                 >
                   ARM64 Installer
                 </a>
                 <a
-                  href="/downloads/PromptPack_0.1.0_x86-setup.exe"
+                  href="/downloads/PromptPack_1.0.0_x86-setup.exe"
                   className="btn download-btn download-btn-secondary"
-                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_0.1.0_x86-setup.exe")}
+                  onClick={(e) => handleDownloadClick(e, "/downloads/PromptPack_1.0.0_x86-setup.exe")}
                 >
                   x86 Installer
                 </a>
@@ -245,7 +245,7 @@ export function WindowsDownload() {
       )}
 
       <div className="download-meta">
-        <span>Version 0.1.0</span>
+        <span>Version 1.0.0</span>
         <span className="download-meta-dot">•</span>
         <span>Windows 10/11</span>
         <span className="download-meta-dot">•</span>

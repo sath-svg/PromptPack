@@ -48,6 +48,7 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
   const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [confirmDisable, setConfirmDisable] = useState<string | null>(null); // packId to confirm disable
   const [loading, setLoading] = useState(false);
   const [packPrompts, setPackPrompts] = useState<PackPrompt[]>([]);
   const [loadingPrompts, setLoadingPrompts] = useState(false);
@@ -113,12 +114,28 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
   }, [selectedPackId]);
 
   const handleToggle = async (packId: string, enabled: boolean) => {
+    // Show confirmation when disabling (versions will be permanently deleted)
+    if (!enabled) {
+      setConfirmDisable(packId);
+      return;
+    }
     try {
       await toggleVersionControl({ id: packId as Id<"userPacks">, enabled });
-      setToast(enabled ? "PromptControl enabled" : "PromptControl disabled");
+      setToast("PromptControl enabled");
     } catch (err: unknown) {
       setToast(err instanceof Error ? err.message : "Failed to toggle");
     }
+  };
+
+  const handleConfirmDisable = async () => {
+    if (!confirmDisable) return;
+    try {
+      await toggleVersionControl({ id: confirmDisable as Id<"userPacks">, enabled: false });
+      setToast("PromptControl disabled — all versions deleted");
+    } catch (err: unknown) {
+      setToast(err instanceof Error ? err.message : "Failed to toggle");
+    }
+    setConfirmDisable(null);
   };
 
   const handleDeleteVersion = async (promptCreatedAt: number, versionNumber: number) => {
@@ -344,10 +361,46 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
     );
   }
 
+  // Confirmation dialog for disabling version control
+  const disableDialog = confirmDisable ? (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(0,0,0,0.5)",
+    }}>
+      <div style={{
+        background: "var(--card-bg, #1a1a1a)", border: "1px solid var(--border)",
+        borderRadius: "0.75rem", padding: "1.5rem", maxWidth: "24rem", margin: "0 1rem",
+        boxShadow: "0 20px 25px -5px rgba(0,0,0,0.3)",
+      }}>
+        <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.1rem", fontWeight: 600, color: "#fff" }}>Disable PromptControl?</h3>
+        <p style={{ margin: "0 0 1rem", fontSize: "0.875rem", color: "rgba(255,255,255,0.85)" }}>
+          All saved versions for this pack will be permanently deleted. This cannot be undone.
+        </p>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+          <button
+            onClick={() => setConfirmDisable(null)}
+            className="btn-sm"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirmDisable}
+            className="btn-sm"
+            style={{ background: "#ef4444", color: "white" }}
+          >
+            Disable & Delete Versions
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   // === VIEW 1: Pack List ===
   return (
     <div className="prompt-control">
       {toastEl}
+      {disableDialog}
 
       <h2>PromptControl</h2>
       <p style={{ color: "var(--muted)", fontSize: "0.9rem", marginBottom: "1rem" }}>

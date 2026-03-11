@@ -70,7 +70,7 @@ export function TemplateInputDialog({
         </div>
 
         {/* Form */}
-        <div className="p-4 space-y-4" onKeyDown={handleKeyDown}>
+        <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto" onKeyDown={handleKeyDown}>
           {variables.map((varName, index) => (
             <div key={varName}>
               <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
