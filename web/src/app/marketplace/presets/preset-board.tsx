@@ -51,7 +51,7 @@ function useColumnCount() {
  */
 export function PresetBoard() {
   const [history, setHistory] = useState<
-    Array<{ seedId: string; resultIds: string[] }>
+    Array<{ seedId: string | null; resultIds: string[] }>
   >([]);
   const [currentView, setCurrentView] = useState<{
     seedId: string | null;
