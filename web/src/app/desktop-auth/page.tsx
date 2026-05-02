@@ -19,6 +19,7 @@ export default function DesktopAuthPage() {
   const { signOut } = useClerk();
   const [error, setError] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [launched, setLaunched] = useState(false);
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const hasRedirected = useRef(false);
 
@@ -66,6 +67,11 @@ export default function DesktopAuthPage() {
           user_id: user.id,
         });
         window.location.href = `promptpack://auth?${params.toString()}`;
+        // Browser stays on this page after deep link fires — show success state
+        setTimeout(() => {
+          setProcessing(false);
+          setLaunched(true);
+        }, 500);
       } else {
         const callbackUrl = new URL("/desktop-callback", window.location.origin);
         callbackUrl.searchParams.set("token", token);
@@ -221,6 +227,31 @@ export default function DesktopAuthPage() {
           forceRedirectUrl="/desktop-auth"
           signUpForceRedirectUrl="/desktop-auth"
         />
+      </div>
+    );
+  }
+
+  // Successfully launched desktop app — show close-tab message
+  if (launched) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+        </div>
+        <h1 className="text-xl font-semibold text-foreground mb-2">
+          Connected to PromptPack
+        </h1>
+        <p className="text-muted-foreground text-sm text-center max-w-sm mb-6">
+          You&apos;re signed in. You can close this tab and return to the desktop app.
+        </p>
+        <button
+          onClick={() => window.close()}
+          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-accent transition-all"
+        >
+          Close tab
+        </button>
       </div>
     );
   }

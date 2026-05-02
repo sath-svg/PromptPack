@@ -157,7 +157,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: async (text: string, packName?: string, systemPrompt?: string) => {
     const { apiKeys, billingTier, serverChatCount, incrementServerChatCount } = useSettingsStore.getState();
-    const available = getAvailableProviders(apiKeys ?? {});
+    const available = getAvailableProviders((apiKeys ?? {}) as Record<string, string | undefined>);
 
     const tier = classifyTier(text);
     const preset = pickModel(tier, available);
@@ -187,7 +187,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const history = get().messages.map((m) => ({ role: m.role, content: m.content }));
 
     try {
-      const content = await callPreset(preset, apiKeys ?? {}, history, systemPrompt);
+      const content = await callPreset(preset, (apiKeys ?? {}) as Record<string, string | undefined>, history, systemPrompt);
 
       // Track server usage for free tier
       if (preset.provider === 'server') incrementServerChatCount();
