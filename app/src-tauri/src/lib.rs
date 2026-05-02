@@ -44,8 +44,8 @@ pub fn run() {
                                 let decode = |v: &str| -> String {
                                     let with_spaces = v.replace('+', " ");
                                     urlencoding::decode(&with_spaces)
-                                        .unwrap_or_else(|_| with_spaces.into())
-                                        .to_string()
+                                        .map(|s| s.into_owned())
+                                        .unwrap_or(with_spaces)
                                 };
 
                                 let mut token = None;

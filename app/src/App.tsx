@@ -7,16 +7,24 @@ import { DraftPage } from './components/Draft';
 import { SavedPacksPage } from './components/SavedPacks';
 import { UserPacksPage } from './components/UserPacks';
 import { PromptControlPage } from './components/PromptControl';
+import { PromptChatPage } from './components/PromptChat';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('draft');
-  const { session, refreshTier } = useAuthStore();
+  const [currentPage, setCurrentPage] = useState('chat');
+  const { session, refreshTier, initAuthListener } = useAuthStore();
   const { fetchAllPacks, cloudPacks, userPacks } = useSyncStore();
   const { hasCompletedOnboarding, completeOnboarding } = useSettingsStore();
+
+  // Init auth listener immediately — must be ready before deep link fires
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    initAuthListener().then((fn) => { unlisten = fn; });
+    return () => { unlisten?.(); };
+  }, []);
 
   // Fetch cloud and user packs when session is available
   useEffect(() => {
@@ -34,6 +42,8 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'chat':
+        return <PromptChatPage />;
       case 'draft':
         return <DraftPage />;
       case 'saved-packs':

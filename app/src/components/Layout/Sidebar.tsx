@@ -10,6 +10,7 @@ import {
   Cloud,
   PanelLeftClose,
   History,
+  MessageSquare,
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -71,6 +72,21 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
       <nav className="flex-1 overflow-y-auto overflow-x-hidden p-2">
         {/* Main Navigation */}
         <div className="space-y-1">
+          <button
+            onClick={() => onNavigate('chat')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentPage === 'chat'
+                ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
+                : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
+            }`}
+            title={isCollapsed ? 'Chat' : undefined}
+          >
+            <MessageSquare size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Chat
+            </span>
+          </button>
+
           <button
             onClick={() => onNavigate('draft')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${

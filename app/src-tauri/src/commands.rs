@@ -594,6 +594,7 @@ pub fn logout(auth_state: State<'_, AuthState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[allow(deprecated)]
 pub async fn open_auth_window(app_handle: AppHandle) -> Result<(), String> {
     use tauri_plugin_shell::ShellExt;
 
