@@ -1,0 +1,495 @@
+import { useState, useRef, useEffect } from 'react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-shell';
+import { useChatStore } from '../../stores/chatStore';
+import { useSyncStore } from '../../stores/syncStore';
+import { useAuthStore } from '../../stores/authStore';
+import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
+
+function extractVariables(text: string): string[] {
+  const matches = new Set<string>();
+  const regex = /\{([^}]+)\}/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) matches.add(match[1]);
+  return Array.from(matches);
+}
+
+function fillVariables(text: string, values: Record<string, string>): string {
+  return text.replace(/\{([^}]+)\}/g, (_, key) => values[key] ?? `{${key}}`);
+}
+
+export function PromptChatPage() {
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChatStore();
+  const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
+  const { session } = useAuthStore();
+
+  const [input, setInput] = useState('');
+  const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
+  const [showPackPicker, setShowPackPicker] = useState(false);
+
+  // Single-prompt variable form
+  const [variablePrompt, setVariablePrompt] = useState<{ text: string; vars: string[] } | null>(null);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+
+  // Pack workflow runner
+  const packQueueRef = useRef<string[]>([]);
+  const [isRunningPack, setIsRunningPack] = useState(false);
+  const [packProgress, setPackProgress] = useState({ current: 0, total: 0 });
+  const [packVarForm, setPackVarForm] = useState<{ vars: string[]; prompts: string[] } | null>(null);
+  const [packVarValues, setPackVarValues] = useState<Record<string, string>>({});
+
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+  }, [input]);
+
+  // Auto-advance pack sequence after each response
+  useEffect(() => {
+    if (isLoading || !isRunningPack) return;
+    if (packQueueRef.current.length === 0) {
+      setIsRunningPack(false);
+      setPackProgress({ current: 0, total: 0 });
+      return;
+    }
+    const next = packQueueRef.current.shift()!;
+    setPackProgress((p) => ({ ...p, current: p.current + 1 }));
+    sendMessage(next, selectedPack?.title, buildSystemPrompt());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isRunningPack]);
+
+  const allPacks = [
+    ...cloudPacks.map((p) => ({ ...p, type: 'cloud' as const, title: p.source })),
+    ...userPacks.map((p) => ({ ...p, type: 'user' as const })),
+  ];
+
+  const selectedPack = allPacks.find((p) => p.id === selectedPackId);
+
+  const getPackPrompts = () => {
+    if (!selectedPackId) return [];
+    const loaded = loadedPacks[selectedPackId] || loadedUserPacks[selectedPackId];
+    return loaded?.prompts ?? [];
+  };
+
+  const buildSystemPrompt = (): string | undefined => {
+    if (!selectedPack) return undefined;
+    const prompts = getPackPrompts();
+    const list = prompts
+      .slice(0, 10)
+      .map((p) => `- ${p.header ? `${p.header}: ` : ''}${p.text.slice(0, 120)}`)
+      .join('\n');
+    return `You are a helpful assistant working within the "${selectedPack.title}" context.${
+      list ? `\n\nAvailable prompt templates:\n${list}` : ''
+    }\n\nHelp the user based on this context.`;
+  };
+
+  const handleSelectPack = async (packId: string, type: 'cloud' | 'user') => {
+    setSelectedPackId(packId);
+    setShowPackPicker(false);
+    setVariablePrompt(null);
+    setPackVarForm(null);
+    const pack = type === 'cloud' ? cloudPacks.find((p) => p.id === packId) : userPacks.find((p) => p.id === packId);
+    if (!pack) return;
+    if (type === 'cloud') fetchPackPrompts(pack as any);
+    else fetchUserPackPrompts(pack as any);
+  };
+
+  // Run entire pack — collect all unique vars first
+  const handleRunPack = () => {
+    const prompts = getPackPrompts();
+    if (!prompts.length) return;
+    const allVars = new Set<string>();
+    prompts.forEach((p) => extractVariables(p.text).forEach((v) => allVars.add(v)));
+    if (allVars.size > 0) {
+      setPackVarForm({ vars: Array.from(allVars), prompts: prompts.map((p) => p.text) });
+      setPackVarValues({});
+    } else {
+      startPackRun(prompts.map((p) => p.text), {});
+    }
+  };
+
+  const startPackRun = (promptTexts: string[], values: Record<string, string>) => {
+    const filled = promptTexts.map((t) => fillVariables(t, values));
+    setPackVarForm(null);
+    setVariablePrompt(null);
+    const [first, ...rest] = filled;
+    packQueueRef.current = rest;
+    setPackProgress({ current: 1, total: filled.length });
+    setIsRunningPack(true);
+    sendMessage(first, selectedPack?.title, buildSystemPrompt());
+  };
+
+  const cancelPackRun = () => {
+    packQueueRef.current = [];
+    setIsRunningPack(false);
+    setPackProgress({ current: 0, total: 0 });
+  };
+
+  // Single prompt click from sidebar
+  const handlePromptClick = (promptText: string) => {
+    const vars = extractVariables(promptText);
+    if (vars.length > 0) {
+      setVariablePrompt({ text: promptText, vars });
+      setVariableValues({});
+    } else {
+      sendMessage(promptText, selectedPack?.title, buildSystemPrompt());
+    }
+  };
+
+  const handleVariableSend = () => {
+    if (!variablePrompt || isLoading) return;
+    const filled = fillVariables(variablePrompt.text, variableValues);
+    setVariablePrompt(null);
+    setVariableValues({});
+    sendMessage(filled, selectedPack?.title, buildSystemPrompt());
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    setInput('');
+    await sendMessage(text, selectedPack?.title, buildSystemPrompt());
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const packPrompts = getPackPrompts();
+
+  return (
+    <div className="flex h-full gap-4">
+      {/* Main chat area */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-[var(--foreground)]">Chat</h2>
+            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+              Auto-routes each message to the best model
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isRunningPack && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--muted-foreground)]">
+                  Running {packProgress.current}/{packProgress.total}
+                </span>
+                <button
+                  onClick={cancelPackRun}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-500/10 transition-colors"
+                >
+                  <X size={12} /> Cancel
+                </button>
+              </div>
+            )}
+            {messages.length > 0 && !isRunningPack && (
+              <button
+                onClick={clearMessages}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
+              >
+                <Trash2 size={14} />
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
+          {messages.length === 0 && !packVarForm && !variablePrompt && (
+            <div className="flex flex-col items-center justify-center h-full text-center py-16">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 flex items-center justify-center mb-4">
+                <Send size={20} className="text-[var(--primary)]" />
+              </div>
+              <p className="text-[var(--foreground)] font-medium mb-1">Start a conversation</p>
+              <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
+                Type a message, click a prompt from the right, or hit <strong>Run Pack</strong> to run all prompts in sequence.
+              </p>
+            </div>
+          )}
+
+          {messages.map((msg) => (
+            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                  msg.role === 'user'
+                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
+                    : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
+                }`}
+              >
+                {msg.packName && msg.role === 'user' && (
+                  <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
+                    <Package size={10} /> {msg.packName}
+                  </p>
+                )}
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                {msg.role === 'assistant' && msg.preset && (
+                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
+                      {TIER_LABELS[msg.preset.tier]}
+                    </span>
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
+                <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)]" />
+                {isRunningPack && packProgress.total > 0 && (
+                  <span className="text-xs text-[var(--muted-foreground)]">
+                    Prompt {packProgress.current}/{packProgress.total}…
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {error === '__CHAT_LIMIT_REACHED__' ? (
+            <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Enjoying PromptPack AI Chat? 🎉</p>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                You've used your 3 free conversations. Upgrade to Pro for unlimited AI chat, more prompt packs, and priority access.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => open('https://pmtpk.com/pricing')}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                >
+                  <ExternalLink size={13} />
+                  Upgrade to Pro
+                </button>
+                <button onClick={clearError} className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500 text-sm">
+              <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
+              <span className="flex-1">{error}</span>
+              <button onClick={clearError} className="flex-shrink-0 hover:opacity-70"><X size={14} /></button>
+            </div>
+          ) : null}
+
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Pack variable form — fill ALL vars before running entire pack */}
+        {packVarForm && (
+          <div className="mt-4 border border-[var(--primary)]/40 rounded-xl bg-[var(--card)] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Fill variables to run pack</p>
+                <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                  {packVarForm.prompts.length} prompts will run in sequence
+                </p>
+              </div>
+              <button onClick={() => setPackVarForm(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <X size={14} />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {packVarForm.vars.map((v) => (
+                <div key={v} className="flex items-center gap-2">
+                  <label className="text-xs font-mono text-[var(--primary)] w-32 flex-shrink-0">{`{${v}}`}</label>
+                  <input
+                    type="text"
+                    placeholder={`Enter ${v}…`}
+                    value={packVarValues[v] ?? ''}
+                    onChange={(e) => setPackVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') startPackRun(packVarForm.prompts, packVarValues);
+                    }}
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none focus:border-[var(--primary)]"
+                    autoFocus
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => startPackRun(packVarForm.prompts, packVarValues)}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
+              >
+                <Play size={13} />
+                Run {packVarForm.prompts.length} prompts
+              </button>
+              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+            </div>
+          </div>
+        )}
+
+        {/* Single-prompt variable form */}
+        {variablePrompt && !packVarForm && (
+          <div className="mt-4 border border-[var(--primary)]/40 rounded-xl bg-[var(--card)] p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-[var(--primary)] uppercase tracking-wide">Fill variables</p>
+              <button onClick={() => setVariablePrompt(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                <X size={14} />
+              </button>
+            </div>
+            <p className="text-xs text-[var(--muted-foreground)] leading-relaxed line-clamp-2">{variablePrompt.text}</p>
+            <div className="space-y-2">
+              {variablePrompt.vars.map((v) => (
+                <div key={v} className="flex items-center gap-2">
+                  <label className="text-xs font-mono text-[var(--primary)] w-28 flex-shrink-0">{`{${v}}`}</label>
+                  <input
+                    type="text"
+                    placeholder={`Enter ${v}…`}
+                    value={variableValues[v] ?? ''}
+                    onChange={(e) => setVariableValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleVariableSend(); }}
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none focus:border-[var(--primary)]"
+                    autoFocus
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleVariableSend}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
+              >
+                <Play size={13} /> Run
+              </button>
+              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+            </div>
+          </div>
+        )}
+
+        {/* Normal text input — hidden while forms active */}
+        {!variablePrompt && !packVarForm && (
+          <div className="mt-4 border border-[var(--border)] rounded-xl bg-[var(--card)] focus-within:border-[var(--primary)] transition-colors">
+            {selectedPack && (
+              <div className="flex items-center gap-2 px-3 pt-2">
+                <span className="flex items-center gap-1.5 text-xs bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-1 rounded-full">
+                  <Package size={10} /> {selectedPack.title}
+                </span>
+                <button onClick={() => setSelectedPackId(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  <X size={12} />
+                </button>
+              </div>
+            )}
+            <div className="flex items-end gap-2 p-2">
+              {session && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowPackPicker((v) => !v)}
+                    className="p-2 rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
+                    title="Use a prompt pack"
+                  >
+                    <Package size={18} />
+                  </button>
+                  {showPackPicker && (
+                    <div className="absolute bottom-full mb-2 left-0 w-64 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg z-10 overflow-hidden">
+                      <p className="px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide border-b border-[var(--border)]">
+                        Choose a pack
+                      </p>
+                      <div className="max-h-56 overflow-y-auto">
+                        {allPacks.length === 0 && (
+                          <p className="px-3 py-3 text-sm text-[var(--muted-foreground)]">No packs yet</p>
+                        )}
+                        {allPacks.map((pack) => (
+                          <button
+                            key={pack.id}
+                            onClick={() => handleSelectPack(pack.id, pack.type)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-[var(--accent)] text-[var(--foreground)] transition-colors"
+                          >
+                            {'icon' in pack && pack.icon ? <span>{pack.icon}</span> : <Package size={14} className="text-[var(--primary)]" />}
+                            <span className="truncate">{pack.title}</span>
+                            <span className="ml-auto text-xs text-[var(--muted-foreground)]">{pack.promptCount}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type a message… (Shift+Enter for new line)"
+                rows={1}
+                className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading}
+                className="p-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] disabled:opacity-40 hover:opacity-90 transition-opacity flex-shrink-0"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Pack prompts sidebar */}
+      {selectedPack && packPrompts.length > 0 && (
+        <div className="w-64 flex-shrink-0 flex flex-col gap-2">
+          {/* Run Pack button */}
+          <button
+            onClick={handleRunPack}
+            disabled={isLoading || isRunningPack}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
+          >
+            {isRunningPack ? (
+              <><Loader2 size={14} className="animate-spin" /> Running {packProgress.current}/{packProgress.total}</>
+            ) : (
+              <><Play size={14} /> Run Pack ({packPrompts.length} prompts)</>
+            )}
+          </button>
+
+          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide px-1">
+            {selectedPack.title} prompts
+          </p>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {packPrompts.map((p, i) => {
+              const vars = extractVariables(p.text);
+              return (
+                <button
+                  key={i}
+                  onClick={() => handlePromptClick(p.text)}
+                  disabled={isLoading || isRunningPack}
+                  className="w-full text-left p-3 rounded-lg border border-[var(--border)] bg-[var(--card)] hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 disabled:opacity-40 transition-colors group"
+                >
+                  {p.header && <p className="text-xs font-medium text-[var(--primary)] mb-1">{p.header}</p>}
+                  <p className="text-xs text-[var(--muted-foreground)] line-clamp-3">{p.text}</p>
+                  <p className="text-xs text-[var(--primary)] mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    {vars.length > 0 ? (
+                      <><SkipForward size={9} /> fill &amp; run</>
+                    ) : (
+                      <><Play size={9} /> run</>
+                    )}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

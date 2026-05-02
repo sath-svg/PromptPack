@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
-import { useSettingsStore, getTierLimits } from '../../stores/settingsStore';
+import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff } from 'lucide-react';
+import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
+import { PROVIDER_LABELS } from '../../lib/classifier';
 import { CONVEX_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
@@ -13,8 +14,33 @@ interface BillingStatus {
 }
 
 export function SettingsPage() {
-  const { theme, setTheme, globalHotkey } = useSettingsStore();
+  const { theme, setTheme, globalHotkey, apiKeys, setApiKey, setBillingTier } = useSettingsStore();
   const { session } = useAuthStore();
+
+  type KeyedProvider = keyof ApiKeys;
+  const KEYED_PROVIDERS: { key: KeyedProvider; placeholder: string }[] = [
+    { key: 'anthropic',  placeholder: 'sk-ant-...' },
+    { key: 'openai',     placeholder: 'sk-...' },
+    { key: 'gemini',     placeholder: 'AIza...' },
+    { key: 'grok',       placeholder: 'xai-...' },
+    { key: 'deepseek',   placeholder: 'sk-...' },
+    { key: 'perplexity', placeholder: 'pplx-...' },
+    { key: 'kimi',       placeholder: 'sk-...' },
+    { key: 'groq',       placeholder: 'gsk_...' },
+    { key: 'openrouter', placeholder: 'sk-or-...' },
+  ];
+  const [inputs, setInputs] = useState<Record<KeyedProvider, string>>({
+    anthropic:  apiKeys?.anthropic  ?? '',
+    openai:     apiKeys?.openai     ?? '',
+    gemini:     apiKeys?.gemini     ?? '',
+    grok:       apiKeys?.grok       ?? '',
+    deepseek:   apiKeys?.deepseek   ?? '',
+    perplexity: apiKeys?.perplexity ?? '',
+    kimi:       apiKeys?.kimi       ?? '',
+    groq:       apiKeys?.groq       ?? '',
+    openrouter: apiKeys?.openrouter ?? '',
+  });
+  const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
 
@@ -37,6 +63,7 @@ export function SettingsPage() {
         if (response.ok) {
           const data = await response.json();
           setBillingStatus(data);
+          if (data.tier) setBillingTier(data.tier);
         }
       } catch (error) {
         console.error('Failed to fetch billing status:', error);
@@ -214,6 +241,69 @@ export function SettingsPage() {
               </button>
             </div>
           )}
+        </section>
+
+        {/* API Keys */}
+        <section className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)]">
+          <div className="flex items-center gap-2 mb-1">
+            <Key size={18} className="text-[var(--muted-foreground)]" />
+            <h3 className="text-lg font-medium text-[var(--foreground)]">API Keys</h3>
+          </div>
+          {/* PromptPack built-in — always on */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--primary)]/5 border border-[var(--primary)]/20 mb-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">PromptPack · Llama 3.1 8B</p>
+              <p className="text-xs text-[var(--muted-foreground)]">Hosted on our servers — always available, no key needed</p>
+            </div>
+            <span className="flex items-center gap-1 text-xs text-green-500 font-medium">
+              <CheckCircle2 size={13} /> Active
+            </span>
+          </div>
+
+          <p className="text-sm text-[var(--muted-foreground)] mb-4">
+            Add any key below to unlock that provider as an additional option in Chat.
+            <br />
+            <span className="text-[var(--primary)]">Tip:</span> OpenRouter gives access to 200+ models including Gemma 4.
+          </p>
+
+          <div className="space-y-4">
+            {KEYED_PROVIDERS.map(({ key, placeholder }) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                  {PROVIDER_LABELS[key]}
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                    <input
+                      type={visible[key] ? 'text' : 'password'}
+                      value={inputs[key]}
+                      onChange={(e) => setInputs((prev) => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none"
+                    />
+                    <button
+                      onClick={() => setVisible((v) => ({ ...v, [key]: !v[key] }))}
+                      className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    >
+                      {visible[key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setApiKey(key, inputs[key].trim())}
+                    className="px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                  >
+                    Save
+                  </button>
+                </div>
+                {apiKeys?.[key] && (
+                  <p className="mt-1 text-xs text-green-500 flex items-center gap-1">
+                    <CheckCircle2 size={11} /> Saved
+                  </p>
+                )}
+              </div>
+            ))}
+
+          </div>
         </section>
 
         {/* About */}

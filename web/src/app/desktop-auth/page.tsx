@@ -31,6 +31,10 @@ export default function DesktopAuthPage() {
     }
   }, [isLoaded, isSignedIn, user, switchingAccount]);
 
+  const isDesktopSource =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("source") === "desktop";
+
   const handleContinue = async () => {
     if (!user || hasRedirected.current) return;
 
@@ -52,14 +56,25 @@ export default function DesktopAuthPage() {
       const email = user.primaryEmailAddress?.emailAddress || "";
       const image = user.imageUrl || "";
 
-      const callbackUrl = new URL("/desktop-callback", window.location.origin);
-      callbackUrl.searchParams.set("token", token);
-      callbackUrl.searchParams.set("name", name);
-      callbackUrl.searchParams.set("email", email);
-      callbackUrl.searchParams.set("image", image);
-      callbackUrl.searchParams.set("user_id", user.id);
-
-      window.location.href = callbackUrl.toString();
+      if (isDesktopSource) {
+        // Deep link back to Tauri app
+        const params = new URLSearchParams({
+          token,
+          name,
+          email,
+          image_url: image,
+          user_id: user.id,
+        });
+        window.location.href = `promptpack://auth?${params.toString()}`;
+      } else {
+        const callbackUrl = new URL("/desktop-callback", window.location.origin);
+        callbackUrl.searchParams.set("token", token);
+        callbackUrl.searchParams.set("name", name);
+        callbackUrl.searchParams.set("email", email);
+        callbackUrl.searchParams.set("image", image);
+        callbackUrl.searchParams.set("user_id", user.id);
+        window.location.href = callbackUrl.toString();
+      }
     } catch (err) {
       console.error("Auth error:", err);
       setError("Authentication failed. Please try again.");

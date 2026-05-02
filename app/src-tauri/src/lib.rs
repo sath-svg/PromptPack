@@ -40,16 +40,42 @@ pub fn run() {
                     let urls = event.urls();
                     for url in urls {
                         if url.scheme() == "promptpack" && url.host_str() == Some("auth") {
-                            // Extract token from URL query params
                             if let Some(query) = url.query() {
+                                let decode = |v: &str| -> String {
+                                    let with_spaces = v.replace('+', " ");
+                                    urlencoding::decode(&with_spaces)
+                                        .unwrap_or_else(|_| with_spaces.into())
+                                        .to_string()
+                                };
+
+                                let mut token = None;
+                                let mut name = None;
+                                let mut email = None;
+                                let mut image_url = None;
+                                let mut user_id = None;
+
                                 for pair in query.split('&') {
-                                    if let Some(token) = pair.strip_prefix("token=") {
-                                        let token = urlencoding::decode(token)
-                                            .unwrap_or_else(|_| token.into())
-                                            .to_string();
-                                        // Emit event to frontend
-                                        let _ = handle.emit("auth-callback", token);
+                                    if let Some((k, v)) = pair.split_once('=') {
+                                        match k {
+                                            "token"     => token    = Some(decode(v)),
+                                            "name"      => name     = Some(decode(v)),
+                                            "email"     => email    = Some(decode(v)),
+                                            "image_url" => image_url = Some(decode(v)),
+                                            "user_id"   => user_id  = Some(decode(v)),
+                                            _ => {}
+                                        }
                                     }
+                                }
+
+                                if let Some(token_str) = token {
+                                    let auth_data = serde_json::json!({
+                                        "token": token_str,
+                                        "name": name,
+                                        "email": email,
+                                        "image_url": image_url,
+                                        "user_id": user_id,
+                                    });
+                                    let _ = handle.emit("auth-callback", auth_data);
                                 }
                             }
                         }

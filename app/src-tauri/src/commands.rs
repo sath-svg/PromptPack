@@ -595,88 +595,14 @@ pub fn logout(auth_state: State<'_, AuthState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn open_auth_window(app_handle: AppHandle) -> Result<(), String> {
-    use tauri::{Emitter, WebviewUrl, WebviewWindowBuilder};
+    use tauri_plugin_shell::ShellExt;
 
-    // Check if auth window already exists
-    if let Some(window) = app_handle.get_webview_window("auth") {
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    // Build the auth URL - use dedicated desktop-auth page
-    let auth_url = DESKTOP_AUTH_URL;
-
-    let handle = app_handle.clone();
-
-    // Create a new popup window for authentication
-    let _auth_window =
-        WebviewWindowBuilder::new(&app_handle, "auth", WebviewUrl::External(auth_url.parse().unwrap()))
-            .title("Sign In - PromptPack")
-            .inner_size(450.0, 650.0)
-            .resizable(false)
-            .center()
-            .on_navigation(move |url| {
-                let url_str = url.as_str();
-
-                // Check for callback URL patterns with token
-                // Expected: pmtpk.com/desktop-callback?token=xxx&name=xxx&email=xxx&image=xxx
-                if url_str.contains("/desktop-callback") || url_str.contains("/auth/callback") {
-                    if let Some(query) = url.query() {
-                        let mut token = None;
-                        let mut name = None;
-                        let mut email = None;
-                        let mut image = None;
-                        let mut user_id = None;
-
-                        // Helper to decode URL params (+ means space in query strings)
-                        let decode_param = |v: &str| -> Option<String> {
-                            let with_spaces = v.replace('+', " ");
-                            urlencoding::decode(&with_spaces).ok().map(|s| s.to_string())
-                        };
-
-                        for pair in query.split('&') {
-                            if let Some(v) = pair.strip_prefix("token=") {
-                                token = decode_param(v);
-                            } else if let Some(v) = pair.strip_prefix("name=") {
-                                name = decode_param(v);
-                            } else if let Some(v) = pair.strip_prefix("email=") {
-                                email = decode_param(v);
-                            } else if let Some(v) = pair.strip_prefix("image=") {
-                                image = decode_param(v);
-                            } else if let Some(v) = pair.strip_prefix("user_id=") {
-                                user_id = decode_param(v);
-                            }
-                        }
-
-                        if let Some(token_str) = token {
-                            // Build auth data JSON
-                            let auth_data = serde_json::json!({
-                                "token": token_str,
-                                "name": name,
-                                "email": email,
-                                "image_url": image,
-                                "user_id": user_id,
-                            });
-
-                            // Emit the auth data to the main window
-                            let _ = handle.emit("auth-callback", auth_data);
-
-                            // Close the auth window
-                            if let Some(auth_win) = handle.get_webview_window("auth") {
-                                let _ = auth_win.close();
-                            }
-                            return false; // Prevent navigation to callback URL
-                        }
-                    }
-                }
-
-                // Allow all other navigation
-                true
-            })
-            .build()
-            .map_err(|e| e.to_string())?;
-
-    Ok(())
+    // Open in system browser — deep link callback handles the response
+    let auth_url = format!("{}?source=desktop", DESKTOP_AUTH_URL);
+    app_handle
+        .shell()
+        .open(&auth_url, None)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

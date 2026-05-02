@@ -120,8 +120,6 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({ session, isLoading: false });
-          // Close the auth window after successful login
-          await invoke('close_auth_window');
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : String(error),

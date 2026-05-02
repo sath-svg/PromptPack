@@ -13,9 +13,24 @@ const applyTheme = (theme: 'light' | 'dark' | 'system') => {
   }
 };
 
+export interface ApiKeys {
+  anthropic?: string;
+  openai?: string;
+  gemini?: string;
+  grok?: string;
+  deepseek?: string;
+  perplexity?: string;
+  kimi?: string;
+  groq?: string;
+  openrouter?: string;
+}
+
 interface SettingsState extends AppSettings {
   session: UserSession | null;
   hasCompletedOnboarding: boolean;
+  apiKeys: ApiKeys;
+  billingTier: 'free' | 'pro' | 'studio';
+  serverChatCount: number;
 
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -23,6 +38,9 @@ interface SettingsState extends AppSettings {
   setStorageLocation: (path: string) => void;
   setSyncEnabled: (enabled: boolean) => void;
   setSession: (session: UserSession | null) => void;
+  setApiKey: (provider: keyof ApiKeys, key: string) => void;
+  setBillingTier: (tier: 'free' | 'pro' | 'studio') => void;
+  incrementServerChatCount: () => void;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
@@ -38,6 +56,9 @@ export const useSettingsStore = create<SettingsState>()(
       syncEnabled: false,
       session: null,
       hasCompletedOnboarding: false,
+      apiKeys: {},
+      billingTier: 'free',
+      serverChatCount: 0,
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -46,8 +67,12 @@ export const useSettingsStore = create<SettingsState>()(
       setGlobalHotkey: (hotkey) => set({ globalHotkey: hotkey }),
       setStorageLocation: (path) => set({ storageLocation: path }),
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
+      setApiKey: (provider, key) =>
+        set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key || undefined } })),
       setSession: (session) => set({ session }),
-      logout: () => set({ session: null, syncEnabled: false }),
+      setBillingTier: (tier) => set({ billingTier: tier }),
+      incrementServerChatCount: () => set((s) => ({ serverChatCount: s.serverChatCount + 1 })),
+      logout: () => set({ session: null, syncEnabled: false, billingTier: 'free', serverChatCount: 0 }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       initTheme: () => {
         const { theme } = get();

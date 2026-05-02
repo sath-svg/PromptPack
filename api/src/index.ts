@@ -2588,6 +2588,231 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }));
       }
 
+      // POST /api/similar-styles — find presets similar to a given style via Groq
+      if (path === "/api/similar-styles" && method === "POST") {
+        try {
+          const body = await request.json() as { presetId?: string; presetName?: string; presetCategory?: string };
+          const { presetId, presetName, presetCategory } = body;
+          if (!presetId || !presetName) {
+            return addCors(new Response(JSON.stringify({ error: "presetId and presetName required" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rate limit: 30 req/min per IP
+          const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+          const rlKey = `similar-styles:${clientIp}`;
+          const rlCacheReq = new Request(`https://rate.pmtpk.com/similar-styles/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const rlCache = caches.default;
+          const rlHit = await rlCache.match(rlCacheReq);
+          if (rlHit) {
+            const count = parseInt(await rlHit.text(), 10);
+            if (count >= 30) {
+              return addCors(new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+                status: 429, headers: { "Content-Type": "application/json" },
+              }));
+            }
+            await rlCache.put(rlCacheReq, new Response(String(count + 1), {
+              headers: { "Cache-Control": "max-age=60" },
+            }));
+          } else {
+            await rlCache.put(rlCacheReq, new Response("1", {
+              headers: { "Cache-Control": "max-age=60" },
+            }));
+          }
+
+          // Check cache first (30-day TTL)
+          const cacheKey = `similar:${presetId}`;
+          const cacheReq = new Request(`https://cache.pmtpk.com/similar-styles/${encodeURIComponent(presetId)}`, { method: "GET" });
+          const cached = await rlCache.match(cacheReq);
+          if (cached) {
+            return addCors(new Response(cached.body, {
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // All preset names for Groq to pick from
+          const PRESET_LIST = [
+            "south-park:South Park:cartoon", "simpsons:Simpsons:cartoon", "family-guy:Family Guy:cartoon",
+            "rick-and-morty:Rick & Morty:cartoon", "adventure-time:Adventure Time:cartoon",
+            "anime-chibi:Anime Chibi:cartoon", "disney-classic:Disney Classic:cartoon",
+            "looney-tunes:Looney Tunes:cartoon", "studio-ghibli:Studio Ghibli:anime",
+            "shonen-action:Shonen Action:anime", "seinen-dark:Seinen Dark:anime",
+            "magical-girl:Magical Girl:anime", "mecha:Mecha:anime", "slice-of-life:Slice of Life:anime",
+            "cyberpunk-neon:Cyberpunk Neon:digital", "pixel-art-retro:Pixel Art Retro:digital",
+            "vaporwave:Vaporwave:digital", "isometric-3d:Isometric 3D:digital",
+            "low-poly:Low Poly:digital", "glitch-art:Glitch Art:digital",
+            "oil-renaissance:Oil Renaissance:painting", "impressionist:Impressionist:painting",
+            "art-nouveau:Art Nouveau:painting", "surrealist:Surrealist:painting",
+            "baroque:Baroque:painting", "expressionist:Expressionist:painting",
+            "pop-art-comic:Pop Art Comic:illustration", "watercolor-botanical:Watercolor Botanical:illustration",
+            "art-deco:Art Deco:illustration", "storybook:Storybook:illustration",
+            "graphic-novel:Graphic Novel:illustration", "scientific:Scientific:illustration",
+            "vintage-film-grain:Vintage Film Grain:photography", "cinematic-widescreen:Cinematic Widescreen:photography",
+            "polaroid-instant:Polaroid Instant:photography", "double-exposure:Double Exposure:photography",
+            "dark-fantasy:Dark Fantasy:atmospheric", "gothic-horror:Gothic Horror:atmospheric",
+            "lovecraftian:Lovecraftian:atmospheric", "steampunk:Steampunk:atmospheric",
+          ];
+
+          const otherPresets = PRESET_LIST.filter(p => !p.startsWith(presetId + ":"));
+          const presetListStr = otherPresets.map(p => {
+            const [id, name, cat] = p.split(":");
+            return `${id} (${name}, ${cat})`;
+          }).join("\n");
+
+          const groqApiKey = getGroqApiKey(env);
+          if (!groqApiKey) {
+            return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
+              status: 500, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${groqApiKey}`,
+            },
+            body: JSON.stringify({
+              model: "llama-3.3-70b-versatile",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are a visual art style similarity expert. Given an art style, pick the 4 most visually similar styles from the provided list. Consider visual aesthetics, rendering technique, color palette, and overall mood. Return ONLY a JSON array of exactly 4 style IDs, nothing else. Example: [\"id1\",\"id2\",\"id3\",\"id4\"]",
+                },
+                {
+                  role: "user",
+                  content: `Art style: ${presetName} (category: ${presetCategory || "general"})\n\nAvailable styles:\n${presetListStr}\n\nReturn the 4 most visually similar style IDs as a JSON array:`,
+                },
+              ],
+              temperature: 0.1,
+              max_tokens: 200,
+            }),
+          });
+
+          if (!groqRes.ok) {
+            return addCors(new Response(JSON.stringify({ error: "Groq API error" }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const groqData = await groqRes.json() as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const content = groqData.choices?.[0]?.message?.content?.trim() || "[]";
+
+          // Parse the JSON array from Groq response
+          let similar: string[] = [];
+          try {
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (Array.isArray(parsed)) {
+                const validIds = PRESET_LIST.map(p => p.split(":")[0]);
+                similar = parsed
+                  .filter((id: unknown): id is string => typeof id === "string" && validIds.includes(id) && id !== presetId)
+                  .slice(0, 4);
+              }
+            }
+          } catch {
+            // If parsing fails, return empty
+          }
+
+          const responseBody = JSON.stringify({ similar });
+
+          // Cache for 30 days
+          await rlCache.put(cacheReq, new Response(responseBody, {
+            headers: {
+              "Content-Type": "application/json",
+              "Cache-Control": "max-age=2592000",
+            },
+          }));
+
+          return addCors(new Response(responseBody, {
+            headers: { "Content-Type": "application/json" },
+          }));
+
+        } catch (error) {
+          console.error("similar-styles error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // POST /chat — PromptPack-hosted AI (Groq Llama 3.1 8B, free tier)
+      // Body: { messages: [{role, content}][] }
+      if (path === "/chat" && method === "POST") {
+        try {
+          const groqKey = getGroqApiKey(env);
+          if (!groqKey) {
+            return addCors(new Response(JSON.stringify({ error: "Service not configured" }), {
+              status: 503, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as {
+            messages?: { role: string; content: string }[];
+          } | null;
+
+          if (!body?.messages?.length) {
+            return addCors(new Response(JSON.stringify({ error: "messages required" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rate limit: 20 req/min per IP
+          const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+          const rlReq = new Request(`https://rate.pmtpk.com/chat/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const cache = caches.default;
+          const rlHit = await cache.match(rlReq);
+          if (rlHit) {
+            const count = parseInt(await rlHit.text(), 10);
+            if (count >= 20) {
+              return addCors(new Response(JSON.stringify({ error: "Rate limit exceeded. Max 20 requests/minute." }), {
+                status: 429, headers: { "Content-Type": "application/json" },
+              }));
+            }
+            await cache.put(rlReq, new Response(String(count + 1), { headers: { "Cache-Control": "max-age=60" } }));
+          } else {
+            await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
+          }
+
+          const model = "llama-3.1-8b-instant";
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
+          });
+
+          if (!groqRes.ok) {
+            const errText = await groqRes.text().catch(() => "");
+            console.error("Groq chat error:", groqRes.status, errText);
+            return addCors(new Response(JSON.stringify({ error: `Model error: ${groqRes.status}` }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const data = await groqRes.json() as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const content = data?.choices?.[0]?.message?.content ?? "";
+
+          return addCors(new Response(JSON.stringify({ content, model }), {
+            headers: { "Content-Type": "application/json" },
+          }));
+
+        } catch (error) {
+          console.error("chat error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
       // 404 for unknown routes
       return addCors(new Response(JSON.stringify({ error: "Not found" }), {
         status: 404,
