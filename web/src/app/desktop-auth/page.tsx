@@ -36,6 +36,11 @@ export default function DesktopAuthPage() {
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("source") === "desktop";
 
+  const getAppName = () => {
+    if (typeof window === "undefined") return "promptpack";
+    return new URLSearchParams(window.location.search).get("app") || "promptpack";
+  };
+
   const handleContinue = async () => {
     if (!user || hasRedirected.current) return;
 
@@ -66,7 +71,8 @@ export default function DesktopAuthPage() {
           image_url: image,
           user_id: user.id,
         });
-        window.location.href = `promptpack://auth?${params.toString()}`;
+        const appName = getAppName();
+        window.location.href = `${appName}://auth?${params.toString()}`;
         // Browser stays on this page after deep link fires — show success state
         setTimeout(() => {
           setProcessing(false);
@@ -97,7 +103,11 @@ export default function DesktopAuthPage() {
     setLaunched(false);
     try {
       // Sign out but stay on this page
-      await signOut({ redirectUrl: isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth" });
+      const appName = getAppName();
+      const redirectUrl = isDesktopSource
+        ? `/desktop-auth?source=desktop&app=${encodeURIComponent(appName)}`
+        : "/desktop-auth";
+      await signOut({ redirectUrl });
       // After sign out, reset processing so the SignIn form shows
       setProcessing(false);
     } catch (err) {
@@ -227,8 +237,8 @@ export default function DesktopAuthPage() {
         </p>
         <SignIn
           routing="hash"
-          forceRedirectUrl={isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth"}
-          signUpForceRedirectUrl={isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth"}
+          forceRedirectUrl={isDesktopSource ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}` : "/desktop-auth"}
+          signUpForceRedirectUrl={isDesktopSource ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}` : "/desktop-auth"}
         />
       </div>
     );
