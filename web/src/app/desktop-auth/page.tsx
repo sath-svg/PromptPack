@@ -92,9 +92,12 @@ export default function DesktopAuthPage() {
   const handleSwitchAccount = async () => {
     setProcessing(true);
     setSwitchingAccount(true);
+    // Reset redirect guards so the new account can trigger the deep link
+    hasRedirected.current = false;
+    setLaunched(false);
     try {
       // Sign out but stay on this page
-      await signOut({ redirectUrl: "/desktop-auth" });
+      await signOut({ redirectUrl: isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth" });
       // After sign out, reset processing so the SignIn form shows
       setProcessing(false);
     } catch (err) {
@@ -224,8 +227,8 @@ export default function DesktopAuthPage() {
         </p>
         <SignIn
           routing="hash"
-          forceRedirectUrl="/desktop-auth"
-          signUpForceRedirectUrl="/desktop-auth"
+          forceRedirectUrl={isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth"}
+          signUpForceRedirectUrl={isDesktopSource ? "/desktop-auth?source=desktop" : "/desktop-auth"}
         />
       </div>
     );

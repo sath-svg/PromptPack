@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { CONVEX_URL } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 import { useSyncStore } from './syncStore';
+import { useSettingsStore } from './settingsStore';
 
 // Helper to fetch user's billing tier from the backend
 async function fetchUserTier(clerkId: string): Promise<string> {
@@ -89,14 +90,20 @@ export const useAuthStore = create<AuthState>()(
           // Create session directly from callback data
           const userId = data.user_id || '';
 
-          // Clear sync store cache if user changed (prevents showing old user's packs)
+          // Clear sync store cache + reset chat count if user changed
           const currentSession = get().session;
-          if (currentSession?.user_id && currentSession.user_id !== userId) {
+          const userChanged = currentSession?.user_id && currentSession.user_id !== userId;
+          if (userChanged) {
             useSyncStore.getState().clearCache();
+            // Reset chat count for new user (their own free quota)
+            useSettingsStore.setState({ serverChatCount: 0 });
           }
 
           // Fetch user's tier from the backend
           const tier = userId ? await fetchUserTier(userId) : 'free';
+
+          // Sync billingTier into settingsStore (chatStore reads from there)
+          useSettingsStore.getState().setBillingTier(tier as 'free' | 'pro' | 'studio');
 
           const session: AuthSession = {
             user_id: userId,
@@ -174,6 +181,8 @@ export const useAuthStore = create<AuthState>()(
           if (tier !== session.tier) {
             set({ session: { ...session, tier } });
           }
+          // Always sync into settingsStore (chatStore reads from there)
+          useSettingsStore.getState().setBillingTier(tier as 'free' | 'pro' | 'studio');
         } catch (error) {
           console.error('Failed to refresh tier:', error);
         }
