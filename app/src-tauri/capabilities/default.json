@@ -17,6 +17,10 @@
     "dialog:allow-open",
     "fs:default",
     "fs:allow-home-write-recursive",
-    "fs:allow-home-meta-recursive"
+    "fs:allow-home-meta-recursive",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [{ "url": "https://**" }]
+    }
   ]
 }

@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
 
 function extractVariables(text: string): string[] {
@@ -22,6 +23,8 @@ export function PromptChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session } = useAuthStore();
+  const { billingTier, serverChatCount } = useSettingsStore();
+  const isLimitReached = billingTier === 'free' && serverChatCount >= 3;
 
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
@@ -262,7 +265,7 @@ export function PromptChatPage() {
             </div>
           )}
 
-          {error === '__CHAT_LIMIT_REACHED__' ? (
+          {error === '__CHAT_LIMIT_REACHED__' || isLimitReached ? (
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
               <p className="text-sm font-semibold text-[var(--foreground)]">Enjoying PromptPack AI Chat? 🎉</p>
               <p className="text-sm text-[var(--muted-foreground)]">
