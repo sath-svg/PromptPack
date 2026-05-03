@@ -56,6 +56,45 @@ function makeId() {
   return Math.random().toString(36).slice(2);
 }
 
+// Cache loaded Ollama models for the session. /api/tags is cheap but
+// hitting it on every message is still wasteful. Refresh on first send
+// after a 60s TTL so newly-pulled models surface.
+let ollamaCache: { at: number; models: string[] } | null = null;
+
+async function fetchOllamaModels(): Promise<string[]> {
+  if (ollamaCache && Date.now() - ollamaCache.at < 60_000) return ollamaCache.models;
+  try {
+    const res = await tauriFetch('http://localhost:11434/api/tags', { method: 'GET' });
+    if (!res.ok) return ollamaCache?.models ?? [];
+    const data = await res.json();
+    const models = Array.isArray(data?.models)
+      ? data.models.map((m: { name: string }) => m.name).filter(Boolean)
+      : [];
+    ollamaCache = { at: Date.now(), models };
+    return models;
+  } catch {
+    return ollamaCache?.models ?? [];
+  }
+}
+
+/// If preset targets Ollama but its modelId isn't loaded, swap to the
+/// closest available local model. Falls back to first loaded model so
+/// the user gets *something* usable instead of "model not found".
+function reconcileOllamaPreset(preset: ModelPreset, loaded: string[]): ModelPreset | null {
+  if (preset.provider !== 'ollama') return preset;
+  if (loaded.length === 0) return null;
+  if (loaded.includes(preset.modelId)) return preset;
+
+  // Try a lenient match — same family, ignore tag (gemma3:4b vs gemma3:7b)
+  const wantedBase = preset.modelId.split(':')[0];
+  const sibling = loaded.find((m) => m.split(':')[0] === wantedBase);
+  if (sibling) return { ...preset, modelId: sibling, label: `${sibling} (local)` };
+
+  // Fall back to first loaded model — user clearly has something running
+  const first = loaded[0];
+  return { ...preset, modelId: first, label: `${first} (local)` };
+}
+
 function getAvailableProviders(apiKeys: Record<string, string | undefined>): Set<Provider> {
   const providers = new Set<Provider>();
   providers.add('server');
@@ -551,13 +590,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // Agent path: use tool-capable provider, ignore packs/system overrides
     if (agentMode && workspace) {
-      const preset = pickToolCapableModel(tier, available);
+      let preset = pickToolCapableModel(tier, available);
       if (!preset) {
         set({
           error:
             'Agent mode needs a tool-capable provider. Add an Anthropic, OpenAI, Groq, DeepSeek, or OpenRouter key in Settings.',
         });
         return;
+      }
+      if (preset.provider === 'ollama') {
+        const loaded = await fetchOllamaModels();
+        const reconciled = reconcileOllamaPreset(preset, loaded);
+        if (!reconciled) {
+          set({
+            error:
+              'No Ollama models loaded. Pull one first, e.g. `ollama pull llama3.1:8b`.',
+          });
+          return;
+        }
+        preset = reconciled;
       }
       const userMsg: ChatMessage = {
         id: makeId(),
@@ -635,10 +686,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     // Plain chat path (existing behavior)
-    const preset = pickModel(tier, available);
+    let preset = pickModel(tier, available);
     if (!preset) {
       set({ error: 'Could not find a model to handle this request.' });
       return;
+    }
+    if (preset.provider === 'ollama') {
+      const loaded = await fetchOllamaModels();
+      const reconciled = reconcileOllamaPreset(preset, loaded);
+      if (!reconciled) {
+        set({
+          error:
+            'No Ollama models loaded. Pull one first, e.g. `ollama pull llama3.1:8b`.',
+        });
+        return;
+      }
+      preset = reconciled;
     }
     const FREE_CHAT_LIMIT = 3;
     if (preset.provider === 'server' && billingTier === 'free' && serverChatCount >= FREE_CHAT_LIMIT) {
