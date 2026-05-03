@@ -31,6 +31,10 @@ interface SettingsState extends AppSettings {
   apiKeys: ApiKeys;
   billingTier: 'free' | 'pro' | 'studio';
   serverChatCount: number;
+  // Daily usage of the inbuilt server (Groq) — resets at local midnight.
+  // Free tier is also tracked here even though its cap is small/lifetime-ish.
+  serverDailyCount: number;
+  serverDailyDate: string; // YYYY-MM-DD
 
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -41,10 +45,30 @@ interface SettingsState extends AppSettings {
   setApiKey: (provider: keyof ApiKeys, key: string) => void;
   setBillingTier: (tier: 'free' | 'pro' | 'studio') => void;
   incrementServerChatCount: () => void;
+  /// Increment the daily inbuilt-server counter. Resets when the local
+  /// date rolls over. Returns the post-increment count for cap checks.
+  incrementServerDailyCount: () => number;
+  /// Returns the up-to-date daily count, applying a date-rollover reset
+  /// without bumping the counter. Use before sending to gate the request.
+  getServerDailyCount: () => number;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
 }
+
+function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export const SERVER_DAILY_CAPS: Record<'free' | 'pro' | 'studio', number> = {
+  free: 3,
+  pro: 200,
+  studio: 400,
+};
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -59,6 +83,8 @@ export const useSettingsStore = create<SettingsState>()(
       apiKeys: {},
       billingTier: 'free',
       serverChatCount: 0,
+      serverDailyCount: 0,
+      serverDailyDate: todayLocal(),
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -72,7 +98,37 @@ export const useSettingsStore = create<SettingsState>()(
       setSession: (session) => set({ session }),
       setBillingTier: (tier) => set({ billingTier: tier }),
       incrementServerChatCount: () => set((s) => ({ serverChatCount: s.serverChatCount + 1 })),
-      logout: () => set({ session: null, syncEnabled: false, billingTier: 'free', serverChatCount: 0 }),
+      incrementServerDailyCount: () => {
+        const today = todayLocal();
+        let post = 0;
+        set((s) => {
+          if (s.serverDailyDate !== today) {
+            post = 1;
+            return { serverDailyDate: today, serverDailyCount: 1 };
+          }
+          post = s.serverDailyCount + 1;
+          return { serverDailyCount: post };
+        });
+        return post;
+      },
+      getServerDailyCount: () => {
+        const today = todayLocal();
+        const s = get();
+        if (s.serverDailyDate !== today) {
+          set({ serverDailyDate: today, serverDailyCount: 0 });
+          return 0;
+        }
+        return s.serverDailyCount;
+      },
+      logout: () =>
+        set({
+          session: null,
+          syncEnabled: false,
+          billingTier: 'free',
+          serverChatCount: 0,
+          serverDailyCount: 0,
+          serverDailyDate: todayLocal(),
+        }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       initTheme: () => {
         const { theme } = get();

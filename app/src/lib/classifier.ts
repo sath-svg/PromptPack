@@ -1,7 +1,7 @@
 export type ModelTier = 'fast' | 'balanced' | 'powerful';
 
 export type Provider =
-  | 'server'      // PromptPack-hosted Gemma 4 (free, no key needed)
+  | 'server'      // Skillset-hosted Groq proxy — built-in key, free-tier capped at 3 messages
   | 'anthropic'   // Claude
   | 'openai'      // ChatGPT
   | 'gemini'      // Google Gemini
@@ -80,15 +80,25 @@ export function classifyTier(prompt: string): ModelTier {
   return 'balanced';
 }
 
-/** Return the cheapest preset for a tier given which providers have keys configured. */
+const LOCAL_PROVIDERS: ReadonlySet<Provider> = new Set(['ollama', 'server']);
+
+/** Return the cheapest preset for a tier. Cloud providers the user has
+ *  explicitly configured (BYOK) are preferred over local Ollama / hosted
+ *  server fallback so a $0.05/1M cloud call beats a free-but-flaky local
+ *  one when the user has paid for the key. */
 export function pickModel(
   tier: ModelTier,
   availableProviders: Set<Provider>
 ): ModelPreset | null {
+  const byCost = (a: ModelPreset, b: ModelPreset) => a.costPer1M - b.costPer1M;
+  const cloud = MODEL_PRESETS
+    .filter((m) => m.tier === tier && availableProviders.has(m.provider) && !LOCAL_PROVIDERS.has(m.provider))
+    .sort(byCost)[0];
+  if (cloud) return cloud;
   return (
     MODEL_PRESETS
       .filter((m) => m.tier === tier && availableProviders.has(m.provider))
-      .sort((a, b) => a.costPer1M - b.costPer1M)[0] ?? null
+      .sort(byCost)[0] ?? null
   );
 }
 

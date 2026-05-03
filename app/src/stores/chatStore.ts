@@ -8,7 +8,7 @@ import {
   type ModelPreset,
   type Provider,
 } from '../lib/classifier';
-import { useSettingsStore } from './settingsStore';
+import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../lib/agentTools';
 
@@ -98,7 +98,8 @@ function reconcileOllamaPreset(preset: ModelPreset, loaded: string[]): ModelPres
 function getAvailableProviders(apiKeys: Record<string, string | undefined>): Set<Provider> {
   const providers = new Set<Provider>();
   providers.add('server');
-  providers.add('ollama');
+  // ollama is added later only after a reachability probe — installed but
+  // not running is the common case and we don't want to pick it blindly
   if (apiKeys.anthropic) providers.add('anthropic');
   if (apiKeys.openai) providers.add('openai');
   if (apiKeys.gemini) providers.add('gemini');
@@ -111,6 +112,34 @@ function getAvailableProviders(apiKeys: Record<string, string | undefined>): Set
   return providers;
 }
 
+/// Fresh reachability probe — uncached. Picker uses this each send so a
+/// stopped Ollama server is dropped from the available set immediately.
+async function probeOllama(): Promise<boolean> {
+  try {
+    const res = await tauriFetch('http://localhost:11434/api/tags', { method: 'GET' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const models = Array.isArray(data?.models) ? data.models : [];
+    if (models.length === 0) return false;
+    // Refresh the model-list cache while we're here
+    ollamaCache = {
+      at: Date.now(),
+      models: models.map((m: { name: string }) => m.name).filter(Boolean),
+    };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getAvailableProvidersAsync(
+  apiKeys: Record<string, string | undefined>,
+): Promise<Set<Provider>> {
+  const sync = getAvailableProviders(apiKeys);
+  if (await probeOllama()) sync.add('ollama');
+  return sync;
+}
+
 const TOOL_CAPABLE: Set<Provider> = new Set([
   'anthropic',
   'openai',
@@ -120,15 +149,70 @@ const TOOL_CAPABLE: Set<Provider> = new Set([
   'openrouter',
   'ollama',
   'gemini',
+  'server',  // Skillset-hosted Groq proxy supports tools via openai-compat
 ]);
+
+// Inbuilt server is pinned to fast/balanced (8B Llama via Groq). Powerful
+// tier requires a BYOK cloud key — runaway agent costs at 70B+ would blow
+// the $9 plan's compute budget (see margin math).
+const SERVER_BANNED_TIERS: Set<ReturnType<typeof classifyTier>> = new Set(['powerful']);
+
+// Server-tier users (free/pro) are forced down to fast model regardless of
+// classifier output. Studio users on server still get classifier choice
+// among allowed tiers.
+const SERVER_FORCE_FAST_TIERS: Set<'free' | 'pro' | 'studio'> = new Set(['free', 'pro']);
+
+// Cap conversation history sent upstream so a long thread doesn't
+// snowball server costs. Tail of the most recent 14 turns is enough
+// context for chat-style coding tasks.
+const HISTORY_MAX_MESSAGES = 14;
+
+// Server-side openai-compat endpoint for inbuilt Groq agent flow. Plain
+// chat keeps the legacy /chat shape via callServer().
+const SERVER_OPENAI_COMPAT_BASE = 'https://api.pmtpk.com/v1';
+
+// Local providers we treat as last-resort. If user configured a cloud key
+// (BYOK), they explicitly opted in to that provider — using a free local
+// model instead would feel broken even when it's "cheaper".
+const LOCAL_PROVIDERS: Set<Provider> = new Set(['ollama', 'server']);
+
+function byokSet(available: Set<Provider>): Set<Provider> {
+  const byok = new Set<Provider>();
+  for (const p of available) if (!LOCAL_PROVIDERS.has(p)) byok.add(p);
+  return byok;
+}
 
 function pickToolCapableModel(
   tier: ReturnType<typeof classifyTier>,
   available: Set<Provider>,
+  billingTier: 'free' | 'pro' | 'studio',
 ): ModelPreset | null {
+  const byok = byokSet(available);
+  // Prefer cheapest BYOK provider in this tier — they paid for it
+  const cloud = MODEL_PRESETS.filter(
+    (m) => m.tier === tier && byok.has(m.provider) && TOOL_CAPABLE.has(m.provider),
+  ).sort((a, b) => a.costPer1M - b.costPer1M)[0];
+  if (cloud) return cloud;
+  // Fall back to anything tool-capable, but ban server on powerful tier
+  // and force server users below studio down to fast tier.
+  let effectiveTier = tier;
+  if (SERVER_BANNED_TIERS.has(tier)) {
+    // Powerful + only server available → no good option, return null so
+    // the caller can show "BYOK required for powerful tier" or fall back
+    return (
+      MODEL_PRESETS.filter(
+        (m) =>
+          m.tier === tier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider) && m.provider !== 'server',
+      ).sort((a, b) => a.costPer1M - b.costPer1M)[0] ?? null
+    );
+  }
+  if (SERVER_FORCE_FAST_TIERS.has(billingTier)) {
+    effectiveTier = 'fast';
+  }
   return (
     MODEL_PRESETS.filter(
-      (m) => m.tier === tier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider),
+      (m) =>
+        m.tier === effectiveTier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider),
     ).sort((a, b) => a.costPer1M - b.costPer1M)[0] ?? null
   );
 }
@@ -344,6 +428,7 @@ async function runAnthropicAgent(
   userText: string,
   pushAssistant: (msg: ChatMessage) => void,
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
+  onBeforeRound?: () => void,
 ): Promise<void> {
   const apiMessages: AnthropicMessage[] = [];
 
@@ -390,6 +475,7 @@ async function runAnthropicAgent(
   });
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    onBeforeRound?.();
     const turn = await anthropicAgentTurn(apiKey, modelId, apiMessages, AGENT_SYSTEM_PROMPT);
     const apiContent: AnthropicContentBlock[] = [];
 
@@ -457,6 +543,7 @@ async function runOpenAIAgent(
   extraHeaders: Record<string, string>,
   pushAssistant: (msg: ChatMessage) => void,
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
+  onBeforeRound?: () => void,
 ): Promise<void> {
   const apiMessages: OpenAIMessage[] = [
     { role: 'system', content: AGENT_SYSTEM_PROMPT },
@@ -504,6 +591,7 @@ async function runOpenAIAgent(
   });
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    onBeforeRound?.();
     const reply = await openaiAgentTurn(baseUrl, apiKey, modelId, apiMessages, extraHeaders);
     if (reply.content) {
       assistantBlocks.push({ kind: 'text', text: reply.content });
@@ -578,9 +666,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setAgentMode: (on) => set({ agentMode: on }),
 
   sendMessage: async (text, packName, systemPrompt) => {
-    const { apiKeys, billingTier, serverChatCount, incrementServerChatCount } =
-      useSettingsStore.getState();
-    const available = getAvailableProviders(
+    const settings = useSettingsStore.getState();
+    const { apiKeys, billingTier } = settings;
+    const incrementServerChatCount = settings.incrementServerChatCount;
+    const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
     const tier = classifyTier(text);
@@ -589,27 +678,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const workspace = useAgentStore.getState().workspace;
 
     // Agent path: use tool-capable provider, ignore packs/system overrides
+    let agentPresetReady: ModelPreset | null = null;
     if (agentMode && workspace) {
-      let preset = pickToolCapableModel(tier, available);
-      if (!preset) {
+      let preset = pickToolCapableModel(tier, available, billingTier);
+      if (preset?.provider === 'ollama') {
+        const loaded = await fetchOllamaModels();
+        const reconciled = reconcileOllamaPreset(preset, loaded);
+        preset = reconciled; // null if Ollama unusable — fall through to plain
+      }
+      // If a powerful-tier prompt resolved to nothing tool-capable, surface
+      // a clear hint instead of silent fallback so the user knows BYOK is
+      // required for those queries.
+      if (!preset && SERVER_BANNED_TIERS.has(tier)) {
         set({
           error:
-            'Agent mode needs a tool-capable provider. Add an Anthropic, OpenAI, Groq, DeepSeek, or OpenRouter key in Settings.',
+            "Powerful-tier requests need a BYOK key (Anthropic / OpenAI / Groq / DeepSeek / OpenRouter). Inbuilt model is fast/balanced only.",
         });
         return;
       }
-      if (preset.provider === 'ollama') {
-        const loaded = await fetchOllamaModels();
-        const reconciled = reconcileOllamaPreset(preset, loaded);
-        if (!reconciled) {
+      // Pre-flight daily cap when picker chose the inbuilt server
+      if (preset?.provider === 'server') {
+        const used = settings.getServerDailyCount();
+        const cap = SERVER_DAILY_CAPS[billingTier];
+        if (used >= cap) {
           set({
-            error:
-              'No Ollama models loaded. Pull one first, e.g. `ollama pull llama3.1:8b`.',
+            error: `Daily limit reached (${used}/${cap}). Resets at midnight, or add a BYOK key for unlimited use.`,
           });
           return;
         }
-        preset = reconciled;
       }
+      agentPresetReady = preset;
+      // Null preset → no tool-capable provider works right now. Silent
+      // fall-through to plain-chat below; the assistant's model tag tells
+      // the user what was used. Tools simply aren't invoked this turn.
+    }
+    if (agentMode && workspace && agentPresetReady) {
+      const preset = agentPresetReady;
       const userMsg: ChatMessage = {
         id: makeId(),
         role: 'user',
@@ -622,7 +726,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         error: null,
       }));
 
-      const history = get().messages.slice(0, -1); // exclude just-added user msg
+      // Truncate history to the most recent N turns so server costs stay
+      // bounded on long sessions. User context further back is dropped.
+      const fullHistory = get().messages.slice(0, -1); // exclude just-added user msg
+      const history = fullHistory.slice(-HISTORY_MAX_MESSAGES);
       const pushAssistant = (msg: ChatMessage) =>
         set((state) => ({ messages: [...state.messages, msg] }));
       const patchAssistant = (id: string, blocks: MessageBlock[]) =>
@@ -631,6 +738,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
             m.id === id ? { ...m, blocks: [...blocks] } : m,
           ),
         }));
+
+      // Server provider: count each LLM round (initial + each tool round)
+      // against the daily cap. Throws to abort the loop when exceeded.
+      const onBeforeRound = preset.provider === 'server'
+        ? () => {
+            const cap = SERVER_DAILY_CAPS[billingTier];
+            const post = useSettingsStore.getState().incrementServerDailyCount();
+            if (post > cap) {
+              throw new Error(
+                `Daily limit reached (${post - 1}/${cap}). Resets at midnight, or add a BYOK key.`,
+              );
+            }
+          }
+        : undefined;
 
       try {
         if (preset.provider === 'anthropic') {
@@ -642,12 +763,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
             text,
             pushAssistant,
             patchAssistant,
+            onBeforeRound,
           );
         } else {
-          const baseUrl = PROVIDER_BASE_URLS[preset.provider];
+          const baseUrl =
+            preset.provider === 'server'
+              ? SERVER_OPENAI_COMPAT_BASE
+              : PROVIDER_BASE_URLS[preset.provider];
           const keyMap = (apiKeys ?? {}) as Record<string, string | undefined>;
           const apiKey =
-            preset.provider === 'ollama' ? 'ollama' : keyMap[preset.provider] ?? '';
+            preset.provider === 'ollama'
+              ? 'ollama'
+              : preset.provider === 'server'
+                ? '' // backend proxy holds the inbuilt Groq key
+                : keyMap[preset.provider] ?? '';
           const extra: Record<string, string> = {};
           if (preset.provider === 'openrouter') {
             extra['http-referer'] = 'https://pmtpk.com';
@@ -663,6 +792,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             extra,
             pushAssistant,
             patchAssistant,
+            onBeforeRound,
           );
         }
         // Record preset on the last assistant message
@@ -703,10 +833,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       preset = reconciled;
     }
-    const FREE_CHAT_LIMIT = 3;
-    if (preset.provider === 'server' && billingTier === 'free' && serverChatCount >= FREE_CHAT_LIMIT) {
-      set({ error: '__CHAT_LIMIT_REACHED__' });
-      return;
+    // Server tier-based daily cap (free=3, pro=200, studio=400)
+    if (preset.provider === 'server') {
+      const used = settings.getServerDailyCount();
+      const cap = SERVER_DAILY_CAPS[billingTier];
+      if (used >= cap) {
+        set({
+          error:
+            billingTier === 'free'
+              ? '__CHAT_LIMIT_REACHED__'
+              : `Daily limit reached (${used}/${cap}). Resets at midnight, or add a BYOK key.`,
+        });
+        return;
+      }
     }
     const userMsg: ChatMessage = {
       id: makeId(),
@@ -716,7 +855,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       createdAt: Date.now(),
     };
     set((state) => ({ messages: [...state.messages, userMsg], isLoading: true, error: null }));
-    const history = get().messages.map((m) => ({ role: m.role, content: m.content }));
+    const fullHistory = get().messages.map((m) => ({ role: m.role, content: m.content }));
+    const history = fullHistory.slice(-HISTORY_MAX_MESSAGES);
     try {
       const content = await callPlainPreset(
         preset,
@@ -724,7 +864,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         history,
         systemPrompt,
       );
-      if (preset.provider === 'server') incrementServerChatCount();
+      if (preset.provider === 'server') {
+        incrementServerChatCount();
+        useSettingsStore.getState().incrementServerDailyCount();
+      }
       set((state) => ({
         messages: [
           ...state.messages,
