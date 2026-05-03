@@ -214,11 +214,11 @@ export function SettingsPage() {
 
               <div className="p-3 rounded-lg bg-[var(--muted)]">
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-[var(--muted-foreground)]">Prompt Limit</span>
+                  <span className="text-[var(--muted-foreground)]">Skill Limit</span>
                   <span className="text-[var(--foreground)]">{tierLimits.promptLimit}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-[var(--muted-foreground)]">Pack Limit</span>
+                  <span className="text-[var(--muted-foreground)]">Skillset Limit</span>
                   <span className="text-[var(--foreground)]">{tierLimits.packLimit}</span>
                 </div>
               </div>

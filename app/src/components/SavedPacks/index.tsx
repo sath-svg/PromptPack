@@ -692,7 +692,7 @@ export function SavedPacksPage() {
                   }`}
                 >
                   <Plus size={18} />
-                  {promptLimits.isAtLimit ? 'Prompt Limit Reached' : 'Add Prompt'}
+                  {promptLimits.isAtLimit ? 'Skill Limit Reached' : 'Add Skill'}
                 </button>
                 <p className="text-xs text-center text-[var(--muted-foreground)]">
                   {promptLimits.currentPromptCount} / {promptLimits.maxPrompts} prompts used ({promptLimits.tier} plan)
