@@ -397,7 +397,7 @@ export function PromptControlPage() {
 
       {userPacks.length === 0 ? (
         <div className="text-center py-12 text-[var(--muted-foreground)]">
-          <p>No custom packs yet. Create a PromptPack first to enable version control.</p>
+          <p>No custom packs yet. Create a pack first to enable version control.</p>
         </div>
       ) : (
         <div className="space-y-2">

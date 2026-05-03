@@ -300,7 +300,7 @@ export function SavedPacksPage() {
           Sign in to sync your prompts
         </h2>
         <p className="text-[var(--muted-foreground)] max-w-md">
-          Connect your PromptPack account to sync prompts saved from the browser extension
+          Connect your Skillset account to sync prompts saved from the browser extension
           across all your devices.
         </p>
       </div>

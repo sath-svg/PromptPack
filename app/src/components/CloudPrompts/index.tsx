@@ -313,7 +313,7 @@ export function CloudPromptsPage() {
       // Open native save dialog
       const filePath = await save({
         defaultPath: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'PromptPack', extensions: ['pmtpk'] }],
+        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
       });
 
       if (filePath) {
@@ -350,7 +350,7 @@ export function CloudPromptsPage() {
           Sign in to sync your prompts
         </h2>
         <p className="text-[var(--muted-foreground)] max-w-md">
-          Connect your PromptPack account to sync prompts saved from the browser extension
+          Connect your Skillset account to sync prompts saved from the browser extension
           across all your devices.
         </p>
       </div>

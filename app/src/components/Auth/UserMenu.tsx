@@ -33,9 +33,9 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
     return (
       <button
         onClick={onLoginClick}
-        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity text-sm"
+        className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] text-[13px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] hover:bg-[#1d4ed8] active:translate-y-[1px] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]"
       >
-        <CloudOff size={16} />
+        <CloudOff size={14} />
         <span>Sign In</span>
       </button>
     );

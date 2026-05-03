@@ -186,7 +186,7 @@ export function ImportPage() {
 
       // Check magic bytes (PPK\0 or PPK\1)
       if (data[0] !== 80 || data[1] !== 80 || data[2] !== 75) {
-        throw new Error('Invalid PromptPack file format');
+        throw new Error('Invalid Skillset pack file');
       }
 
       const version = data[3];
@@ -589,7 +589,7 @@ export function ImportPage() {
           <FileUp size={20} className="text-[var(--primary)]" />
           <div>
             <p className="font-medium text-[var(--foreground)]">.pmtpk</p>
-            <p className="text-xs text-[var(--muted-foreground)]">PromptPack format</p>
+            <p className="text-xs text-[var(--muted-foreground)]">Skillset pack format</p>
           </div>
         </div>
       </div>

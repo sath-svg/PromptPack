@@ -435,7 +435,7 @@ export function UserPacksPage() {
       // Open native save dialog
       const filePath = await save({
         defaultPath: `${selectedPack.title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'PromptPack', extensions: ['pmtpk'] }],
+        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
       });
 
       if (filePath) {
@@ -549,7 +549,7 @@ export function UserPacksPage() {
           Sign in to view your packs
         </h2>
         <p className="text-[var(--muted-foreground)] max-w-md">
-          Connect your PromptPack account to view and manage your prompt packs.
+          Connect your Skillset account to view and manage your prompt packs.
         </p>
       </div>
     );

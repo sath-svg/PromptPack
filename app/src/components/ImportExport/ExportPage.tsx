@@ -199,9 +199,9 @@ export function ExportPage() {
       // Encode to .pmtpk format (with or without encryption)
       let encoded: Uint8Array;
       if (password) {
-        encoded = await encryptPmtpk(cloudPrompts, 'PromptPack Export', password);
+        encoded = await encryptPmtpk(cloudPrompts, 'Skillset Export', password);
       } else {
-        encoded = await encodePmtpk(cloudPrompts, 'PromptPack Export');
+        encoded = await encodePmtpk(cloudPrompts, 'Skillset Export');
       }
 
       // Create blob and download (ensure regular ArrayBuffer for Blob compatibility)

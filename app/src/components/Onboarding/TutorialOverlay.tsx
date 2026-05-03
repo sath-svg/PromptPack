@@ -10,7 +10,7 @@ interface TutorialStep {
 const STEPS: TutorialStep[] = [
   {
     target: null,
-    title: 'Welcome to PromptPack Desktop!',
+    title: 'Welcome to Skillset Desktop',
     description: "Here's a quick tour of the key features to get you started.",
   },
   {

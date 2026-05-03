@@ -252,7 +252,7 @@ export function SettingsPage() {
           {/* PromptPack built-in — always on */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--primary)]/5 border border-[var(--primary)]/20 mb-4">
             <div>
-              <p className="text-sm font-medium text-[var(--foreground)]">PromptPack · Llama 3.1 8B</p>
+              <p className="text-sm font-medium text-[var(--foreground)]">Skillset · Llama 3.1 8B</p>
               <p className="text-xs text-[var(--muted-foreground)]">Hosted on our servers — always available, no key needed</p>
             </div>
             <span className="flex items-center gap-1 text-xs text-green-500 font-medium">

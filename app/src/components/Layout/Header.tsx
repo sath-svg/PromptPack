@@ -46,7 +46,7 @@ export function Header() {
 
   return (
     <>
-      <header className="h-12 border-b border-[var(--border)] bg-[var(--card)] flex items-center justify-between select-none">
+      <header className="h-12 border-b border-[var(--border)] bg-[var(--background)]/80 backdrop-blur-xl flex items-center justify-between select-none">
         {/* Left side - Drag region */}
         <div
           className="flex-1 h-full flex items-center px-4"
@@ -62,10 +62,10 @@ export function Header() {
               />
               <input
                 type="text"
-                placeholder="Search prompts... (Ctrl+K)"
+                placeholder="Search skills... ( Ctrl + K )"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 rounded-md bg-[var(--background)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] focus:border-transparent"
+                className="w-full pl-9 pr-4 py-1.5 rounded-full bg-[var(--accent)] border border-[var(--border)] text-[13px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--ring)]/40 focus:border-[var(--ring)]/30 transition-all"
               />
             </div>
           </div>

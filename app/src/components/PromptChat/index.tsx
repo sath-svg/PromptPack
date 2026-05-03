@@ -176,11 +176,19 @@ export function PromptChatPage() {
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold text-[var(--foreground)]">Chat</h2>
-            <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
-              Auto-routes each message to the best model
+            <p
+              className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              01 — Skill Chat
+            </p>
+            <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
+              One chat. Every model.
+            </h2>
+            <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
+              Auto-routes each message to the cheapest capable model.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -212,14 +220,65 @@ export function PromptChatPage() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
           {messages.length === 0 && !packVarForm && !variablePrompt && (
-            <div className="flex flex-col items-center justify-center h-full text-center py-16">
-              <div className="w-12 h-12 rounded-full bg-[var(--primary)]/10 flex items-center justify-center mb-4">
-                <Send size={20} className="text-[var(--primary)]" />
+            <div className="flex h-full items-center justify-center py-12">
+              <div className="relative w-full max-w-[520px]">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-6 rounded-3xl border border-[var(--border)]"
+                />
+                <div
+                  className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)]"
+                  style={{
+                    boxShadow:
+                      '0 30px 80px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
+                  }}
+                >
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
+                    </div>
+                    <span
+                      className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      ~/skillset
+                    </span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]">ready</span>
+                  </div>
+                  <div
+                    className="space-y-3 p-6 text-[13px] leading-[1.7]"
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    <div className="flex gap-3">
+                      <span className="text-[#2563EB]">$</span>
+                      <span className="text-[var(--foreground)]">
+                        new <span className="text-[#7BA7FF]">conversation</span>
+                      </span>
+                    </div>
+                    <div className="text-[var(--muted-foreground)]">
+                      ↳ type a message, pick a pack, or run all prompts in sequence
+                    </div>
+                    <div className="flex gap-3">
+                      <span className="text-[#2563EB]">$</span>
+                      <span className="text-[var(--foreground)]">
+                        router <span className="text-[#7BA7FF]">--auto</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-emerald-400/90">
+                      <span className="status-ping" />
+                      <span>routing live · waiting for input</span>
+                    </div>
+                  </div>
+                </div>
+                <p
+                  className="mt-6 text-center text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Shift + Enter for newline · Enter to send
+                </p>
               </div>
-              <p className="text-[var(--foreground)] font-medium mb-1">Start a conversation</p>
-              <p className="text-sm text-[var(--muted-foreground)] max-w-xs">
-                Type a message, click a prompt from the right, or hit <strong>Run Pack</strong> to run all prompts in sequence.
-              </p>
             </div>
           )}
 
@@ -267,7 +326,7 @@ export function PromptChatPage() {
 
           {error === '__CHAT_LIMIT_REACHED__' || isLimitReached ? (
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
-              <p className="text-sm font-semibold text-[var(--foreground)]">Enjoying PromptPack AI Chat? 🎉</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Enjoying Skillset AI Chat?</p>
               <p className="text-sm text-[var(--muted-foreground)]">
                 You've used your 3 free conversations. Upgrade to Pro for unlimited AI chat, more prompt packs, and priority access.
               </p>
@@ -456,7 +515,7 @@ export function PromptChatPage() {
           <button
             onClick={handleRunPack}
             disabled={isLoading || isRunningPack}
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
+            className="group flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] text-[13px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] hover:bg-[#1d4ed8] disabled:opacity-40 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:translate-y-[1px]"
           >
             {isRunningPack ? (
               <><Loader2 size={14} className="animate-spin" /> Running {packProgress.current}/{packProgress.total}</>
@@ -465,8 +524,11 @@ export function PromptChatPage() {
             )}
           </button>
 
-          <p className="text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide px-1">
-            {selectedPack.title} prompts
+          <p
+            className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] px-1"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {selectedPack.title} · prompts
           </p>
           <div className="flex-1 overflow-y-auto space-y-2">
             {packPrompts.map((p, i) => {

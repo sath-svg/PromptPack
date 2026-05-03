@@ -144,7 +144,7 @@ async function callPreset(
   const extraHeaders: Record<string, string> = {};
   if (provider === 'openrouter') {
     extraHeaders['http-referer'] = 'https://pmtpk.com';
-    extraHeaders['x-title'] = 'PromptPack';
+    extraHeaders['x-title'] = 'Skillset';
   }
 
   return callOpenAICompatible(baseUrl, apiKey, modelId, withSystem, extraHeaders);

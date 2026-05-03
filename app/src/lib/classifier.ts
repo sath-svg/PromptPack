@@ -105,7 +105,7 @@ export const TIER_LABELS: Record<ModelTier, string> = {
 };
 
 export const PROVIDER_LABELS: Record<Provider, string> = {
-  server:     'PromptPack',
+  server:     'Skillset',
   anthropic:  'Anthropic (Claude)',
   openai:     'OpenAI (ChatGPT)',
   gemini:     'Google (Gemini)',
