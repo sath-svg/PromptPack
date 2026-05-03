@@ -82,19 +82,39 @@ export function classifyTier(prompt: string): ModelTier {
 
 const LOCAL_PROVIDERS: ReadonlySet<Provider> = new Set(['ollama', 'server']);
 
-/** Return the cheapest preset for a tier. Cloud providers the user has
- *  explicitly configured (BYOK) are preferred over local Ollama / hosted
- *  server fallback so a $0.05/1M cloud call beats a free-but-flaky local
- *  one when the user has paid for the key. */
+/** Return the cheapest preset for a tier. Resolution order:
+ *
+ *  1. Cheapest BYOK cloud provider in the requested tier — paid keys win.
+ *  2. Inbuilt Skillset server (Groq Llama 3.1 8B). Server has no
+ *     "powerful" preset, so a powerful prompt with no BYOK key resolves
+ *     down to the server's fast 8B preset. Cost on server stays bounded
+ *     (margins assume 8B pricing) and the user gets a real response
+ *     instead of timing out on a flaky local Ollama install.
+ *  3. Any remaining available provider (e.g. Ollama) as last resort.
+ *
+ *  Server is preferred over Ollama because Ollama may be running with a
+ *  hallucination-prone tag the picker didn't anticipate, or not running
+ *  at all. The hosted server is the reliable default for casuals. */
 export function pickModel(
   tier: ModelTier,
   availableProviders: Set<Provider>
 ): ModelPreset | null {
   const byCost = (a: ModelPreset, b: ModelPreset) => a.costPer1M - b.costPer1M;
+
   const cloud = MODEL_PRESETS
     .filter((m) => m.tier === tier && availableProviders.has(m.provider) && !LOCAL_PROVIDERS.has(m.provider))
     .sort(byCost)[0];
   if (cloud) return cloud;
+
+  // Server fallback — pin to server's fast 8B preset (Llama 3.1 8B via
+  // Groq) regardless of requested tier so margins stay predictable.
+  if (availableProviders.has('server')) {
+    const s = MODEL_PRESETS.find(
+      (m) => m.provider === 'server' && m.modelId === 'llama-3.1-8b-instant',
+    );
+    if (s) return tier === s.tier ? s : { ...s, tier };
+  }
+
   return (
     MODEL_PRESETS
       .filter((m) => m.tier === tier && availableProviders.has(m.provider))
