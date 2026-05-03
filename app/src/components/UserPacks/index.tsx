@@ -1083,7 +1083,7 @@ export function UserPacksPage() {
                   }`}
                 >
                   <Plus size={18} />
-                  {promptLimits.isAtLimit ? 'Prompt Limit Reached' : 'Add Prompt'}
+                  {promptLimits.isAtLimit ? 'Skill Limit Reached' : 'Add Skill'}
                 </button>
                 <p className="text-xs text-center text-[var(--muted-foreground)]">
                   {promptLimits.currentPromptCount} / {promptLimits.maxPrompts} prompts used ({promptLimits.tier} plan)
@@ -1199,10 +1199,10 @@ export function UserPacksPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-2">
             <Package size={24} />
-            Your Prompt Packs
+            Your Skillsets
           </h1>
           <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            Prompt packs created on the web dashboard
+            Skillsets created on the web dashboard
           </p>
         </div>
 

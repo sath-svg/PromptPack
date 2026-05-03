@@ -1,11 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
+import { WorkspaceBar } from './WorkspaceBar';
+import { LspStatusBar } from './LspStatusBar';
+import { GitBar } from './GitBar';
+import { AttachmentBar } from './AttachmentBar';
+import { ToolBlock } from './ToolBlock';
+import { CopyButton } from '../Common/CopyButton';
+import { InfoModal } from '../Common/InfoModal';
+import { SaveAsPackModal } from './SaveAsPackModal';
+import { Bookmark } from 'lucide-react';
+import type { MessageBlock } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -20,15 +31,23 @@ function fillVariables(text: string, values: Record<string, string>): string {
 }
 
 export function PromptChatPage() {
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChatStore();
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session } = useAuthStore();
   const { billingTier, serverChatCount } = useSettingsStore();
-  const isLimitReached = billingTier === 'free' && serverChatCount >= 3;
+  const { initWorkspace, workspace, attachments, clearAttachments } = useAgentStore();
+  const isLimitReached = billingTier === 'free' && serverChatCount >= 3 && !agentMode;
+
+  useEffect(() => {
+    initWorkspace();
+  }, [initWorkspace]);
 
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [showPackPicker, setShowPackPicker] = useState(false);
+  const [showWhyOneChat, setShowWhyOneChat] = useState(false);
+  const [varGuardError, setVarGuardError] = useState<string | null>(null);
+  const [saveAsPackText, setSaveAsPackText] = useState<string | null>(null);
 
   // Single-prompt variable form
   const [variablePrompt, setVariablePrompt] = useState<{ text: string; vars: string[] } | null>(null);
@@ -120,6 +139,21 @@ export function PromptChatPage() {
   };
 
   const startPackRun = (promptTexts: string[], values: Record<string, string>) => {
+    // Guardrail: with agent OFF the model can't gather missing values via
+    // tool calls, so any blank variable would silently send "{name}" to
+    // the LLM and produce a nonsense response. Block the run and surface
+    // a clear error instead. Agent mode can recover by asking the user.
+    if (!agentMode) {
+      const required = packVarForm?.vars ?? [];
+      const missing = required.filter((v) => !(values[v] ?? '').trim());
+      if (missing.length > 0) {
+        setVarGuardError(
+          `Fill in ${missing.map((v) => `{${v}}`).join(', ')} before running. Turn Agent on if you want it to ask for missing values mid-flow.`,
+        );
+        return;
+      }
+    }
+    setVarGuardError(null);
     const filled = promptTexts.map((t) => fillVariables(t, values));
     setPackVarForm(null);
     setVariablePrompt(null);
@@ -149,6 +183,16 @@ export function PromptChatPage() {
 
   const handleVariableSend = () => {
     if (!variablePrompt || isLoading) return;
+    if (!agentMode) {
+      const missing = variablePrompt.vars.filter((v) => !(variableValues[v] ?? '').trim());
+      if (missing.length > 0) {
+        setVarGuardError(
+          `Fill in ${missing.map((v) => `{${v}}`).join(', ')} before running. Turn Agent on if you want it to ask for missing values mid-flow.`,
+        );
+        return;
+      }
+    }
+    setVarGuardError(null);
     const filled = fillVariables(variablePrompt.text, variableValues);
     setVariablePrompt(null);
     setVariableValues({});
@@ -159,7 +203,19 @@ export function PromptChatPage() {
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    await sendMessage(text, selectedPack?.title, buildSystemPrompt());
+    // If attachments are staged, prepend a note so the agent reads them
+    // locally instead of expecting their content inline. Also pass the
+    // list to the chat store so the user message renders a reusable
+    // tooltip with the saved paths.
+    let finalText = text;
+    let snapshot: string[] | undefined;
+    if (attachments.length > 0) {
+      const list = attachments.map((p) => `- ${p}`).join('\n');
+      finalText = `${text}\n\nAttached files (read with read_file as needed):\n${list}`;
+      snapshot = [...attachments];
+      clearAttachments();
+    }
+    await sendMessage(finalText, selectedPack?.title, buildSystemPrompt(), snapshot);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -175,22 +231,36 @@ export function PromptChatPage() {
     <div className="flex h-full gap-4">
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
+        <WorkspaceBar />
+        <GitBar />
+        <LspStatusBar />
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p
-              className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              01 — Skill Chat
-            </p>
-            <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
-              One chat. Every model.
-            </h2>
-            <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
-              Auto-routes each message to the cheapest capable model.
-            </p>
-          </div>
+        <div className={`flex items-center justify-between ${messages.length === 0 ? 'mb-6' : 'mb-2'}`}>
+          {messages.length === 0 ? (
+            <div>
+              <p
+                className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Skill Chat
+              </p>
+              <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
+                One chat. Every model.
+              </h2>
+              <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
+                Auto-routes each message to the cheapest capable model.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowWhyOneChat(true)}
+                className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--primary)] hover:underline focus:outline-none"
+              >
+                <Info size={11} /> Why one chat?
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
           <div className="flex items-center gap-2">
             {isRunningPack && (
               <div className="flex items-center gap-2">
@@ -282,34 +352,97 @@ export function PromptChatPage() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
-                    : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
-                }`}
-              >
-                {msg.packName && msg.role === 'user' && (
-                  <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
-                    <Package size={10} /> {msg.packName}
-                  </p>
-                )}
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                {msg.role === 'assistant' && msg.preset && (
-                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
-                      {TIER_LABELS[msg.preset.tier]}
-                    </span>
-                    <span className="text-xs text-[var(--muted-foreground)]">
-                      {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
-                    </span>
+          {messages.map((msg) => {
+            const hasBlocks = msg.role === 'assistant' && msg.blocks && msg.blocks.length > 0;
+            const resultByToolUseId: Record<string, MessageBlock> = {};
+            if (hasBlocks) {
+              for (const b of msg.blocks!) {
+                if (b.kind === 'tool_result') resultByToolUseId[b.toolUseId] = b;
+              }
+            }
+            const widthCls = hasBlocks ? 'max-w-[92%]' : 'max-w-[80%]';
+            const copyText = () => {
+              if (hasBlocks) {
+                return msg
+                  .blocks!
+                  .filter((b) => b.kind === 'text')
+                  .map((b) => (b as { kind: 'text'; text: string }).text)
+                  .join('\n');
+              }
+              return msg.content;
+            };
+            return (
+              <div key={msg.id} className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`${widthCls} relative rounded-2xl px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
+                      : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-1 ${msg.role === 'user' ? 'left-1' : 'right-1'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}
+                  >
+                    <CopyButton getText={copyText} size={11} title="Copy message" />
+                    {msg.role === 'user' && session && (
+                      <button
+                        type="button"
+                        onClick={() => setSaveAsPackText(msg.content)}
+                        title="Save as Skill pack"
+                        className="p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
+                      >
+                        <Bookmark size={11} />
+                      </button>
+                    )}
                   </div>
-                )}
+                  {msg.packName && msg.role === 'user' && (
+                    <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
+                      <Package size={10} /> {msg.packName}
+                    </p>
+                  )}
+                  {msg.role === 'user' && msg.attachments && msg.attachments.length > 0 && (
+                    <p
+                      className="text-xs opacity-80 mb-1 cursor-help"
+                      title={`Saved to workspace — reference these paths next time without re-attaching:\n${msg.attachments.join('\n')}`}
+                    >
+                      📎 {msg.attachments.length} file{msg.attachments.length > 1 ? 's' : ''} saved to workspace
+                    </p>
+                  )}
+                  {hasBlocks ? (
+                    <div className="space-y-1">
+                      {msg.blocks!.map((block, idx) => {
+                        if (block.kind === 'text') {
+                          return (
+                            <p key={idx} className="text-sm whitespace-pre-wrap leading-relaxed">
+                              {block.text}
+                            </p>
+                          );
+                        }
+                        if (block.kind === 'tool_use') {
+                          return (
+                            <ToolBlock key={idx} block={block} resultByToolUseId={resultByToolUseId} />
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  )}
+                  {msg.role === 'assistant' && msg.preset && (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
+                        {TIER_LABELS[msg.preset.tier]}
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {isLoading && (
             <div className="flex justify-start">
@@ -386,6 +519,12 @@ export function PromptChatPage() {
                 </div>
               ))}
             </div>
+            {varGuardError && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs">
+                <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                <span>{varGuardError}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => startPackRun(packVarForm.prompts, packVarValues)}
@@ -395,7 +534,11 @@ export function PromptChatPage() {
                 <Play size={13} />
                 Run {packVarForm.prompts.length} prompts
               </button>
-              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {agentMode
+                  ? 'Leave blank — Agent will ask for missing values'
+                  : 'All variables required (Agent off)'}
+              </p>
             </div>
           </div>
         )}
@@ -426,6 +569,12 @@ export function PromptChatPage() {
                 </div>
               ))}
             </div>
+            {varGuardError && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs">
+                <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                <span>{varGuardError}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleVariableSend}
@@ -434,7 +583,11 @@ export function PromptChatPage() {
               >
                 <Play size={13} /> Run
               </button>
-              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {agentMode
+                  ? 'Leave blank — Agent will ask for missing values'
+                  : 'All variables required (Agent off)'}
+              </p>
             </div>
           </div>
         )}
@@ -487,15 +640,21 @@ export function PromptChatPage() {
                   )}
                 </div>
               )}
+              {workspace && agentMode && <AttachmentBar />}
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a message… (Shift+Enter for new line)"
+                placeholder={
+                  agentMode && workspace
+                    ? 'Ask the agent to read, edit, or run code…'
+                    : 'Type a message… (Shift+Enter for new line)'
+                }
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
               />
+              <CopyButton getText={() => input} />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
@@ -555,6 +714,35 @@ export function PromptChatPage() {
           </div>
         </div>
       )}
+
+      <InfoModal
+        open={showWhyOneChat}
+        title="Why one chat?"
+        secondaryLabel="Got it"
+        onClose={() => setShowWhyOneChat(false)}
+      >
+        <p className="mb-2">
+          One chat. Every model. <span className="text-[var(--foreground)]">Skill Chat</span> auto-routes
+          each message to the cheapest capable model — fast 8B for short questions, balanced for chat,
+          BYOK cloud for heavy work.
+        </p>
+        <p className="mb-2">
+          You don't need a dozen separate conversations. Save your tokens, save your money. Past
+          context is truncated automatically so old turns don't snowball costs.
+        </p>
+        <p className="mb-2">
+          Repeating yourself? Hit the bookmark icon on any message and{' '}
+          <span className="text-[var(--foreground)]">save it as a Skill</span>. Skills replay
+          instantly with new variables — your workflow becomes a one-click prompt instead of a
+          conversation you have to remember.
+        </p>
+      </InfoModal>
+
+      <SaveAsPackModal
+        open={saveAsPackText !== null}
+        promptText={saveAsPackText ?? ''}
+        onClose={() => setSaveAsPackText(null)}
+      />
     </div>
   );
 }

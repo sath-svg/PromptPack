@@ -45,3 +45,8 @@ jsonwebtoken = "9"
 urlencoding = "2.1"
 open = "5"
 const_format = "0.2"
+walkdir = "2"
+globset = "0.4"
+regex = "1"
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = "0.3"

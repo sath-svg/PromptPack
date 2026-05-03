@@ -539,7 +539,7 @@ export function DraftPage() {
                     {userPacks.length > 0 && (
                       <>
                         <div className="px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] bg-[var(--accent)]/50 border-t border-[var(--border)]">
-                          Your Prompt Packs
+                          Your Skillsets
                         </div>
                         {userPacks.map((pack) => (
                           <button
