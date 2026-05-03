@@ -213,7 +213,7 @@ export function ExportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `promptpack-export-${Date.now()}.pmtpk`;
+      a.download = `promptpack-export-${Date.now()}.skill`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -236,7 +236,7 @@ export function ExportPage() {
         Export Prompts
       </h2>
       <p className="text-[var(--muted-foreground)] mb-6">
-        Select prompts to export as a .pmtpk file. Optionally add password protection.
+        Select prompts to export as a .skill file. Optionally add password protection.
       </p>
 
       {/* Pack loading status */}
@@ -432,7 +432,7 @@ export function ExportPage() {
           </button>
 
           <p className="text-xs text-center text-[var(--muted-foreground)]">
-            Exports as .pmtpk format{password ? ' (encrypted)' : ''}
+            Exports as .skill format{password ? ' (encrypted)' : ''}
           </p>
         </div>
       </div>

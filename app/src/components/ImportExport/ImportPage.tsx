@@ -69,7 +69,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   );
 }
 
-// Decode obfuscated .pmtpk file
+// Decode obfuscated .skill file
 async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   if (bytes.length < HEADER_SIZE) {
     throw new Error('File is too small or corrupted');
@@ -90,7 +90,7 @@ async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   throw new Error('Invalid pack format');
 }
 
-// Decrypt encrypted .pmtpk file
+// Decrypt encrypted .skill file
 async function decryptPmtpk(bytes: Uint8Array, password: string): Promise<CloudPrompt[]> {
   const encryptedHeaderSize = HEADER_SIZE + SALT_LENGTH + IV_LENGTH;
 
@@ -304,10 +304,10 @@ export function ImportPage() {
     setIsDragging(false);
 
     const file = e.dataTransfer.files[0];
-    if (file && file.name.endsWith('.pmtpk')) {
+    if (file && (file.name.endsWith('.skill') || file.name.endsWith('.pmtpk'))) {
       processFile(file);
     } else {
-      setError('Please drop a .pmtpk file');
+      setError('Please drop a .skill file');
     }
   }, []);
 
@@ -333,7 +333,7 @@ export function ImportPage() {
         Import Prompts
       </h2>
       <p className="text-[var(--muted-foreground)] mb-6">
-        Import prompts from a .pmtpk file or other supported formats.
+        Import prompts from a .skill file or other supported formats.
       </p>
 
       {/* Drop Zone */}
@@ -349,7 +349,7 @@ export function ImportPage() {
       >
         <input
           type="file"
-          accept=".pmtpk"
+          accept=".skill,.pmtpk"
           onChange={handleFileSelect}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
@@ -362,7 +362,7 @@ export function ImportPage() {
           </div>
 
           <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
-            Drop your .pmtpk file here
+            Drop your .skill file here
           </h3>
           <p className="text-sm text-[var(--muted-foreground)]">
             or click to browse
@@ -588,8 +588,8 @@ export function ImportPage() {
         <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border)] w-fit">
           <FileUp size={20} className="text-[var(--primary)]" />
           <div>
-            <p className="font-medium text-[var(--foreground)]">.pmtpk</p>
-            <p className="text-xs text-[var(--muted-foreground)]">PromptPack format</p>
+            <p className="font-medium text-[var(--foreground)]">.skill</p>
+            <p className="text-xs text-[var(--muted-foreground)]">PromptPack skillset format (also accepts legacy .pmtpk)</p>
           </div>
         </div>
       </div>
