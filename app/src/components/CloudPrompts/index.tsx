@@ -758,7 +758,7 @@ export function CloudPromptsPage() {
           <div className="mt-8 mb-4">
             <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
               <Package size={20} />
-              Your Prompt Packs
+              Your Skillsets
             </h2>
             <p className="text-sm text-[var(--muted-foreground)] mt-1">
               Prompt packs created on the web dashboard

@@ -110,16 +110,16 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
                 : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
             }`}
-            title={isCollapsed ? 'Your Prompt Packs' : undefined}
+            title={isCollapsed ? 'Your Skillsets' : undefined}
           >
             <Package size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-              Your Prompt Packs
+              Your Skillsets
             </span>
           </button>
         </div>
 
-        {/* Your Prompt Packs (from Convex userPacks) - collapsible list */}
+        {/* Your Skillsets (from Convex userPacks) - collapsible list */}
         {!isCollapsed && session && userPacks.length > 0 && (
           <div className="mt-6">
             <button
@@ -160,7 +160,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
           </div>
         )}
 
-        {/* PromptControl (version control) - Pro+ only */}
+        {/* SkillControl (version control) - Pro+ only */}
         {session && session.tier !== 'free' && (
           <div className={`space-y-1 ${isCollapsed ? 'mt-4 pt-4 border-t border-[var(--border)]' : 'mt-6'}`}>
             <button
@@ -170,11 +170,11 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                   ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
               }`}
-              title={isCollapsed ? 'PromptControl' : undefined}
+              title={isCollapsed ? 'SkillControl' : undefined}
             >
               <History size={18} className="flex-shrink-0" />
               <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-                PromptControl
+                SkillControl
               </span>
             </button>
           </div>

@@ -108,7 +108,7 @@ export function SaveAsPackModal({ open, promptText, onClose }: SaveAsPackModalPr
         )}
         {!busy && (
           <p className="text-[10px] text-[var(--muted-foreground)] flex items-center gap-1">
-            <Save size={10} /> Saved skills appear in "Your Prompt Packs" and can be re-run from this
+            <Save size={10} /> Saved skills appear in "Your Skillsets" and can be re-run from this
             chat at any time.
           </p>
         )}

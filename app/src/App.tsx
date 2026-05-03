@@ -6,7 +6,7 @@ import { SettingsPage } from './components/Settings';
 import { DraftPage } from './components/Draft';
 import { SavedPacksPage } from './components/SavedPacks';
 import { UserPacksPage } from './components/UserPacks';
-import { PromptControlPage } from './components/PromptControl';
+import { SkillControlPage } from './components/PromptControl';
 import { PromptChatPage } from './components/PromptChat';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
@@ -51,7 +51,7 @@ function App() {
       case 'user-packs':
         return <UserPacksPage />;
       case 'prompt-control':
-        return <PromptControlPage />;
+        return <SkillControlPage />;
       case 'import':
         return <ImportPage />;
       case 'export':

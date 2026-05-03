@@ -109,10 +109,10 @@ export function PromptEditor({ prompt, onClose }: PromptEditorProps) {
             </p>
           </div>
 
-          {/* Prompt Pack (Source) */}
+          {/* Skillset (Source) */}
           <div>
             <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-              Prompt Pack
+              Skillset
             </label>
             <select
               value={source}

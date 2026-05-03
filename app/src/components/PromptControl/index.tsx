@@ -22,7 +22,7 @@ function formatRelativeTime(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString();
 }
 
-export function PromptControlPage() {
+export function SkillControlPage() {
   const { session } = useAuthStore();
   const {
     userPacks,
@@ -77,7 +77,7 @@ export function PromptControlPage() {
     clearError();
     const ok = await toggleVersionControl(clerkId, pack.id, enabled);
     if (ok) {
-      setToast(`PromptControl enabled for "${pack.title}"`);
+      setToast(`SkillControl enabled for "${pack.title}"`);
     }
   };
 
@@ -93,7 +93,7 @@ export function PromptControlPage() {
         const { [pack.id]: _, ...rest } = state.promptVersions;
         return { promptVersions: rest };
       });
-      setToast(`PromptControl disabled for "${pack.title}"`);
+      setToast(`SkillControl disabled for "${pack.title}"`);
     }
     setConfirmDisable(null);
   };
@@ -127,7 +127,7 @@ export function PromptControlPage() {
   if (tier === 'free') {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">PromptControl</h1>
+        <h1 className="text-2xl font-bold mb-4">SkillControl</h1>
         <p className="text-[var(--muted-foreground)]">
           Version control for your prompts. Upgrade to Pro to get started.
         </p>
@@ -352,7 +352,7 @@ export function PromptControlPage() {
   const disableDialog = confirmDisable ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 max-w-sm mx-4 shadow-xl">
-        <h3 className="text-lg font-semibold mb-2">Disable PromptControl?</h3>
+        <h3 className="text-lg font-semibold mb-2">Disable SkillControl?</h3>
         <p className="text-sm text-[var(--muted-foreground)] mb-4">
           All saved versions for this pack will be permanently deleted. This cannot be undone.
         </p>
@@ -383,7 +383,7 @@ export function PromptControlPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <History size={24} />
-          PromptControl
+          SkillControl
         </h1>
         <p className="text-sm text-[var(--muted-foreground)] mt-1">
           Version control for your prompts. Each prompt can store up to {MAX_VERSIONS_PER_PACK} versions.
