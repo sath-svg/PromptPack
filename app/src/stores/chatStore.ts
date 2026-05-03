@@ -162,10 +162,9 @@ const TOOL_CAPABLE: Set<Provider> = new Set([
 // the $9 plan's compute budget (see margin math).
 const SERVER_BANNED_TIERS: Set<ReturnType<typeof classifyTier>> = new Set(['powerful']);
 
-// Server-tier users (free/pro) are forced down to fast model regardless of
-// classifier output. Studio users on server still get classifier choice
-// among allowed tiers.
-const SERVER_FORCE_FAST_TIERS: Set<'free' | 'pro' | 'studio'> = new Set(['free', 'pro']);
+// (Tier-forcing now handled by always pinning server preset to the
+// llama-3.1-8b-instant 8B model in pickToolCapableModel; no per-billing
+// override needed — every server call is the same 8B regardless.)
 
 // Cap conversation history sent upstream so a long thread doesn't
 // snowball server costs. Tail of the most recent 14 turns is enough
@@ -190,34 +189,29 @@ function byokSet(available: Set<Provider>): Set<Provider> {
 function pickToolCapableModel(
   tier: ReturnType<typeof classifyTier>,
   available: Set<Provider>,
-  billingTier: 'free' | 'pro' | 'studio',
+  _billingTier: 'free' | 'pro' | 'studio',
 ): ModelPreset | null {
   const byok = byokSet(available);
-  // Prefer cheapest BYOK provider in this tier — they paid for it
+  // 1. Cheapest BYOK cloud provider in this tier — they paid for it
   const cloud = MODEL_PRESETS.filter(
     (m) => m.tier === tier && byok.has(m.provider) && TOOL_CAPABLE.has(m.provider),
   ).sort((a, b) => a.costPer1M - b.costPer1M)[0];
   if (cloud) return cloud;
-  // Fall back to anything tool-capable, but ban server on powerful tier
-  // and force server users below studio down to fast tier.
-  let effectiveTier = tier;
-  if (SERVER_BANNED_TIERS.has(tier)) {
-    // Powerful + only server available → no good option, return null so
-    // the caller can show "BYOK required for powerful tier" or fall back
-    return (
-      MODEL_PRESETS.filter(
-        (m) =>
-          m.tier === tier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider) && m.provider !== 'server',
-      ).sort((a, b) => a.costPer1M - b.costPer1M)[0] ?? null
+
+  // 2. Inbuilt server pinned to llama-3.1-8b-instant. Tier label preserved
+  //    on the returned preset so UI tags still read correctly. Backend
+  //    enforces 200/day cap and routes through Groq with tools support.
+  if (available.has('server') && TOOL_CAPABLE.has('server')) {
+    const s = MODEL_PRESETS.find(
+      (m) => m.provider === 'server' && m.modelId === 'llama-3.1-8b-instant',
     );
+    if (s) return tier === s.tier ? s : { ...s, tier };
   }
-  if (SERVER_FORCE_FAST_TIERS.has(billingTier)) {
-    effectiveTier = 'fast';
-  }
+
+  // 3. Anything else tool-capable (e.g. Ollama) as last resort
   return (
     MODEL_PRESETS.filter(
-      (m) =>
-        m.tier === effectiveTier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider),
+      (m) => m.tier === tier && available.has(m.provider) && TOOL_CAPABLE.has(m.provider),
     ).sort((a, b) => a.costPer1M - b.costPer1M)[0] ?? null
   );
 }
