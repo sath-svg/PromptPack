@@ -115,6 +115,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setWorkspace: (path) => {
     localStorage.setItem(WORKSPACE_KEY, path);
     set({ workspace: path });
+    // Drop SKILLSET.md into the workspace so the agent has stable
+    // instructions to read on every session. Idempotent — won't
+    // overwrite an existing file.
+    invoke('agent_init_workspace_doc', { workspace: path }).catch(() => {});
   },
 
   clearWorkspace: () => {

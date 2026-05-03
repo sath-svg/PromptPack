@@ -107,6 +107,18 @@ export const AGENT_TOOLS: ToolSpec[] = [
     },
   },
   {
+    name: 'check_template_vars',
+    description:
+      'Scan a string for unfilled {variable} placeholders left over from a Skill pack template. Returns the list of unique variable names. If the result is non-empty, STOP and ask the user to provide values — never invent them.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: 'The prompt text to scan.' },
+      },
+      required: ['text'],
+    },
+  },
+  {
     name: 'lsp_diagnostics',
     description:
       'Fetch current LSP diagnostics (errors/warnings) for a file. Spawns the appropriate language server lazily. Returns an empty list if no LSP is configured for the file type.',
@@ -292,6 +304,21 @@ export async function dispatchTool(
       return { output: parts.join('\n\n') };
     }
 
+    case 'check_template_vars': {
+      const text = String(input.text ?? '');
+      const matches = new Set<string>();
+      const re = /\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) matches.add(m[1]);
+      const list = Array.from(matches);
+      return {
+        output:
+          list.length === 0
+            ? 'No unfilled variables. Safe to proceed.'
+            : `Unfilled template variables: ${list.map((v) => `{${v}}`).join(', ')}\n\nAsk the user for each value before continuing. Do not invent or guess.`,
+      };
+    }
+
     case 'lsp_diagnostics': {
       const path = String(input.path);
       const probe = await useAgentStore.getState().probeLspForFile(path);
@@ -335,6 +362,8 @@ export async function dispatchTool(
 export const AGENT_SYSTEM_PROMPT = `You are Skillset Agent, an AI coding assistant inside the Skillset desktop app, working within a user-selected workspace folder.
 
 You have tools to read, edit, search, and run commands inside the workspace. Use them deliberately:
+- The workspace contains a \`SKILLSET.md\` file with project-specific rules. Read it on first use of a session and follow anything in its "Project rules" section.
+- Skill packs (formerly "prompt packs") use \`{variable}\` placeholders. Whenever a prompt looks templated, run \`check_template_vars\` first. If it returns unfilled variables, STOP and ask the user for each value — never invent them.
 - Prefer \`edit_file\` over \`write_file\` for partial changes; \`write_file\` overwrites everything.
 - All file edits are staged — the user accepts or rejects each one. After editing, briefly tell the user what you changed and why.
 - Use \`grep\` and \`glob\` to locate code before editing. Don't guess paths.
