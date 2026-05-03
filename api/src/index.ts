@@ -2740,6 +2740,146 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }
       }
 
+      // POST /v1/chat/completions — openai-compat agent endpoint
+      // Forwards to Groq with the server-held GROQ_API_KEY. Auth via the
+      // user's Clerk JWT in `Authorization: Bearer <jwt>`. Tier-based
+      // daily caps enforced server-side as defense in depth on top of
+      // the desktop app's own counters.
+      if (path === "/v1/chat/completions" && method === "POST") {
+        try {
+          const groqKey = getGroqApiKey(env);
+          if (!groqKey) {
+            return addCors(new Response(JSON.stringify({ error: { message: "Service not configured" } }), {
+              status: 503, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const authHeader = request.headers.get("Authorization") || "";
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+          if (!token) {
+            return addCors(new Response(JSON.stringify({ error: { message: "Sign in required" } }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const claims = await verifyClerkJwt(token, env);
+          if (!claims?.sub) {
+            return addCors(new Response(JSON.stringify({ error: { message: "Invalid or expired session" } }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const userId = claims.sub;
+
+          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+          const caps: Record<"free" | "pro" | "studio", number> = { free: 3, pro: 200, studio: 400 };
+          const cap = caps[billing.tier];
+
+          // Daily counter via Cache API. Key includes UTC date so it
+          // rolls over without explicit reset job.
+          const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+          const counterReq = new Request(
+            `https://rate.pmtpk.com/v1chat-daily/${encodeURIComponent(userId)}/${today}`,
+            { method: "GET" },
+          );
+          const cache = caches.default;
+          const counterHit = await cache.match(counterReq);
+          let count = 0;
+          if (counterHit) {
+            count = parseInt(await counterHit.text(), 10) || 0;
+          }
+          if (count >= cap) {
+            return addCors(new Response(JSON.stringify({
+              error: {
+                message: `Daily limit reached (${count}/${cap}). Resets at midnight UTC, or add a BYOK key.`,
+                type: "rate_limit_exceeded",
+              },
+            }), {
+              status: 429, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = await request.json().catch(() => null) as {
+            model?: string;
+            messages?: { role: string; content: string }[];
+            tools?: unknown[];
+            max_tokens?: number;
+          } | null;
+          if (!body?.messages?.length) {
+            return addCors(new Response(JSON.stringify({ error: { message: "messages required" } }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Pin server tier to 8B Llama. Free/Pro can't override; Studio
+          // is allowed to request 70B for balanced-tier work but we still
+          // hard-block it here to keep margins predictable until we add
+          // per-tier model gating in the proxy. Adjust later as needed.
+          const SERVER_MODEL_ALLOWLIST = new Set([
+            "llama-3.1-8b-instant",
+            // "llama-3.3-70b-versatile",  // enable after pricing review
+          ]);
+          const requestedModel = body.model || "llama-3.1-8b-instant";
+          const model = SERVER_MODEL_ALLOWLIST.has(requestedModel)
+            ? requestedModel
+            : "llama-3.1-8b-instant";
+
+          const groqPayload: Record<string, unknown> = {
+            model,
+            max_tokens: body.max_tokens ?? 4096,
+            messages: body.messages,
+          };
+          if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
+            groqPayload.tools = body.tools;
+          }
+
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(groqPayload),
+          });
+
+          if (!groqRes.ok) {
+            const errText = await groqRes.text().catch(() => "");
+            console.error("Groq /v1 error:", groqRes.status, errText);
+            return addCors(new Response(JSON.stringify({
+              error: { message: `Upstream error ${groqRes.status}` },
+            }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Bump the daily counter only after a successful upstream call
+          // so failed requests don't burn the user's quota.
+          const nextCount = count + 1;
+          await cache.put(
+            counterReq,
+            new Response(String(nextCount), { headers: { "Cache-Control": "max-age=86400" } }),
+          );
+
+          // Pass through the openai-compat response unchanged so the
+          // client gets `choices[0].message.tool_calls` etc.
+          const upstream = await groqRes.text();
+          return addCors(new Response(upstream, {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "X-Daily-Count": String(nextCount),
+              "X-Daily-Cap": String(cap),
+              "X-User-Tier": billing.tier,
+            },
+          }));
+        } catch (error) {
+          console.error("/v1/chat/completions error:", error);
+          return addCors(new Response(JSON.stringify({
+            error: { message: error instanceof Error ? error.message : "Internal error" },
+          }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
       // POST /chat — PromptPack-hosted AI (Groq Llama 3.1 8B, free tier)
       // Body: { messages: [{role, content}][] }
       if (path === "/chat" && method === "POST") {
