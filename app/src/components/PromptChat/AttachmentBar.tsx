@@ -2,13 +2,11 @@ import { useState } from 'react';
 import { Paperclip, X, FileText } from 'lucide-react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useAgentStore } from '../../stores/agentStore';
-import { InfoModal } from '../Common/InfoModal';
 
-// Attachments are copied into <workspace>/.skillset-attachments/ so the
-// agent can read them via locally-scoped tools instead of inlining their
-// contents into the LLM context. First-use popup explains the move.
-
-const SEEN_KEY = 'skillset.attachments.popupSeen';
+// Picks files via native dialog and copies them into
+// <workspace>/.skillset-attachments/. The user message is annotated with
+// a tooltip note so the user can reference the saved paths in future
+// messages without re-attaching.
 
 export function AttachmentBar() {
   const workspace = useAgentStore((s) => s.workspace);
@@ -16,11 +14,11 @@ export function AttachmentBar() {
   const attachFiles = useAgentStore((s) => s.attachFiles);
   const removeAttachment = useAgentStore((s) => s.removeAttachment);
 
-  const [showInfo, setShowInfo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
 
-  const runPicker = async () => {
+  const handleAttachClick = async () => {
+    if (!workspace || busy) return;
     setPickerError(null);
     setBusy(true);
     try {
@@ -36,28 +34,13 @@ export function AttachmentBar() {
     }
   };
 
-  const handleAttachClick = () => {
-    if (!workspace) return;
-    const seen = localStorage.getItem(SEEN_KEY) === '1';
-    if (seen) {
-      runPicker();
-      return;
-    }
-    setShowInfo(true);
-  };
-
-  const handleProceed = () => {
-    localStorage.setItem(SEEN_KEY, '1');
-    runPicker();
-  };
-
   return (
     <>
       <button
         type="button"
         onClick={handleAttachClick}
         disabled={!workspace || busy}
-        title={workspace ? 'Attach files' : 'Connect a workspace first'}
+        title={workspace ? 'Attach files (copied to workspace)' : 'Connect a workspace first'}
         className="p-2 rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] disabled:opacity-40 transition-colors"
       >
         <Paperclip size={18} />
@@ -89,28 +72,6 @@ export function AttachmentBar() {
           )}
         </div>
       )}
-
-      <InfoModal
-        open={showInfo}
-        title="Attach files to workspace"
-        primaryLabel="Continue"
-        secondaryLabel="Cancel"
-        onPrimary={handleProceed}
-        onClose={() => setShowInfo(false)}
-      >
-        <p className="mb-2">
-          Selected files will be <span className="text-[var(--foreground)] font-medium">copied into your workspace folder</span>{' '}
-          at <code className="text-[var(--primary)]">.skillset-attachments/</code>.
-        </p>
-        <p className="mb-2">
-          The agent reads them locally with <code>read_file</code> instead of stuffing
-          them into every LLM call. Saves tokens, scales to large files, keeps your
-          original files untouched.
-        </p>
-        <p className="text-xs text-[var(--muted-foreground)]">
-          Workspace: <code className="text-[var(--foreground)]">{workspace ?? '(none)'}</code>
-        </p>
-      </InfoModal>
     </>
   );
 }

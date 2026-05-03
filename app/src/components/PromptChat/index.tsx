@@ -173,14 +173,18 @@ export function PromptChatPage() {
     if (!text || isLoading) return;
     setInput('');
     // If attachments are staged, prepend a note so the agent reads them
-    // locally instead of expecting their content inline
+    // locally instead of expecting their content inline. Also pass the
+    // list to the chat store so the user message renders a reusable
+    // tooltip with the saved paths.
     let finalText = text;
+    let snapshot: string[] | undefined;
     if (attachments.length > 0) {
       const list = attachments.map((p) => `- ${p}`).join('\n');
       finalText = `${text}\n\nAttached files (read with read_file as needed):\n${list}`;
+      snapshot = [...attachments];
       clearAttachments();
     }
-    await sendMessage(finalText, selectedPack?.title, buildSystemPrompt());
+    await sendMessage(finalText, selectedPack?.title, buildSystemPrompt(), snapshot);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -342,6 +346,14 @@ export function PromptChatPage() {
                   {msg.packName && msg.role === 'user' && (
                     <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
                       <Package size={10} /> {msg.packName}
+                    </p>
+                  )}
+                  {msg.role === 'user' && msg.attachments && msg.attachments.length > 0 && (
+                    <p
+                      className="text-xs opacity-80 mb-1 cursor-help"
+                      title={`Saved to workspace — reference these paths next time without re-attaching:\n${msg.attachments.join('\n')}`}
+                    >
+                      📎 {msg.attachments.length} file{msg.attachments.length > 1 ? 's' : ''} saved to workspace
                     </p>
                   )}
                   {hasBlocks ? (

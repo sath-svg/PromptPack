@@ -39,6 +39,10 @@ export interface ChatMessage {
   blocks?: MessageBlock[];
   preset?: ModelPreset;
   packName?: string;
+  // Workspace-relative paths of files copied into the workspace
+  // when this user message was sent. Used to render an inline tooltip
+  // reminding the user the files are persisted and reusable.
+  attachments?: string[];
   createdAt: number;
 }
 
@@ -48,7 +52,7 @@ interface ChatState {
   error: string | null;
   agentMode: boolean;
   setAgentMode: (on: boolean) => void;
-  sendMessage: (text: string, packName?: string, systemPrompt?: string) => Promise<void>;
+  sendMessage: (text: string, packName?: string, systemPrompt?: string, attachments?: string[]) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
 }
@@ -672,7 +676,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setAgentMode: (on) => set({ agentMode: on }),
 
-  sendMessage: async (text, packName, systemPrompt) => {
+  sendMessage: async (text, packName, systemPrompt, attachments) => {
     const settings = useSettingsStore.getState();
     const { apiKeys, billingTier } = settings;
     const incrementServerChatCount = settings.incrementServerChatCount;
@@ -725,6 +729,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         id: makeId(),
         role: 'user',
         content: text,
+        attachments: attachments && attachments.length > 0 ? [...attachments] : undefined,
         createdAt: Date.now(),
       };
       set((state) => ({
@@ -867,6 +872,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       role: 'user',
       content: text,
       packName,
+      attachments: attachments && attachments.length > 0 ? [...attachments] : undefined,
       createdAt: Date.now(),
     };
     set((state) => ({ messages: [...state.messages, userMsg], isLoading: true, error: null }));
