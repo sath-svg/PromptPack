@@ -7,15 +7,12 @@ import {
   ChevronRight,
   Package,
   FileEdit,
-  Cloud,
   PanelLeftClose,
   History,
   MessageSquare,
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
-import { SOURCE_META } from '../../types';
-import type { PromptSource } from '../../types';
 import logoIcon from '../../assets/skillset-logo.png';
 
 interface SidebarProps {
@@ -26,9 +23,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse }: SidebarProps) {
-  const [savedPacksExpanded, setSavedPacksExpanded] = useState(true);
   const [userPacksExpanded, setUserPacksExpanded] = useState(true);
-  const { cloudPacks, userPacks, selectedPackId, setSelectedPackId } = useSyncStore();
+  const { userPacks, selectedPackId, setSelectedPackId } = useSyncStore();
   const { session } = useAuthStore();
 
   return (
@@ -107,30 +103,6 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
           <button
             onClick={() => {
               setSelectedPackId(null);
-              onNavigate('saved-packs');
-            }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              currentPage === 'saved-packs' && !selectedPackId
-                ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
-                : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
-            }`}
-            title={isCollapsed ? 'Saved from Extension' : undefined}
-            data-tutorial="saved-packs"
-          >
-            <Cloud size={18} className="flex-shrink-0" />
-            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-              Saved from Extension
-            </span>
-            {!isCollapsed && session && cloudPacks.length > 0 && (
-              <span className="ml-auto text-xs opacity-70">
-                {cloudPacks.reduce((sum, p) => sum + p.promptCount, 0)}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => {
-              setSelectedPackId(null);
               onNavigate('user-packs');
             }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -146,46 +118,6 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
             </span>
           </button>
         </div>
-
-        {/* Saved Prompt Packs (from extension/cloud) - collapsible list */}
-        {!isCollapsed && session && cloudPacks.length > 0 && (
-          <div className="mt-6">
-            <button
-              onClick={() => setSavedPacksExpanded(!savedPacksExpanded)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-[10px] text-[var(--muted-foreground)] uppercase tracking-[0.18em]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {savedPacksExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              Saved Packs
-            </button>
-
-            {savedPacksExpanded && (
-              <div className="mt-1 space-y-1">
-                {cloudPacks.map((pack) => {
-                  const meta = SOURCE_META[pack.source as PromptSource];
-                  return (
-                    <button
-                      key={pack.id}
-                      onClick={() => {
-                        setSelectedPackId(pack.id);
-                        onNavigate('saved-packs');
-                      }}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                        currentPage === 'saved-packs' && selectedPackId === pack.id
-                          ? 'bg-[var(--primary)] text-[var(--primary-foreground)]'
-                          : 'text-[var(--foreground)] hover:bg-[var(--accent)]'
-                      }`}
-                    >
-                      <span className="text-lg">{meta?.icon || '📦'}</span>
-                      <span className="truncate">{meta?.label || pack.source}</span>
-                      <span className="ml-auto text-xs opacity-70">{pack.promptCount}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Your Prompt Packs (from Convex userPacks) - collapsible list */}
         {!isCollapsed && session && userPacks.length > 0 && (

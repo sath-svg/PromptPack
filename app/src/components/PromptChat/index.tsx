@@ -315,15 +315,30 @@ export function PromptChatPage() {
               }
             }
             const widthCls = hasBlocks ? 'max-w-[92%]' : 'max-w-[80%]';
+            const copyText = () => {
+              if (hasBlocks) {
+                return msg
+                  .blocks!
+                  .filter((b) => b.kind === 'text')
+                  .map((b) => (b as { kind: 'text'; text: string }).text)
+                  .join('\n');
+              }
+              return msg.content;
+            };
             return (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={msg.id} className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`${widthCls} rounded-2xl px-4 py-3 ${
+                  className={`${widthCls} relative rounded-2xl px-4 py-3 ${
                     msg.role === 'user'
                       ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
                       : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
                   }`}
                 >
+                  <div
+                    className={`absolute top-1 ${msg.role === 'user' ? 'left-1' : 'right-1'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                  >
+                    <CopyButton getText={copyText} size={11} title="Copy message" />
+                  </div>
                   {msg.packName && msg.role === 'user' && (
                     <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
                       <Package size={10} /> {msg.packName}
@@ -358,21 +373,6 @@ export function PromptChatPage() {
                       <span className="text-xs text-[var(--muted-foreground)]">
                         {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
                       </span>
-                      <CopyButton
-                        getText={() => {
-                          if (hasBlocks) {
-                            return msg
-                              .blocks!
-                              .filter((b) => b.kind === 'text')
-                              .map((b) => (b as { kind: 'text'; text: string }).text)
-                              .join('\n');
-                          }
-                          return msg.content;
-                        }}
-                        size={11}
-                        className="ml-auto"
-                        title="Copy assistant message"
-                      />
                     </div>
                   )}
                 </div>
