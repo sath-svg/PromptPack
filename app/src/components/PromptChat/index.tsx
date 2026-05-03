@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -13,6 +13,9 @@ import { GitBar } from './GitBar';
 import { AttachmentBar } from './AttachmentBar';
 import { ToolBlock } from './ToolBlock';
 import { CopyButton } from '../Common/CopyButton';
+import { InfoModal } from '../Common/InfoModal';
+import { SaveAsPackModal } from './SaveAsPackModal';
+import { Bookmark } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
@@ -42,6 +45,9 @@ export function PromptChatPage() {
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [showPackPicker, setShowPackPicker] = useState(false);
+  const [showWhyOneChat, setShowWhyOneChat] = useState(false);
+  const [varGuardError, setVarGuardError] = useState<string | null>(null);
+  const [saveAsPackText, setSaveAsPackText] = useState<string | null>(null);
 
   // Single-prompt variable form
   const [variablePrompt, setVariablePrompt] = useState<{ text: string; vars: string[] } | null>(null);
@@ -133,6 +139,21 @@ export function PromptChatPage() {
   };
 
   const startPackRun = (promptTexts: string[], values: Record<string, string>) => {
+    // Guardrail: with agent OFF the model can't gather missing values via
+    // tool calls, so any blank variable would silently send "{name}" to
+    // the LLM and produce a nonsense response. Block the run and surface
+    // a clear error instead. Agent mode can recover by asking the user.
+    if (!agentMode) {
+      const required = packVarForm?.vars ?? [];
+      const missing = required.filter((v) => !(values[v] ?? '').trim());
+      if (missing.length > 0) {
+        setVarGuardError(
+          `Fill in ${missing.map((v) => `{${v}}`).join(', ')} before running. Turn Agent on if you want it to ask for missing values mid-flow.`,
+        );
+        return;
+      }
+    }
+    setVarGuardError(null);
     const filled = promptTexts.map((t) => fillVariables(t, values));
     setPackVarForm(null);
     setVariablePrompt(null);
@@ -162,6 +183,16 @@ export function PromptChatPage() {
 
   const handleVariableSend = () => {
     if (!variablePrompt || isLoading) return;
+    if (!agentMode) {
+      const missing = variablePrompt.vars.filter((v) => !(variableValues[v] ?? '').trim());
+      if (missing.length > 0) {
+        setVarGuardError(
+          `Fill in ${missing.map((v) => `{${v}}`).join(', ')} before running. Turn Agent on if you want it to ask for missing values mid-flow.`,
+        );
+        return;
+      }
+    }
+    setVarGuardError(null);
     const filled = fillVariables(variablePrompt.text, variableValues);
     setVariablePrompt(null);
     setVariableValues({});
@@ -210,7 +241,7 @@ export function PromptChatPage() {
               className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              01 — Skill Chat
+              Skill Chat
             </p>
             <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
               One chat. Every model.
@@ -218,6 +249,13 @@ export function PromptChatPage() {
             <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
               Auto-routes each message to the cheapest capable model.
             </p>
+            <button
+              type="button"
+              onClick={() => setShowWhyOneChat(true)}
+              className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--primary)] hover:underline focus:outline-none"
+            >
+              <Info size={11} /> Why one chat?
+            </button>
           </div>
           <div className="flex items-center gap-2">
             {isRunningPack && (
@@ -339,9 +377,19 @@ export function PromptChatPage() {
                   }`}
                 >
                   <div
-                    className={`absolute top-1 ${msg.role === 'user' ? 'left-1' : 'right-1'} opacity-0 group-hover:opacity-100 transition-opacity`}
+                    className={`absolute top-1 ${msg.role === 'user' ? 'left-1' : 'right-1'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}
                   >
                     <CopyButton getText={copyText} size={11} title="Copy message" />
+                    {msg.role === 'user' && session && (
+                      <button
+                        type="button"
+                        onClick={() => setSaveAsPackText(msg.content)}
+                        title="Save as Skill pack"
+                        className="p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
+                      >
+                        <Bookmark size={11} />
+                      </button>
+                    )}
                   </div>
                   {msg.packName && msg.role === 'user' && (
                     <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
@@ -467,6 +515,12 @@ export function PromptChatPage() {
                 </div>
               ))}
             </div>
+            {varGuardError && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs">
+                <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                <span>{varGuardError}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => startPackRun(packVarForm.prompts, packVarValues)}
@@ -476,7 +530,11 @@ export function PromptChatPage() {
                 <Play size={13} />
                 Run {packVarForm.prompts.length} prompts
               </button>
-              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {agentMode
+                  ? 'Leave blank — Agent will ask for missing values'
+                  : 'All variables required (Agent off)'}
+              </p>
             </div>
           </div>
         )}
@@ -507,6 +565,12 @@ export function PromptChatPage() {
                 </div>
               ))}
             </div>
+            {varGuardError && (
+              <div className="flex items-start gap-2 p-2 rounded-md bg-red-500/10 border border-red-500/20 text-red-500 text-xs">
+                <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+                <span>{varGuardError}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleVariableSend}
@@ -515,7 +579,11 @@ export function PromptChatPage() {
               >
                 <Play size={13} /> Run
               </button>
-              <p className="text-xs text-[var(--muted-foreground)]">Leave blank to keep placeholder text</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                {agentMode
+                  ? 'Leave blank — Agent will ask for missing values'
+                  : 'All variables required (Agent off)'}
+              </p>
             </div>
           </div>
         )}
@@ -642,6 +710,35 @@ export function PromptChatPage() {
           </div>
         </div>
       )}
+
+      <InfoModal
+        open={showWhyOneChat}
+        title="Why one chat?"
+        secondaryLabel="Got it"
+        onClose={() => setShowWhyOneChat(false)}
+      >
+        <p className="mb-2">
+          One chat. Every model. <span className="text-[var(--foreground)]">Skill Chat</span> auto-routes
+          each message to the cheapest capable model — fast 8B for short questions, balanced for chat,
+          BYOK cloud for heavy work.
+        </p>
+        <p className="mb-2">
+          You don't need a dozen separate conversations. Save your tokens, save your money. Past
+          context is truncated automatically so old turns don't snowball costs.
+        </p>
+        <p className="mb-2">
+          Repeating yourself? Hit the bookmark icon on any message and{' '}
+          <span className="text-[var(--foreground)]">save it as a Skill</span>. Skills replay
+          instantly with new variables — your workflow becomes a one-click prompt instead of a
+          conversation you have to remember.
+        </p>
+      </InfoModal>
+
+      <SaveAsPackModal
+        open={saveAsPackText !== null}
+        promptText={saveAsPackText ?? ''}
+        onClose={() => setSaveAsPackText(null)}
+      />
     </div>
   );
 }
