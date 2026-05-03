@@ -620,9 +620,23 @@ pub fn close_auth_window(app_handle: AppHandle) -> Result<(), String> {
 pub struct HttpClient(pub reqwest::Client);
 
 const ALLOWED_API_HOSTS: &[&str] = &[
+    // PromptPack / Skillset infra
     "https://determined-lark-313.convex.site",
     "https://api.pmtpk.com",
     "https://grok.pmtpk.com",
+    // LLM provider endpoints (kept in sync with PROVIDER_BASE_URLS in classifier.ts)
+    "https://api.anthropic.com",
+    "https://api.openai.com",
+    "https://generativelanguage.googleapis.com",
+    "https://api.x.ai",
+    "https://api.deepseek.com",
+    "https://api.perplexity.ai",
+    "https://api.moonshot.cn",
+    "https://api.groq.com",
+    "https://openrouter.ai",
+    // Local Ollama (no TLS)
+    "http://localhost:11434",
+    "http://127.0.0.1:11434",
 ];
 
 #[derive(Debug, Deserialize)]
