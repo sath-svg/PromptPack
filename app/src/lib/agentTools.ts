@@ -1,0 +1,326 @@
+// Tool catalog + dispatcher for the in-chat coding agent.
+// Tool schemas use the JSON-Schema variant accepted by Anthropic & OpenAI.
+// Anthropic uses `input_schema`; OpenAI uses `parameters` — adapter per
+// provider lives in chatStore.
+
+import { invoke } from '@tauri-apps/api/core';
+import { useAgentStore } from '../stores/agentStore';
+import { lspOpenFile, lspGetDiagnostics } from './lspClient';
+
+export interface ToolSpec {
+  name: string;
+  description: string;
+  input_schema: {
+    type: 'object';
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+export const AGENT_TOOLS: ToolSpec[] = [
+  {
+    name: 'read_file',
+    description:
+      'Read the contents of a file inside the workspace. Returns the full text and line count. Path is relative to the workspace root.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path inside the workspace.' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'write_file',
+    description:
+      'Create or overwrite a file with the given content. Stages the change as a pending edit; the user must accept it before subsequent reads see the new content. Use for new files or full rewrites.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        content: { type: 'string' },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'edit_file',
+    description:
+      'Replace exact text inside an existing file. old_string must match uniquely (or pass replace_all: true). Stages a pending edit for user acceptance. Prefer this over write_file for partial edits.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        old_string: { type: 'string' },
+        new_string: { type: 'string' },
+        replace_all: { type: 'boolean' },
+      },
+      required: ['path', 'old_string', 'new_string'],
+    },
+  },
+  {
+    name: 'list_dir',
+    description: 'List immediate children of a directory inside the workspace.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Directory path; "." for workspace root.' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'glob',
+    description:
+      'Find files by glob pattern (e.g. "**/*.ts"). Returns up to 200 matches, skipping node_modules/target/dist and dotfiles.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string' },
+      },
+      required: ['pattern'],
+    },
+  },
+  {
+    name: 'grep',
+    description:
+      'Regex search across files in the workspace. Returns up to 200 matches with path/line/text.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Regex pattern.' },
+        glob_filter: { type: 'string', description: 'Optional glob to limit which files are searched.' },
+      },
+      required: ['pattern'],
+    },
+  },
+  {
+    name: 'bash',
+    description:
+      'Run a shell command from the workspace root. Returns stdout, stderr, and exit code. Use for builds, tests, git status, npm/cargo commands. 60s timeout.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        command: { type: 'string' },
+      },
+      required: ['command'],
+    },
+  },
+  {
+    name: 'lsp_diagnostics',
+    description:
+      'Fetch current LSP diagnostics (errors/warnings) for a file. Spawns the appropriate language server lazily. Returns an empty list if no LSP is configured for the file type.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+      },
+      required: ['path'],
+    },
+  },
+];
+
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 12);
+}
+
+interface ToolContext {
+  workspace: string;
+}
+
+export interface ToolDispatchResult {
+  output: string;
+  pendingEditId?: string;
+}
+
+function truncate(s: string, max: number): string {
+  if (s.length <= max) return s;
+  return s.slice(0, max) + `\n…[truncated ${s.length - max} chars]`;
+}
+
+export async function dispatchTool(
+  ctx: ToolContext,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<ToolDispatchResult> {
+  switch (name) {
+    case 'read_file': {
+      const path = String(input.path);
+      const res = await invoke<{ content: string; line_count: number }>('agent_read', {
+        workspace: ctx.workspace,
+        path,
+      });
+      return { output: `${path} (${res.line_count} lines)\n\n${truncate(res.content, 12000)}` };
+    }
+
+    case 'write_file': {
+      const path = String(input.path);
+      const content = String(input.content);
+      // Snapshot current content (if exists) for diff
+      let before = '';
+      try {
+        const cur = await invoke<{ content: string }>('agent_read', {
+          workspace: ctx.workspace,
+          path,
+        });
+        before = cur.content;
+      } catch {
+        // new file
+      }
+      await invoke('agent_write', {
+        workspace: ctx.workspace,
+        path,
+        content,
+      });
+      const editId = makeId();
+      useAgentStore.getState().addPendingEdit({
+        id: editId,
+        path,
+        before,
+        after: content,
+      });
+      // Push to LSP for diagnostics
+      try {
+        await lspOpenFile(ctx.workspace, path, content);
+        const diags = await lspGetDiagnostics(path);
+        if (diags.length > 0) {
+          useAgentStore.getState().setEditDiagnostics(editId, diags);
+        }
+      } catch {
+        // ignore
+      }
+      return {
+        output: `Staged write to ${path} (${content.length} bytes). Awaiting user accept/reject.`,
+        pendingEditId: editId,
+      };
+    }
+
+    case 'edit_file': {
+      const path = String(input.path);
+      const oldString = String(input.old_string);
+      const newString = String(input.new_string);
+      const replaceAll = Boolean(input.replace_all);
+      const res = await invoke<{ replaced: number; before: string; after: string }>(
+        'agent_edit',
+        {
+          input: {
+            workspace: ctx.workspace,
+            path,
+            old_string: oldString,
+            new_string: newString,
+            replace_all: replaceAll,
+          },
+        },
+      );
+      const editId = makeId();
+      useAgentStore.getState().addPendingEdit({
+        id: editId,
+        path,
+        before: res.before,
+        after: res.after,
+      });
+      try {
+        await lspOpenFile(ctx.workspace, path, res.after);
+        const diags = await lspGetDiagnostics(path);
+        if (diags.length > 0) {
+          useAgentStore.getState().setEditDiagnostics(editId, diags);
+        }
+      } catch {
+        // ignore
+      }
+      return {
+        output: `Replaced ${res.replaced} occurrence(s) in ${path}. Awaiting user accept/reject.`,
+        pendingEditId: editId,
+      };
+    }
+
+    case 'list_dir': {
+      const path = String(input.path);
+      const entries = await invoke<Array<{ name: string; path: string; is_dir: boolean }>>(
+        'agent_list',
+        { workspace: ctx.workspace, path },
+      );
+      return {
+        output: entries.map((e) => `${e.is_dir ? 'd' : 'f'} ${e.path}`).join('\n') || '(empty)',
+      };
+    }
+
+    case 'glob': {
+      const pattern = String(input.pattern);
+      const matches = await invoke<string[]>('agent_glob', {
+        workspace: ctx.workspace,
+        pattern,
+      });
+      return { output: matches.length ? matches.join('\n') : '(no matches)' };
+    }
+
+    case 'grep': {
+      const pattern = String(input.pattern);
+      const globFilter = input.glob_filter ? String(input.glob_filter) : null;
+      const hits = await invoke<Array<{ path: string; line: number; text: string }>>(
+        'agent_grep',
+        {
+          workspace: ctx.workspace,
+          pattern,
+          globFilter,
+        },
+      );
+      return {
+        output: hits.length
+          ? hits.map((h) => `${h.path}:${h.line}: ${h.text}`).join('\n')
+          : '(no matches)',
+      };
+    }
+
+    case 'bash': {
+      const command = String(input.command);
+      const res = await invoke<{ stdout: string; stderr: string; code: number | null }>(
+        'agent_bash',
+        { workspace: ctx.workspace, command, timeoutMs: 60000 },
+      );
+      const parts = [];
+      if (res.stdout) parts.push(`stdout:\n${truncate(res.stdout, 6000)}`);
+      if (res.stderr) parts.push(`stderr:\n${truncate(res.stderr, 6000)}`);
+      parts.push(`exit code: ${res.code ?? '?'}`);
+      return { output: parts.join('\n\n') };
+    }
+
+    case 'lsp_diagnostics': {
+      const path = String(input.path);
+      try {
+        const cur = await invoke<{ content: string }>('agent_read', {
+          workspace: ctx.workspace,
+          path,
+        });
+        await lspOpenFile(ctx.workspace, path, cur.content);
+      } catch {
+        return { output: '(file not found)' };
+      }
+      const diags = await lspGetDiagnostics(path);
+      if (!diags.length) return { output: 'No diagnostics.' };
+      return {
+        output: diags
+          .map(
+            (d) =>
+              `${path}:${d.range.start.line + 1}:${d.range.start.character + 1}: ${
+                ['', 'error', 'warning', 'info', 'hint'][d.severity ?? 1]
+              }: ${d.message}`,
+          )
+          .join('\n'),
+      };
+    }
+
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
+}
+
+export const AGENT_SYSTEM_PROMPT = `You are Skillset Agent, an AI coding assistant inside the Skillset desktop app, working within a user-selected workspace folder.
+
+You have tools to read, edit, search, and run commands inside the workspace. Use them deliberately:
+- Prefer \`edit_file\` over \`write_file\` for partial changes; \`write_file\` overwrites everything.
+- All file edits are staged — the user accepts or rejects each one. After editing, briefly tell the user what you changed and why.
+- Use \`grep\` and \`glob\` to locate code before editing. Don't guess paths.
+- Run \`bash\` for builds, tests, git, package managers. Keep commands short; pipe through \`head\` if output is large.
+- After meaningful edits, call \`lsp_diagnostics\` on the file to surface type errors before claiming success.
+- When done, give a one-line summary. No filler, no apologies.`;

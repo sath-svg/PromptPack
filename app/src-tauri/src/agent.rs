@@ -1,0 +1,511 @@
+//! Agent runtime: file ops, shell, and LSP plumbing for Skill Chat.
+//!
+//! Designed for use by an in-app coding agent. All file ops are scoped to a
+//! caller-supplied workspace root; LSP servers communicate over stdio with
+//! JSON-RPC + Content-Length framing, and incoming messages are surfaced to
+//! the frontend via Tauri events `lsp:<handle>:msg`.
+
+use globset::Glob;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::process::{Child, ChildStdin, Command};
+use tokio::sync::Mutex;
+use walkdir::WalkDir;
+
+#[allow(unused_imports)]
+use tauri::Manager;
+
+// ---------------------------------------------------------------------------
+// Path safety
+// ---------------------------------------------------------------------------
+
+fn resolve_in_workspace(workspace: &str, p: &str) -> Result<PathBuf, String> {
+    let root = PathBuf::from(workspace);
+    let root = root
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+
+    let target = if Path::new(p).is_absolute() {
+        PathBuf::from(p)
+    } else {
+        root.join(p)
+    };
+
+    // Canonicalize parent first to allow not-yet-existing files (writes)
+    let canon = if target.exists() {
+        target
+            .canonicalize()
+            .map_err(|e| format!("path resolve failed: {}", e))?
+    } else {
+        let parent = target
+            .parent()
+            .ok_or_else(|| "invalid path".to_string())?;
+        let parent_canon = parent
+            .canonicalize()
+            .map_err(|e| format!("parent dir not found: {}", e))?;
+        parent_canon.join(target.file_name().unwrap_or_default())
+    };
+
+    if !canon.starts_with(&root) {
+        return Err(format!(
+            "path escapes workspace: {} not under {}",
+            canon.display(),
+            root.display()
+        ));
+    }
+    Ok(canon)
+}
+
+// ---------------------------------------------------------------------------
+// File ops
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct ReadResult {
+    pub content: String,
+    pub line_count: usize,
+}
+
+#[tauri::command]
+pub async fn agent_read(workspace: String, path: String) -> Result<ReadResult, String> {
+    let p = resolve_in_workspace(&workspace, &path)?;
+    let content = tokio::fs::read_to_string(&p)
+        .await
+        .map_err(|e| format!("read {}: {}", p.display(), e))?;
+    let line_count = content.lines().count();
+    Ok(ReadResult { content, line_count })
+}
+
+#[tauri::command]
+pub async fn agent_write(workspace: String, path: String, content: String) -> Result<(), String> {
+    let p = resolve_in_workspace(&workspace, &path)?;
+    if let Some(parent) = p.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("mkdir parent: {}", e))?;
+    }
+    tokio::fs::write(&p, content)
+        .await
+        .map_err(|e| format!("write {}: {}", p.display(), e))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EditInput {
+    pub workspace: String,
+    pub path: String,
+    pub old_string: String,
+    pub new_string: String,
+    #[serde(default)]
+    pub replace_all: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EditResult {
+    pub replaced: usize,
+    pub before: String,
+    pub after: String,
+}
+
+#[tauri::command]
+pub async fn agent_edit(input: EditInput) -> Result<EditResult, String> {
+    let p = resolve_in_workspace(&input.workspace, &input.path)?;
+    let before = tokio::fs::read_to_string(&p)
+        .await
+        .map_err(|e| format!("read {}: {}", p.display(), e))?;
+
+    if input.old_string.is_empty() {
+        return Err("old_string must not be empty".into());
+    }
+
+    let count = before.matches(&input.old_string).count();
+    if count == 0 {
+        return Err(format!(
+            "old_string not found in {}",
+            p.display()
+        ));
+    }
+    if !input.replace_all && count > 1 {
+        return Err(format!(
+            "old_string matches {} times in {}; pass replace_all or include more context",
+            count,
+            p.display()
+        ));
+    }
+
+    let after = if input.replace_all {
+        before.replace(&input.old_string, &input.new_string)
+    } else {
+        before.replacen(&input.old_string, &input.new_string, 1)
+    };
+    tokio::fs::write(&p, &after)
+        .await
+        .map_err(|e| format!("write {}: {}", p.display(), e))?;
+
+    Ok(EditResult {
+        replaced: if input.replace_all { count } else { 1 },
+        before,
+        after,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+}
+
+#[tauri::command]
+pub async fn agent_list(workspace: String, path: String) -> Result<Vec<DirEntry>, String> {
+    let p = resolve_in_workspace(&workspace, &path)?;
+    let mut rd = tokio::fs::read_dir(&p)
+        .await
+        .map_err(|e| format!("readdir {}: {}", p.display(), e))?;
+    let root = PathBuf::from(&workspace).canonicalize().unwrap_or_default();
+    let mut out = Vec::new();
+    while let Some(entry) = rd.next_entry().await.map_err(|e| e.to_string())? {
+        let ft = entry.file_type().await.map_err(|e| e.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let abs = entry.path();
+        let rel = abs
+            .strip_prefix(&root)
+            .map(|x| x.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_else(|_| name.clone());
+        out.push(DirEntry {
+            name,
+            path: rel,
+            is_dir: ft.is_dir(),
+        });
+    }
+    out.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.cmp(&b.name),
+    });
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn agent_glob(workspace: String, pattern: String) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(&workspace)
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+    let glob = Glob::new(&pattern)
+        .map_err(|e| format!("invalid glob: {}", e))?
+        .compile_matcher();
+
+    let mut out = Vec::new();
+    for entry in WalkDir::new(&root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            !e.file_name()
+                .to_str()
+                .map(|n| n.starts_with('.') && n != ".")
+                .unwrap_or(false)
+                && e.file_name() != "node_modules"
+                && e.file_name() != "target"
+                && e.file_name() != "dist"
+        })
+        .filter_map(|e| e.ok())
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let rel = entry
+            .path()
+            .strip_prefix(&root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if glob.is_match(&rel) {
+            out.push(rel);
+        }
+        if out.len() >= 200 {
+            break;
+        }
+    }
+    Ok(out)
+}
+
+#[derive(Debug, Serialize)]
+pub struct GrepHit {
+    pub path: String,
+    pub line: usize,
+    pub text: String,
+}
+
+#[tauri::command]
+pub async fn agent_grep(
+    workspace: String,
+    pattern: String,
+    glob_filter: Option<String>,
+) -> Result<Vec<GrepHit>, String> {
+    let root = PathBuf::from(&workspace)
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+    let re = Regex::new(&pattern).map_err(|e| format!("bad regex: {}", e))?;
+    let glob = if let Some(g) = glob_filter {
+        Some(
+            Glob::new(&g)
+                .map_err(|e| format!("invalid glob: {}", e))?
+                .compile_matcher(),
+        )
+    } else {
+        None
+    };
+
+    let mut hits: Vec<GrepHit> = Vec::new();
+    for entry in WalkDir::new(&root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            !e.file_name()
+                .to_str()
+                .map(|n| n.starts_with('.') && n != ".")
+                .unwrap_or(false)
+                && e.file_name() != "node_modules"
+                && e.file_name() != "target"
+                && e.file_name() != "dist"
+        })
+        .filter_map(|e| e.ok())
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let rel = entry
+            .path()
+            .strip_prefix(&root)
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        if let Some(g) = &glob {
+            if !g.is_match(&rel) {
+                continue;
+            }
+        }
+        let Ok(content) = tokio::fs::read_to_string(entry.path()).await else {
+            continue;
+        };
+        for (i, line) in content.lines().enumerate() {
+            if re.is_match(line) {
+                hits.push(GrepHit {
+                    path: rel.clone(),
+                    line: i + 1,
+                    text: line.to_string(),
+                });
+                if hits.len() >= 200 {
+                    return Ok(hits);
+                }
+            }
+        }
+    }
+    Ok(hits)
+}
+
+// ---------------------------------------------------------------------------
+// Bash
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct BashResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub code: Option<i32>,
+}
+
+#[tauri::command]
+pub async fn agent_bash(
+    workspace: String,
+    command: String,
+    timeout_ms: Option<u64>,
+) -> Result<BashResult, String> {
+    let root = PathBuf::from(&workspace)
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(60_000));
+
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg(&command);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg(&command);
+        c
+    };
+
+    cmd.current_dir(&root);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let fut = cmd.output();
+    let output = tokio::time::timeout(timeout, fut)
+        .await
+        .map_err(|_| format!("command timed out after {:?}", timeout))?
+        .map_err(|e| format!("spawn failed: {}", e))?;
+
+    Ok(BashResult {
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        code: output.status.code(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// LSP
+// ---------------------------------------------------------------------------
+
+pub struct LspProcess {
+    child: Child,
+    stdin: ChildStdin,
+}
+
+#[derive(Default)]
+pub struct LspState {
+    pub processes: Mutex<HashMap<String, Arc<Mutex<LspProcess>>>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LspSpawnInput {
+    pub handle: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub root: String,
+}
+
+#[tauri::command]
+pub async fn lsp_spawn(
+    app: AppHandle,
+    state: State<'_, LspState>,
+    input: LspSpawnInput,
+) -> Result<(), String> {
+    let mut child = Command::new(&input.command)
+        .args(&input.args)
+        .current_dir(&input.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn {}: {}", input.command, e))?;
+
+    let stdin = child.stdin.take().ok_or("no stdin")?;
+    let stdout = child.stdout.take().ok_or("no stdout")?;
+    let stderr = child.stderr.take().ok_or("no stderr")?;
+
+    let handle_id = input.handle.clone();
+    let app_clone = app.clone();
+    let stdout_handle = handle_id.clone();
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout);
+        loop {
+            // Parse Content-Length headers
+            let mut content_length: Option<usize> = None;
+            loop {
+                let mut header = String::new();
+                let n = match reader.read_line(&mut header).await {
+                    Ok(n) => n,
+                    Err(_) => return,
+                };
+                if n == 0 {
+                    return;
+                }
+                let trimmed = header.trim_end();
+                if trimmed.is_empty() {
+                    break;
+                }
+                if let Some(rest) = trimmed.strip_prefix("Content-Length:") {
+                    content_length = rest.trim().parse().ok();
+                }
+            }
+            let len = match content_length {
+                Some(l) => l,
+                None => continue,
+            };
+            let mut buf = vec![0u8; len];
+            if reader.read_exact(&mut buf).await.is_err() {
+                return;
+            }
+            if let Ok(text) = String::from_utf8(buf) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                    let _ = app_clone.emit(&format!("lsp:{}:msg", stdout_handle), json);
+                }
+            }
+        }
+    });
+
+    let app_clone2 = app.clone();
+    let stderr_handle = handle_id.clone();
+    tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line).await {
+                Ok(0) | Err(_) => return,
+                Ok(_) => {
+                    let _ =
+                        app_clone2.emit(&format!("lsp:{}:stderr", stderr_handle), line.trim());
+                }
+            }
+        }
+    });
+
+    let mut map = state.processes.lock().await;
+    map.insert(
+        handle_id,
+        Arc::new(Mutex::new(LspProcess { child, stdin })),
+    );
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn lsp_send(
+    state: State<'_, LspState>,
+    handle: String,
+    message: String,
+) -> Result<(), String> {
+    let proc = {
+        let map = state.processes.lock().await;
+        map.get(&handle)
+            .cloned()
+            .ok_or_else(|| format!("lsp handle not found: {}", handle))?
+    };
+    let mut p = proc.lock().await;
+    let framed = format!(
+        "Content-Length: {}\r\n\r\n{}",
+        message.as_bytes().len(),
+        message
+    );
+    p.stdin
+        .write_all(framed.as_bytes())
+        .await
+        .map_err(|e| format!("lsp write: {}", e))?;
+    p.stdin.flush().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn lsp_stop(state: State<'_, LspState>, handle: String) -> Result<(), String> {
+    let proc = {
+        let mut map = state.processes.lock().await;
+        map.remove(&handle)
+    };
+    if let Some(proc) = proc {
+        let mut p = proc.lock().await;
+        let _ = p.child.kill().await;
+    }
+    Ok(())
+}
+

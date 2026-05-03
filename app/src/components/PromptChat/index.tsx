@@ -5,7 +5,11 @@ import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
+import { WorkspaceBar } from './WorkspaceBar';
+import { ToolBlock } from './ToolBlock';
+import type { MessageBlock } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -20,11 +24,16 @@ function fillVariables(text: string, values: Record<string, string>): string {
 }
 
 export function PromptChatPage() {
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError } = useChatStore();
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session } = useAuthStore();
   const { billingTier, serverChatCount } = useSettingsStore();
-  const isLimitReached = billingTier === 'free' && serverChatCount >= 3;
+  const { initWorkspace, workspace } = useAgentStore();
+  const isLimitReached = billingTier === 'free' && serverChatCount >= 3 && !agentMode;
+
+  useEffect(() => {
+    initWorkspace();
+  }, [initWorkspace]);
 
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
@@ -175,6 +184,7 @@ export function PromptChatPage() {
     <div className="flex h-full gap-4">
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
+        <WorkspaceBar />
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -282,34 +292,64 @@ export function PromptChatPage() {
             </div>
           )}
 
-          {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                  msg.role === 'user'
-                    ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
-                    : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
-                }`}
-              >
-                {msg.packName && msg.role === 'user' && (
-                  <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
-                    <Package size={10} /> {msg.packName}
-                  </p>
-                )}
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                {msg.role === 'assistant' && msg.preset && (
-                  <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
-                      {TIER_LABELS[msg.preset.tier]}
-                    </span>
-                    <span className="text-xs text-[var(--muted-foreground)]">
-                      {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
-                    </span>
-                  </div>
-                )}
+          {messages.map((msg) => {
+            const hasBlocks = msg.role === 'assistant' && msg.blocks && msg.blocks.length > 0;
+            const resultByToolUseId: Record<string, MessageBlock> = {};
+            if (hasBlocks) {
+              for (const b of msg.blocks!) {
+                if (b.kind === 'tool_result') resultByToolUseId[b.toolUseId] = b;
+              }
+            }
+            const widthCls = hasBlocks ? 'max-w-[92%]' : 'max-w-[80%]';
+            return (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`${widthCls} rounded-2xl px-4 py-3 ${
+                    msg.role === 'user'
+                      ? 'bg-[var(--primary)] text-[var(--primary-foreground)] rounded-br-sm'
+                      : 'bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-bl-sm'
+                  }`}
+                >
+                  {msg.packName && msg.role === 'user' && (
+                    <p className="text-xs opacity-70 mb-1 flex items-center gap-1">
+                      <Package size={10} /> {msg.packName}
+                    </p>
+                  )}
+                  {hasBlocks ? (
+                    <div className="space-y-1">
+                      {msg.blocks!.map((block, idx) => {
+                        if (block.kind === 'text') {
+                          return (
+                            <p key={idx} className="text-sm whitespace-pre-wrap leading-relaxed">
+                              {block.text}
+                            </p>
+                          );
+                        }
+                        if (block.kind === 'tool_use') {
+                          return (
+                            <ToolBlock key={idx} block={block} resultByToolUseId={resultByToolUseId} />
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  )}
+                  {msg.role === 'assistant' && msg.preset && (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
+                        {TIER_LABELS[msg.preset.tier]}
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {isLoading && (
             <div className="flex justify-start">
@@ -492,7 +532,11 @@ export function PromptChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Type a message… (Shift+Enter for new line)"
+                placeholder={
+                  agentMode && workspace
+                    ? 'Ask the agent to read, edit, or run code…'
+                    : 'Type a message… (Shift+Enter for new line)'
+                }
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
               />

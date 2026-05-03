@@ -1,3 +1,4 @@
+mod agent;
 mod auth;
 mod commands;
 mod crypto;
@@ -30,6 +31,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(commands::AuthState::default())
+        .manage(agent::LspState::default())
         .manage(commands::HttpClient(
             reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(30))
@@ -126,6 +128,16 @@ pub fn run() {
             commands::open_auth_window,
             commands::close_auth_window,
             commands::proxy_fetch,
+            agent::agent_read,
+            agent::agent_write,
+            agent::agent_edit,
+            agent::agent_list,
+            agent::agent_glob,
+            agent::agent_grep,
+            agent::agent_bash,
+            agent::lsp_spawn,
+            agent::lsp_send,
+            agent::lsp_stop,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
