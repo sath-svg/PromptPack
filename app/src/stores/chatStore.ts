@@ -10,6 +10,7 @@ import {
 } from '../lib/classifier';
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
+import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../lib/agentTools';
 
 // ---------------------------------------------------------------------------
@@ -274,9 +275,14 @@ async function callServer(
   modelId: string,
   messages: { role: string; content: string }[],
 ): Promise<string> {
+  const session = useAuthStore.getState().session;
+  const headers: Record<string, string> = { 'content-type': 'application/json' };
+  if (session?.session_token) {
+    headers['authorization'] = `Bearer ${session.session_token}`;
+  }
   const response = await tauriFetch('https://api.pmtpk.com/chat', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers,
     body: JSON.stringify({ model: modelId, messages }),
   });
   if (!response.ok) {
@@ -286,6 +292,7 @@ async function callServer(
   const data = await response.json();
   return data?.content ?? '';
 }
+
 
 async function callPlainPreset(
   preset: ModelPreset,
@@ -771,11 +778,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ? SERVER_OPENAI_COMPAT_BASE
               : PROVIDER_BASE_URLS[preset.provider];
           const keyMap = (apiKeys ?? {}) as Record<string, string | undefined>;
+          // Server provider auths with the user's Clerk JWT; the backend
+          // proxy holds the actual Groq API key and enforces tier caps
+          // server-side. Sent via standard `Authorization: Bearer <jwt>`
+          // so the openai-compat client can pass it through unchanged.
+          const serverJwt = useAuthStore.getState().session?.session_token ?? '';
+          if (preset.provider === 'server' && !serverJwt) {
+            throw new Error('Sign in to use the inbuilt Skillset agent.');
+          }
           const apiKey =
             preset.provider === 'ollama'
               ? 'ollama'
               : preset.provider === 'server'
-                ? '' // backend proxy holds the inbuilt Groq key
+                ? serverJwt
                 : keyMap[preset.provider] ?? '';
           const extra: Record<string, string> = {};
           if (preset.provider === 'openrouter') {
