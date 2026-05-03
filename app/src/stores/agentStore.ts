@@ -57,6 +57,13 @@ interface AgentState {
   // LSP install/availability tracker keyed by server id
   lspStatus: Record<string, LspInstallStatus>;
 
+  // Attachments staged for the next message — workspace-relative paths
+  attachments: string[];
+
+  // Auto-accept staged edits without prompting. Off by default; toggle in
+  // workspace bar. Reset to false on workspace change.
+  autoAcceptEdits: boolean;
+
   initWorkspace: () => void;
   pickWorkspace: () => Promise<string | null>;
   setWorkspace: (path: string) => void;
@@ -74,6 +81,11 @@ interface AgentState {
   installLspServer: (serverId: string) => Promise<boolean>;
   setLspStatus: (serverId: string, status: LspInstallStatus) => void;
 
+  attachFiles: (sources: string[]) => Promise<{ copied: string[]; failed: string[] }>;
+  removeAttachment: (path: string) => void;
+  clearAttachments: () => void;
+  setAutoAcceptEdits: (on: boolean) => void;
+
   reset: () => void;
 }
 
@@ -83,6 +95,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   toolCalls: {},
   toolCallOrder: [],
   lspStatus: {},
+  attachments: [],
+  autoAcceptEdits: false,
 
   initWorkspace: () => {
     const stored = localStorage.getItem(WORKSPACE_KEY);
@@ -105,7 +119,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   clearWorkspace: () => {
     localStorage.removeItem(WORKSPACE_KEY);
-    set({ workspace: null });
+    set({ workspace: null, attachments: [], autoAcceptEdits: false });
     lspShutdownAll().catch(() => {});
   },
 
@@ -263,7 +277,39 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     return false;
   },
 
+  attachFiles: async (sources) => {
+    const ws = get().workspace;
+    if (!ws) return { copied: [], failed: sources };
+    try {
+      const res = await invoke<{ copied: string[]; failed: string[] }>('agent_attach_files', {
+        workspace: ws,
+        sources,
+      });
+      set((state) => ({
+        attachments: Array.from(new Set([...state.attachments, ...res.copied])),
+      }));
+      return res;
+    } catch (err) {
+      console.error('attach failed:', err);
+      return { copied: [], failed: sources };
+    }
+  },
+
+  removeAttachment: (path) => {
+    set((state) => ({ attachments: state.attachments.filter((p) => p !== path) }));
+  },
+
+  clearAttachments: () => set({ attachments: [] }),
+
+  setAutoAcceptEdits: (on) => set({ autoAcceptEdits: on }),
+
   reset: () => {
-    set({ pendingEdits: {}, toolCalls: {}, toolCallOrder: [], lspStatus: {} });
+    set({
+      pendingEdits: {},
+      toolCalls: {},
+      toolCallOrder: [],
+      lspStatus: {},
+      attachments: [],
+    });
   },
 }));

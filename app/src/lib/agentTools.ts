@@ -192,6 +192,10 @@ export async function dispatchTool(
       } catch {
         // ignore
       }
+      // Auto-accept short-circuits the user prompt for trusted refactors
+      if (useAgentStore.getState().autoAcceptEdits) {
+        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+      }
       return {
         output: `Staged write to ${path} (${content.length} bytes). Awaiting user accept/reject.`,
         pendingEditId: editId,

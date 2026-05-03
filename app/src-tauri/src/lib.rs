@@ -135,6 +135,8 @@ pub fn run() {
             agent::agent_glob,
             agent::agent_grep,
             agent::agent_bash,
+            agent::agent_attach_files,
+            agent::agent_git_status,
             agent::agent_check_tool,
             agent::agent_install_tool,
             agent::lsp_spawn,

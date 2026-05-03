@@ -391,6 +391,187 @@ pub async fn agent_bash(
 }
 
 // ---------------------------------------------------------------------------
+// Attachments — copy external files into the workspace
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+pub struct AttachmentResult {
+    pub copied: Vec<String>, // workspace-relative paths
+    pub failed: Vec<String>, // absolute paths that couldn't be copied
+}
+
+/// Copy external files into `<workspace>/.skillset-attachments/<filename>`
+/// so the agent can `read_file` them with locally-scoped tools instead of
+/// inlining their contents into the LLM context. Conflicts are resolved
+/// by appending a numeric suffix.
+#[tauri::command]
+pub async fn agent_attach_files(
+    workspace: String,
+    sources: Vec<String>,
+) -> Result<AttachmentResult, String> {
+    let root = PathBuf::from(&workspace)
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+
+    let dest_dir = root.join(".skillset-attachments");
+    tokio::fs::create_dir_all(&dest_dir)
+        .await
+        .map_err(|e| format!("create attachments dir: {}", e))?;
+
+    let mut copied = Vec::new();
+    let mut failed = Vec::new();
+
+    for src in sources {
+        let src_path = PathBuf::from(&src);
+        let filename = match src_path.file_name() {
+            Some(n) => n.to_string_lossy().into_owned(),
+            None => {
+                failed.push(src);
+                continue;
+            }
+        };
+
+        // Resolve filename collision: file.txt → file (1).txt → file (2).txt
+        let stem = std::path::Path::new(&filename)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| filename.clone());
+        let ext = std::path::Path::new(&filename)
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default();
+
+        let mut chosen = filename.clone();
+        let mut i = 1;
+        while dest_dir.join(&chosen).exists() {
+            chosen = format!("{} ({}){}", stem, i, ext);
+            i += 1;
+            if i > 999 {
+                break;
+            }
+        }
+        let target = dest_dir.join(&chosen);
+        match tokio::fs::copy(&src_path, &target).await {
+            Ok(_) => {
+                copied.push(format!(".skillset-attachments/{}", chosen));
+            }
+            Err(_) => {
+                failed.push(src);
+            }
+        }
+    }
+
+    Ok(AttachmentResult { copied, failed })
+}
+
+// ---------------------------------------------------------------------------
+// Git
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Default)]
+pub struct GitStatus {
+    pub branch: Option<String>,
+    pub modified: u32,
+    pub untracked: u32,
+    pub ahead: u32,
+    pub behind: u32,
+    pub clean: bool,
+    pub is_repo: bool,
+}
+
+/// Snapshot of the workspace's git state. Returns is_repo=false (no error)
+/// when the workspace is not a git repository so the UI can hide git
+/// affordances quietly.
+#[tauri::command]
+pub async fn agent_git_status(workspace: String) -> Result<GitStatus, String> {
+    let root = PathBuf::from(&workspace)
+        .canonicalize()
+        .map_err(|e| format!("workspace not found: {}", e))?;
+
+    // Quick is-repo check
+    let mut is_repo_cmd = build_command("git", &["rev-parse".into(), "--is-inside-work-tree".into()]);
+    is_repo_cmd.current_dir(&root);
+    is_repo_cmd.stdout(Stdio::null());
+    is_repo_cmd.stderr(Stdio::null());
+    let repo_ok = match is_repo_cmd.status().await {
+        Ok(s) => s.success(),
+        Err(_) => false,
+    };
+    if !repo_ok {
+        return Ok(GitStatus::default());
+    }
+
+    // Branch
+    let mut branch_cmd = build_command(
+        "git",
+        &["rev-parse".into(), "--abbrev-ref".into(), "HEAD".into()],
+    );
+    branch_cmd.current_dir(&root);
+    branch_cmd.stdout(Stdio::piped());
+    branch_cmd.stderr(Stdio::null());
+    let branch = branch_cmd
+        .output()
+        .await
+        .ok()
+        .and_then(|o| {
+            if o.status.success() {
+                Some(String::from_utf8_lossy(&o.stdout).trim().to_string())
+            } else {
+                None
+            }
+        });
+
+    // Status porcelain
+    let mut st_cmd = build_command(
+        "git",
+        &["status".into(), "--porcelain=v1".into(), "--branch".into()],
+    );
+    st_cmd.current_dir(&root);
+    st_cmd.stdout(Stdio::piped());
+    st_cmd.stderr(Stdio::null());
+    let out = st_cmd
+        .output()
+        .await
+        .map_err(|e| format!("git status: {}", e))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+
+    let mut modified = 0u32;
+    let mut untracked = 0u32;
+    let mut ahead = 0u32;
+    let mut behind = 0u32;
+
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("## ") {
+            // ## branch...origin/branch [ahead 1, behind 2]
+            if let Some(start) = rest.find('[') {
+                let bracket = &rest[start + 1..rest.len().saturating_sub(1)];
+                for part in bracket.split(',').map(|p| p.trim()) {
+                    if let Some(n) = part.strip_prefix("ahead ") {
+                        ahead = n.parse().unwrap_or(0);
+                    } else if let Some(n) = part.strip_prefix("behind ") {
+                        behind = n.parse().unwrap_or(0);
+                    }
+                }
+            }
+        } else if line.starts_with("?? ") {
+            untracked += 1;
+        } else if !line.is_empty() {
+            modified += 1;
+        }
+    }
+
+    Ok(GitStatus {
+        is_repo: true,
+        branch,
+        modified,
+        untracked,
+        ahead,
+        behind,
+        clean: modified == 0 && untracked == 0,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Tool detection & install
 // ---------------------------------------------------------------------------
 

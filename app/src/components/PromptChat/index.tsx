@@ -9,7 +9,10 @@ import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
 import { WorkspaceBar } from './WorkspaceBar';
 import { LspStatusBar } from './LspStatusBar';
+import { GitBar } from './GitBar';
+import { AttachmentBar } from './AttachmentBar';
 import { ToolBlock } from './ToolBlock';
+import { CopyButton } from '../Common/CopyButton';
 import type { MessageBlock } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
@@ -29,7 +32,7 @@ export function PromptChatPage() {
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session } = useAuthStore();
   const { billingTier, serverChatCount } = useSettingsStore();
-  const { initWorkspace, workspace } = useAgentStore();
+  const { initWorkspace, workspace, attachments, clearAttachments } = useAgentStore();
   const isLimitReached = billingTier === 'free' && serverChatCount >= 3 && !agentMode;
 
   useEffect(() => {
@@ -169,7 +172,15 @@ export function PromptChatPage() {
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    await sendMessage(text, selectedPack?.title, buildSystemPrompt());
+    // If attachments are staged, prepend a note so the agent reads them
+    // locally instead of expecting their content inline
+    let finalText = text;
+    if (attachments.length > 0) {
+      const list = attachments.map((p) => `- ${p}`).join('\n');
+      finalText = `${text}\n\nAttached files (read with read_file as needed):\n${list}`;
+      clearAttachments();
+    }
+    await sendMessage(finalText, selectedPack?.title, buildSystemPrompt());
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -186,6 +197,7 @@ export function PromptChatPage() {
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
         <WorkspaceBar />
+        <GitBar />
         <LspStatusBar />
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -346,6 +358,21 @@ export function PromptChatPage() {
                       <span className="text-xs text-[var(--muted-foreground)]">
                         {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
                       </span>
+                      <CopyButton
+                        getText={() => {
+                          if (hasBlocks) {
+                            return msg
+                              .blocks!
+                              .filter((b) => b.kind === 'text')
+                              .map((b) => (b as { kind: 'text'; text: string }).text)
+                              .join('\n');
+                          }
+                          return msg.content;
+                        }}
+                        size={11}
+                        className="ml-auto"
+                        title="Copy assistant message"
+                      />
                     </div>
                   )}
                 </div>
@@ -529,6 +556,7 @@ export function PromptChatPage() {
                   )}
                 </div>
               )}
+              {workspace && agentMode && <AttachmentBar />}
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -542,6 +570,7 @@ export function PromptChatPage() {
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
               />
+              <CopyButton getText={() => input} />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
