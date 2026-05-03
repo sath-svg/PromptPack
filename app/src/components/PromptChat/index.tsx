@@ -235,28 +235,32 @@ export function PromptChatPage() {
         <GitBar />
         <LspStatusBar />
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p
-              className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Skill Chat
-            </p>
-            <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
-              One chat. Every model.
-            </h2>
-            <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
-              Auto-routes each message to the cheapest capable model.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowWhyOneChat(true)}
-              className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--primary)] hover:underline focus:outline-none"
-            >
-              <Info size={11} /> Why one chat?
-            </button>
-          </div>
+        <div className={`flex items-center justify-between ${messages.length === 0 ? 'mb-6' : 'mb-2'}`}>
+          {messages.length === 0 ? (
+            <div>
+              <p
+                className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Skill Chat
+              </p>
+              <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
+                One chat. Every model.
+              </h2>
+              <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
+                Auto-routes each message to the cheapest capable model.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowWhyOneChat(true)}
+                className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--primary)] hover:underline focus:outline-none"
+              >
+                <Info size={11} /> Why one chat?
+              </button>
+            </div>
+          ) : (
+            <div />
+          )}
           <div className="flex items-center gap-2">
             {isRunningPack && (
               <div className="flex items-center gap-2">
