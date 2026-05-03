@@ -29,12 +29,23 @@ interface JsonRpcMessage {
   error?: { code: number; message: string };
 }
 
+// Each server has up to two run modes: a one-shot `npx` form (no install,
+// downloads on first use) and a managed install via a package manager.
+// We pick the cheapest available path at spawn time.
 export interface LspServerSpec {
   id: string;
-  command: string;
-  args: string[];
+  displayName: string;
   extensions: string[];
-  // Optional initialization options (e.g. tsserver expects {}, pyright {})
+  // Direct binary if present on PATH
+  binary?: { command: string; args: string[] };
+  // npx-style fallback — works as long as Node is installed
+  npx?: { package: string; args: string[] };
+  // Optional managed install (only triggered after user opts in)
+  installer?: {
+    via: 'npm' | 'rustup' | 'go' | 'pip';
+    package: string;
+    requiresTool: string; // tool that must exist on PATH for installer to work
+  };
   initializationOptions?: unknown;
 }
 
@@ -42,27 +53,33 @@ export interface LspServerSpec {
 export const DEFAULT_LSP_SERVERS: LspServerSpec[] = [
   {
     id: 'typescript',
-    command: 'typescript-language-server',
-    args: ['--stdio'],
+    displayName: 'TypeScript / JavaScript',
     extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'],
+    binary: { command: 'typescript-language-server', args: ['--stdio'] },
+    npx: { package: 'typescript-language-server', args: ['--stdio'] },
+    installer: { via: 'npm', package: 'typescript-language-server typescript', requiresTool: 'npm' },
   },
   {
     id: 'pyright',
-    command: 'pyright-langserver',
-    args: ['--stdio'],
+    displayName: 'Python (Pyright)',
     extensions: ['.py'],
+    binary: { command: 'pyright-langserver', args: ['--stdio'] },
+    npx: { package: 'pyright', args: ['--stdio'] },
+    installer: { via: 'npm', package: 'pyright', requiresTool: 'npm' },
   },
   {
     id: 'rust-analyzer',
-    command: 'rust-analyzer',
-    args: [],
+    displayName: 'Rust',
     extensions: ['.rs'],
+    binary: { command: 'rust-analyzer', args: [] },
+    installer: { via: 'rustup', package: 'rust-analyzer', requiresTool: 'rustup' },
   },
   {
     id: 'gopls',
-    command: 'gopls',
-    args: [],
+    displayName: 'Go',
     extensions: ['.go'],
+    binary: { command: 'gopls', args: [] },
+    installer: { via: 'go', package: 'golang.org/x/tools/gopls@latest', requiresTool: 'go' },
   },
 ];
 
@@ -71,6 +88,112 @@ function pickServer(file: string): LspServerSpec | undefined {
   if (dot < 0) return undefined;
   const ext = file.slice(dot).toLowerCase();
   return DEFAULT_LSP_SERVERS.find((s) => s.extensions.includes(ext));
+}
+
+export function getServerById(id: string): LspServerSpec | undefined {
+  return DEFAULT_LSP_SERVERS.find((s) => s.id === id);
+}
+
+export function getServerForFile(file: string): LspServerSpec | undefined {
+  return pickServer(file);
+}
+
+async function checkTool(name: string): Promise<boolean> {
+  try {
+    return await invoke<boolean>('agent_check_tool', { name });
+  } catch {
+    return false;
+  }
+}
+
+export type LspAvailability =
+  | { kind: 'ready'; command: string; args: string[] }              // direct binary on PATH
+  | { kind: 'npx'; command: string; args: string[] }                // run via npx (Node available)
+  | { kind: 'installable'; via: 'npm' | 'rustup' | 'go' | 'pip'; package: string }
+  | { kind: 'unavailable'; reason: string };
+
+/// Resolve the cheapest spawn strategy for a server. Caches per session
+/// after first probe so we don't re-shell out on every file open.
+const availabilityCache = new Map<string, LspAvailability>();
+
+export async function resolveAvailability(spec: LspServerSpec): Promise<LspAvailability> {
+  const cached = availabilityCache.get(spec.id);
+  if (cached) return cached;
+
+  // 1. Direct binary on PATH
+  if (spec.binary) {
+    if (await checkTool(spec.binary.command)) {
+      const result: LspAvailability = {
+        kind: 'ready',
+        command: spec.binary.command,
+        args: spec.binary.args,
+      };
+      availabilityCache.set(spec.id, result);
+      return result;
+    }
+  }
+  // 2. npx fallback (Node available). Rust spawn layer handles the
+  // Windows .cmd shim so we always pass plain "npx".
+  if (spec.npx && (await checkTool('npx'))) {
+    const result: LspAvailability = {
+      kind: 'npx',
+      command: 'npx',
+      args: ['-y', spec.npx.package, ...spec.npx.args],
+    };
+    availabilityCache.set(spec.id, result);
+    return result;
+  }
+  // 3. Installable via package manager (user must opt in)
+  if (spec.installer && (await checkTool(spec.installer.requiresTool))) {
+    return { kind: 'installable', via: spec.installer.via, package: spec.installer.package };
+  }
+  // 4. Nothing we can do
+  return {
+    kind: 'unavailable',
+    reason: spec.installer
+      ? `Install ${spec.installer.requiresTool} to enable ${spec.displayName} LSP.`
+      : `${spec.displayName} LSP not available.`,
+  };
+}
+
+export function clearAvailabilityCache(serverId?: string): void {
+  if (serverId) availabilityCache.delete(serverId);
+  else availabilityCache.clear();
+}
+
+export async function installServer(
+  spec: LspServerSpec,
+  onProgress?: (line: string) => void,
+): Promise<{ success: boolean; message: string }> {
+  if (!spec.installer) return { success: false, message: 'no installer for this server' };
+  const eventName = `lsp-install:${spec.id}:${Date.now()}`;
+  const unlisten = onProgress
+    ? await listen<string>(eventName, (e) => onProgress(e.payload))
+    : null;
+  try {
+    const res = await invoke<{ success: boolean; stdout: string; stderr: string; code: number | null }>(
+      'agent_install_tool',
+      {
+        input: {
+          installer: spec.installer.via,
+          package: spec.installer.package,
+          progress_event: eventName,
+        },
+      },
+    );
+    if (res.success) {
+      clearAvailabilityCache(spec.id);
+      return { success: true, message: 'Installed.' };
+    }
+    return {
+      success: false,
+      message: res.stderr || res.stdout || `installer exited ${res.code ?? '?'}`,
+    };
+  } catch (err) {
+    return { success: false, message: err instanceof Error ? err.message : String(err) };
+  } finally {
+    unlisten?.();
+  }
 }
 
 function pathToFileUri(p: string): string {
@@ -100,10 +223,16 @@ function clientKey(serverId: string, root: string): string {
   return `${serverId}::${root}`;
 }
 
-async function ensureClient(spec: LspServerSpec, root: string): Promise<LspClient> {
+async function ensureClient(spec: LspServerSpec, root: string): Promise<LspClient | null> {
   const key = clientKey(spec.id, root);
   const existing = clients.get(key);
   if (existing) return existing;
+
+  const availability = await resolveAvailability(spec);
+  if (availability.kind === 'installable' || availability.kind === 'unavailable') {
+    // Caller decides whether to prompt for install
+    return null;
+  }
 
   const handle = `${spec.id}-${Math.random().toString(36).slice(2, 10)}`;
   const client: LspClient = {
@@ -143,13 +272,12 @@ async function ensureClient(spec: LspServerSpec, root: string): Promise<LspClien
     // swallow — could log later
   });
 
+  const command =
+    availability.kind === 'ready' || availability.kind === 'npx' ? availability.command : '';
+  const args =
+    availability.kind === 'ready' || availability.kind === 'npx' ? availability.args : [];
   await invoke('lsp_spawn', {
-    input: {
-      handle,
-      command: spec.command,
-      args: spec.args,
-      root,
-    },
+    input: { handle, command, args, root },
   });
 
   // Initialize
@@ -226,7 +354,7 @@ export async function lspOpenFile(root: string, file: string, content: string): 
   const spec = pickServer(file);
   if (!spec) return;
   const client = await ensureClient(spec, root).catch(() => null);
-  if (!client) return;
+  if (!client) return; // unavailable or installable — caller surfaces UI separately
   const ext = file.slice(file.lastIndexOf('.')).toLowerCase();
   const uri = pathToFileUri(file);
   if (client.openedFiles.has(file)) {

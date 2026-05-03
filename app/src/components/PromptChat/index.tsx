@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
 import { WorkspaceBar } from './WorkspaceBar';
+import { LspStatusBar } from './LspStatusBar';
 import { ToolBlock } from './ToolBlock';
 import type { MessageBlock } from '../../stores/chatStore';
 
@@ -185,6 +186,7 @@ export function PromptChatPage() {
       {/* Main chat area */}
       <div className="flex flex-col flex-1 min-w-0">
         <WorkspaceBar />
+        <LspStatusBar />
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>

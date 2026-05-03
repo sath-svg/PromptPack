@@ -4,7 +4,17 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { lspOpenFile, lspGetDiagnostics, lspShutdownAll, type LspDiagnostic } from '../lib/lspClient';
+import {
+  lspOpenFile,
+  lspGetDiagnostics,
+  lspShutdownAll,
+  resolveAvailability,
+  installServer,
+  getServerForFile,
+  getServerById,
+  type LspAvailability,
+  type LspDiagnostic,
+} from '../lib/lspClient';
 
 const WORKSPACE_KEY = 'skillset.agent.workspace';
 
@@ -29,11 +39,23 @@ export interface ToolCallRecord {
   endedAt?: number;
 }
 
+export type LspInstallStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'fetching'; lines: string[] }       // npx first-run download in progress
+  | { state: 'installing'; lines: string[] }     // managed install via npm/rustup/go/pip
+  | { state: 'ready' }
+  | { state: 'needs-install'; via: 'npm' | 'rustup' | 'go' | 'pip'; package: string }
+  | { state: 'unavailable'; reason: string };
+
 interface AgentState {
   workspace: string | null;
   pendingEdits: Record<string, PendingEdit>;
   toolCalls: Record<string, ToolCallRecord>;
   toolCallOrder: string[];
+
+  // LSP install/availability tracker keyed by server id
+  lspStatus: Record<string, LspInstallStatus>;
 
   initWorkspace: () => void;
   pickWorkspace: () => Promise<string | null>;
@@ -48,6 +70,10 @@ interface AgentState {
   rejectEdit: (id: string) => Promise<void>;
   setEditDiagnostics: (id: string, diagnostics: LspDiagnostic[]) => void;
 
+  probeLspForFile: (path: string) => Promise<LspAvailability | null>;
+  installLspServer: (serverId: string) => Promise<boolean>;
+  setLspStatus: (serverId: string, status: LspInstallStatus) => void;
+
   reset: () => void;
 }
 
@@ -56,6 +82,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   pendingEdits: {},
   toolCalls: {},
   toolCallOrder: [],
+  lspStatus: {},
 
   initWorkspace: () => {
     const stored = localStorage.getItem(WORKSPACE_KEY);
@@ -176,7 +203,67 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     });
   },
 
+  setLspStatus: (serverId, status) => {
+    set((state) => ({ lspStatus: { ...state.lspStatus, [serverId]: status } }));
+  },
+
+  probeLspForFile: async (path) => {
+    const spec = getServerForFile(path);
+    if (!spec) return null;
+    get().setLspStatus(spec.id, { state: 'checking' });
+    const availability = await resolveAvailability(spec);
+    switch (availability.kind) {
+      case 'ready':
+        get().setLspStatus(spec.id, { state: 'ready' });
+        break;
+      case 'npx':
+        // First spawn may take ~30s while npx downloads — surface it
+        get().setLspStatus(spec.id, { state: 'fetching', lines: [] });
+        // Mark ready optimistically; lspOpenFile will spawn it
+        setTimeout(() => {
+          const cur = get().lspStatus[spec.id];
+          if (cur?.state === 'fetching') get().setLspStatus(spec.id, { state: 'ready' });
+        }, 60000);
+        break;
+      case 'installable':
+        get().setLspStatus(spec.id, {
+          state: 'needs-install',
+          via: availability.via,
+          package: availability.package,
+        });
+        break;
+      case 'unavailable':
+        get().setLspStatus(spec.id, { state: 'unavailable', reason: availability.reason });
+        break;
+    }
+    return availability;
+  },
+
+  installLspServer: async (serverId) => {
+    const spec = getServerById(serverId);
+    if (!spec) return false;
+    const lines: string[] = [];
+    get().setLspStatus(serverId, { state: 'installing', lines: [] });
+    const res = await installServer(spec, (line) => {
+      lines.push(line);
+      // Cap visible log to last 30 lines to avoid bloat
+      get().setLspStatus(serverId, {
+        state: 'installing',
+        lines: lines.slice(-30),
+      });
+    });
+    if (res.success) {
+      get().setLspStatus(serverId, { state: 'ready' });
+      return true;
+    }
+    get().setLspStatus(serverId, {
+      state: 'unavailable',
+      reason: res.message || 'Install failed.',
+    });
+    return false;
+  },
+
   reset: () => {
-    set({ pendingEdits: {}, toolCalls: {}, toolCallOrder: [] });
+    set({ pendingEdits: {}, toolCalls: {}, toolCallOrder: [], lspStatus: {} });
   },
 }));

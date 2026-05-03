@@ -179,12 +179,15 @@ export async function dispatchTool(
         before,
         after: content,
       });
-      // Push to LSP for diagnostics
+      // Push to LSP for diagnostics (probe first so UI can prompt install)
       try {
-        await lspOpenFile(ctx.workspace, path, content);
-        const diags = await lspGetDiagnostics(path);
-        if (diags.length > 0) {
-          useAgentStore.getState().setEditDiagnostics(editId, diags);
+        const probe = await useAgentStore.getState().probeLspForFile(path);
+        if (probe && (probe.kind === 'ready' || probe.kind === 'npx')) {
+          await lspOpenFile(ctx.workspace, path, content);
+          const diags = await lspGetDiagnostics(path);
+          if (diags.length > 0) {
+            useAgentStore.getState().setEditDiagnostics(editId, diags);
+          }
         }
       } catch {
         // ignore
@@ -287,6 +290,16 @@ export async function dispatchTool(
 
     case 'lsp_diagnostics': {
       const path = String(input.path);
+      const probe = await useAgentStore.getState().probeLspForFile(path);
+      if (!probe) return { output: 'No LSP configured for this file type.' };
+      if (probe.kind === 'installable') {
+        return {
+          output: `LSP for ${path} is installable via ${probe.via} (${probe.package}). Ask the user to click Install in the workspace bar to enable diagnostics.`,
+        };
+      }
+      if (probe.kind === 'unavailable') {
+        return { output: `LSP unavailable: ${probe.reason}` };
+      }
       try {
         const cur = await invoke<{ content: string }>('agent_read', {
           workspace: ctx.workspace,

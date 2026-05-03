@@ -21,6 +21,33 @@ use walkdir::WalkDir;
 #[allow(unused_imports)]
 use tauri::Manager;
 
+/// Windows resolves shims like `npx.cmd` only when the file extension is
+/// explicit; tokio's Command does not auto-append. For known node/python
+/// shim commands, prepend `cmd /C` so cmd handles PATHEXT lookup.
+#[cfg(target_os = "windows")]
+fn build_command(program: &str, args: &[String]) -> Command {
+    const NEEDS_CMD: &[&str] = &["npx", "npm", "pnpm", "yarn", "bun", "pip", "pip3", "rustup", "go"];
+    if NEEDS_CMD.iter().any(|n| n.eq_ignore_ascii_case(program)) {
+        let mut c = Command::new("cmd");
+        c.arg("/C").arg(program);
+        for a in args {
+            c.arg(a);
+        }
+        c
+    } else {
+        let mut c = Command::new(program);
+        c.args(args);
+        c
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn build_command(program: &str, args: &[String]) -> Command {
+    let mut c = Command::new(program);
+    c.args(args);
+    c
+}
+
 // ---------------------------------------------------------------------------
 // Path safety
 // ---------------------------------------------------------------------------
@@ -364,6 +391,133 @@ pub async fn agent_bash(
 }
 
 // ---------------------------------------------------------------------------
+// Tool detection & install
+// ---------------------------------------------------------------------------
+
+/// Check whether a binary is reachable on PATH. Uses `where` on Windows
+/// and `command -v` on Unix to avoid spawning the tool itself.
+#[tauri::command]
+pub async fn agent_check_tool(name: String) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = Command::new("where");
+        c.arg(&name);
+        c
+    };
+    #[cfg(not(target_os = "windows"))]
+    let mut cmd = {
+        let mut c = Command::new("sh");
+        c.arg("-c").arg(format!("command -v {}", shell_escape(&name)));
+        c
+    };
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+    let status = cmd.status().await.map_err(|e| e.to_string())?;
+    Ok(status.success())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn shell_escape(s: &str) -> String {
+    if s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '/')) {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InstallInput {
+    pub installer: String,        // "npm" | "rustup" | "go" | "pip"
+    pub package: String,          // package name
+    pub progress_event: String,   // event name to emit lines on
+}
+
+#[derive(Debug, Serialize)]
+pub struct InstallResult {
+    pub success: bool,
+    pub stdout: String,
+    pub stderr: String,
+    pub code: Option<i32>,
+}
+
+#[tauri::command]
+pub async fn agent_install_tool(
+    app: AppHandle,
+    input: InstallInput,
+) -> Result<InstallResult, String> {
+    let (program, args): (&str, Vec<String>) = match input.installer.as_str() {
+        "npm" => ("npm", vec!["install".into(), "-g".into(), input.package.clone()]),
+        "pip" => ("pip", vec!["install".into(), "--user".into(), input.package.clone()]),
+        "rustup" => (
+            "rustup",
+            vec!["component".into(), "add".into(), input.package.clone()],
+        ),
+        "go" => ("go", vec!["install".into(), input.package.clone()]),
+        other => return Err(format!("unknown installer: {}", other)),
+    };
+
+    let mut cmd = build_command(program, &args);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("spawn {}: {}", program, e))?;
+
+    let stdout = child.stdout.take().ok_or("no stdout")?;
+    let stderr = child.stderr.take().ok_or("no stderr")?;
+
+    let event_name = input.progress_event.clone();
+    let app_clone = app.clone();
+    let stdout_handle = tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout);
+        let mut buf = String::new();
+        let mut combined = String::new();
+        loop {
+            buf.clear();
+            match reader.read_line(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let _ = app_clone.emit(&event_name, buf.trim_end());
+                    combined.push_str(&buf);
+                }
+            }
+        }
+        combined
+    });
+
+    let event_name2 = input.progress_event.clone();
+    let app_clone2 = app.clone();
+    let stderr_handle = tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr);
+        let mut buf = String::new();
+        let mut combined = String::new();
+        loop {
+            buf.clear();
+            match reader.read_line(&mut buf).await {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    let _ = app_clone2.emit(&event_name2, buf.trim_end());
+                    combined.push_str(&buf);
+                }
+            }
+        }
+        combined
+    });
+
+    let status = child.wait().await.map_err(|e| e.to_string())?;
+    let stdout_text = stdout_handle.await.unwrap_or_default();
+    let stderr_text = stderr_handle.await.unwrap_or_default();
+
+    Ok(InstallResult {
+        success: status.success(),
+        stdout: stdout_text,
+        stderr: stderr_text,
+        code: status.code(),
+    })
+}
+
+// ---------------------------------------------------------------------------
 // LSP
 // ---------------------------------------------------------------------------
 
@@ -391,12 +545,12 @@ pub async fn lsp_spawn(
     state: State<'_, LspState>,
     input: LspSpawnInput,
 ) -> Result<(), String> {
-    let mut child = Command::new(&input.command)
-        .args(&input.args)
-        .current_dir(&input.root)
+    let mut cmd = build_command(&input.command, &input.args);
+    cmd.current_dir(&input.root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("spawn {}: {}", input.command, e))?;
 
