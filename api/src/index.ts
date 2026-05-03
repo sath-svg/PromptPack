@@ -2843,10 +2843,19 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           if (!groqRes.ok) {
             const errText = await groqRes.text().catch(() => "");
             console.error("Groq /v1 error:", groqRes.status, errText);
-            return addCors(new Response(JSON.stringify({
-              error: { message: `Upstream error ${groqRes.status}` },
-            }), {
-              status: 502, headers: { "Content-Type": "application/json" },
+            // Pass through Groq's error body so the desktop app can show
+            // the real reason (model name typo, malformed tools array,
+            // unsupported field, etc.) instead of an opaque "Upstream
+            // error 400".
+            let parsed: unknown = null;
+            try {
+              parsed = JSON.parse(errText);
+            } catch {
+              parsed = { error: { message: errText || `Upstream error ${groqRes.status}` } };
+            }
+            return addCors(new Response(JSON.stringify(parsed), {
+              status: groqRes.status,
+              headers: { "Content-Type": "application/json" },
             }));
           }
 
