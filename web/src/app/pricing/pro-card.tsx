@@ -3,12 +3,26 @@
 import { useState } from "react";
 import { SignedIn, SignedOut, SignUpButton, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
+import { ArrowRight } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
 const EARLY_BIRD_LIMIT = 9;
 const EARLY_BIRD_PRICE = 1.99;
+
+const FEATURES = [
+  { t: "40 saved prompts", hi: true },
+  { t: "100 prompt enhances per day", hi: true },
+  { t: "500 AI headers per day", hi: true },
+  { t: "Desktop app", hi: false },
+  { t: "MCP server (500 calls/day)", hi: false },
+  { t: "ChatGPT, Claude & Gemini support", hi: false },
+  { t: "Local storage + Cloud sync", hi: false },
+  { t: "Perplexity, Grok, DeepSeek, Kimi support", hi: true },
+  { t: "PromptControl (1 pack)", hi: true },
+  { t: "Priority support", hi: true },
+];
 
 export function ProCard() {
   const [isAnnual, setIsAnnual] = useState(true);
@@ -26,11 +40,10 @@ export function ProCard() {
 
   const monthlyPrice = 9;
   const annualMonthlyPrice = 8.33;
-  const savePct = Math.ceil((monthlyPrice * 12 - annualMonthlyPrice * 12) / (monthlyPrice * 12) * 100);
+  const savePct = Math.ceil(((monthlyPrice * 12 - annualMonthlyPrice * 12) / (monthlyPrice * 12)) * 100);
 
-  const displayPrice = isEarlyBird ? EARLY_BIRD_PRICE : (isAnnual ? annualMonthlyPrice : monthlyPrice);
-  const originalPrice = isAnnual ? monthlyPrice : monthlyPrice;
-  const showStrikethrough = isEarlyBird || isAnnual;
+  const displayPrice = isEarlyBird ? EARLY_BIRD_PRICE : isAnnual ? annualMonthlyPrice : monthlyPrice;
+  const showStrike = isEarlyBird || isAnnual;
 
   const handleCheckout = async () => {
     if (isCheckoutLoading) return;
@@ -45,200 +58,136 @@ export function ProCard() {
   };
 
   return (
-    <div
-      style={{
-        padding: "2rem",
-        paddingBottom: "1.5rem",
-        borderRadius: "1rem",
-        border: "2px solid var(--accent)",
-        background: "rgba(99, 102, 241, 0.05)",
-        textAlign: "left",
-        position: "relative",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div className="relative flex flex-col rounded-2xl border-2 border-[#2563EB]/60 bg-[#0f0f12] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-20px_rgba(37,99,235,0.35)] transition-all duration-300">
+      {/* recommended badge */}
       <span
-        style={{
-          position: "absolute",
-          top: "-12px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          background: isEarlyBird && !isPro ? "#f59e0b" : "var(--accent)",
-          color: "white",
-          padding: "0.25rem 0.75rem",
-          borderRadius: "999px",
-          fontSize: "0.75rem",
-          fontWeight: "600",
-          whiteSpace: "nowrap",
-        }}
+        className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#2563EB] text-[10px] font-medium uppercase tracking-[0.16em] text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+        style={{ padding: "4px 12px", fontFamily: "var(--font-geist-mono), monospace" }}
       >
-        {isPro ? "CURRENT PLAN" : isEarlyBird ? `EARLY BIRD — ${spotsLeft} left` : "POPULAR"}
+        {isPro ? "Current Plan" : isEarlyBird ? `Early Bird · ${spotsLeft} left` : "Recommended"}
       </span>
 
-      <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Pro</h2>
+      <div>
+        <h2
+          className="text-[24px] font-semibold tracking-tight text-[#2563EB]"
+          style={{ textShadow: "0 0 20px rgba(37,99,235,0.5), 0 0 40px rgba(37,99,235,0.3)" }}
+        >
+          Pro
+        </h2>
+        <p
+          className="mt-1 text-[12px] uppercase tracking-[0.16em] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          For active makers
+        </p>
+      </div>
 
-      {/* Price display */}
-      <div style={{ marginBottom: "0.5rem" }}>
-        {/* Strikethrough prices on separate line when early bird */}
+      <div className="mt-6">
+        {/* annual + early-bird strike row */}
         {isEarlyBird && isAnnual && (
-          <div style={{ marginBottom: "0.25rem" }}>
-            <span
-              style={{
-                textDecoration: "line-through",
-                color: "#9ca3af",
-                fontSize: "1.25rem",
-                marginRight: "0.5rem",
-              }}
-            >
-              ${monthlyPrice}
-            </span>
-            <span
-              style={{
-                textDecoration: "line-through",
-                color: "#b0b0b0",
-                fontSize: "1.25rem",
-              }}
-            >
-              ${annualMonthlyPrice}
-            </span>
+          <div className="mb-1 flex items-baseline gap-2 text-[14px]">
+            <span className="text-zinc-500 line-through">${monthlyPrice}</span>
+            <span className="text-zinc-500 line-through">${annualMonthlyPrice}</span>
           </div>
         )}
-        <p
-          style={{
-            fontSize: "2.5rem",
-            fontWeight: "700",
-            marginBottom: "0",
-          }}
-        >
-          {!isEarlyBird && showStrikethrough && (
-            <span
-              style={{
-                textDecoration: "line-through",
-                color: "#9ca3af",
-                fontSize: "1.5rem",
-                marginRight: "0.5rem",
-              }}
-            >
-              ${originalPrice}
-            </span>
+        <p className="flex items-baseline gap-1.5">
+          {!isEarlyBird && showStrike && (
+            <span className="text-[18px] text-zinc-500 line-through">${monthlyPrice}</span>
           )}
           <span
-            style={isEarlyBird && !isPro ? {
-              background: "linear-gradient(135deg, #f59e0b, #ef4444)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              filter: "drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))",
-            } : undefined}
+            className={`text-[44px] font-medium leading-none tracking-tight ${
+              isEarlyBird && !isPro ? "text-emerald-400" : "text-zinc-50"
+            }`}
           >
             ${displayPrice}
           </span>
-          <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
-            /month
-          </span>
+          <span className="text-[14px] text-zinc-500">/ month</span>
         </p>
-        {isEarlyBird && !isPro && (
+        {isEarlyBird && !isPro ? (
           <p
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--muted)",
-              marginTop: "0.25rem",
-              marginBottom: "0",
-            }}
+            className="mt-2 text-[12px] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            *for the first 6 months, then ${isAnnual ? `${annualMonthlyPrice}/mo` : `${monthlyPrice}/mo`}
+            *first 6 months, then ${isAnnual ? `${annualMonthlyPrice}/mo` : `${monthlyPrice}/mo`}
+          </p>
+        ) : (
+          <p
+            className="mt-2 text-[12px] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            cancel anytime
           </p>
         )}
       </div>
 
       {/* Billing toggle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          marginBottom: "1.5rem",
-        }}
-      >
+      <div className="mt-6 flex items-center gap-3">
         <button
           onClick={() => setIsAnnual(!isAnnual)}
-          style={{
-            width: "44px",
-            height: "24px",
-            borderRadius: "12px",
-            background: isAnnual ? "var(--accent)" : "rgba(128,128,128,0.3)",
-            border: "none",
-            cursor: "pointer",
-            position: "relative",
-            transition: "background 0.2s",
-          }}
+          className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+          style={{ background: isAnnual ? "#2563EB" : "rgba(255,255,255,0.12)" }}
+          aria-label="Toggle annual billing"
         >
           <span
-            style={{
-              position: "absolute",
-              top: "2px",
-              left: isAnnual ? "22px" : "2px",
-              width: "20px",
-              height: "20px",
-              borderRadius: "50%",
-              background: "white",
-              transition: "left 0.2s",
-            }}
+            className="absolute top-[2px] h-5 w-5 rounded-full bg-white transition-all"
+            style={{ left: isAnnual ? "22px" : "2px" }}
           />
         </button>
-          <span style={{ fontSize: "0.9rem", color: "var(--muted)" }}>
-              {isAnnual ? `Billed annually (Save ${savePct}%)` : "Billed monthly"}
-          </span>
+        <span
+          className="text-[12px] text-zinc-400"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          {isAnnual ? `annual · save ${savePct}%` : "monthly"}
+        </span>
       </div>
 
-      <ul
-        style={{
-          listStyle: "none",
-          marginBottom: "1.5rem",
-          lineHeight: "1.8",
-          fontSize: "0.95rem",
-          flex: "1",
-        }}
-      >
-        {/* Aligned with Free plan */}
-        <li>✓ <span className="faq-highlight">40</span> saved prompts</li>
-        <li>✓ <span className="faq-highlight">10</span> loaded <span className="gradient-text">PromptPacks</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(3 custom + 7 saved)</span></li>
-        <li>✓ <span className="faq-highlight">100</span> prompt enhances per day</li>
-        <li>✓ <span className="faq-highlight">500</span> AI headers per day</li>
-        <li>✓ Desktop app</li>
-        <li>✓ MCP server <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(500 calls/day)</span></li>
-        <li>✓ Chrome, Firefox &amp; Safari extension</li>
-        <li>✓ ChatGPT, Claude &amp; Gemini support</li>
-        <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
-        {/* Pro-only features */}
-                <li>✓ <span style={{ color: "#20B8CD" }}>Perplexity</span>, Grok, <span style={{ color: "#4D6BFE" }}>DeepSeek</span>, <span style={{ color: "#6B4FBB" }}>Kimi</span> support</li>
-        <li>✓ <span style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>PromptControl</span> <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(1 pack)</span></li>
-        <li>✓ <span style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontWeight: "600" }}>Priority support</span></li>
+      <ul className="mt-7 flex flex-1 flex-col gap-3 border-t border-white/[0.06] pt-6 text-[14px] leading-[1.5] text-zinc-300">
+        {FEATURES.map((f) => (
+          <li key={f.t} className="flex items-start gap-3">
+            <span
+              className={`mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                f.hi ? "bg-[#2563EB]" : "bg-zinc-500"
+              }`}
+            />
+            <span className={f.hi ? "text-zinc-100" : "text-zinc-300"}>{f.t}</span>
+          </li>
+        ))}
       </ul>
 
-      <div style={{ marginTop: "auto" }}>
+      <div className="mt-8">
         <SignedIn>
           {isPro ? (
             <Link href="/dashboard">
-              <button className="btn btn-primary" style={{ width: "100%" }}>
+              <button
+                style={{ padding: "10px 22px" }}
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[14px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
+              >
                 Dashboard
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
               </button>
             </Link>
           ) : (
             <button
-              className="btn btn-primary"
-              style={{ width: "100%" }}
               onClick={handleCheckout}
               disabled={isCheckoutLoading}
+              style={{ padding: "10px 22px" }}
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[14px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px] disabled:opacity-60"
             >
-              {isCheckoutLoading ? "Starting checkout..." : "Start 3-day free trial"}
+              {isCheckoutLoading ? "Starting…" : "Start 3-day free trial"}
+              {!isCheckoutLoading && (
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
+              )}
             </button>
           )}
         </SignedIn>
         <SignedOut>
           <SignUpButton mode="modal">
-            <button className="btn btn-primary" style={{ width: "100%" }}>
+            <button
+              style={{ padding: "10px 22px" }}
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[14px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
+            >
               Start 3-day free trial
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
             </button>
           </SignUpButton>
         </SignedOut>

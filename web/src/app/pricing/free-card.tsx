@@ -5,6 +5,16 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
+const FEATURES = [
+  "5 saved prompts",
+  "10 prompt enhances per day",
+  "50 AI headers per day",
+  "Desktop app",
+  "MCP server (50 calls/day)",
+  "ChatGPT, Claude & Gemini support",
+  "Local storage + Cloud sync",
+];
+
 export function FreeCard() {
   const { user } = useUser();
   const convexUser = useQuery(
@@ -15,101 +25,64 @@ export function FreeCard() {
   const isPaidPlan = convexUser?.plan === "pro" || convexUser?.plan === "studio";
 
   return (
-    <div
-      style={{
-        padding: "2rem",
-        paddingBottom: "1.5rem",
-        borderRadius: "1rem",
-        border: "1px solid rgba(128,128,128,0.2)",
-        textAlign: "left",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <h2 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Free</h2>
-      <div style={{ marginBottom: "0.5rem" }}>
+    <div className="relative flex flex-col rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-300 hover:border-white/[0.14]">
+      <div>
+        <h2 className="text-[20px] font-medium tracking-tight text-zinc-50">
+          Free
+        </h2>
         <p
-          style={{
-            fontSize: "2.5rem",
-            fontWeight: "700",
-            marginBottom: "0",
-          }}
-        >
-          $0
-          <span style={{ fontSize: "1rem", color: "var(--muted)" }}>
-            /month
-          </span>
-        </p>
-        <p
-          style={{
-            fontSize: "0.75rem",
-            color: "var(--muted)",
-            marginTop: "0.25rem",
-            marginBottom: "0",
-          }}
+          className="mt-1 text-[12px] uppercase tracking-[0.16em] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
           Forever free
         </p>
       </div>
 
-      {/* Spacer to align with Pro/Studio billing toggle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          height: "24px",
-          marginBottom: "1.5rem",
-          fontSize: "0.9rem",
-          color: "var(--muted)",
-        }}
-      >
-        <span style={{ position: "relative", top: "-2px" }}>💳</span>
-        <span>No credit card required</span>
+      <div className="mt-6">
+        <p className="flex items-baseline gap-1.5">
+          <span className="text-[44px] font-medium leading-none tracking-tight text-zinc-50">
+            $0
+          </span>
+          <span className="text-[14px] text-zinc-500">/ month</span>
+        </p>
+        <p
+          className="mt-2 text-[12px] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          no credit card required
+        </p>
       </div>
 
-      <ul
-        style={{
-          listStyle: "none",
-          marginBottom: "1.5rem",
-          lineHeight: "1.8",
-          fontSize: "0.95rem",
-          flex: "1",
-        }}
-      >
-        <li>✓ 5 saved prompts</li>
-        <li>✓ 3 loaded <span className="gradient-text">PromptPacks</span></li>
-        <li>✓ 10 prompt enhances per day</li>
-        <li>✓ 50 AI headers per day</li>
-        <li>✓ Desktop app</li>
-        <li>✓ MCP server <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>(50 calls/day)</span></li>
-        <li>✓ Chrome, Firefox &amp; Safari extension</li>
-        <li>✓ ChatGPT, Claude &amp; Gemini support</li>
-        <li>✓ Local storage + <span className="faq-highlight">Cloud sync</span></li>
+      {/* spacer to align with Pro/Studio billing toggle */}
+      <div className="mt-6 h-[40px]" />
+
+      <ul className="mt-2 flex flex-1 flex-col gap-3 border-t border-white/[0.06] pt-6 text-[14px] leading-[1.5] text-zinc-300">
+        {FEATURES.map((f) => (
+          <li key={f} className="flex items-start gap-3">
+            <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-500" />
+            <span>{f}</span>
+          </li>
+        ))}
       </ul>
 
-      <div style={{ marginTop: "auto" }}>
+      <div className="mt-8">
         <SignedOut>
           <SignUpButton mode="modal">
-            <button className="btn btn-secondary" style={{ width: "100%" }}>
+            <button
+              className="w-full rounded-full border border-white/10 bg-white/[0.02] py-2.5 text-[14px] text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.05] active:translate-y-[1px]"
+            >
               Get Started
             </button>
           </SignUpButton>
         </SignedOut>
         <SignedIn>
-          {!isPaidPlan ? (
-            <Link href="/dashboard">
-              <button className="btn btn-secondary" style={{ width: "100%" }}>
-                Current Plan
-              </button>
-            </Link>
-          ) : (
-            <Link href="/dashboard">
-              <button className="btn btn-secondary" style={{ width: "100%" }}>
-                View Dashboard
-              </button>
-            </Link>
-          )}
+          <Link href="/dashboard">
+            <button
+              className="w-full rounded-full border border-white/10 bg-white/[0.02] py-2.5 text-[14px] text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.05] active:translate-y-[1px]"
+            >
+              {isPaidPlan ? "View Dashboard" : "Current Plan"}
+            </button>
+          </Link>
         </SignedIn>
       </div>
     </div>

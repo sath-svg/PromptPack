@@ -14,7 +14,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 
 // Hide global PromptPack chrome on routes that supply their own page-level nav.
-const HIDDEN_ON: ReadonlyArray<string | RegExp> = ["/"];
+const HIDDEN_ON: ReadonlyArray<string | RegExp> = ["/", "/pricing"];
 
 export function SiteHeader() {
   const pathname = usePathname();

@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Pricing - PromptPack Free & Pro Plans",
-  description: "Choose the right PromptPack plan for you. Free plan includes 10 saved prompts and Chrome extension. Pro unlocks unlimited prompts, PromptPack creation, and encryption.",
+  title: "Pricing — Skillset Free & Pro Plans",
+  description: "Pick a Skillset plan. Free includes 5 saved prompts. Pro unlocks 40 prompts, PromptControl, and the cross-model skill router.",
   alternates: {
     canonical: "https://pmtpk.com/pricing",
   },
   openGraph: {
-    title: "Pricing - PromptPack Free & Pro Plans",
-    description: "Choose the right PromptPack plan for you. Free plan includes 10 saved prompts. Pro unlocks unlimited prompts and PromptPack creation.",
+    title: "Pricing — Skillset Free & Pro Plans",
+    description: "Pick a Skillset plan. Free includes 5 saved prompts. Pro unlocks 40 prompts and PromptControl.",
     url: "https://pmtpk.com/pricing",
   },
 };
