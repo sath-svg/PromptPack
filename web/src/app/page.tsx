@@ -1,4 +1,5 @@
 import { Geist, Geist_Mono } from "next/font/google";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -7,7 +8,6 @@ import {
   Boxes,
   CircleDot,
   GitBranch,
-  Layers,
   MessagesSquare,
   Palette,
   Sparkles,
@@ -76,9 +76,14 @@ function SkillsetNav() {
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
       <div className="mx-auto grid max-w-[1400px] grid-cols-3 items-center px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
-          <div className="grid h-7 w-7 place-items-center rounded-md bg-[#2563EB] text-white">
-            <Layers strokeWidth={2} className="h-4 w-4" />
-          </div>
+          <Image
+            src="/img/skillset_logo.png"
+            alt="Skillset"
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-md object-cover"
+            priority
+          />
           <span className="text-[15px] font-medium tracking-tight text-zinc-50">
             Skillset
           </span>
@@ -321,10 +326,10 @@ function SkillBeltMarquee() {
   return (
     <section
       aria-label="Compatible AI tools"
-      className="relative border-t border-white/5 bg-[#0c0c10] py-5"
+      className="relative border-t border-white/5 bg-[#0c0c10] pt-2 pb-4"
     >
       <p
-        className="mb-4 w-full text-center text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+        className="mb-2 w-full text-center text-[11px] uppercase tracking-[0.22em] text-zinc-500"
         style={{ fontFamily: "var(--font-geist-mono), monospace" }}
       >
         Works with every model you already use
@@ -379,7 +384,7 @@ function CoreFeatures() {
           </div>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-4 md:auto-rows-[420px] md:grid-cols-12 md:gap-5">
+        <div className="mt-16 grid grid-cols-1 gap-4 md:auto-rows-[480px] md:grid-cols-12 md:gap-5">
           <BentoCard
             className="md:col-span-8"
             icon={<MessagesSquare strokeWidth={1.75} className="h-5 w-5" />}
@@ -472,7 +477,7 @@ function BentoCard({
         <p className="mt-4 max-w-[44ch] text-[14px] leading-[1.6] text-zinc-400">
           {body}
         </p>
-        <div className="mt-auto pt-8 overflow-hidden">{visual}</div>
+        <div className="mt-auto pt-6 overflow-hidden pb-2">{visual}</div>
       </div>
     </div>
   );
@@ -990,9 +995,13 @@ function SiteFooter() {
       <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="flex items-center gap-2">
-            <div className="grid h-7 w-7 place-items-center rounded-md bg-[#2563EB] text-white">
-              <Layers strokeWidth={2} className="h-4 w-4" />
-            </div>
+            <Image
+              src="/img/skillset_logo.png"
+              alt="Skillset"
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-md object-cover"
+            />
             <span className="text-[15px] font-medium tracking-tight text-zinc-50">
               Skillset
             </span>
