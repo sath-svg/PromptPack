@@ -12,6 +12,59 @@ import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../lib/agentTools';
+import { autoPickFromAllowlist, getManagedModel } from '../lib/managed-models';
+
+// ---------------------------------------------------------------------------
+// Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
+// ---------------------------------------------------------------------------
+
+const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
+
+class InsufficientCreditsError extends Error {
+  constructor() {
+    super('insufficient_credits');
+    this.name = 'InsufficientCreditsError';
+  }
+}
+
+async function callManagedProxy(
+  jwt: string,
+  modelId: string,
+  messages: { role: string; content: string }[],
+  systemPrompt?: string,
+): Promise<string> {
+  const fullMessages = systemPrompt
+    ? [{ role: 'system', content: systemPrompt }, ...messages]
+    : messages;
+  const res = await fetch(MANAGED_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({ model: modelId, messages: fullMessages }),
+  });
+
+  if (res.status === 402) {
+    throw new InsufficientCreditsError();
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Managed proxy error: ${res.status} ${JSON.stringify(err)}`);
+  }
+
+  // Sync balance from response headers
+  const monthly = parseInt(res.headers.get('X-Credits-Monthly') ?? '', 10);
+  const topup = parseInt(res.headers.get('X-Credits-Topup') ?? '', 10);
+  if (Number.isFinite(monthly) && Number.isFinite(topup)) {
+    useSettingsStore.getState().setCreditBalance({ monthly, topup });
+  }
+
+  const body = await res.json() as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return body.choices?.[0]?.message?.content ?? '';
+}
 
 // ---------------------------------------------------------------------------
 // Message shape
@@ -678,6 +731,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
     const tier = classifyTier(text);
+
+    // Managed-mode (credit-metered OpenRouter) — preferred path for casuals.
+    // Only active when toggle on AND user signed in (need JWT for proxy auth).
+    // Falls through to existing agent/plain dispatch when off or unauthed.
+    const authSession = useAuthStore.getState().session;
+    if (settings.managedModeEnabled && authSession?.session_token) {
+      const modelId =
+        settings.selectedManagedModel ?? autoPickFromAllowlist(tier);
+      // Validate against allowlist (worker rejects unknown anyway; fail fast)
+      if (!getManagedModel(modelId)) {
+        set({ error: `Unknown managed model: ${modelId}` });
+        return;
+      }
+      const userMsg: ChatMessage = {
+        id: makeId(),
+        role: 'user',
+        content: text,
+        packName,
+        attachments: attachments && attachments.length > 0 ? [...attachments] : undefined,
+        createdAt: Date.now(),
+      };
+      set((state) => ({
+        messages: [...state.messages, userMsg],
+        isLoading: true,
+        error: null,
+      }));
+      const fullHistory = get()
+        .messages.map((m) => ({ role: m.role, content: m.content }));
+      const history = fullHistory.slice(-HISTORY_MAX_MESSAGES);
+      try {
+        const content = await callManagedProxy(
+          authSession.session_token,
+          modelId,
+          history,
+          systemPrompt,
+        );
+        set((state) => ({
+          messages: [
+            ...state.messages,
+            {
+              id: makeId(),
+              role: 'assistant',
+              content,
+              createdAt: Date.now(),
+            },
+          ],
+          isLoading: false,
+        }));
+      } catch (err) {
+        if (err instanceof InsufficientCreditsError) {
+          set({ error: '__INSUFFICIENT_CREDITS__', isLoading: false });
+        } else {
+          set({
+            error: err instanceof Error ? err.message : 'Managed chat failed',
+            isLoading: false,
+          });
+        }
+      }
+      return;
+    }
 
     const agentMode = get().agentMode;
     const workspace = useAgentStore.getState().workspace;

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
+import { MANAGED_MODELS, MANAGED_TIER_LABELS } from '../../lib/managed-models';
 import { WorkspaceBar } from './WorkspaceBar';
 import { LspStatusBar } from './LspStatusBar';
 import { GitBar } from './GitBar';
@@ -34,7 +35,12 @@ export function PromptChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session } = useAuthStore();
-  const { billingTier, serverChatCount } = useSettingsStore();
+  const {
+    billingTier, serverChatCount,
+    managedModeEnabled, selectedManagedModel, setSelectedManagedModel, creditBalance,
+  } = useSettingsStore();
+  const isManagedActive = managedModeEnabled && Boolean(session);
+  const totalCredits = creditBalance ? creditBalance.monthly + creditBalance.topup : 0;
   const { initWorkspace, workspace, attachments, clearAttachments } = useAgentStore();
   const isLimitReached = billingTier === 'free' && serverChatCount >= 3 && !agentMode;
 
@@ -262,6 +268,38 @@ export function PromptChatPage() {
             <div />
           )}
           <div className="flex items-center gap-2">
+            {isManagedActive && (
+              <>
+                {/* Model picker (managed mode only) */}
+                <select
+                  value={selectedManagedModel ?? ''}
+                  onChange={(e) => setSelectedManagedModel(e.target.value || null)}
+                  className="px-2 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  title="Select model (Auto = pick by complexity)"
+                >
+                  <option value="">Auto</option>
+                  {(['cheap', 'mid', 'frontier'] as const).map((tier) => (
+                    <optgroup key={tier} label={MANAGED_TIER_LABELS[tier]}>
+                      {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.label} · {m.creditsPerCall}c
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+                {/* Balance pill → opens dashboard top-up */}
+                <button
+                  type="button"
+                  onClick={() => open('https://pmtpk.com/dashboard?topup=open').catch(console.error)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors"
+                  title="Buy more credits"
+                >
+                  <Sparkles size={12} />
+                  {totalCredits} credits
+                </button>
+              </>
+            )}
             {isRunningPack && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--muted-foreground)]">
@@ -457,7 +495,26 @@ export function PromptChatPage() {
             </div>
           )}
 
-          {error === '__CHAT_LIMIT_REACHED__' || isLimitReached ? (
+          {error === '__INSUFFICIENT_CREDITS__' ? (
+            <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Out of credits</p>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Top up to keep using managed mode, or toggle BYOK in Settings to use your own provider key.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => open('https://pmtpk.com/dashboard?topup=open')}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                >
+                  <Sparkles size={13} />
+                  Buy credits
+                </button>
+                <button onClick={clearError} className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : error === '__CHAT_LIMIT_REACHED__' || isLimitReached ? (
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
               <p className="text-sm font-semibold text-[var(--foreground)]">Enjoying Skillset AI Chat?</p>
               <p className="text-sm text-[var(--muted-foreground)]">

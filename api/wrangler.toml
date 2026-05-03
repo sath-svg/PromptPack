@@ -22,3 +22,10 @@ CLERK_JWKS_URL = "https://clerk.pmtpk.com/.well-known/jwks.json"
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "promptpack-files-prod"
+
+# Required secrets (set via `wrangler secret put`, not in this file):
+#   OPENROUTER_API_KEY        — used by /api/llm/chat managed-mode proxy
+#   SKILLSET_INTERNAL_KEY     — shared secret with Convex /api/internal/credits/* endpoints
+#   GROQ_API_KEY              — used by /api/enhance and /api/evaluate
+#   MCP_TOKEN_SECRET          — used by /mcp long-lived token signing
+#   CLERK_AUDIENCE            — Clerk JWT audience claim (optional)

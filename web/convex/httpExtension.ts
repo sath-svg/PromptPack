@@ -763,4 +763,57 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
       }
     }),
   });
+
+  // Credit balance for managed-mode UI (desktop + extension)
+  http.route({
+    path: "/api/extension/credit-balance",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/extension/credit-balance",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { clerkId } = body as { clerkId: string };
+        if (!clerkId) {
+          return new Response(JSON.stringify({ error: "Missing clerkId" }), {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const balance = await ctx.runQuery(api.credits.getBalance, { clerkId });
+        if (!balance) {
+          return new Response(JSON.stringify({ error: "User not found" }), {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify(balance), {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to get credit balance",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
 }

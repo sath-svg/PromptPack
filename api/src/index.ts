@@ -10,6 +10,7 @@
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
 import { handleMcpRequest } from "./mcp";
+import { handleLlmChat } from "./llm";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -22,6 +23,8 @@ export interface Env {
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
   MCP_TOKEN_SECRET: string;
+  OPENROUTER_API_KEY: string;
+  SKILLSET_INTERNAL_KEY: string;
 }
 
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
@@ -679,6 +682,17 @@ export default {
     };
 
     try {
+      // Managed-mode LLM proxy (credit-metered OpenRouter)
+      // POST /api/llm/chat
+      if (path === "/api/llm/chat" && method === "POST") {
+        const response = await handleLlmChat(
+          request,
+          env,
+          (token) => verifyClerkJwt(token, env),
+        );
+        return addCors(response);
+      }
+
       // Groq-enhanced prompt endpoint
       // POST /api/enhance
       if (path === "/api/enhance" && method === "POST") {

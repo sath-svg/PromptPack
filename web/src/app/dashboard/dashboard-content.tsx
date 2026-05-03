@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PromptPacks } from "./prompt-packs";
 import { PromptControl } from "./prompt-control";
+import { CreditBalanceCard } from "./credit-balance";
 import { FREE_PROMPT_LIMIT, PRO_PROMPT_LIMIT, STUDIO_PROMPT_LIMIT, FREE_PACK_LIMIT, PRO_PACK_LIMIT, STUDIO_PACK_LIMIT } from "@/lib/constants";
 import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 import { TutorialOverlay } from "@/components/onboarding/tutorial-overlay";
@@ -216,6 +217,11 @@ export function DashboardContent() {
             </Link>
           </p>
         </div>
+      </div>
+
+      {/* AI Credits Section */}
+      <div className="dashboard-section">
+        <CreditBalanceCard />
       </div>
 
       {/* Saved Prompts Section */}

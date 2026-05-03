@@ -25,6 +25,12 @@ export interface ApiKeys {
   openrouter?: string;
 }
 
+export interface CreditBalance {
+  monthly: number;
+  topup: number;
+  resetAt?: number;
+}
+
 interface SettingsState extends AppSettings {
   session: UserSession | null;
   hasCompletedOnboarding: boolean;
@@ -35,6 +41,12 @@ interface SettingsState extends AppSettings {
   // Free tier is also tracked here even though its cap is small/lifetime-ish.
   serverDailyCount: number;
   serverDailyDate: string; // YYYY-MM-DD
+
+  // Managed-mode (credit-metered OpenRouter via /api/llm/chat)
+  managedModeEnabled: boolean;
+  advancedSettingsExpanded: boolean;
+  selectedManagedModel: string | null; // null = auto-pick from tier
+  creditBalance: CreditBalance | null;
 
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -51,6 +63,10 @@ interface SettingsState extends AppSettings {
   /// Returns the up-to-date daily count, applying a date-rollover reset
   /// without bumping the counter. Use before sending to gate the request.
   getServerDailyCount: () => number;
+  setManagedModeEnabled: (enabled: boolean) => void;
+  setAdvancedExpanded: (expanded: boolean) => void;
+  setSelectedManagedModel: (modelId: string | null) => void;
+  setCreditBalance: (balance: CreditBalance | null) => void;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
@@ -85,6 +101,10 @@ export const useSettingsStore = create<SettingsState>()(
       serverChatCount: 0,
       serverDailyCount: 0,
       serverDailyDate: todayLocal(),
+      managedModeEnabled: true,
+      advancedSettingsExpanded: false,
+      selectedManagedModel: null,
+      creditBalance: null,
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -120,6 +140,10 @@ export const useSettingsStore = create<SettingsState>()(
         }
         return s.serverDailyCount;
       },
+      setManagedModeEnabled: (enabled) => set({ managedModeEnabled: enabled }),
+      setAdvancedExpanded: (expanded) => set({ advancedSettingsExpanded: expanded }),
+      setSelectedManagedModel: (modelId) => set({ selectedManagedModel: modelId }),
+      setCreditBalance: (balance) => set({ creditBalance: balance }),
       logout: () =>
         set({
           session: null,
@@ -128,6 +152,7 @@ export const useSettingsStore = create<SettingsState>()(
           serverChatCount: 0,
           serverDailyCount: 0,
           serverDailyDate: todayLocal(),
+          creditBalance: null,
         }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       initTheme: () => {

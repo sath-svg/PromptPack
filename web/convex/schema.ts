@@ -18,9 +18,52 @@ export default defineSchema({
     evalTrialsUsed: v.optional(v.number()),
     // Whether the user has completed the onboarding tutorial
     onboardingCompleted: v.optional(v.boolean()),
+    // Email verification status synced from Clerk (gates free credit grant)
+    emailVerified: v.optional(v.boolean()),
+    // Timestamp when the one-time free signup credit grant was issued (null = never granted)
+    freeCreditsGrantedAt: v.optional(v.number()),
+    // Credit pools for managed LLM mode (drained: monthly first, then topup)
+    monthlyCredits: v.optional(v.number()),
+    topupCredits: v.optional(v.number()),
+    // Timestamp of next monthly credit refresh (used by lazy refresh in reserveCredits)
+    monthlyCreditsResetAt: v.optional(v.number()),
+    // Most recent Stripe invoice that triggered a monthly grant (idempotency belt-and-braces)
+    lastStripeInvoiceId: v.optional(v.string()),
+    // User opt-in to managed-mode (false for backfilled users, true for new signups)
+    managedModeEnabled: v.optional(v.boolean()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_stripe_customer_id", ["stripeCustomerId"]),
+
+  // Credit ledger: every grant, debit, hold, release, and expiration
+  creditTransactions: defineTable({
+    userId: v.id("users"),
+    kind: v.union(
+      v.literal("grant_signup"),       // Free 50 on email verification
+      v.literal("grant_monthly"),      // Monthly subscription refresh
+      v.literal("grant_topup"),        // One-time top-up purchase
+      v.literal("debit_llm"),          // Settled LLM usage
+      v.literal("hold_llm"),           // Reserved (not yet settled)
+      v.literal("release_hold"),       // Hold refunded (call failed/expired)
+      v.literal("refund"),             // Manual admin refund
+      v.literal("expire_monthly")      // Rollover cap enforcement (excess credits dropped)
+    ),
+    monthlyDelta: v.number(),
+    topupDelta: v.number(),
+    monthlyBalanceAfter: v.number(),
+    topupBalanceAfter: v.number(),
+    reason: v.optional(v.string()),
+    modelId: v.optional(v.string()),
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    openRouterCostUsd: v.optional(v.number()),
+    stripeEventId: v.optional(v.string()),
+    holdId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_stripe_event", ["stripeEventId"])
+    .index("by_hold_id", ["holdId"]),
 
   // User-created packs (metadata only - files stored in R2)
   userPacks: defineTable({

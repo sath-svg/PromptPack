@@ -9,6 +9,7 @@ import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
 const FEATURES = [
+  { t: "2,750 AI credits / month", hi: true },
   { t: "Everything in Pro", hi: false },
   { t: "200 saved prompts", hi: true },
   { t: "500 prompt enhances per day", hi: true },

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff } from 'lucide-react';
+import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
+import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PROVIDER_LABELS } from '../../lib/classifier';
+import { MANAGED_MODELS, MANAGED_TIER_LABELS } from '../../lib/managed-models';
 import { CONVEX_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
@@ -14,8 +16,53 @@ interface BillingStatus {
 }
 
 export function SettingsPage() {
-  const { theme, setTheme, globalHotkey, apiKeys, setApiKey, setBillingTier } = useSettingsStore();
+  const {
+    theme, setTheme, globalHotkey, apiKeys, setApiKey, setBillingTier,
+    managedModeEnabled, setManagedModeEnabled,
+    advancedSettingsExpanded, setAdvancedExpanded,
+    selectedManagedModel, setSelectedManagedModel,
+    creditBalance, setCreditBalance,
+  } = useSettingsStore();
   const { session } = useAuthStore();
+
+  // Fetch credit balance for managed mode display
+  useEffect(() => {
+    if (!session?.user_id) {
+      setCreditBalance(null);
+      return;
+    }
+    const fetchBalance = async () => {
+      try {
+        const r = await tauriFetch(`${CONVEX_URL}/api/extension/credit-balance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clerkId: session.user_id }),
+        });
+        if (!r.ok) return;
+        const data = await r.json() as {
+          monthlyCredits?: number;
+          topupCredits?: number;
+          monthlyCreditsResetAt?: number;
+        };
+        setCreditBalance({
+          monthly: data.monthlyCredits ?? 0,
+          topup: data.topupCredits ?? 0,
+          resetAt: data.monthlyCreditsResetAt,
+        });
+      } catch (err) {
+        console.error('credit balance fetch failed:', err);
+      }
+    };
+    fetchBalance();
+  }, [session?.user_id]);
+
+  const openTopupPage = () => {
+    openShell('https://pmtpk.com/dashboard?topup=open').catch(console.error);
+  };
+
+  const totalCredits = creditBalance
+    ? creditBalance.monthly + creditBalance.topup
+    : 0;
 
   type KeyedProvider = keyof ApiKeys;
   const KEYED_PROVIDERS: { key: KeyedProvider; placeholder: string }[] = [
@@ -243,12 +290,89 @@ export function SettingsPage() {
           )}
         </section>
 
-        {/* API Keys */}
+        {/* AI Credits (managed-mode) */}
         <section className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)]">
-          <div className="flex items-center gap-2 mb-1">
-            <Key size={18} className="text-[var(--muted-foreground)]" />
-            <h3 className="text-lg font-medium text-[var(--foreground)]">API Keys</h3>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles size={18} className="text-[var(--primary)]" />
+            <h3 className="text-lg font-medium text-[var(--foreground)]">AI Credits</h3>
           </div>
+
+          {/* Managed-mode toggle */}
+          <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] mb-3 cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">Use Skillset credits</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Route chats through curated frontier models. Metered against your credit balance.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={managedModeEnabled}
+              onChange={(e) => setManagedModeEnabled(e.target.checked)}
+              className="w-5 h-5 accent-[var(--primary)]"
+            />
+          </label>
+
+          {/* Balance + top-up */}
+          {session ? (
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--primary)]/5 border border-[var(--primary)]/20 mb-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--foreground)]">{totalCredits} credits</p>
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  {creditBalance
+                    ? `${creditBalance.monthly} monthly · ${creditBalance.topup} top-up`
+                    : 'Loading…'}
+                </p>
+              </div>
+              <button
+                onClick={openTopupPage}
+                className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90"
+              >
+                Buy more
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--muted-foreground)] mb-3">Sign in to see your credit balance.</p>
+          )}
+
+          {/* Default model picker */}
+          <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+            Default model
+          </label>
+          <select
+            value={selectedManagedModel ?? ''}
+            onChange={(e) => setSelectedManagedModel(e.target.value || null)}
+            disabled={!managedModeEnabled}
+            className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] disabled:opacity-50"
+          >
+            <option value="">Auto (pick by prompt complexity)</option>
+            {(['cheap', 'mid', 'frontier'] as const).map((tier) => (
+              <optgroup key={tier} label={MANAGED_TIER_LABELS[tier]}>
+                {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} · {m.creditsPerCall}c
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </section>
+
+        {/* Advanced — Developer keys (BYOK) */}
+        <section className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)]">
+          <button
+            onClick={() => setAdvancedExpanded(!advancedSettingsExpanded)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              {advancedSettingsExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+              <Key size={18} className="text-[var(--muted-foreground)]" />
+              <h3 className="text-lg font-medium text-[var(--foreground)]">Advanced — Developer keys</h3>
+            </div>
+            <span className="text-xs text-[var(--muted-foreground)]">BYOK · unmetered</span>
+          </button>
+          {advancedSettingsExpanded && (
+          <div className="mt-3">
           {/* PromptPack built-in — always on */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--primary)]/5 border border-[var(--primary)]/20 mb-4">
             <div>
@@ -304,6 +428,8 @@ export function SettingsPage() {
             ))}
 
           </div>
+          </div>
+          )}
         </section>
 
         {/* About */}

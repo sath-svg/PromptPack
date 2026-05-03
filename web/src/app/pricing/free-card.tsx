@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
 const FEATURES = [
+  "50 AI credits at signup",
   "5 saved prompts",
   "10 prompt enhances per day",
   "50 AI headers per day",

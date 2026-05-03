@@ -12,6 +12,7 @@ const EARLY_BIRD_LIMIT = 9;
 const EARLY_BIRD_PRICE = 1.99;
 
 const FEATURES = [
+  { t: "750 AI credits / month", hi: true },
   { t: "40 saved prompts", hi: true },
   { t: "100 prompt enhances per day", hi: true },
   { t: "500 AI headers per day", hi: true },
@@ -38,8 +39,8 @@ export function ProCard() {
   const isEarlyBird = proUserCount < EARLY_BIRD_LIMIT;
   const spotsLeft = Math.max(0, EARLY_BIRD_LIMIT - proUserCount);
 
-  const monthlyPrice = 9;
-  const annualMonthlyPrice = 8.33;
+  const monthlyPrice = 15;
+  const annualMonthlyPrice = 12.5;
   const savePct = Math.ceil(((monthlyPrice * 12 - annualMonthlyPrice * 12) / (monthlyPrice * 12)) * 100);
 
   const displayPrice = isEarlyBird ? EARLY_BIRD_PRICE : isAnnual ? annualMonthlyPrice : monthlyPrice;

@@ -10,4 +10,18 @@ crons.interval(
   internal.users.cleanExpiredPacks
 );
 
+// Refund stale credit holds (LLM call crashed mid-flight before settle)
+crons.interval(
+  "expire-stale-credit-holds",
+  { minutes: 15 },
+  internal.credits.expireStaleHolds
+);
+
+// Backstop monthly credit refresh for paid users whose Stripe webhook slipped
+crons.interval(
+  "refresh-monthly-credits",
+  { hours: 24 },
+  internal.credits.refreshMonthlyForAllPaid
+);
+
 export default crons;

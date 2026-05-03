@@ -6,6 +6,7 @@ import { Webhook } from "svix";
 import type Stripe from "stripe";
 import { registerDesktopRoutes } from "./httpDesktop";
 import { registerExtensionRoutes } from "./httpExtension";
+import { registerInternalRoutes } from "./httpInternal";
 
 const http = httpRouter();
 
@@ -18,9 +19,15 @@ const resolveClerkId = (metadata?: Stripe.Metadata): string | undefined => {
 // Studio price IDs from environment
 const STUDIO_MONTHLY_PRICE_ID = process.env.STRIPE_STUDIO_MONTHLY_PRICE_ID;
 const STUDIO_ANNUAL_PRICE_ID = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
+const PRO_MONTHLY_PRICE_ID = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+const PRO_ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
 
 const isStudioPriceId = (priceId: string): boolean => {
   return priceId === STUDIO_MONTHLY_PRICE_ID || priceId === STUDIO_ANNUAL_PRICE_ID;
+};
+
+const isProPriceId = (priceId: string): boolean => {
+  return priceId === PRO_MONTHLY_PRICE_ID || priceId === PRO_ANNUAL_PRICE_ID;
 };
 
 const resolvePlanFromSubscription = (
@@ -142,6 +149,67 @@ registerRoutes(http, components.stripe, {
         subscriptionCancelledAt: resolveCancelledAt(subscription),
       });
     },
+    "invoice.paid": async (ctx, event: Stripe.InvoicePaidEvent) => {
+      const invoice = event.data.object;
+      // Only grant on real subscription billing cycles
+      if (
+        invoice.billing_reason !== "subscription_cycle" &&
+        invoice.billing_reason !== "subscription_create"
+      ) {
+        return;
+      }
+
+      // Resolve clerkId from invoice or subscription metadata
+      const subscriptionMetadata =
+        typeof invoice.subscription_details?.metadata === "object"
+          ? (invoice.subscription_details?.metadata as Stripe.Metadata)
+          : undefined;
+      const clerkId =
+        resolveClerkId(invoice.metadata as Stripe.Metadata | undefined) ??
+        resolveClerkId(subscriptionMetadata);
+      if (!clerkId) return;
+
+      // Resolve plan from line item price IDs (studio takes precedence)
+      let plan: "pro" | "studio" = "pro";
+      for (const line of invoice.lines?.data ?? []) {
+        const priceId = line.price?.id ?? "";
+        if (isStudioPriceId(priceId)) {
+          plan = "studio";
+          break;
+        }
+        if (isProPriceId(priceId)) {
+          plan = "pro";
+        }
+      }
+
+      await ctx.runMutation(internal.credits.grantMonthlyFromInvoice, {
+        clerkId,
+        invoiceId: invoice.id ?? `${event.id}_no_invoice_id`,
+        plan,
+      });
+    },
+    "checkout.session.completed": async (
+      ctx,
+      event: Stripe.CheckoutSessionCompletedEvent
+    ) => {
+      const session = event.data.object;
+      // Only one-time payments are top-ups; subscription mode is handled by
+      // customer.subscription.* + invoice.paid above.
+      if (session.mode !== "payment") return;
+
+      const clerkId = resolveClerkId(session.metadata as Stripe.Metadata | undefined);
+      if (!clerkId) return;
+
+      const credits = parseInt(session.metadata?.credits ?? "0", 10);
+      if (!Number.isFinite(credits) || credits <= 0) return;
+
+      await ctx.runMutation(internal.credits.grantTopup, {
+        clerkId,
+        credits,
+        stripeEventId: event.id,
+        sessionId: session.id,
+      });
+    },
   },
 });
 
@@ -178,7 +246,10 @@ http.route({
       data: {
         // User event fields
         id?: string;
-        email_addresses?: Array<{ email_address: string }>;
+        email_addresses?: Array<{
+          email_address: string;
+          verification?: { status?: string };
+        }>;
         first_name?: string;
         last_name?: string;
         image_url?: string;
@@ -294,6 +365,9 @@ http.route({
         const name = [first_name, last_name].filter(Boolean).join(" ") || undefined;
         // Prioritize public_metadata.plan for admin control
         const plan = public_metadata?.plan === "pro" ? "pro" : "free";
+        const emailVerified = (email_addresses ?? []).some(
+          (e) => e.verification?.status === "verified",
+        );
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
           clerkId: id,
@@ -301,7 +375,16 @@ http.route({
           name,
           imageUrl: image_url,
           plan: plan as "free" | "pro",
+          emailVerified,
         });
+
+        // Grant the one-time 50 free credits if this is the first time we've
+        // seen the user verified. The mutation is idempotent so re-firing is safe.
+        if (emailVerified) {
+          await ctx.runMutation(internal.credits.grantFreeSignupCreditsIfEligible, {
+            clerkId: id,
+          });
+        }
         break;
       }
 
@@ -400,5 +483,6 @@ http.route({
 // Register desktop and extension routes from separate files
 registerDesktopRoutes(http);
 registerExtensionRoutes(http);
+registerInternalRoutes(http);
 
 export default http;

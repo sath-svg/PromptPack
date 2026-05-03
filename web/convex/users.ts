@@ -172,8 +172,9 @@ export const upsertFromWebhook = internalMutation({
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
+    emailVerified: v.optional(v.boolean()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
+  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId, emailVerified }) => {
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -186,6 +187,7 @@ export const upsertFromWebhook = internalMutation({
         imageUrl,
         plan,
         ...(stripeCustomerId && { stripeCustomerId }),
+        ...(emailVerified !== undefined && { emailVerified }),
       });
       return existing._id;
     }
@@ -197,6 +199,7 @@ export const upsertFromWebhook = internalMutation({
       imageUrl,
       plan,
       stripeCustomerId,
+      emailVerified,
       createdAt: Date.now(),
     });
   },
