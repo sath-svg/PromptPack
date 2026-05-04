@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
-const WORKERS_API_URL = "https://api.pmtpk.com";
+const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.skillset.so";
 
 export interface EvaluationScores {
   chatgpt: number;

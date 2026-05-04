@@ -19,16 +19,16 @@ export const CONVEX_URL = 'https://determined-lark-313.convex.site';
 
 /**
  * Cloudflare Workers API URL (R2 storage, enhance, classify)
- * - Used for: fetching .pmtpk files from R2, prompt enhancement
- * - DEV: https://api.pmtpk.com
- * - PROD: https://api.pmtpk.com (same)
+ * - Used for: fetching .skill files from R2, prompt enhancement
+ * - DEV: https://api.skillset.so
+ * - PROD: https://api.skillset.so (same)
  */
-export const WORKERS_API_URL = 'https://api.pmtpk.com';
+export const WORKERS_API_URL = 'https://api.skillset.so';
 
 /**
  * Grok API URL for prompt enhancement
  */
-export const GROK_API_URL = 'https://grok.pmtpk.com';
+export const GROK_API_URL = 'https://grok.skillset.so';
 
 /**
  * Enhance API endpoint
@@ -39,9 +39,9 @@ export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
  * Web app URL for OAuth redirects
  * - Used for: desktop auth flow, sign-in redirects
  * - DEV: http://localhost:3000 (local Next.js dev server)
- * - PROD: https://pmtpk.com
+ * - PROD: https://skillset.so
  */
-export const WEB_APP_URL = 'https://pmtpk.com';
+export const WEB_APP_URL = 'https://skillset.so';
 
 /**
  * Desktop auth page URL

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -7,7 +7,6 @@ import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
-import { MANAGED_MODELS, MANAGED_TIER_LABELS } from '../../lib/managed-models';
 import { WorkspaceBar } from './WorkspaceBar';
 import { LspStatusBar } from './LspStatusBar';
 import { GitBar } from './GitBar';
@@ -37,7 +36,7 @@ export function PromptChatPage() {
   const { session } = useAuthStore();
   const {
     billingTier, serverChatCount,
-    managedModeEnabled, selectedManagedModel, setSelectedManagedModel, creditBalance,
+    managedModeEnabled, creditBalance,
   } = useSettingsStore();
   const isManagedActive = managedModeEnabled && Boolean(session);
   const totalCredits = creditBalance ? creditBalance.monthly + creditBalance.topup : 0;
@@ -270,28 +269,21 @@ export function PromptChatPage() {
           <div className="flex items-center gap-2">
             {isManagedActive && (
               <>
-                {/* Model picker (managed mode only) */}
-                <select
-                  value={selectedManagedModel ?? ''}
-                  onChange={(e) => setSelectedManagedModel(e.target.value || null)}
-                  className="px-2 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
-                  title="Select model (Auto = pick by complexity)"
+                {/* Change model → routes to Settings page where the
+                    cheap/mid/frontier picks live. */}
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('skillset:navigate', { detail: 'settings' }))}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
+                  title="Configure cheap / mid / frontier picks"
                 >
-                  <option value="">Auto</option>
-                  {(['cheap', 'mid', 'frontier'] as const).map((tier) => (
-                    <optgroup key={tier} label={MANAGED_TIER_LABELS[tier]}>
-                      {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label} · {m.creditsPerCall}c
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                  <SettingsIcon size={12} />
+                  Change model
+                </button>
                 {/* Balance pill → opens dashboard top-up */}
                 <button
                   type="button"
-                  onClick={() => open('https://pmtpk.com/dashboard?topup=open').catch(console.error)}
+                  onClick={() => open('https://skillset.so/dashboard?topup=open').catch(console.error)}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors"
                   title="Buy more credits"
                 >
@@ -503,7 +495,7 @@ export function PromptChatPage() {
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <button
-                  onClick={() => open('https://pmtpk.com/dashboard?topup=open')}
+                  onClick={() => open('https://skillset.so/dashboard?topup=open')}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
                 >
                   <Sparkles size={13} />
@@ -522,7 +514,7 @@ export function PromptChatPage() {
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <button
-                  onClick={() => open('https://pmtpk.com/pricing')}
+                  onClick={() => open('https://skillset.so/pricing')}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
                 >
                   <ExternalLink size={13} />

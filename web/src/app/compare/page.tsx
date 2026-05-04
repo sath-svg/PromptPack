@@ -1,47 +1,50 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { comparisonPages } from "@/lib/pseo/comparisons";
+import { SkillsetShell } from "@/components/skillset-shell";
+import { SkillsetPageHeader } from "@/components/skillset-page-header";
 
 export const metadata: Metadata = {
-  title: "PromptPack Comparisons - How We Stack Up | PromptPack",
+  title: "Skillset Comparisons - How We Stack Up | Skillset",
   description:
-    "See how PromptPack compares to other prompt management tools like AIPRM, PromptPerfect, and FlowGPT. Feature-by-feature comparisons.",
+    "See how Skillset compares to other prompt management tools like AIPRM, PromptPerfect, and FlowGPT. Feature-by-feature comparisons.",
   keywords: [
-    "PromptPack alternatives",
+    "Skillset alternatives",
     "prompt tool comparison",
     "AIPRM alternative",
     "PromptPerfect alternative",
   ],
-  alternates: { canonical: "https://pmtpk.com/compare" },
+  alternates: { canonical: "https://skillset.so/compare" },
 };
 
 export default function ComparePage() {
   return (
-    <main style={{ maxWidth: 800, margin: "0 auto", padding: "3rem 1.5rem" }}>
-      <h1 style={{ fontSize: "2rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-        PromptPack Comparisons
-      </h1>
-      <p style={{ color: "var(--muted-foreground)", marginBottom: "2.5rem", fontSize: "1.05rem", lineHeight: 1.6 }}>
-        See how PromptPack compares to other prompt management tools. We break down features,
-        pricing, and platform support so you can choose the right tool.
-      </p>
+    <SkillsetShell showHalo>
+      <main className="relative mx-auto max-w-[900px] px-6 py-20 md:py-28">
+        <SkillsetPageHeader
+          eyebrow="Comparisons"
+          title="Skillset vs the alternatives."
+          description="Feature-by-feature breakdowns against the other prompt-management tools, so you can pick what actually fits your stack."
+          align="left"
+        />
 
-      <div style={{ display: "grid", gap: "1rem" }}>
-        {comparisonPages.map((page) => (
-          <Link
-            key={page.slug}
-            href={`/compare/${page.slug}`}
-            className="pseo-card-link"
-          >
-            <h2 style={{ margin: "0 0 0.35rem", fontSize: "1.1rem", fontWeight: 600 }}>
-              {page.title}
-            </h2>
-            <p style={{ margin: 0, color: "var(--muted-foreground)", fontSize: "0.9rem", lineHeight: 1.5 }}>
-              {page.metaDescription}
-            </p>
-          </Link>
-        ))}
-      </div>
-    </main>
+        <div className="grid grid-cols-1 gap-4">
+          {comparisonPages.map((page) => (
+            <Link
+              key={page.slug}
+              href={`/compare/${page.slug}`}
+              className="group block rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-7 transition-all hover:border-white/[0.14] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-30px_rgba(37,99,235,0.4)]"
+            >
+              <h2 className="text-[18px] font-medium text-zinc-50 group-hover:text-white">
+                {page.title}
+              </h2>
+              <p className="mt-2 text-[14px] leading-[1.55] text-zinc-400">
+                {page.metaDescription}
+              </p>
+            </Link>
+          ))}
+        </div>
+      </main>
+    </SkillsetShell>
   );
 }

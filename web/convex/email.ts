@@ -3,11 +3,11 @@
 import { internalAction } from "./_generated/server";
 import { v } from "convex/values";
 
-const FROM_EMAIL = "PromptPack <support@pmtpk.com>";
-const REPLY_TO = "support@pmtpk.com";
-const SUBJECT = "Welcome to PromptPack!";
+const FROM_EMAIL = "Skillset <support@skillset.so>";
+const REPLY_TO = "support@skillset.so";
+const SUBJECT = "Welcome to Skillset!";
 
-const CLIP_BASE = "https://image.pmtpk.com/img";
+const CLIP_BASE = "https://image.skillset.so/img";
 const CLIPS = {
   enhance: `${CLIP_BASE}/clip-output-styles.mp4`,
   save: `${CLIP_BASE}/clip-save.mp4`,
@@ -100,7 +100,7 @@ function buildWelcomeEmailHtml(): string {
             <!-- Logo -->
             <tr>
               <td style="padding:24px 16px 8px;">
-                <img src="https://pmtpk.com/img/promptpack_logo_horizontal.png" alt="PromptPack" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
+                <img src="https://skillset.so/img/skillset_logo_horizontal.png" alt="Skillset" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
               </td>
             </tr>
             <!-- Gradient divider -->
@@ -113,10 +113,10 @@ function buildWelcomeEmailHtml(): string {
             <tr>
               <td style="padding:0 16px 16px;">
                 <h1 class="email-foreground" style="margin:0 0 8px;font-size:26px;line-height:1.3;color:${themeLight.foreground};">
-                  Welcome to PromptPack!
+                  Welcome to Skillset!
                 </h1>
                 <p class="email-muted" style="margin:0;font-size:16px;line-height:1.6;color:${themeLight.muted};">
-                  Thanks for signing up! Here's what you can do with PromptPack.
+                  Thanks for signing up! Here's what you can do with Skillset.
                 </p>
               </td>
             </tr>
@@ -125,7 +125,7 @@ function buildWelcomeEmailHtml(): string {
             <tr>
               <td align="center" style="padding:0 16px 24px;">
                 <a href="https://chromewebstore.google.com/detail/promptpack/ajfgnekiofhiblifmiimnlmcnfhibnbl" target="_blank" style="display:inline-block;text-decoration:none;">
-                  <img src="https://image.pmtpk.com/img/Chrome..png" alt="Add to Chrome" width="200" style="display:block;border:0;height:auto;" />
+                  <img src="https://image.skillset.so/img/Chrome..png" alt="Add to Chrome" width="200" style="display:block;border:0;height:auto;" />
                 </a>
               </td>
             </tr>
@@ -259,7 +259,7 @@ function buildWelcomeEmailHtml(): string {
             <tr>
               <td align="center" style="padding:0 16px 24px;">
                 <p class="email-muted" style="margin:0;font-size:14px;color:${themeLight.muted};">
-                  <a href="https://pmtpk.com/dashboard" style="color:${themeLight.primary};text-decoration:underline;">Open Dashboard</a> · <a href="https://pmtpk.com/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
+                  <a href="https://skillset.so/dashboard" style="color:${themeLight.primary};text-decoration:underline;">Open Dashboard</a> · <a href="https://skillset.so/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
                 </p>
               </td>
             </tr>
@@ -267,9 +267,9 @@ function buildWelcomeEmailHtml(): string {
             <!-- Footer -->
             <tr>
               <td style="padding:0 16px 32px;font-size:12px;color:#9ca3af;line-height:1.6;">
-                <p style="margin:0 0 4px;">PromptPack Support</p>
+                <p style="margin:0 0 4px;">Skillset Support</p>
                 <p style="margin:8px 0 0;">
-                  <a href="https://pmtpk.com" style="color:${themeLight.primary};text-decoration:none;">https://pmtpk.com</a>
+                  <a href="https://skillset.so" style="color:${themeLight.primary};text-decoration:none;">https://skillset.so</a>
                 </p>
               </td>
             </tr>

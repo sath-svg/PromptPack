@@ -20,7 +20,7 @@ export function SettingsPage() {
     theme, setTheme, globalHotkey, apiKeys, setApiKey, setBillingTier,
     managedModeEnabled, setManagedModeEnabled,
     advancedSettingsExpanded, setAdvancedExpanded,
-    selectedManagedModel, setSelectedManagedModel,
+    selectedManagedModels, setSelectedManagedModelForTier,
     creditBalance, setCreditBalance,
   } = useSettingsStore();
   const { session } = useAuthStore();
@@ -57,7 +57,7 @@ export function SettingsPage() {
   }, [session?.user_id]);
 
   const openTopupPage = () => {
-    openShell('https://pmtpk.com/dashboard?topup=open').catch(console.error);
+    openShell('https://skillset.so/dashboard?topup=open').catch(console.error);
   };
 
   const totalCredits = creditBalance
@@ -335,27 +335,33 @@ export function SettingsPage() {
             <p className="text-xs text-[var(--muted-foreground)] mb-3">Sign in to see your credit balance.</p>
           )}
 
-          {/* Default model picker */}
-          <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
-            Default model
-          </label>
-          <select
-            value={selectedManagedModel ?? ''}
-            onChange={(e) => setSelectedManagedModel(e.target.value || null)}
-            disabled={!managedModeEnabled}
-            className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] disabled:opacity-50"
-          >
-            <option value="">Auto (pick by prompt complexity)</option>
+          {/* Per-tier model picks. Auto-router selects one of these
+              based on prompt complexity. */}
+          <p className="text-sm font-medium text-[var(--foreground)] mb-1">Auto-router models</p>
+          <p className="text-xs text-[var(--muted-foreground)] mb-3">
+            Pick one model per tier. Each chat message is routed to the cheapest tier capable of handling it.
+          </p>
+          <div className="space-y-3">
             {(['cheap', 'mid', 'frontier'] as const).map((tier) => (
-              <optgroup key={tier} label={MANAGED_TIER_LABELS[tier]}>
-                {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label} · {m.creditsPerCall}c
-                  </option>
-                ))}
-              </optgroup>
+              <div key={tier}>
+                <label className="block text-xs font-medium text-[var(--muted-foreground)] mb-1">
+                  {MANAGED_TIER_LABELS[tier]}
+                </label>
+                <select
+                  value={selectedManagedModels[tier]}
+                  onChange={(e) => setSelectedManagedModelForTier(tier, e.target.value)}
+                  disabled={!managedModeEnabled}
+                  className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] disabled:opacity-50"
+                >
+                  {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} · {m.creditsPerCall}c
+                    </option>
+                  ))}
+                </select>
+              </div>
             ))}
-          </select>
+          </div>
         </section>
 
         {/* Advanced — Developer keys (BYOK) */}

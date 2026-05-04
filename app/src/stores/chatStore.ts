@@ -12,13 +12,13 @@ import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../lib/agentTools';
-import { autoPickFromAllowlist, getManagedModel } from '../lib/managed-models';
+import { pickFromSelections, getManagedModel } from '../lib/managed-models';
 
 // ---------------------------------------------------------------------------
 // Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
 // ---------------------------------------------------------------------------
 
-const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
+const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
 
 class InsufficientCreditsError extends Error {
   constructor() {
@@ -226,7 +226,7 @@ const HISTORY_MAX_MESSAGES = 14;
 
 // Server-side openai-compat endpoint for inbuilt Groq agent flow. Plain
 // chat keeps the legacy /chat shape via callServer().
-const SERVER_OPENAI_COMPAT_BASE = 'https://api.pmtpk.com/v1';
+const SERVER_OPENAI_COMPAT_BASE = 'https://api.skillset.so/v1';
 
 // Local providers we treat as last-resort. If user configured a cloud key
 // (BYOK), they explicitly opted in to that provider — using a free local
@@ -331,7 +331,7 @@ async function callServer(
   if (session?.session_token) {
     headers['authorization'] = `Bearer ${session.session_token}`;
   }
-  const response = await tauriFetch('https://api.pmtpk.com/chat', {
+  const response = await tauriFetch('https://api.skillset.so/chat', {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelId, messages }),
@@ -365,7 +365,7 @@ async function callPlainPreset(
   const apiKey = provider === 'ollama' ? 'ollama' : apiKeys[provider] ?? '';
   const extraHeaders: Record<string, string> = {};
   if (provider === 'openrouter') {
-    extraHeaders['http-referer'] = 'https://pmtpk.com';
+    extraHeaders['http-referer'] = 'https://skillset.so';
     extraHeaders['x-title'] = 'Skillset';
   }
   return callOpenAICompatible(baseUrl, apiKey, modelId, withSystem, extraHeaders);
@@ -737,8 +737,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Falls through to existing agent/plain dispatch when off or unauthed.
     const authSession = useAuthStore.getState().session;
     if (settings.managedModeEnabled && authSession?.session_token) {
-      const modelId =
-        settings.selectedManagedModel ?? autoPickFromAllowlist(tier);
+      const picked = pickFromSelections(tier, settings.selectedManagedModels);
+      const modelId = picked.id;
       // Validate against allowlist (worker rejects unknown anyway; fail fast)
       if (!getManagedModel(modelId)) {
         set({ error: `Unknown managed model: ${modelId}` });
@@ -906,7 +906,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 : keyMap[preset.provider] ?? '';
           const extra: Record<string, string> = {};
           if (preset.provider === 'openrouter') {
-            extra['http-referer'] = 'https://pmtpk.com';
+            extra['http-referer'] = 'https://skillset.so';
             extra['x-title'] = 'Skillset';
           }
           await runOpenAIAgent(

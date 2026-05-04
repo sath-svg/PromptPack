@@ -258,7 +258,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Upload to R2 via Cloudflare Workers API
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         console.log("Uploading to R2:", `${R2_API_URL}/storage/pack-upload`, "r2Key:", pack.r2Key);
 
         let r2Response;
@@ -439,7 +439,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Upload to R2 via Cloudflare Workers API
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         console.log("Updating saved pack in R2:", `${R2_API_URL}/storage/pack-upload`, "r2Key:", pack.r2Key);
 
         let r2Response;
@@ -636,7 +636,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Upload to R2 via Cloudflare Workers API
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         console.log("Syncing savedPack to R2:", `${R2_API_URL}/storage/pack-upload`, "r2Key:", r2Key);
 
         let r2Response;
@@ -840,7 +840,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         const r2Key = `users/${user._id}/userpacks/${packId}.pmtpk`;
 
         // Upload to R2 via Cloudflare Workers API
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         console.log("Creating pack in R2:", `${R2_API_URL}/storage/pack-upload`, "r2Key:", r2Key);
 
         let r2Response;
@@ -973,7 +973,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Delete version snapshots from R2 first (PromptControl cascade)
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         try {
           const versions = await ctx.runQuery(api.packVersions.listByPack, { packId: packId as Id<"userPacks"> });
           for (const version of versions) {
@@ -1081,7 +1081,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Delete from R2 via Cloudflare Workers API
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         try {
           const r2Response = await fetch(`${R2_API_URL}/storage/delete`, {
             method: "POST",
@@ -1470,7 +1470,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         const nextVersion = maxVersion + 1;
 
         // Fetch current pack file from R2
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         const fetchResponse = await fetch(`${R2_API_URL}/storage/fetch`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1669,7 +1669,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Fetch the version's file from R2
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         const fetchResponse = await fetch(`${R2_API_URL}/storage/fetch`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1793,7 +1793,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Delete from R2
-        const R2_API_URL = process.env.R2_API_URL || "https://api.pmtpk.com";
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
         try {
           await fetch(`${R2_API_URL}/storage/remove`, {
             method: "POST",

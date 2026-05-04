@@ -5,8 +5,8 @@ import { buildLiveEmailHtml, LIVE_EMAIL_SUBJECT } from "../src/lib/email/live-em
 
 const cliRecipients = process.argv.slice(2);
 const EMAIL_TO = cliRecipients.length > 0 ? cliRecipients : ["sathvik.work@gmail.com"];
-const FROM_EMAIL = "PromptPack Support <support@pmtpk.com>";
-const REPLY_TO = "support@pmtpk.com";
+const FROM_EMAIL = "Skillset Support <support@skillset.so>";
+const REPLY_TO = "support@skillset.so";
 
 function loadEnvVar(key: string): string | undefined {
   if (process.env[key]) {

@@ -149,7 +149,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
 };
 
 export const PROVIDER_BASE_URLS: Record<Provider, string> = {
-  server:     'https://api.pmtpk.com',
+  server:     'https://api.skillset.so',
   anthropic:  'https://api.anthropic.com',
   openai:     'https://api.openai.com/v1',
   gemini:     'https://generativelanguage.googleapis.com/v1beta/openai',

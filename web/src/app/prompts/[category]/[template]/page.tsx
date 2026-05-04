@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { promptCategories, getCategory, getTemplate, getRelatedTemplates } from "@/lib/pseo/prompts";
+import {
+  promptCategories,
+  getCategory,
+  getTemplate,
+  getRelatedTemplates,
+} from "@/lib/pseo/prompts";
 import { platformPages } from "@/lib/pseo/platforms";
 import { TemplateCard } from "@/components/pseo/template-card";
 import { CopyPromptButton } from "./copy-button";
-import { SEOToolCTA } from "@/components/tools/seo-tool-cta";
+import { SkillsetShell } from "@/components/skillset-shell";
+import { SkillsetCta } from "@/components/skillset-cta";
 
 interface Props {
   params: Promise<{ category: string; template: string }>;
@@ -13,7 +19,7 @@ interface Props {
 
 export async function generateStaticParams() {
   return promptCategories.flatMap((c) =>
-    c.templates.map((t) => ({ category: c.slug, template: t.slug }))
+    c.templates.map((t) => ({ category: c.slug, template: t.slug })),
   );
 }
 
@@ -23,17 +29,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!template) return {};
 
   return {
-    title: `${template.title} - Copy & Paste Prompt for ChatGPT & Claude | PromptPack`,
+    title: `${template.title} - Copy & Paste Prompt for ChatGPT & Claude | Skillset`,
     description: template.description,
     keywords: template.targetKeywords,
-    alternates: { canonical: `https://pmtpk.com/prompts/${catSlug}/${tplSlug}` },
+    alternates: { canonical: `https://skillset.so/prompts/${catSlug}/${tplSlug}` },
     openGraph: {
-      title: `${template.title} | PromptPack`,
+      title: `${template.title} | Skillset`,
       description: template.description,
-      url: `https://pmtpk.com/prompts/${catSlug}/${tplSlug}`,
+      url: `https://skillset.so/prompts/${catSlug}/${tplSlug}`,
     },
   };
 }
+
+const difficultyClass: Record<string, string> = {
+  beginner: "bg-emerald-400/10 border-emerald-400/20 text-emerald-400",
+  intermediate: "bg-amber-400/10 border-amber-400/20 text-amber-400",
+  advanced: "bg-red-400/10 border-red-400/20 text-red-400",
+};
 
 export default async function TemplatePage({ params }: Props) {
   const { category: catSlug, template: tplSlug } = await params;
@@ -42,12 +54,6 @@ export default async function TemplatePage({ params }: Props) {
 
   const category = getCategory(catSlug);
   const related = getRelatedTemplates(template);
-
-  const difficultyColor: Record<string, string> = {
-    beginner: "#22c55e",
-    intermediate: "#eab308",
-    advanced: "#ef4444",
-  };
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -62,209 +68,167 @@ export default async function TemplatePage({ params }: Props) {
   };
 
   return (
-    <main style={{ maxWidth: 800, margin: "0 auto", padding: "3rem 1.5rem" }}>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+    <SkillsetShell showHalo>
+      <main className="relative mx-auto max-w-[860px] px-6 py-20 md:py-24">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
 
-      <nav style={{ marginBottom: "1.5rem", fontSize: "0.85rem", color: "var(--muted-foreground)" }}>
-        <Link href="/prompts" style={{ color: "#6366f1", textDecoration: "none" }}>Prompts</Link>
-        <span style={{ margin: "0 0.5rem" }}>/</span>
-        <Link href={`/prompts/${catSlug}`} style={{ color: "#6366f1", textDecoration: "none" }}>
-          {category?.title}
-        </Link>
-        <span style={{ margin: "0 0.5rem" }}>/</span>
-        <span>{template.title}</span>
-      </nav>
-
-      <h1 style={{ fontSize: "1.75rem", fontWeight: 700, marginBottom: "0.5rem" }}>
-        {template.title}
-      </h1>
-      <p style={{ color: "var(--muted-foreground)", marginBottom: "1.5rem", fontSize: "1.05rem", lineHeight: 1.6 }}>
-        {template.description}
-      </p>
-
-      {/* Metadata badges */}
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
-        <span
-          style={{
-            fontSize: "0.75rem",
-            padding: "0.2rem 0.5rem",
-            borderRadius: "4px",
-            backgroundColor: `${difficultyColor[template.difficulty]}20`,
-            color: difficultyColor[template.difficulty],
-            textTransform: "capitalize",
-          }}
+        <nav
+          className="mb-8 text-[12px] uppercase tracking-[0.18em] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          {template.difficulty}
-        </span>
-        {template.platforms.map((p) => (
+          <Link href="/prompts" className="text-[#7BA7FF] hover:text-[#2563EB]">
+            Prompts
+          </Link>
+          <span className="mx-2 text-zinc-700">/</span>
+          <Link href={`/prompts/${catSlug}`} className="text-[#7BA7FF] hover:text-[#2563EB]">
+            {category?.title}
+          </Link>
+          <span className="mx-2 text-zinc-700">/</span>
+          <span className="text-zinc-300">{template.title}</span>
+        </nav>
+
+        <h1 className="text-[32px] font-medium leading-[1.1] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
+          {template.title}
+        </h1>
+        <p className="mt-5 max-w-[68ch] text-[16px] leading-[1.6] text-zinc-400">
+          {template.description}
+        </p>
+
+        <div className="mb-10 mt-6 flex flex-wrap items-center gap-2">
           <span
-            key={p}
-            style={{
-              fontSize: "0.75rem",
-              padding: "0.2rem 0.5rem",
-              borderRadius: "4px",
-              backgroundColor: "rgba(99, 102, 241, 0.1)",
-              color: "#818cf8",
-              textTransform: "capitalize",
-            }}
+            className={`rounded-full border px-2.5 py-0.5 text-[11px] uppercase tracking-[0.14em] capitalize ${difficultyClass[template.difficulty]}`}
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            {p}
+            {template.difficulty}
           </span>
-        ))}
-        {template.tags.map((tag) => (
-          <span
-            key={tag}
-            style={{
-              fontSize: "0.75rem",
-              padding: "0.2rem 0.5rem",
-              borderRadius: "4px",
-              backgroundColor: "rgba(255,255,255,0.06)",
-              color: "var(--muted-foreground)",
-            }}
+          {template.platforms.map((p) => (
+            <span
+              key={p}
+              className="rounded-full border border-[#2563EB]/20 bg-[#2563EB]/10 px-2.5 py-0.5 text-[11px] uppercase tracking-[0.14em] capitalize text-[#7BA7FF]"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              {p}
+            </span>
+          ))}
+          {template.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-0.5 text-[11px] tracking-[0.04em] text-zinc-400"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        <section className="mb-6 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-7">
+          <h2
+            className="mb-3 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            {tag}
-          </span>
-        ))}
-      </div>
+            When to use this
+          </h2>
+          <p className="text-[15px] leading-[1.65] text-zinc-300">
+            {template.useCase}
+          </p>
+        </section>
 
-      {/* Use case */}
-      <section style={{ marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.35rem" }}>When to use this</h2>
-        <p style={{ margin: 0, color: "var(--muted-foreground)", lineHeight: 1.6 }}>{template.useCase}</p>
-      </section>
-
-      {/* Prompt text */}
-      <section style={{ marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, margin: 0 }}>Prompt Template</h2>
-          <CopyPromptButton prompt={template.prompt} />
-        </div>
-        <div
-          style={{
-            padding: "1.25rem",
-            borderRadius: "8px",
-            border: "1px solid var(--border, #27272a)",
-            backgroundColor: "rgba(0,0,0,0.3)",
-            whiteSpace: "pre-wrap",
-            fontFamily: "monospace",
-            fontSize: "0.85rem",
-            lineHeight: 1.7,
-            color: "var(--foreground, #ededed)",
-            overflowX: "auto",
-          }}
-        >
-          {template.prompt}
-        </div>
-      </section>
-
-      {/* Example input/output */}
-      {template.exampleInput && (
-        <section style={{ marginBottom: "1.5rem" }}>
-          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.5rem" }}>Example</h2>
+        <section className="mb-6 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-7">
+          <div className="mb-4 flex items-center justify-between">
+            <h2
+              className="text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              Prompt template
+            </h2>
+            <CopyPromptButton prompt={template.prompt} />
+          </div>
           <div
-            style={{
-              padding: "1rem",
-              borderRadius: "8px",
-              border: "1px solid var(--border, #27272a)",
-              backgroundColor: "var(--card, #18181b)",
-            }}
+            className="overflow-x-auto whitespace-pre-wrap rounded-xl border border-white/10 bg-[#0a0a0c] p-5 text-[13.5px] leading-[1.7] text-zinc-200"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            <h3 style={{ fontSize: "0.9rem", fontWeight: 600, margin: "0 0 0.35rem", color: "#818cf8" }}>Input</h3>
-            <p style={{ margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.6, color: "var(--muted-foreground)" }}>
+            {template.prompt}
+          </div>
+        </section>
+
+        {template.exampleInput && (
+          <section className="mb-6 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-7">
+            <h2
+              className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              Example
+            </h2>
+            <h3 className="mb-2 text-[13px] font-medium uppercase tracking-[0.16em] text-[#7BA7FF]">
+              Input
+            </h3>
+            <p className="mb-5 text-[14px] leading-[1.65] text-zinc-300">
               {template.exampleInput}
             </p>
             {template.exampleOutput && (
               <>
-                <h3 style={{ fontSize: "0.9rem", fontWeight: 600, margin: "0 0 0.35rem", color: "#22c55e" }}>Output</h3>
-                <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.6, color: "var(--muted-foreground)" }}>
+                <h3 className="mb-2 text-[13px] font-medium uppercase tracking-[0.16em] text-emerald-400">
+                  Output
+                </h3>
+                <p className="text-[14px] leading-[1.65] text-zinc-300">
                   {template.exampleOutput}
                 </p>
               </>
             )}
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      {/* Action links */}
-      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginBottom: "2rem" }}>
-        <Link
-          href={`/tools/prompt-enhancer`}
-          className="btn btn-primary"
-          style={{ padding: "0.5rem 1.25rem", fontSize: "0.9rem" }}
-        >
-          Enhance This Prompt
-        </Link>
-        <Link
-          href={`/tools/prompt-evaluator`}
-          className="btn btn-secondary"
-          style={{ padding: "0.5rem 1.25rem", fontSize: "0.9rem" }}
-        >
-          Evaluate This Prompt
-        </Link>
-      </div>
-
-      {/* Platform links */}
-      <section style={{ marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.1rem", fontWeight: 600, marginBottom: "0.5rem" }}>Use this prompt with</h2>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          {template.platforms.map((p) => {
-            const platform = platformPages.find((pp) => pp.slug === p);
-            return platform ? (
-              <Link
-                key={p}
-                href={`/prompts/for/${p}`}
-                style={{
-                  padding: "0.35rem 0.7rem",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border, #27272a)",
-                  fontSize: "0.8rem",
-                  color: "#818cf8",
-                  textDecoration: "none",
-                }}
-              >
-                {platform.icon} {platform.name}
-              </Link>
-            ) : (
-              <span
-                key={p}
-                style={{
-                  padding: "0.35rem 0.7rem",
-                  borderRadius: "6px",
-                  border: "1px solid var(--border, #27272a)",
-                  fontSize: "0.8rem",
-                  color: "var(--muted-foreground)",
-                  textTransform: "capitalize",
-                }}
-              >
-                {p}
-              </span>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* Related templates */}
-      {related.length > 0 && (
-        <section style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 600, marginBottom: "1rem" }}>Related Templates</h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))",
-              gap: "1rem",
-            }}
+        <section className="mb-12">
+          <h2
+            className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            {related.map((rt) => (
-              <TemplateCard key={rt.slug} template={rt} />
-            ))}
+            Use this prompt with
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {template.platforms.map((p) => {
+              const platform = platformPages.find((pp) => pp.slug === p);
+              return platform ? (
+                <Link
+                  key={p}
+                  href={`/prompts/for/${p}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[13px] text-[#7BA7FF] transition-all hover:border-white/20 hover:bg-white/[0.05]"
+                >
+                  <span>{platform.icon}</span>
+                  {platform.name}
+                </Link>
+              ) : (
+                <span
+                  key={p}
+                  className="rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[13px] capitalize text-zinc-400"
+                >
+                  {p}
+                </span>
+              );
+            })}
           </div>
         </section>
-      )}
 
-      <SEOToolCTA variant="extension" />
-    </main>
+        {related.length > 0 && (
+          <section className="mb-12">
+            <h2
+              className="mb-5 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              Related templates
+            </h2>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {related.map((rt) => (
+                <TemplateCard key={rt.slug} template={rt} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <SkillsetCta />
+      </main>
+    </SkillsetShell>
   );
 }
