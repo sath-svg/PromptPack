@@ -1,5 +1,5 @@
 // ============================================================================
-// CENTRALIZED CONFIGURATION FOR PROMPTPACK WEB APP
+// CENTRALIZED CONFIGURATION FOR SKILLSET WEB APP
 // ============================================================================
 // All configurable parameters, limits, URLs, and constants in one place.
 // Update these values when deploying to production.
@@ -10,10 +10,10 @@
 // ============================================================================
 
 // R2 API URL (Cloudflare Workers)
-export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://api.pmtpk.com";
+export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://api.skillset.so";
 
 // Workers API URL (same as R2 for now)
-export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.pmtpk.com";
+export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.skillset.so";
 
 // Default support email
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";

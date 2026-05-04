@@ -6,6 +6,10 @@ workers_dev = false
 preview_urls = false
 
 routes = [
+  { pattern = "api.skillset.so", zone_name = "skillset.so", custom_domain = true },
+  { pattern = "grok.skillset.so", zone_name = "skillset.so", custom_domain = true },
+  # Legacy pmtpk.com routes kept active during dual-run for existing desktop app installs.
+  # Remove after Plausible/Worker analytics show ~zero pmtpk.com traffic (T+6-12 months).
   { pattern = "api.pmtpk.com", zone_name = "pmtpk.com", custom_domain = true },
   { pattern = "grok.pmtpk.com", zone_name = "pmtpk.com", custom_domain = true }
 ]
@@ -13,8 +17,10 @@ routes = [
 [vars]
 ENVIRONMENT = "production"
 CONVEX_URL = "https://determined-lark-313.convex.site"
-ALLOWED_ORIGINS = "https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
-OLLAMA_URL = "https://ollama.pmtpk.com"
+ALLOWED_ORIGINS = "https://skillset.so, https://www.skillset.so, https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
+OLLAMA_URL = "https://ollama.skillset.so"
+# CLERK_ISSUER / CLERK_JWKS_URL stay on pmtpk.com until Clerk dashboard primary domain
+# is swapped to skillset.so. Swapping these prematurely would invalidate existing JWTs.
 CLERK_ISSUER = "https://clerk.pmtpk.com"
 CLERK_JWKS_URL = "https://clerk.pmtpk.com/.well-known/jwks.json"
 
@@ -27,5 +33,4 @@ bucket_name = "promptpack-files-prod"
 #   OPENROUTER_API_KEY        — used by /api/llm/chat managed-mode proxy
 #   SKILLSET_INTERNAL_KEY     — shared secret with Convex /api/internal/credits/* endpoints
 #   GROQ_API_KEY              — used by /api/enhance and /api/evaluate
-#   MCP_TOKEN_SECRET          — used by /mcp long-lived token signing
 #   CLERK_AUDIENCE            — Clerk JWT audience claim (optional)

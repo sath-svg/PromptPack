@@ -1,49 +1,12 @@
 import { MetadataRoute } from 'next'
-import { blogPosts } from '@/lib/blog-posts'
 import { promptCategories } from '@/lib/pseo/prompts'
 import { comparisonPages } from '@/lib/pseo/comparisons'
 import { platformPages } from '@/lib/pseo/platforms'
 import { rolePages } from '@/lib/pseo/roles'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://pmtpk.com'
+  const baseUrl = 'https://skillset.so'
 
-  const blogEntries: MetadataRoute.Sitemap = blogPosts.map((post) => ({
-    url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: new Date(post.date),
-    changeFrequency: 'monthly',
-    priority: 0.7,
-  }))
-
-  // Tool pages
-  const toolEntries: MetadataRoute.Sitemap = [
-    {
-      url: `${baseUrl}/tools`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/tools/prompt-enhancer`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/tools/prompt-evaluator`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/tools/chatgpt-to-claude`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-  ]
-
-  // Prompt template pages
   const promptEntries: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/prompts`,
@@ -67,7 +30,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ),
   ]
 
-  // Platform & role landing pages
   const platformEntries: MetadataRoute.Sitemap = platformPages.map((page) => ({
     url: `${baseUrl}/prompts/for/${page.slug}`,
     lastModified: new Date(),
@@ -82,7 +44,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }))
 
-  // Comparison pages
   const compareEntries: MetadataRoute.Sitemap = [
     {
       url: `${baseUrl}/compare`,
@@ -106,35 +67,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1.0,
     },
     {
-      url: `${baseUrl}/marketplace`,
-      lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 0.8,
-    },
-    {
       url: `${baseUrl}/pricing`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.8,
     },
-    {
-      url: `${baseUrl}/blog`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    ...blogEntries,
-    ...toolEntries,
     ...promptEntries,
     ...platformEntries,
     ...roleEntries,
     ...compareEntries,
-    {
-      url: `${baseUrl}/downloads`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
     {
       url: `${baseUrl}/privacy`,
       lastModified: new Date(),

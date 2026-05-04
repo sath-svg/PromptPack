@@ -9,7 +9,6 @@
 
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
-import { handleMcpRequest } from "./mcp";
 import { handleLlmChat } from "./llm";
 
 export interface Env {
@@ -22,7 +21,6 @@ export interface Env {
   CLERK_ISSUER: string;
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
-  MCP_TOKEN_SECRET: string;
   OPENROUTER_API_KEY: string;
   SKILLSET_INTERNAL_KEY: string;
 }
@@ -356,52 +354,6 @@ function encodeBase64Url(data: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function getHmacKey(secret: string): Promise<CryptoKey> {
-  const keyData = new TextEncoder().encode(secret);
-  return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
-}
-
-async function mintMcpToken(clerkId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = now + 30 * 24 * 60 * 60; // 30 days
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload = { sub: clerkId, iat: now, exp: expiresAt, type: "mcp" };
-  const enc = new TextEncoder();
-  const headerB64 = encodeBase64Url(enc.encode(JSON.stringify(header)));
-  const payloadB64 = encodeBase64Url(enc.encode(JSON.stringify(payload)));
-  const signingInput = `${headerB64}.${payloadB64}`;
-  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signingInput));
-  const sigB64 = encodeBase64Url(new Uint8Array(sig));
-  return { token: `${signingInput}.${sigB64}`, expiresAt };
-}
-
-async function verifyMcpToken(token: string, env: Env): Promise<{ sub?: string } | null> {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [headerB64, payloadB64, sigB64] = parts;
-  const header = parseJwtPart<{ alg?: string; typ?: string }>(headerB64);
-  if (!header || header.alg !== "HS256") return null;
-  const payload = parseJwtPart<{ sub?: string; exp?: number; type?: string }>(payloadB64);
-  if (!payload || payload.type !== "mcp") return null;
-  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
-  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
-  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
-  const signature = decodeBase64Url(sigB64);
-  const valid = await crypto.subtle.verify("HMAC", key, signature, signingInput);
-  if (!valid) return null;
-  return { sub: payload.sub };
-}
-
-async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
-  // Try Clerk RS256 first (no conflict: verifyClerkJwt checks alg === "RS256")
-  const clerk = await verifyClerkJwt(token, env);
-  if (clerk) return clerk;
-  // Fall back to MCP HS256 token
-  if (!env.MCP_TOKEN_SECRET) return null;
-  return verifyMcpToken(token, env);
-}
-
 function getEnhanceMode(input: unknown): EnhanceMode | null {
   if (typeof input !== "string") return ENHANCE_DEFAULT_MODE;
   const mode = input.toLowerCase();
@@ -448,7 +400,7 @@ function getRateLimitId(request: Request, userId: string | null): string {
 
 async function getCachedJson<T>(cacheKey: string): Promise<T | null> {
   const cache = caches.default;
-  const req = new Request(`https://cache.pmtpk.com/enhance/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.skillset.so/enhance/${cacheKey}`, { method: "GET" });
   const hit = await cache.match(req);
   if (!hit) return null;
   try {
@@ -460,7 +412,7 @@ async function getCachedJson<T>(cacheKey: string): Promise<T | null> {
 
 async function putCachedJson(cacheKey: string, payload: unknown, ttlSeconds: number): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://cache.pmtpk.com/enhance/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.skillset.so/enhance/${cacheKey}`, { method: "GET" });
   const res = new Response(JSON.stringify(payload), {
     headers: {
       "Content-Type": "application/json",
@@ -472,7 +424,7 @@ async function putCachedJson(cacheKey: string, payload: unknown, ttlSeconds: num
 
 async function getCachedClassify<T>(cacheKey: string): Promise<T | null> {
   const cache = caches.default;
-  const req = new Request(`https://cache.pmtpk.com/classify/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.skillset.so/classify/${cacheKey}`, { method: "GET" });
   const hit = await cache.match(req);
   if (!hit) return null;
   try {
@@ -484,7 +436,7 @@ async function getCachedClassify<T>(cacheKey: string): Promise<T | null> {
 
 async function putCachedClassify(cacheKey: string, payload: unknown, ttlSeconds: number): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://cache.pmtpk.com/classify/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.skillset.so/classify/${cacheKey}`, { method: "GET" });
   const res = new Response(JSON.stringify(payload), {
     headers: {
       "Content-Type": "application/json",
@@ -496,7 +448,7 @@ async function putCachedClassify(cacheKey: string, payload: unknown, ttlSeconds:
 
 async function incrementRateCounter(key: string, ttlSeconds: number): Promise<number> {
   const cache = caches.default;
-  const req = new Request(`https://rate.pmtpk.com/enhance/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.skillset.so/enhance/${encodeURIComponent(key)}`, { method: "GET" });
   const hit = await cache.match(req);
   let count = 0;
   if (hit) {
@@ -520,7 +472,7 @@ async function incrementRateCounter(key: string, ttlSeconds: number): Promise<nu
 
 async function acquireInFlightLock(key: string, ttlSeconds: number): Promise<boolean> {
   const cache = caches.default;
-  const req = new Request(`https://rate.pmtpk.com/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.skillset.so/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
   const hit = await cache.match(req);
   if (hit) return false;
   const res = new Response(JSON.stringify({ locked: true, ts: Date.now() }), {
@@ -535,7 +487,7 @@ async function acquireInFlightLock(key: string, ttlSeconds: number): Promise<boo
 
 async function releaseInFlightLock(key: string): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://rate.pmtpk.com/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.skillset.so/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
   await cache.delete(req);
 }
 
@@ -2468,140 +2420,6 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }
       }
 
-      // === MCP (Model Context Protocol) endpoint ===
-      if (path === "/mcp" && method === "POST") {
-        const mcpResponse = await handleMcpRequest(
-          request,
-          env,
-          verifyMcpOrClerkJwt,
-          checkUserBillingStatus,
-        );
-        return addCors(mcpResponse);
-      }
-
-      // === Device auth for MCP CLI bridge ===
-
-      // Generate a device auth code for CLI login
-      if (path === "/auth/device-code" && method === "POST") {
-        const code = crypto.randomUUID().slice(0, 8);
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
-        const cacheRes = new Response(JSON.stringify({ status: "pending" }), {
-          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        });
-        await cache.put(cacheReq, cacheRes);
-
-        return addCors(new Response(JSON.stringify({
-          code,
-          authUrl: `https://pmtpk.com/mcp-auth?code=${code}`,
-          expiresIn: 300,
-        }), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Poll for device auth completion
-      if (path === "/auth/device-poll" && method === "GET") {
-        const code = url.searchParams.get("code");
-        if (!code) {
-          return addCors(new Response(JSON.stringify({ error: "Missing code" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
-        const hit = await cache.match(cacheReq);
-        if (!hit) {
-          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
-            status: 404, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const data = await hit.json() as Record<string, unknown>;
-        return addCors(new Response(JSON.stringify(data), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Complete device auth (called by web app after user signs in)
-      if (path === "/auth/device-complete" && method === "POST") {
-        const body = await request.json().catch(() => null) as {
-          code?: string; clerkId?: string; refreshToken?: string;
-        } | null;
-        if (!body?.code || !body.clerkId || !body.refreshToken) {
-          return addCors(new Response(JSON.stringify({ error: "Missing code, clerkId, or refreshToken" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${body.code}`, { method: "GET" });
-        const hit = await cache.match(cacheReq);
-        if (!hit) {
-          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
-            status: 404, headers: { "Content-Type": "application/json" },
-          }));
-        }
-
-        // Mint a long-lived MCP token if secret is configured
-        let tokenToStore = body.refreshToken;
-        let expiresAt: number | undefined;
-        if (env.MCP_TOKEN_SECRET) {
-          // Verify the Clerk JWT to confirm identity
-          const clerkPayload = await verifyClerkJwt(body.refreshToken, env);
-          if (!clerkPayload || clerkPayload.sub !== body.clerkId) {
-            return addCors(new Response(JSON.stringify({ error: "Invalid Clerk token" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const minted = await mintMcpToken(body.clerkId, env);
-          tokenToStore = minted.token;
-          expiresAt = minted.expiresAt;
-        }
-
-        // Update cache with completion data
-        const cacheRes = new Response(JSON.stringify({
-          status: "complete",
-          clerkId: body.clerkId,
-          refreshToken: tokenToStore,
-          ...(expiresAt ? { expiresAt } : {}),
-        }), {
-          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        });
-        await cache.put(cacheReq, cacheRes);
-
-        return addCors(new Response(JSON.stringify({ success: true }), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Refresh an MCP token (exchange valid MCP token for a fresh 30-day token)
-      if (path === "/auth/mcp-refresh" && method === "POST") {
-        if (!env.MCP_TOKEN_SECRET) {
-          return addCors(new Response(JSON.stringify({ error: "MCP token refresh not configured" }), {
-            status: 501, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-          return addCors(new Response(JSON.stringify({ error: "Missing Bearer token" }), {
-            status: 401, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const oldToken = authHeader.slice(7);
-        const payload = await verifyMcpToken(oldToken, env);
-        if (!payload?.sub) {
-          return addCors(new Response(JSON.stringify({ error: "Invalid or expired MCP token" }), {
-            status: 401, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const minted = await mintMcpToken(payload.sub, env);
-        return addCors(new Response(JSON.stringify({
-          refreshToken: minted.token,
-          expiresAt: minted.expiresAt,
-        }), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
       // POST /api/similar-styles — find presets similar to a given style via Groq
       if (path === "/api/similar-styles" && method === "POST") {
         try {
@@ -2616,7 +2434,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           // Rate limit: 30 req/min per IP
           const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
           const rlKey = `similar-styles:${clientIp}`;
-          const rlCacheReq = new Request(`https://rate.pmtpk.com/similar-styles/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const rlCacheReq = new Request(`https://rate.skillset.so/similar-styles/${encodeURIComponent(clientIp)}`, { method: "GET" });
           const rlCache = caches.default;
           const rlHit = await rlCache.match(rlCacheReq);
           if (rlHit) {
@@ -2637,7 +2455,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
 
           // Check cache first (30-day TTL)
           const cacheKey = `similar:${presetId}`;
-          const cacheReq = new Request(`https://cache.pmtpk.com/similar-styles/${encodeURIComponent(presetId)}`, { method: "GET" });
+          const cacheReq = new Request(`https://cache.skillset.so/similar-styles/${encodeURIComponent(presetId)}`, { method: "GET" });
           const cached = await rlCache.match(cacheReq);
           if (cached) {
             return addCors(new Response(cached.body, {
@@ -2791,7 +2609,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           // rolls over without explicit reset job.
           const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
           const counterReq = new Request(
-            `https://rate.pmtpk.com/v1chat-daily/${encodeURIComponent(userId)}/${today}`,
+            `https://rate.skillset.so/v1chat-daily/${encodeURIComponent(userId)}/${today}`,
             { method: "GET" },
           );
           const cache = caches.default;
@@ -2926,7 +2744,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
 
           // Rate limit: 20 req/min per IP
           const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
-          const rlReq = new Request(`https://rate.pmtpk.com/chat/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const rlReq = new Request(`https://rate.skillset.so/chat/${encodeURIComponent(clientIp)}`, { method: "GET" });
           const cache = caches.default;
           const rlHit = await cache.match(rlReq);
           if (rlHit) {

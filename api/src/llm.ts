@@ -214,8 +214,8 @@ export async function handleLlmChat(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "https://pmtpk.com",
-        "X-Title": "PromptPack",
+        "HTTP-Referer": "https://skillset.so",
+        "X-Title": "Skillset",
       },
       body: JSON.stringify({
         model: modelId,
