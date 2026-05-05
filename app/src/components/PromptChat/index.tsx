@@ -17,6 +17,7 @@ import { InfoModal } from '../Common/InfoModal';
 import { SaveAsPackModal } from './SaveAsPackModal';
 import { Bookmark } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
+import { getManagedModel } from '../../lib/managed-models';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -33,7 +34,7 @@ function fillVariables(text: string, values: Record<string, string>): string {
 export function PromptChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
-  const { session } = useAuthStore();
+  const { session, openSignIn } = useAuthStore();
   const {
     billingTier, serverChatCount,
     managedModeEnabled, creditBalance,
@@ -411,7 +412,7 @@ export function PromptChatPage() {
                   }`}
                 >
                   <div
-                    className={`absolute top-1 ${msg.role === 'user' ? 'left-1' : 'right-1'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5`}
+                    className={`absolute -top-7 ${msg.role === 'user' ? 'right-0' : 'left-0'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--background)]/90 backdrop-blur-sm rounded-md px-0.5 z-10`}
                   >
                     <CopyButton getText={copyText} size={11} title="Copy message" />
                     {msg.role === 'user' && session && (
@@ -469,6 +470,18 @@ export function PromptChatPage() {
                       </span>
                     </div>
                   )}
+                  {msg.role === 'assistant' && msg.modelId && !msg.preset && (() => {
+                    const m = getManagedModel(msg.modelId);
+                    const label = m?.label ?? msg.modelId;
+                    const tierCost = m ? `${m.creditsPerCall}c` : null;
+                    return (
+                      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-[var(--muted-foreground)]">
+                          {label}{tierCost ? ` · ${tierCost}` : ''}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -487,7 +500,25 @@ export function PromptChatPage() {
             </div>
           )}
 
-          {error === '__INSUFFICIENT_CREDITS__' ? (
+          {error === '__SESSION_EXPIRED__' ? (
+            <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Session expired</p>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Your sign-in token has expired. Sign in again to keep using managed chat.
+              </p>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  onClick={() => { clearError(); openSignIn().catch(console.error); }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                >
+                  Sign in again
+                </button>
+                <button onClick={clearError} className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : error === '__INSUFFICIENT_CREDITS__' ? (
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
               <p className="text-sm font-semibold text-[var(--foreground)]">Out of credits</p>
               <p className="text-sm text-[var(--muted-foreground)]">

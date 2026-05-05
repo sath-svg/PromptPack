@@ -46,7 +46,8 @@ export default defineSchema({
       v.literal("hold_llm"),           // Reserved (not yet settled)
       v.literal("release_hold"),       // Hold refunded (call failed/expired)
       v.literal("refund"),             // Manual admin refund
-      v.literal("expire_monthly")      // Rollover cap enforcement (excess credits dropped)
+      v.literal("expire_monthly"),     // Rollover cap enforcement (excess credits dropped)
+      v.literal("grant_admin")         // Manual grant via internal addCredits mutation
     ),
     monthlyDelta: v.number(),
     topupDelta: v.number(),

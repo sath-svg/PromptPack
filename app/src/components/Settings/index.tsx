@@ -40,14 +40,14 @@ export function SettingsPage() {
         });
         if (!r.ok) return;
         const data = await r.json() as {
-          monthlyCredits?: number;
-          topupCredits?: number;
-          monthlyCreditsResetAt?: number;
+          monthly?: number;
+          topup?: number;
+          monthlyResetAt?: number;
         };
         setCreditBalance({
-          monthly: data.monthlyCredits ?? 0,
-          topup: data.topupCredits ?? 0,
-          resetAt: data.monthlyCreditsResetAt,
+          monthly: data.monthly ?? 0,
+          topup: data.topup ?? 0,
+          resetAt: data.monthlyResetAt,
         });
       } catch (err) {
         console.error('credit balance fetch failed:', err);

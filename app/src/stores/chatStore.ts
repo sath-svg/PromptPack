@@ -18,12 +18,21 @@ import { pickFromSelections, getManagedModel } from '../lib/managed-models';
 // Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
 // ---------------------------------------------------------------------------
 
-const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
+// TODO: switch back to api.skillset.so once that domain is live.
+// const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
+const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
 
 class InsufficientCreditsError extends Error {
   constructor() {
     super('insufficient_credits');
     this.name = 'InsufficientCreditsError';
+  }
+}
+
+class SessionExpiredError extends Error {
+  constructor() {
+    super('session_expired');
+    this.name = 'SessionExpiredError';
   }
 }
 
@@ -36,7 +45,7 @@ async function callManagedProxy(
   const fullMessages = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
-  const res = await fetch(MANAGED_API_URL, {
+  const res = await tauriFetch(MANAGED_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,7 +54,16 @@ async function callManagedProxy(
     body: JSON.stringify({ model: modelId, messages: fullMessages }),
   });
 
+  if (res.status === 401) {
+    throw new SessionExpiredError();
+  }
   if (res.status === 402) {
+    // Log JWT sub + balance hint so insufficient_credits w/ a populated balance
+    // can be cross-checked against Convex (clerkId mismatch is a common cause).
+    try {
+      const sub = JSON.parse(atob(jwt.split('.')[1]))?.sub;
+      console.warn('[managed-proxy] 402 insufficient_credits — jwt.sub =', sub);
+    } catch { /* ignore decode failure */ }
     throw new InsufficientCreditsError();
   }
   if (!res.ok) {
@@ -92,6 +110,10 @@ export interface ChatMessage {
   blocks?: MessageBlock[];
   preset?: ModelPreset;
   packName?: string;
+  // Managed-mode model that produced this assistant message
+  // (OpenRouter id, e.g. "anthropic/claude-haiku-4-5"). Used to render
+  // a small model chip below the message.
+  modelId?: string;
   // Workspace-relative paths of files copied into the workspace
   // when this user message was sent. Used to render an inline tooltip
   // reminding the user the files are persisted and reusable.
@@ -226,7 +248,9 @@ const HISTORY_MAX_MESSAGES = 14;
 
 // Server-side openai-compat endpoint for inbuilt Groq agent flow. Plain
 // chat keeps the legacy /chat shape via callServer().
-const SERVER_OPENAI_COMPAT_BASE = 'https://api.skillset.so/v1';
+// TODO: switch back to api.skillset.so once worker DNS transfer is complete.
+// const SERVER_OPENAI_COMPAT_BASE = 'https://api.skillset.so/v1';
+const SERVER_OPENAI_COMPAT_BASE = 'https://api.pmtpk.com/v1';
 
 // Local providers we treat as last-resort. If user configured a cloud key
 // (BYOK), they explicitly opted in to that provider — using a free local
@@ -331,7 +355,8 @@ async function callServer(
   if (session?.session_token) {
     headers['authorization'] = `Bearer ${session.session_token}`;
   }
-  const response = await tauriFetch('https://api.skillset.so/chat', {
+  // TODO: switch back to api.skillset.so once worker DNS transfer is complete.
+  const response = await tauriFetch('https://api.pmtpk.com/chat', {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelId, messages }),
@@ -774,13 +799,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
               id: makeId(),
               role: 'assistant',
               content,
+              modelId,
               createdAt: Date.now(),
             },
           ],
           isLoading: false,
         }));
       } catch (err) {
-        if (err instanceof InsufficientCreditsError) {
+        if (err instanceof SessionExpiredError) {
+          set({ error: '__SESSION_EXPIRED__', isLoading: false });
+        } else if (err instanceof InsufficientCreditsError) {
           set({ error: '__INSUFFICIENT_CREDITS__', isLoading: false });
         } else {
           set({

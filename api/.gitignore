@@ -1,0 +1,8 @@
+# Wrangler local dev secrets — overrides wrangler.toml [vars] for `wrangler dev`.
+# Contains live API keys and shared internal secrets; must NEVER be committed.
+.dev.vars
+.dev.vars.*
+
+# Wrangler build artifacts
+.wrangler/
+node_modules/

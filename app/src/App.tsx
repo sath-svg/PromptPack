@@ -40,6 +40,18 @@ function App() {
     }
   }, [session?.user_id]);
 
+  // Cross-component navigation: in-app code dispatches CustomEvent
+  // 'skillset:navigate' with detail = page id. Avoids prop-drilling
+  // setCurrentPage to deeply nested components.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (typeof detail === 'string') setCurrentPage(detail);
+    };
+    window.addEventListener('skillset:navigate', handler);
+    return () => window.removeEventListener('skillset:navigate', handler);
+  }, []);
+
   const renderPage = () => {
     switch (currentPage) {
       case 'chat':

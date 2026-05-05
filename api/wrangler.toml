@@ -18,6 +18,7 @@ routes = [
 ENVIRONMENT = "production"
 CONVEX_URL = "https://determined-lark-313.convex.site"
 ALLOWED_ORIGINS = "https://skillset.so, https://www.skillset.so, https://pmtpk.com, https://www.pmtpk.com, https://chatgpt.com, https://chat.openai.com, https://claude.ai, https://www.claude.ai, https://gemini.google.com, chrome-extension://*"
+# OLLAMA_URL canonical; ollama.pmtpk.com DNS-aliased to same backend during dual-run.
 OLLAMA_URL = "https://ollama.skillset.so"
 # CLERK_ISSUER / CLERK_JWKS_URL stay on pmtpk.com until Clerk dashboard primary domain
 # is swapped to skillset.so. Swapping these prematurely would invalidate existing JWTs.

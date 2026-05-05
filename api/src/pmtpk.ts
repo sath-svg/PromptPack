@@ -1,5 +1,5 @@
 // .pmtpk file encode/decode for Cloudflare Workers
-// Ported from popup/shared/crypto.ts — uses Web Crypto API (available in Workers)
+// Uses Web Crypto API (available in Workers)
 //
 // File Format (v1):
 // Magic (4 bytes): "PPK" + type (0x00=obfuscated, 0x01=encrypted)

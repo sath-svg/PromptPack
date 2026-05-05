@@ -28,25 +28,19 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/sso-callback(.*)",
+  "/forgot-password",
   "/pricing",
-  "/privacy", // Privacy policy must be public
-  "/downloads", // Downloads page must be public
-  "/downloads/(.*)", // Download files must be public (installers, etc.)
-  "/marketplace",
-  "/marketplace/(.*)",
-  "/blog",
-  "/blog/(.*)",
-  "/tools(.*)",      // Prompt enhancer + evaluator (pSEO)
-  "/prompts(.*)",    // Prompt template pages (pSEO)
-  "/compare(.*)",    // Comparison pages (pSEO)
   "/privacy",
+  "/prompts(.*)",
+  "/compare(.*)",
   "/manifest.json",
   "/sitemap.xml",
   "/robots.txt",
   "/api/webhooks/(.*)",
-  "/api/auth/status", // Extension auth status check
-  "/api/health", // Health check endpoint
-  "/api/support", // Support form must be accessible to all users
+  "/api/auth/status",
+  "/api/health",
+  "/api/support",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

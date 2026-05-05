@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import type { PromptCategory } from "@/lib/pseo/types";
 
@@ -11,45 +9,20 @@ export function CategoryCard({ category }: CategoryCardProps) {
   return (
     <Link
       href={`/prompts/${category.slug}`}
-      style={{
-        display: "block",
-        padding: "1.25rem",
-        borderRadius: "8px",
-        border: "1px solid var(--border, #27272a)",
-        backgroundColor: "var(--card, #18181b)",
-        textDecoration: "none",
-        color: "inherit",
-        transition: "border-color 0.15s, transform 0.15s",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = "#6366f1";
-        e.currentTarget.style.transform = "translateY(-2px)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = "var(--border, #27272a)";
-        e.currentTarget.style.transform = "translateY(0)";
-      }}
+      className="group flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all duration-200 hover:border-white/[0.14] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-30px_rgba(37,99,235,0.4)]"
     >
-      <div style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>{category.icon}</div>
-      <h3 style={{ margin: "0 0 0.35rem", fontSize: "1.05rem", fontWeight: 600 }}>
+      <div className="text-[28px]">{category.icon}</div>
+      <h3 className="text-[16px] font-medium text-zinc-50 group-hover:text-white">
         {category.title}
       </h3>
-      <p
-        style={{
-          margin: "0 0 0.5rem",
-          fontSize: "0.85rem",
-          color: "var(--muted-foreground, #a1a1aa)",
-          lineHeight: 1.5,
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
+      <p className="line-clamp-2 text-[13.5px] leading-[1.55] text-zinc-400">
         {category.description}
       </p>
-      <span style={{ fontSize: "0.8rem", color: "#6366f1" }}>
-        {category.templates.length} templates
+      <span
+        className="mt-auto pt-2 text-[11px] uppercase tracking-[0.18em] text-[#7BA7FF]"
+        style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+      >
+        {category.templates.length} templates →
       </span>
     </Link>
   );

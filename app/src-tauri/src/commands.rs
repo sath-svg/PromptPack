@@ -15,7 +15,9 @@ use tauri::{AppHandle, Manager, State};
 /// Web app URL for OAuth redirects
 /// - DEV: http://localhost:3000 (local Next.js dev server)
 /// - PROD: https://skillset.so
-const WEB_APP_URL: &str = "https://skillset.so";
+// TODO: switch back to https://skillset.so once that domain is live.
+// const WEB_APP_URL: &str = "https://skillset.so";
+const WEB_APP_URL: &str = "https://pmtpk.com";
 
 /// Desktop auth page URL - where the OAuth popup opens for sign-in
 const DESKTOP_AUTH_URL: &str = const_format::concatcp!(WEB_APP_URL, "/desktop-auth");
@@ -640,6 +642,9 @@ const ALLOWED_API_HOSTS: &[&str] = &[
     // Local Ollama (no TLS)
     "http://localhost:11434",
     "http://127.0.0.1:11434",
+    // Local Wrangler dev worker (landingpage branch, dev Clerk).
+    "http://localhost:8787",
+    "http://127.0.0.1:8787",
 ];
 
 #[derive(Debug, Deserialize)]

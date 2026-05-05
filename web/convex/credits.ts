@@ -490,6 +490,45 @@ export const grantTopup = internalMutation({
   },
 });
 
+export const addCredits = internalMutation({
+  args: {
+    clerkId: v.string(),
+    credits: v.number(),
+    reason: v.optional(v.string()),
+  },
+  returns: v.object({
+    granted: v.boolean(),
+    topupAfter: v.number(),
+  }),
+  handler: async (ctx, { clerkId, credits, reason }) => {
+    if (credits <= 0) throw new Error("credits must be > 0");
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+    if (!user) return { granted: false, topupAfter: 0 };
+
+    const now = Date.now();
+    const topupAfter = (user.topupCredits ?? 0) + credits;
+
+    await ctx.db.patch(user._id, { topupCredits: topupAfter });
+
+    await ctx.db.insert("creditTransactions", {
+      userId: user._id,
+      kind: "grant_admin",
+      monthlyDelta: 0,
+      topupDelta: credits,
+      monthlyBalanceAfter: user.monthlyCredits ?? 0,
+      topupBalanceAfter: topupAfter,
+      reason: reason ?? "manual admin grant",
+      createdAt: now,
+    });
+
+    return { granted: true, topupAfter };
+  },
+});
+
 /* ────────────────────────────────────────────────────────────────────────── *
  * Maintenance — stale hold cleanup, monthly refresh sweep, backfill
  * ────────────────────────────────────────────────────────────────────────── */

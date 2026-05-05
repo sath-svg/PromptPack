@@ -51,6 +51,15 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
+
+                // Register `promptpack://` URI scheme in OS so the browser
+                // hands off auth callback URLs to this app. Production
+                // installers do this via NSIS/MSI; dev runs need it explicit.
+                #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+                {
+                    let _ = app.deep_link().register_all();
+                }
+
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();

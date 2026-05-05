@@ -982,9 +982,8 @@ function SiteFooter() {
         <FooterCol
           title="Resources"
           links={[
-            { label: "Docs", href: "/docs" },
-            { label: "Marketplace", href: "/marketplace" },
-            { label: "Blog", href: "/blog" },
+            { label: "Prompt library", href: "/prompts" },
+            { label: "Comparisons", href: "/compare" },
             { label: "Privacy", href: "/privacy" },
           ]}
         />

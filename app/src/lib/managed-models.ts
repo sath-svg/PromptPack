@@ -62,9 +62,27 @@ export function recommendedForTier(tier: ManagedTier): ManagedModel {
   return MANAGED_MODELS.find((m) => m.tier === tier && m.recommended) ?? modelsByTier(tier)[0];
 }
 
+export function classifierTierToManagedTier(classifierTier: ModelTier): ManagedTier {
+  return classifierTier === 'fast' ? 'cheap' : classifierTier === 'balanced' ? 'mid' : 'frontier';
+}
+
 /** Map the existing classifier tier (fast/balanced/powerful) to a managed model. */
 export function autoPickFromAllowlist(classifierTier: ModelTier): ManagedModel {
-  const tier: ManagedTier =
-    classifierTier === 'fast' ? 'cheap' : classifierTier === 'balanced' ? 'mid' : 'frontier';
-  return recommendedForTier(tier);
+  return recommendedForTier(classifierTierToManagedTier(classifierTier));
 }
+
+/** Pick from the user's per-tier selection map, falling back to recommended. */
+export function pickFromSelections(
+  classifierTier: ModelTier,
+  selections: Record<ManagedTier, string>,
+): ManagedModel {
+  const tier = classifierTierToManagedTier(classifierTier);
+  const id = selections[tier];
+  return (id && getManagedModel(id)) ?? recommendedForTier(tier);
+}
+
+export const DEFAULT_MANAGED_SELECTIONS: Record<ManagedTier, string> = {
+  cheap: recommendedForTier('cheap').id,
+  mid: recommendedForTier('mid').id,
+  frontier: recommendedForTier('frontier').id,
+};

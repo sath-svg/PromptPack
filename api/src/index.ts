@@ -10,6 +10,14 @@
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
 import { handleLlmChat } from "./llm";
+import {
+  reserveCredits,
+  settleCredits,
+  releaseCredits,
+  reserveErrorResponse,
+  creditsHeaders,
+  CREDIT_USD_VALUE,
+} from "./credits";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -648,19 +656,13 @@ export default {
       // Groq-enhanced prompt endpoint
       // POST /api/enhance
       if (path === "/api/enhance" && method === "POST") {
-        const requestId = crypto.randomUUID();
-        const start = Date.now();
-        let cached = false;
-        let modelUsed = ENHANCE_FREE_MODEL;
-        let errorCode = "ok";
-        let isPro = false;
-        let inFlightKey: string | null = null;
-        let inFlightLocked = false;
-
+        // Credit-metered: 1 credit per call (cheap tier — Groq Llama).
+        // Per-route rate limits (daily/min/10min/hash/in-flight) replaced by
+        // single credit throttle. Pro users still get 70B model for UX.
+        let holdId: string | null = null;
         try {
           const groqApiKey = getGroqApiKey(env);
           if (!groqApiKey) {
-            errorCode = "missing_groq_key";
             return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
               status: 500,
               headers: { "Content-Type": "application/json" },
@@ -672,122 +674,44 @@ export default {
           const mode = getEnhanceMode(body?.mode);
 
           if (!text) {
-            errorCode = "missing_text";
             return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
+              status: 400, headers: { "Content-Type": "application/json" },
             }), true);
           }
-
           if (!mode) {
-            errorCode = "invalid_mode";
             return addCors(new Response(JSON.stringify({ error: "Invalid mode" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
+              status: 400, headers: { "Content-Type": "application/json" },
             }), true);
           }
-
           if (text.length > ENHANCE_MAX_INPUT_CHARS) {
-            errorCode = "input_too_long";
             return addCors(new Response(JSON.stringify({ error: "Prompt too long to enhance" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
+              status: 400, headers: { "Content-Type": "application/json" },
             }), true);
           }
 
-          // Get user ID from auth token (required for enhance)
-          const userId = getUserIdFromToken(request.headers.get("Authorization"));
-          if (!userId) {
-            errorCode = "unauthorized";
+          const authHeader = request.headers.get("Authorization") || "";
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+          if (!token) {
             return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
+              status: 401, headers: { "Content-Type": "application/json" },
             }), true);
           }
-
-          // Check billing status to determine limits and model
-          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
-          isPro = billing.isPro;
-
-          const rateKey = `user:${userId}`;
-          const model = getModel(isPro);
-          modelUsed = model;
-
-          inFlightKey = `${rateKey}:inflight`;
-          inFlightLocked = await acquireInFlightLock(inFlightKey, ENHANCE_IN_FLIGHT_TTL_SECONDS);
-          if (!inFlightLocked) {
-            errorCode = "rate_limit_in_flight";
-            return addCors(new Response(JSON.stringify({
-              error: "Enhance already running. Please wait for it to finish.",
-              code: "IN_FLIGHT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
+          const claims = await verifyClerkJwt(token, env);
+          if (!claims?.sub) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
             }), true);
           }
+          const clerkId = claims.sub;
 
-          // === RATE LIMITING ===
+          // Pro users get 70B model; free get 8B. Both billed at 1 credit.
+          const billing = await checkUserBillingStatus(clerkId, env.CONVEX_URL);
+          const model = getModel(billing.isPro);
 
-          // 1. Daily limit (Free: 10/day, Pro: 100/day)
-          const dayLimit = isPro ? ENHANCE_PRO_DAY_LIMIT : ENHANCE_FREE_DAY_LIMIT;
-          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
-          if (dayCount > dayLimit) {
-            errorCode = "rate_limit_day";
-            return addCors(new Response(JSON.stringify({
-              error: isPro ? "Daily enhance limit reached (100/day)" : "Daily enhance limit reached (10/day). Upgrade to Pro for more.",
-              code: "DAILY_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }), true);
-          }
-
-          // 2. Rolling window: 2 requests/minute
-          const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
-          if (minuteCount > ENHANCE_MINUTE_LIMIT) {
-            errorCode = "rate_limit_minute";
-            return addCors(new Response(JSON.stringify({
-              error: "Too many requests. Please wait a moment.",
-              code: "MINUTE_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }), true);
-          }
-
-          // 3. Rolling window: 10 requests/10 minutes
-          const tenMinCount = await incrementRateCounter(`${rateKey}:10min`, 10 * 60);
-          if (tenMinCount > ENHANCE_10MIN_LIMIT) {
-            errorCode = "rate_limit_10min";
-            return addCors(new Response(JSON.stringify({
-              error: "Too many requests. Please wait a few minutes.",
-              code: "TEN_MIN_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }), true);
-          }
-
-          // 4. Same-prompt spam guard (hash-based)
-          const promptHash = await sha256Hex(`${text}${mode}`);
-          const sameHashLimit = isPro ? ENHANCE_PRO_SAME_HASH_HOUR : ENHANCE_FREE_SAME_HASH_HOUR;
-          const sameHashCount = await incrementRateCounter(`${rateKey}:hash:${promptHash}`, 60 * 60);
-          if (sameHashCount > sameHashLimit) {
-            errorCode = "rate_limit_same_prompt";
-            return addCors(new Response(JSON.stringify({
-              error: "Same prompt enhanced too many times. Try a different prompt.",
-              code: "SAME_PROMPT_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }), true);
-          }
-
-          // === CACHE LOOKUP ===
+          // Cache lookup before reserving — cached hits are free.
           const cacheKey = await sha256Hex(`${text}${mode}${model}`);
           const cachedResult = await getCachedJson<{ enhanced: string; mode: EnhanceMode; model: string }>(cacheKey);
           if (cachedResult?.enhanced) {
-            cached = true;
             return addCors(new Response(JSON.stringify({
               enhanced: cachedResult.enhanced,
               mode,
@@ -798,29 +722,35 @@ export default {
             }), true);
           }
 
-          // === CALL GROQ ===
+          const FLAT_CREDITS = 1;
+          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${model}`);
+          if (!reserve.ok) return addCors(reserveErrorResponse(reserve), true);
+          holdId = reserve.data.holdId;
+
           const result = await callGroqChatCompletion({
             apiKey: groqApiKey,
             model,
             mode,
             text,
-            isPro,
+            isPro: billing.isPro,
           });
 
           if (!result.ok) {
-            errorCode = `groq_${result.status}`;
+            await releaseCredits(env, holdId, `groq_${result.status}`);
+            holdId = null;
             return addCors(new Response(JSON.stringify({ error: "Enhance failed. Please try again." }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
+              status: 502, headers: { "Content-Type": "application/json" },
             }), true);
           }
 
-          // Cache the result
           await putCachedJson(cacheKey, {
             enhanced: result.content,
             mode,
             model,
           }, ENHANCE_CACHE_TTL_SECONDS);
+
+          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
+          holdId = null;
 
           return addCors(new Response(JSON.stringify({
             enhanced: result.content,
@@ -828,32 +758,31 @@ export default {
             model,
             cached: false,
           }), {
-            headers: { "Content-Type": "application/json" },
+            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
           }), true);
-        } finally {
-          if (inFlightLocked && inFlightKey) {
-            try {
-              await releaseInFlightLock(inFlightKey);
-            } catch {
-              // Ignore lock release failures.
-            }
+        } catch (error) {
+          if (holdId) {
+            await releaseCredits(env, holdId, "exception");
           }
-          const durationMs = Date.now() - start;
+          console.error("/api/enhance error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }), true);
         }
       }
 
       // POST /api/evaluate - Evaluate prompt quality across all LLMs
       // Pro/Studio only feature
       if (path === "/api/evaluate" && method === "POST") {
-        let inFlightKey: string | null = null;
-        let inFlightLocked = false;
-
+        // Credit-metered: 1 credit per call. Rule-based score with single Groq
+        // pass — no per-tier daily caps, credits are the throttle. Tier gate
+        // (was Pro/Studio only) removed: any signed-in user with credits.
+        let holdId: string | null = null;
         try {
           const groqApiKey = getGroqApiKey(env);
           if (!groqApiKey) {
             return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
-              status: 500,
-              headers: { "Content-Type": "application/json" },
+              status: 500, headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -862,94 +791,31 @@ export default {
 
           if (!text) {
             return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
+              status: 400, headers: { "Content-Type": "application/json" },
             }));
           }
-
           if (text.length > EVAL_MAX_INPUT_CHARS) {
             return addCors(new Response(JSON.stringify({ error: "Prompt too long to evaluate" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
+              status: 400, headers: { "Content-Type": "application/json" },
             }));
           }
 
-          // Get user ID from auth token (required)
-          const userId = getUserIdFromToken(request.headers.get("Authorization"));
-          if (!userId) {
+          const authHeader = request.headers.get("Authorization") || "";
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+          if (!token) {
             return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
+              status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-
-          // Check billing status - must be Pro or Studio
-          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
-          if (!billing.isPro) {
-            return addCors(new Response(JSON.stringify({
-              error: "Upgrade to Pro to evaluate prompts",
-              code: "TIER_REQUIRED"
-            }), {
-              status: 403,
-              headers: { "Content-Type": "application/json" },
+          const claims = await verifyClerkJwt(token, env);
+          if (!claims?.sub) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
+          const clerkId = claims.sub;
 
-          const rateKey = `user:${userId}:eval`;
-
-          // In-flight lock
-          inFlightKey = `${rateKey}:inflight`;
-          inFlightLocked = await acquireInFlightLock(inFlightKey, EVAL_IN_FLIGHT_TTL_SECONDS);
-          if (!inFlightLocked) {
-            return addCors(new Response(JSON.stringify({
-              error: "Evaluation already running. Please wait for it to finish.",
-              code: "IN_FLIGHT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Daily limit based on tier
-          const dayLimit = billing.isStudio ? EVAL_STUDIO_DAY_LIMIT : EVAL_PRO_DAY_LIMIT;
-          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
-          if (dayCount > dayLimit) {
-            return addCors(new Response(JSON.stringify({
-              error: billing.isStudio
-                ? "Daily evaluation limit reached (500/day)"
-                : "Daily evaluation limit reached (100/day). Upgrade to Studio for more.",
-              code: "DAILY_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Rolling window: 5 requests/minute
-          const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
-          if (minuteCount > EVAL_MINUTE_LIMIT) {
-            return addCors(new Response(JSON.stringify({
-              error: "Too many requests. Please wait a moment.",
-              code: "MINUTE_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Rolling window: 20 requests/10 minutes
-          const tenMinCount = await incrementRateCounter(`${rateKey}:10min`, 10 * 60);
-          if (tenMinCount > EVAL_10MIN_LIMIT) {
-            return addCors(new Response(JSON.stringify({
-              error: "Too many requests. Please wait a few minutes.",
-              code: "TEN_MIN_LIMIT"
-            }), {
-              status: 429,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Cache lookup by prompt hash
+          // Cache lookup before reserving — cached hits are free.
           const promptHash = await sha256Hex(text);
           const cacheKey = `eval:${promptHash}`;
           const cachedResult = await getCachedJson<{
@@ -967,6 +833,11 @@ export default {
               headers: { "Content-Type": "application/json" },
             }));
           }
+
+          const FLAT_CREDITS = 1;
+          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${EVAL_MODEL}`);
+          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
+          holdId = reserve.data.holdId;
 
           // Build the evaluation system prompt (DeepEval G-Eval inspired)
           const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
@@ -1038,10 +909,12 @@ Do NOT include any explanation or markdown formatting.`;
           });
 
           if (!groqResponse.ok) {
-            console.error("Groq evaluation error:", groqResponse.status, await groqResponse.text().catch(() => ""));
+            const errText = await groqResponse.text().catch(() => "");
+            await releaseCredits(env, holdId, `groq_error_${groqResponse.status}`);
+            holdId = null;
+            console.error("Groq evaluation error:", groqResponse.status, errText);
             return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
+              status: 502, headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -1069,10 +942,11 @@ Do NOT include any explanation or markdown formatting.`;
               scores[llm] = Math.round(scores[llm]); // Ensure integers
             }
           } catch (parseError) {
+            await releaseCredits(env, holdId, "parse_failed");
+            holdId = null;
             console.error("Failed to parse evaluation scores:", content, parseError);
             return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
+              status: 502, headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -1090,7 +964,7 @@ Do NOT include any explanation or markdown formatting.`;
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                clerkId: userId,
+                clerkId,
                 promptHash,
                 overallScore,
                 scores,
@@ -1101,23 +975,25 @@ Do NOT include any explanation or markdown formatting.`;
             console.error("Failed to save evaluation to Convex:", saveError);
           }
 
+          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
+          holdId = null;
+
           return addCors(new Response(JSON.stringify({
             overallScore,
             scores,
             promptHash,
             cached: false,
           }), {
-            headers: { "Content-Type": "application/json" },
+            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
           }));
-
-        } finally {
-          if (inFlightLocked && inFlightKey) {
-            try {
-              await releaseInFlightLock(inFlightKey);
-            } catch {
-              // Ignore lock release failures
-            }
+        } catch (error) {
+          if (holdId) {
+            await releaseCredits(env, holdId, "exception");
           }
+          console.error("/api/evaluate error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
         }
       }
 
@@ -2578,6 +2454,10 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
       // daily caps enforced server-side as defense in depth on top of
       // the desktop app's own counters.
       if (path === "/v1/chat/completions" && method === "POST") {
+        // Credit-metered: 1 credit per call (cheap tier — locked to 8B Llama).
+        // Per-tier daily counters (free 3, pro 200, studio 400) replaced by
+        // single credit throttle. Tier UX (X-User-Tier header) preserved.
+        let holdId: string | null = null;
         try {
           const groqKey = getGroqApiKey(env);
           if (!groqKey) {
@@ -2599,35 +2479,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-          const userId = claims.sub;
-
-          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
-          const caps: Record<"free" | "pro" | "studio", number> = { free: 3, pro: 200, studio: 400 };
-          const cap = caps[billing.tier];
-
-          // Daily counter via Cache API. Key includes UTC date so it
-          // rolls over without explicit reset job.
-          const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-          const counterReq = new Request(
-            `https://rate.skillset.so/v1chat-daily/${encodeURIComponent(userId)}/${today}`,
-            { method: "GET" },
-          );
-          const cache = caches.default;
-          const counterHit = await cache.match(counterReq);
-          let count = 0;
-          if (counterHit) {
-            count = parseInt(await counterHit.text(), 10) || 0;
-          }
-          if (count >= cap) {
-            return addCors(new Response(JSON.stringify({
-              error: {
-                message: `Daily limit reached (${count}/${cap}). Resets at midnight UTC, or add a BYOK key.`,
-                type: "rate_limit_exceeded",
-              },
-            }), {
-              status: 429, headers: { "Content-Type": "application/json" },
-            }));
-          }
+          const clerkId = claims.sub;
 
           const body = await request.json().catch(() => null) as {
             model?: string;
@@ -2654,6 +2506,11 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             ? requestedModel
             : "llama-3.1-8b-instant";
 
+          const FLAT_CREDITS = 1;
+          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${model}`);
+          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
+          holdId = reserve.data.holdId;
+
           const groqPayload: Record<string, unknown> = {
             model,
             max_tokens: body.max_tokens ?? 4096,
@@ -2663,17 +2520,29 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             groqPayload.tools = body.tools;
           }
 
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${groqKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(groqPayload),
-          });
+          let groqRes: Response;
+          try {
+            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${groqKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(groqPayload),
+            });
+          } catch (fetchErr) {
+            await releaseCredits(env, holdId, "groq_fetch_failed");
+            holdId = null;
+            console.error("Groq /v1 fetch error:", fetchErr);
+            return addCors(new Response(JSON.stringify({ error: { message: "Upstream unreachable" } }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
 
           if (!groqRes.ok) {
             const errText = await groqRes.text().catch(() => "");
+            await releaseCredits(env, holdId, `groq_error_${groqRes.status}`);
+            holdId = null;
             console.error("Groq /v1 error:", groqRes.status, errText);
             // Pass through Groq's error body so the desktop app can show
             // the real reason (model name typo, malformed tools array,
@@ -2691,27 +2560,25 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             }));
           }
 
-          // Bump the daily counter only after a successful upstream call
-          // so failed requests don't burn the user's quota.
-          const nextCount = count + 1;
-          await cache.put(
-            counterReq,
-            new Response(String(nextCount), { headers: { "Cache-Control": "max-age=86400" } }),
-          );
-
           // Pass through the openai-compat response unchanged so the
           // client gets `choices[0].message.tool_calls` etc.
           const upstream = await groqRes.text();
+          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
+          holdId = null;
+
+          // Tier still surfaced for client UX (model picker hints, etc.)
+          const billing = await checkUserBillingStatus(clerkId, env.CONVEX_URL);
+          const headers = creditsHeaders(settled, { "Content-Type": "application/json" });
+          headers.set("X-User-Tier", billing.tier);
+
           return addCors(new Response(upstream, {
             status: 200,
-            headers: {
-              "Content-Type": "application/json",
-              "X-Daily-Count": String(nextCount),
-              "X-Daily-Cap": String(cap),
-              "X-User-Tier": billing.tier,
-            },
+            headers,
           }));
         } catch (error) {
+          if (holdId) {
+            await releaseCredits(env, holdId, "exception");
+          }
           console.error("/v1/chat/completions error:", error);
           return addCors(new Response(JSON.stringify({
             error: { message: error instanceof Error ? error.message : "Internal error" },
@@ -2724,6 +2591,9 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
       // POST /chat — PromptPack-hosted AI (Groq Llama 3.1 8B, free tier)
       // Body: { messages: [{role, content}][] }
       if (path === "/chat" && method === "POST") {
+        // Credit-metered: 1 credit per call (cheap tier — Groq Llama 8B).
+        // Unsigned users blocked: no JWT → 401. Credits are the single throttle.
+        let holdId: string | null = null;
         try {
           const groqKey = getGroqApiKey(env);
           if (!groqKey) {
@@ -2731,6 +2601,21 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               status: 503, headers: { "Content-Type": "application/json" },
             }));
           }
+
+          const authHeader = request.headers.get("Authorization") || "";
+          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+          if (!token) {
+            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const claims = await verifyClerkJwt(token, env);
+          if (!claims?.sub) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const clerkId = claims.sub;
 
           const body = await request.json().catch(() => null) as {
             messages?: { role: string; content: string }[];
@@ -2742,35 +2627,35 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             }));
           }
 
-          // Rate limit: 20 req/min per IP
-          const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
-          const rlReq = new Request(`https://rate.skillset.so/chat/${encodeURIComponent(clientIp)}`, { method: "GET" });
-          const cache = caches.default;
-          const rlHit = await cache.match(rlReq);
-          if (rlHit) {
-            const count = parseInt(await rlHit.text(), 10);
-            if (count >= 20) {
-              return addCors(new Response(JSON.stringify({ error: "Rate limit exceeded. Max 20 requests/minute." }), {
-                status: 429, headers: { "Content-Type": "application/json" },
-              }));
-            }
-            await cache.put(rlReq, new Response(String(count + 1), { headers: { "Cache-Control": "max-age=60" } }));
-          } else {
-            await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
-          }
+          const FLAT_CREDITS = 1;
+          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, "groq:llama-3.1-8b-instant");
+          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
+          holdId = reserve.data.holdId;
 
           const model = "llama-3.1-8b-instant";
-          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${groqKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
-          });
+          let groqRes: Response;
+          try {
+            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${groqKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
+            });
+          } catch (fetchErr) {
+            await releaseCredits(env, holdId, "groq_fetch_failed");
+            holdId = null;
+            console.error("Groq chat fetch error:", fetchErr);
+            return addCors(new Response(JSON.stringify({ error: "Upstream unreachable" }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
 
           if (!groqRes.ok) {
             const errText = await groqRes.text().catch(() => "");
+            await releaseCredits(env, holdId, `groq_error_${groqRes.status}`);
+            holdId = null;
             console.error("Groq chat error:", groqRes.status, errText);
             return addCors(new Response(JSON.stringify({ error: `Model error: ${groqRes.status}` }), {
               status: 502, headers: { "Content-Type": "application/json" },
@@ -2782,11 +2667,18 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           };
           const content = data?.choices?.[0]?.message?.content ?? "";
 
+          // Flat-charge FLAT_CREDITS (Groq billed via subscription, no per-call cost).
+          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
+          holdId = null;
+
           return addCors(new Response(JSON.stringify({ content, model }), {
-            headers: { "Content-Type": "application/json" },
+            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
           }));
 
         } catch (error) {
+          if (holdId) {
+            await releaseCredits(env, holdId, "exception");
+          }
           console.error("chat error:", error);
           return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
             status: 500, headers: { "Content-Type": "application/json" },

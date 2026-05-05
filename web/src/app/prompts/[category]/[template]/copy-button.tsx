@@ -14,16 +14,11 @@ export function CopyPromptButton({ prompt }: { prompt: string }) {
   return (
     <button
       onClick={handleCopy}
-      style={{
-        padding: "0.35rem 0.75rem",
-        fontSize: "0.8rem",
-        borderRadius: "4px",
-        border: "1px solid var(--border, #27272a)",
-        backgroundColor: copied ? "rgba(34, 197, 94, 0.1)" : "transparent",
-        color: copied ? "#22c55e" : "var(--muted-foreground)",
-        cursor: "pointer",
-        transition: "all 0.15s",
-      }}
+      className={`rounded-full border px-3.5 py-1.5 text-[12px] tracking-[0.04em] transition-all ${
+        copied
+          ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"
+          : "border-white/10 bg-white/[0.02] text-zinc-300 hover:border-white/20 hover:bg-white/[0.05]"
+      }`}
     >
       {copied ? "Copied!" : "Copy Prompt"}
     </button>

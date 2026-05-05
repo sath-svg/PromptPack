@@ -9,12 +9,14 @@
  */
 
 import type * as authStatus from "../authStatus.js";
+import type * as credits from "../credits.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
 import type * as evaluations from "../evaluations.js";
 import type * as http from "../http.js";
 import type * as httpDesktop from "../httpDesktop.js";
 import type * as httpExtension from "../httpExtension.js";
+import type * as httpInternal from "../httpInternal.js";
 import type * as packVersions from "../packVersions.js";
 import type * as packs from "../packs.js";
 import type * as promptVersions from "../promptVersions.js";
@@ -32,12 +34,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authStatus: typeof authStatus;
+  credits: typeof credits;
   crons: typeof crons;
   email: typeof email;
   evaluations: typeof evaluations;
   http: typeof http;
   httpDesktop: typeof httpDesktop;
   httpExtension: typeof httpExtension;
+  httpInternal: typeof httpInternal;
   packVersions: typeof packVersions;
   packs: typeof packs;
   promptVersions: typeof promptVersions;

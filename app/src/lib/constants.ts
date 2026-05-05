@@ -23,12 +23,16 @@ export const CONVEX_URL = 'https://determined-lark-313.convex.site';
  * - DEV: https://api.skillset.so
  * - PROD: https://api.skillset.so (same)
  */
-export const WORKERS_API_URL = 'https://api.skillset.so';
+// TODO: switch back to api.skillset.so once worker DNS transfer is complete.
+// export const WORKERS_API_URL = 'https://api.skillset.so';
+export const WORKERS_API_URL = 'https://api.pmtpk.com';
 
 /**
  * Grok API URL for prompt enhancement
  */
-export const GROK_API_URL = 'https://grok.skillset.so';
+// TODO: switch back to grok.skillset.so once worker DNS transfer is complete.
+// export const GROK_API_URL = 'https://grok.skillset.so';
+export const GROK_API_URL = 'https://grok.pmtpk.com';
 
 /**
  * Enhance API endpoint
@@ -41,7 +45,9 @@ export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
  * - DEV: http://localhost:3000 (local Next.js dev server)
  * - PROD: https://skillset.so
  */
-export const WEB_APP_URL = 'https://skillset.so';
+// TODO: switch back to https://skillset.so once that domain is live.
+// export const WEB_APP_URL = 'https://skillset.so';
+export const WEB_APP_URL = 'https://pmtpk.com';
 
 /**
  * Desktop auth page URL

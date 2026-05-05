@@ -1,4 +1,11 @@
 import { getManagedModel, isManagedModel, MANAGED_MODELS } from "./managed-models";
+import {
+  reserveCredits,
+  settleCredits,
+  releaseCredits,
+  reserveErrorResponse,
+  creditsHeaders,
+} from "./credits";
 
 interface LlmEnv {
   CONVEX_URL: string;
@@ -37,19 +44,6 @@ interface OpenRouterResponse {
   error?: { message?: string; code?: string | number };
 }
 
-interface ReserveResponse {
-  holdId: string;
-  monthlyAfter: number;
-  topupAfter: number;
-}
-
-interface SettleResponse {
-  monthlyAfter: number;
-  topupAfter: number;
-  actualCredits: number;
-  shortfall: number;
-}
-
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 /** ~4 chars per token is the standard rule of thumb across major tokenizers. */
@@ -86,56 +80,8 @@ async function verifyJwt(
   return payload?.sub ?? null;
 }
 
-async function reserveOnConvex(
-  env: LlmEnv,
-  clerkId: string,
-  estimatedCredits: number,
-  modelId: string,
-): Promise<{ ok: true; data: ReserveResponse } | { ok: false; status: number; body: unknown }> {
-  const res = await fetch(`${env.CONVEX_URL}/api/internal/credits/reserve`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-skillset-internal": env.SKILLSET_INTERNAL_KEY,
-    },
-    body: JSON.stringify({ clerkId, estimatedCredits, modelId }),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    return { ok: false, status: res.status, body };
-  }
-  return { ok: true, data: (await res.json()) as ReserveResponse };
-}
-
-async function settleOnConvex(
-  env: LlmEnv,
-  holdId: string,
-  actualOpenRouterCostUsd: number,
-  inputTokens: number,
-  outputTokens: number,
-): Promise<SettleResponse | null> {
-  const res = await fetch(`${env.CONVEX_URL}/api/internal/credits/settle`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-skillset-internal": env.SKILLSET_INTERNAL_KEY,
-    },
-    body: JSON.stringify({ holdId, actualOpenRouterCostUsd, inputTokens, outputTokens }),
-  });
-  if (!res.ok) return null;
-  return (await res.json()) as SettleResponse;
-}
-
-async function releaseOnConvex(env: LlmEnv, holdId: string, reason: string): Promise<void> {
-  await fetch(`${env.CONVEX_URL}/api/internal/credits/release`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-skillset-internal": env.SKILLSET_INTERNAL_KEY,
-    },
-    body: JSON.stringify({ holdId, reason }),
-  }).catch(() => undefined);
-}
+// Credit reserve/settle/release helpers moved to ./credits.ts (shared with
+// /api/enhance, /api/evaluate, /chat, /v1/chat/completions).
 
 /**
  * Managed-mode LLM proxy: routes chat requests through OpenRouter and meters
@@ -194,16 +140,20 @@ export async function handleLlmChat(
   const tokenBasedEstimate = Math.ceil((inputTokens / 1000) * tierMultiplier);
   const estimatedCredits = Math.max(model.creditsPerCall, tokenBasedEstimate);
 
-  const reserve = await reserveOnConvex(env, clerkId, estimatedCredits, modelId);
-  if (!reserve.ok) {
-    if (reserve.status === 402) {
-      return jsonResponse({ error: "insufficient_credits", code: "INSUFFICIENT_CREDITS" }, 402);
-    }
-    if (reserve.status === 404) {
-      return jsonResponse({ error: "user_not_found" }, 404);
-    }
-    return jsonResponse({ error: "credit_reserve_failed", details: reserve.body }, 500);
-  }
+  const reserve = await reserveCredits(env, clerkId, estimatedCredits, modelId);
+  console.log("[llm-chat] reserve:", JSON.stringify({
+    clerkId,
+    estimatedCredits,
+    modelId,
+    tier: model.tier,
+    inputTokens,
+    convexUrl: env.CONVEX_URL,
+    ok: reserve.ok,
+    status: reserve.ok ? null : reserve.status,
+    body: reserve.ok ? null : reserve.body,
+    holdId: reserve.ok ? reserve.data.holdId : null,
+  }));
+  if (!reserve.ok) return reserveErrorResponse(reserve);
 
   const { holdId } = reserve.data;
 
@@ -220,7 +170,12 @@ export async function handleLlmChat(
       body: JSON.stringify({
         model: modelId,
         messages: body.messages,
-        max_tokens: body.max_tokens,
+        // OpenRouter reserves max_tokens × output_price up-front against the
+        // key's monthly limit. Without an explicit cap, models default to
+        // their full context (e.g. Haiku 4.5 = 64K output) which can exceed
+        // the per-call reservation budget. Clamp to 4K unless caller asked
+        // for something specific.
+        max_tokens: body.max_tokens ?? 8192,
         temperature: body.temperature,
         top_p: body.top_p,
         // Ask OpenRouter to include actual cost so we can settle accurately
@@ -228,7 +183,7 @@ export async function handleLlmChat(
       }),
     });
   } catch (err) {
-    await releaseOnConvex(env, holdId, "openrouter_fetch_failed");
+    await releaseCredits(env, holdId, "openrouter_fetch_failed");
     return jsonResponse({ error: "openrouter_unreachable" }, 502);
   }
 
@@ -236,15 +191,18 @@ export async function handleLlmChat(
   try {
     openRouterBody = (await openRouterRes.json()) as OpenRouterResponse;
   } catch {
-    await releaseOnConvex(env, holdId, "openrouter_invalid_response");
+    await releaseCredits(env, holdId, "openrouter_invalid_response");
     return jsonResponse({ error: "openrouter_invalid_response" }, 502);
   }
 
   if (!openRouterRes.ok || openRouterBody.error) {
-    await releaseOnConvex(env, holdId, `openrouter_error_${openRouterRes.status}`);
+    await releaseCredits(env, holdId, `openrouter_error_${openRouterRes.status}`);
+    console.error("[llm-chat] OpenRouter error", openRouterRes.status, JSON.stringify(openRouterBody.error));
+    // Always return 502 for upstream failures so client doesn't confuse
+    // OpenRouter's 402/401 with user's own credit/auth state.
     return jsonResponse(
-      { error: "openrouter_error", status: openRouterRes.status, details: openRouterBody.error },
-      openRouterRes.status >= 400 && openRouterRes.status < 600 ? openRouterRes.status : 502,
+      { error: "openrouter_error", upstreamStatus: openRouterRes.status, details: openRouterBody.error },
+      502,
     );
   }
 
@@ -253,7 +211,7 @@ export async function handleLlmChat(
   const actualInputTokens = usage.prompt_tokens ?? inputTokens;
   const actualOutputTokens = usage.completion_tokens ?? 0;
 
-  const settled = await settleOnConvex(
+  const settled = await settleCredits(
     env,
     holdId,
     actualCost,
@@ -261,22 +219,8 @@ export async function handleLlmChat(
     actualOutputTokens,
   );
 
-  const responseHeaders = new Headers({ "Content-Type": "application/json" });
-  if (settled) {
-    responseHeaders.set(
-      "X-Credits-Remaining",
-      String(settled.monthlyAfter + settled.topupAfter),
-    );
-    responseHeaders.set("X-Credits-Monthly", String(settled.monthlyAfter));
-    responseHeaders.set("X-Credits-Topup", String(settled.topupAfter));
-    responseHeaders.set("X-Credits-Charged", String(settled.actualCredits));
-    if (settled.shortfall > 0) {
-      responseHeaders.set("X-Credits-Shortfall", String(settled.shortfall));
-    }
-  }
-
   return new Response(JSON.stringify(openRouterBody), {
     status: 200,
-    headers: responseHeaders,
+    headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
   });
 }

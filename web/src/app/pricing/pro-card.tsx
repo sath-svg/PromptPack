@@ -158,12 +158,12 @@ export function ProCard() {
       <div className="mt-8">
         <SignedIn>
           {isPro ? (
-            <Link href="/dashboard">
+            <Link href="/">
               <button
                 style={{ padding: "10px 22px" }}
                 className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[14px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
               >
-                Dashboard
+                Open Skillset
                 <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
               </button>
             </Link>

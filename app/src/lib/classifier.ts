@@ -149,7 +149,8 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
 };
 
 export const PROVIDER_BASE_URLS: Record<Provider, string> = {
-  server:     'https://api.skillset.so',
+  // TODO: switch back to api.skillset.so once worker DNS transfer is complete.
+  server:     'https://api.pmtpk.com',
   anthropic:  'https://api.anthropic.com',
   openai:     'https://api.openai.com/v1',
   gemini:     'https://generativelanguage.googleapis.com/v1beta/openai',

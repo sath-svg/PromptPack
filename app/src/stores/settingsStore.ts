@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppSettings, UserSession, UserTier } from '../types';
+import { DEFAULT_MANAGED_SELECTIONS, type ManagedTier } from '../lib/managed-models';
 
 // Helper to apply theme to document
 const applyTheme = (theme: 'light' | 'dark' | 'system') => {
@@ -45,7 +46,9 @@ interface SettingsState extends AppSettings {
   // Managed-mode (credit-metered OpenRouter via /api/llm/chat)
   managedModeEnabled: boolean;
   advancedSettingsExpanded: boolean;
-  selectedManagedModel: string | null; // null = auto-pick from tier
+  // User-chosen model per tier. Auto-routing picks one of these based on
+  // prompt complexity. Defaults to recommended pick per tier.
+  selectedManagedModels: Record<ManagedTier, string>;
   creditBalance: CreditBalance | null;
 
   // Actions
@@ -65,7 +68,7 @@ interface SettingsState extends AppSettings {
   getServerDailyCount: () => number;
   setManagedModeEnabled: (enabled: boolean) => void;
   setAdvancedExpanded: (expanded: boolean) => void;
-  setSelectedManagedModel: (modelId: string | null) => void;
+  setSelectedManagedModelForTier: (tier: ManagedTier, modelId: string) => void;
   setCreditBalance: (balance: CreditBalance | null) => void;
   logout: () => void;
   initTheme: () => void;
@@ -103,7 +106,7 @@ export const useSettingsStore = create<SettingsState>()(
       serverDailyDate: todayLocal(),
       managedModeEnabled: true,
       advancedSettingsExpanded: false,
-      selectedManagedModel: null,
+      selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
 
       setTheme: (theme) => {
@@ -142,7 +145,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setManagedModeEnabled: (enabled) => set({ managedModeEnabled: enabled }),
       setAdvancedExpanded: (expanded) => set({ advancedSettingsExpanded: expanded }),
-      setSelectedManagedModel: (modelId) => set({ selectedManagedModel: modelId }),
+      setSelectedManagedModelForTier: (tier, modelId) =>
+        set((s) => ({ selectedManagedModels: { ...s.selectedManagedModels, [tier]: modelId } })),
       setCreditBalance: (balance) => set({ creditBalance: balance }),
       logout: () =>
         set({
@@ -168,6 +172,24 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'promptpack-settings',
+      version: 2,
+      migrate: (persisted: unknown, version: number) => {
+        const s = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 2) {
+          delete s.selectedManagedModel;
+          if (!s.selectedManagedModels) {
+            s.selectedManagedModels = { ...DEFAULT_MANAGED_SELECTIONS };
+          }
+        }
+        return s as SettingsState;
+      },
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<SettingsState>) };
+        if (!merged.selectedManagedModels) {
+          merged.selectedManagedModels = { ...DEFAULT_MANAGED_SELECTIONS };
+        }
+        return merged;
+      },
     }
   )
 );
