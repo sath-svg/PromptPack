@@ -16,7 +16,7 @@
  */
 
 import { tauriFetch } from '../tauriFetch';
-import { applyReasoning } from '../reasoningParams';
+import { applyReasoning, capEffortForAgentLoop } from '../reasoningParams';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../agentTools';
 import type { ModelPreset } from '../classifier';
 import type { EffortLevel } from '../classifier';
@@ -34,10 +34,17 @@ interface AgentSubtaskInput {
 }
 
 export async function runAgentSubtask(input: AgentSubtaskInput): Promise<SubtaskRunResult> {
-  if (input.preset.provider === 'anthropic') {
-    return runAnthropicSubtask(input);
+  // Frontier × high-effort × N-round tool loop = catastrophic credit
+  // burn. Cap to medium for the loop; planner/router still saw the
+  // original signal and may have routed away from frontier already.
+  const capped: AgentSubtaskInput = {
+    ...input,
+    effort: capEffortForAgentLoop(input.preset, input.effort ?? null),
+  };
+  if (capped.preset.provider === 'anthropic') {
+    return runAnthropicSubtask(capped);
   }
-  return runOpenAICompatSubtask(input);
+  return runOpenAICompatSubtask(capped);
 }
 
 // ─── Anthropic native tool loop ────────────────────────────────────────────
@@ -94,6 +101,12 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      // Mid-loop errors after we already accumulated text → return what
+      // we've got. Common cause: malformed tool-call args from the
+      // model; the partial answer is still useful.
+      if (textOut.trim().length > 0) {
+        return { text: textOut, reasoningTokens };
+      }
       throw new Error(`Anthropic agent error ${res.status}: ${JSON.stringify(err)}`);
     }
     const data = (await res.json()) as {
@@ -214,6 +227,12 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      // Mid-loop errors after we already accumulated text → return what
+      // we've got. Common cause: malformed tool-call args from the
+      // model; the partial answer is still useful.
+      if (textOut.trim().length > 0) {
+        return { text: textOut, reasoningTokens };
+      }
       throw new Error(`Agent subtask error ${res.status}: ${JSON.stringify(err)}`);
     }
     const data = (await res.json()) as {

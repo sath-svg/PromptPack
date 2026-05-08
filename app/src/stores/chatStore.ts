@@ -14,7 +14,7 @@ import {
 import { predictRouteWithConfidence } from '../lib/classifierModel';
 import { llmRouteFallback, FALLBACK_THRESHOLD } from '../lib/routeFallback';
 import { logRoute, settleRoute } from '../lib/telemetry';
-import { applyReasoning, managedProxyReasoning } from '../lib/reasoningParams';
+import { applyReasoning, capEffortForAgentLoop, managedProxyReasoning } from '../lib/reasoningParams';
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
@@ -474,7 +474,12 @@ async function callPlainPreset(
 // Agent (tool-use) flow
 // ---------------------------------------------------------------------------
 
-const MAX_TOOL_ROUNDS = 12;
+// Agent-loop round cap. Each round is one full LLM call + tool dispatch.
+// Tighter caps protect against runaway loops on stubborn models that
+// keep tool-fishing without converging. 8 covers the realistic ceiling
+// for plan-then-do tasks; rare cases that need more should be split
+// into multiple user messages.
+const MAX_TOOL_ROUNDS = 8;
 
 interface AnthropicContentBlock {
   type: 'text' | 'tool_use';
@@ -1516,6 +1521,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         : undefined;
 
+      // Multi-round agent loops on `powerful` tier with `high` effort
+      // burn credits fast — each round reserves 25× × 6× = 150 credits.
+      // Cap to medium (still reasons; ~50% cheaper) for the loop only;
+      // single-shot paths keep the original effort.
+      const loopEffort = capEffortForAgentLoop(preset, effort);
       try {
         if (preset.provider === 'anthropic') {
           await runAnthropicAgent(
@@ -1527,7 +1537,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             pushAssistant,
             patchAssistant,
             onBeforeRound,
-            effort,
+            loopEffort,
           );
         } else {
           const baseUrl =
@@ -1565,7 +1575,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             pushAssistant,
             patchAssistant,
             onBeforeRound,
-            effort,
+            loopEffort,
           );
         }
         // Record preset + telemetryId on the last assistant message
@@ -1591,12 +1601,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
           });
         }
       } catch (err) {
+        // Suppress trailing API errors when the assistant already emitted
+        // text. Multi-round agent loops can hit a malformed tool-call
+        // mid-stream ("Failed to call a function" / `failed_generation`)
+        // *after* useful text was generated. Surfacing the toast next
+        // to a working response is just noise.
+        const last = get()
+          .messages
+          .slice()
+          .reverse()
+          .find((m) => m.role === 'assistant');
+        const hasContent =
+          (last?.content ?? '').trim().length > 0 ||
+          (last?.blocks ?? []).some(
+            (b) => b.kind === 'text' && b.text.trim().length > 0,
+          );
         if (telemetryId) {
           void settleRoute({
             id: telemetryId,
-            completed: -1,
+            completed: hasContent ? 1 : -1,
             actualRoute: 'agent',
           });
+        }
+        if (hasContent) {
+          set({ isLoading: false });
+          return;
         }
         set({
           error: err instanceof Error ? err.message : 'Something went wrong',

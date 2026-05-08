@@ -145,6 +145,23 @@ export function applyReasoning(
 }
 
 /**
+ * Cap reasoning effort for multi-round agent loops. A `powerful`-tier
+ * model running an N-round tool loop at `high` effort burns credits
+ * fast — each round reserves frontier-tier × 6× reasoning multiplier.
+ * Medium effort still reasons but cuts the per-round burn ~50%. Caller
+ * should pass this when constructing a multi-round path; single-shot
+ * paths leave effort untouched.
+ */
+export function capEffortForAgentLoop(
+  preset: ModelPreset,
+  effort: EffortLevel | null,
+): EffortLevel | null {
+  if (!effort) return null;
+  if (preset.tier === 'powerful' && effort === 'high') return 'medium';
+  return effort;
+}
+
+/**
  * For the managed-mode proxy (which forwards to OpenRouter under the hood):
  * the desktop app speaks OpenAI-compat to the worker, and the worker
  * forwards the unified OpenRouter shape upstream.
