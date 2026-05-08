@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Folder, FolderOpen, X, Wrench, Info, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Folder, FolderOpen, X, Info, Zap } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { useChatStore } from '../../stores/chatStore';
 import { InfoModal } from '../Common/InfoModal';
@@ -9,9 +9,16 @@ export function WorkspaceBar() {
   const { agentMode, setAgentMode } = useChatStore();
   const [showAcceptInfo, setShowAcceptInfo] = useState(false);
 
+  // Agent mode is now derived from workspace presence — no manual toggle.
+  // Workspace selected ⇒ tools enabled. Workspace cleared ⇒ tools off.
+  // Keeps the surface focused: the user's only decision is "do I want
+  // Skillset to touch my filesystem?", expressed via picking a folder.
+  useEffect(() => {
+    setAgentMode(Boolean(workspace));
+  }, [workspace, setAgentMode]);
+
   const onPick = async () => {
-    const picked = await pickWorkspace();
-    if (picked) setAgentMode(true);
+    await pickWorkspace();
   };
 
   const display = workspace
@@ -24,17 +31,6 @@ export function WorkspaceBar() {
     <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
       {workspace ? (
         <>
-          <button
-            onClick={() => setAgentMode(!agentMode)}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full border transition-colors ${
-              agentMode
-                ? 'bg-[var(--primary)]/10 border-[var(--primary)]/40 text-[var(--primary)]'
-                : 'border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
-            }`}
-            title={agentMode ? 'Agent mode on (tools enabled)' : 'Agent mode off'}
-          >
-            <Wrench size={11} /> Agent {agentMode ? 'on' : 'off'}
-          </button>
           <span className="flex items-center gap-1.5 text-[var(--muted-foreground)]">
             <FolderOpen size={11} className="text-[var(--primary)]" />
             <span style={{ fontFamily: 'var(--font-mono)' }}>{display}</span>

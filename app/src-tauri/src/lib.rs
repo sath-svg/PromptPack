@@ -3,6 +3,8 @@ mod auth;
 mod commands;
 mod crypto;
 mod db;
+mod orchestrator;
+mod telemetry;
 
 use tauri::{Emitter, Manager};
 
@@ -34,7 +36,13 @@ pub fn run() {
         .manage(agent::LspState::default())
         .manage(commands::HttpClient(
             reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                // Reasoning-capable models can spend 30–60s thinking before
+                // emitting a single token. Plain chat rarely needs more than
+                // 10s, but the orchestrator's planner + per-subtask calls all
+                // share this client and any one of them can be on a high-
+                // effort reasoning model. 180s covers practical worst-case.
+                .timeout(std::time::Duration::from_secs(180))
+                .connect_timeout(std::time::Duration::from_secs(15))
                 .build()
                 .expect("failed to create HTTP client"),
         ))
@@ -152,6 +160,22 @@ pub fn run() {
             agent::lsp_spawn,
             agent::lsp_send,
             agent::lsp_stop,
+            orchestrator::skill_upsert,
+            orchestrator::skill_list,
+            orchestrator::skill_delete,
+            orchestrator::run_create,
+            orchestrator::run_update,
+            orchestrator::run_get,
+            orchestrator::run_cancel,
+            orchestrator::subtask_upsert,
+            orchestrator::subtask_list,
+            orchestrator::task_memory_get,
+            orchestrator::task_memory_set,
+            telemetry::telemetry_log_route,
+            telemetry::telemetry_settle_route,
+            telemetry::telemetry_export_route,
+            telemetry::telemetry_get_route,
+            telemetry::telemetry_clear_route,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

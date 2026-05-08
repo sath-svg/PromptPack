@@ -7,7 +7,7 @@ import { DraftPage } from './components/Draft';
 import { SavedPacksPage } from './components/SavedPacks';
 import { UserPacksPage } from './components/UserPacks';
 import { SkillControlPage } from './components/PromptControl';
-import { PromptChatPage } from './components/PromptChat';
+import { SkillChatPage } from './components/SkillChat';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
@@ -55,7 +55,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'chat':
-        return <PromptChatPage />;
+        return <SkillChatPage />;
       case 'draft':
         return <DraftPage />;
       case 'saved-packs':

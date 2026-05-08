@@ -2,12 +2,19 @@ import { create } from 'zustand';
 import { tauriFetch } from '../lib/tauriFetch';
 import {
   classifyTier,
+  classifyPrompt,
   pickModel,
-  PROVIDER_BASE_URLS,
   MODEL_PRESETS,
+  PROVIDER_BASE_URLS,
+  type EffortLevel,
   type ModelPreset,
   type Provider,
+  type RouteClass,
 } from '../lib/classifier';
+import { predictRouteWithConfidence } from '../lib/classifierModel';
+import { llmRouteFallback, FALLBACK_THRESHOLD } from '../lib/routeFallback';
+import { logRoute, settleRoute } from '../lib/telemetry';
+import { applyReasoning, managedProxyReasoning } from '../lib/reasoningParams';
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
@@ -41,17 +48,23 @@ async function callManagedProxy(
   modelId: string,
   messages: { role: string; content: string }[],
   systemPrompt?: string,
+  effort?: EffortLevel | null,
 ): Promise<string> {
   const fullMessages = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages]
     : messages;
+  const body: Record<string, unknown> = {
+    model: modelId,
+    messages: fullMessages,
+    ...managedProxyReasoning(modelId, effort ?? null),
+  };
   const res = await tauriFetch(MANAGED_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${jwt}`,
     },
-    body: JSON.stringify({ model: modelId, messages: fullMessages }),
+    body: JSON.stringify(body),
   });
 
   if (res.status === 401) {
@@ -78,10 +91,10 @@ async function callManagedProxy(
     useSettingsStore.getState().setCreditBalance({ monthly, topup });
   }
 
-  const body = await res.json() as {
+  const data = await res.json() as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  return body.choices?.[0]?.message?.content ?? '';
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +114,21 @@ export type MessageBlock =
       output: string;
       isError?: boolean;
       pendingEditId?: string;
+    }
+  | {
+      // Orchestrator-only: header rendered above each subtask's output text
+      // so the chat shows the same tier / model / effort chips used by the
+      // single-shot path. Patched in-place from `pending` → `done` / `failed`.
+      kind: 'subtask_header';
+      subtaskId: string;
+      title: string;
+      tier?: import('../lib/classifier').ModelTier;
+      modelId?: string;          // Managed-mode OpenRouter model id
+      modelLabel?: string;       // Pretty label for the chip
+      effort?: import('../lib/classifier').EffortLevel | null;
+      status: 'running' | 'done' | 'failed';
+      reasoningTokens?: number;
+      error?: string;
     };
 
 export interface ChatMessage {
@@ -114,10 +142,40 @@ export interface ChatMessage {
   // (OpenRouter id, e.g. "anthropic/claude-haiku-4-5"). Used to render
   // a small model chip below the message.
   modelId?: string;
+  /**
+   * Classifier tier the LR head emitted for the user's prompt. Used to
+   * render the same Fast / Balanced / Powerful chip the BYOK path shows
+   * via `preset.tier`. Set on managed-mode messages so the UI is
+   * consistent regardless of which call path served the response.
+   */
+  tier?: import('../lib/classifier').ModelTier;
+  /**
+   * Reasoning effort the runtime applied (`low | medium | high | null`).
+   * `null` = no thinking budget (fast tier OR non-reasoning model).
+   * Used to render the effort chip alongside the tier chip.
+   */
+  effort?: import('../lib/classifier').EffortLevel | null;
   // Workspace-relative paths of files copied into the workspace
   // when this user message was sent. Used to render an inline tooltip
   // reminding the user the files are persisted and reusable.
   attachments?: string[];
+  /**
+   * True when the user had the Workflow toggle on but the LR classifier
+   * determined the goal was a fast-tier lookup, so the orchestrator was
+   * skipped in favor of a single-shot call. Renders a tiny note next to
+   * the model chip so the user understands why no subtask chips / Run
+   * Trace activity appeared.
+   */
+  orchestratorSkipped?: boolean;
+  /**
+   * Routing-telemetry row id (Phase 2). Set on the assistant message so
+   * the UI can settle the row with thumbs-up / thumbs-down on click and
+   * so a follow-up user message can record reprompt-within seconds for
+   * the prior assistant turn.
+   */
+  telemetryId?: string;
+  /** Sticky thumbs vote — once set, the toolbar highlights it. */
+  userSignal?: 'thumbs_up' | 'thumbs_down';
   createdAt: number;
 }
 
@@ -130,6 +188,7 @@ interface ChatState {
   sendMessage: (text: string, packName?: string, systemPrompt?: string, attachments?: string[]) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
+  voteOnMessage: (messageId: string, signal: 'thumbs_up' | 'thumbs_down') => void;
 }
 
 function makeId() {
@@ -299,12 +358,18 @@ function pickToolCapableModel(
 
 async function callAnthropicPlain(
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   messages: { role: string; content: string }[],
   system?: string,
+  effort?: EffortLevel | null,
 ): Promise<string> {
-  const payload: Record<string, unknown> = { model: modelId, max_tokens: 4096, messages };
+  let payload: Record<string, unknown> = {
+    model: preset.modelId,
+    max_tokens: 4096,
+    messages,
+  };
   if (system) payload.system = system;
+  payload = applyReasoning(preset, effort ?? null, payload);
   const response = await tauriFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -325,10 +390,16 @@ async function callAnthropicPlain(
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   messages: { role: string; content: string }[],
   extraHeaders?: Record<string, string>,
+  effort?: EffortLevel | null,
 ): Promise<string> {
+  const body = applyReasoning(preset, effort ?? null, {
+    model: preset.modelId,
+    max_tokens: 4096,
+    messages,
+  });
   const response = await tauriFetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -336,7 +407,7 @@ async function callOpenAICompatible(
       'content-type': 'application/json',
       ...extraHeaders,
     },
-    body: JSON.stringify({ model: modelId, max_tokens: 4096, messages }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -375,16 +446,19 @@ async function callPlainPreset(
   apiKeys: Record<string, string | undefined>,
   messages: { role: string; content: string }[],
   systemPrompt?: string,
+  effort?: EffortLevel | null,
 ): Promise<string> {
   const { provider, modelId } = preset;
   if (provider === 'anthropic') {
     const chatMessages = messages.filter((m) => m.role !== 'system');
     const system = systemPrompt || messages.find((m) => m.role === 'system')?.content;
-    return callAnthropicPlain(apiKeys.anthropic!, modelId, chatMessages, system);
+    return callAnthropicPlain(apiKeys.anthropic!, preset, chatMessages, system, effort);
   }
   const withSystem = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages.filter((m) => m.role !== 'system')]
     : messages;
+  // Server (Skillset Groq proxy) is pinned to Llama 3.1 8B which doesn't
+  // reason — drop the effort knob silently.
   if (provider === 'server') return callServer(modelId, withSystem);
   const baseUrl = PROVIDER_BASE_URLS[provider];
   const apiKey = provider === 'ollama' ? 'ollama' : apiKeys[provider] ?? '';
@@ -393,7 +467,7 @@ async function callPlainPreset(
     extraHeaders['http-referer'] = 'https://skillset.so';
     extraHeaders['x-title'] = 'Skillset';
   }
-  return callOpenAICompatible(baseUrl, apiKey, modelId, withSystem, extraHeaders);
+  return callOpenAICompatible(baseUrl, apiKey, preset, withSystem, extraHeaders, effort);
 }
 
 // ---------------------------------------------------------------------------
@@ -422,10 +496,22 @@ interface AnthropicMessage {
 
 async function anthropicAgentTurn(
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   messages: AnthropicMessage[],
   system: string,
+  effort?: EffortLevel | null,
 ): Promise<{ content: AnthropicContentBlock[]; stop_reason: string }> {
+  const body = applyReasoning(preset, effort ?? null, {
+    model: preset.modelId,
+    max_tokens: 4096,
+    system,
+    tools: AGENT_TOOLS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema,
+    })),
+    messages,
+  });
   const response = await tauriFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -433,17 +519,7 @@ async function anthropicAgentTurn(
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: 4096,
-      system,
-      tools: AGENT_TOOLS.map((t) => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.input_schema,
-      })),
-      messages,
-    }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -470,10 +546,24 @@ interface OpenAIMessage {
 async function openaiAgentTurn(
   baseUrl: string,
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   messages: OpenAIMessage[],
   extraHeaders: Record<string, string>,
+  effort?: EffortLevel | null,
 ): Promise<OpenAIMessage> {
+  const body = applyReasoning(preset, effort ?? null, {
+    model: preset.modelId,
+    max_tokens: 4096,
+    messages,
+    tools: AGENT_TOOLS.map((t) => ({
+      type: 'function',
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.input_schema,
+      },
+    })),
+  });
   const response = await tauriFetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -481,19 +571,7 @@ async function openaiAgentTurn(
       'content-type': 'application/json',
       ...extraHeaders,
     },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: 4096,
-      messages,
-      tools: AGENT_TOOLS.map((t) => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.input_schema,
-        },
-      })),
-    }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -505,13 +583,14 @@ async function openaiAgentTurn(
 
 async function runAnthropicAgent(
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   workspace: string,
   history: ChatMessage[],
   userText: string,
   pushAssistant: (msg: ChatMessage) => void,
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
   onBeforeRound?: () => void,
+  effort?: EffortLevel | null,
 ): Promise<void> {
   const apiMessages: AnthropicMessage[] = [];
 
@@ -559,7 +638,7 @@ async function runAnthropicAgent(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     onBeforeRound?.();
-    const turn = await anthropicAgentTurn(apiKey, modelId, apiMessages, AGENT_SYSTEM_PROMPT);
+    const turn = await anthropicAgentTurn(apiKey, preset, apiMessages, AGENT_SYSTEM_PROMPT, effort ?? null);
     const apiContent: AnthropicContentBlock[] = [];
 
     for (const block of turn.content) {
@@ -619,7 +698,7 @@ async function runAnthropicAgent(
 async function runOpenAIAgent(
   baseUrl: string,
   apiKey: string,
-  modelId: string,
+  preset: ModelPreset,
   workspace: string,
   history: ChatMessage[],
   userText: string,
@@ -627,6 +706,7 @@ async function runOpenAIAgent(
   pushAssistant: (msg: ChatMessage) => void,
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
   onBeforeRound?: () => void,
+  effort?: EffortLevel | null,
 ): Promise<void> {
   const apiMessages: OpenAIMessage[] = [
     { role: 'system', content: AGENT_SYSTEM_PROMPT },
@@ -675,7 +755,7 @@ async function runOpenAIAgent(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     onBeforeRound?.();
-    const reply = await openaiAgentTurn(baseUrl, apiKey, modelId, apiMessages, extraHeaders);
+    const reply = await openaiAgentTurn(baseUrl, apiKey, preset, apiMessages, extraHeaders, effort ?? null);
     if (reply.content) {
       assistantBlocks.push({ kind: 'text', text: reply.content });
     }
@@ -737,6 +817,394 @@ async function runOpenAIAgent(
 }
 
 // ---------------------------------------------------------------------------
+// Orchestrator path (managed-mode + orchestratorEnabled flag)
+// ---------------------------------------------------------------------------
+
+import { Orchestrator } from '../lib/orchestrator/orchestrator';
+import type { SubtaskRunner } from '../lib/orchestrator/executor';
+import { runAgentSubtask } from '../lib/orchestrator/agentSubtask';
+import { emptyTaskState } from '../lib/orchestrator/types';
+import { runCreate } from '../lib/orchestrator/persist';
+import { useRunStore } from './runStore';
+import type { ManagedTier } from '../lib/managed-models';
+
+/**
+ * Locate (or upsert) a `subtask_header` block by id so the orchestrator
+ * callbacks can patch the same row from `running` → `done` / `failed`.
+ */
+function patchSubtaskHeader(
+  blocks: MessageBlock[],
+  subtaskId: string,
+  patch: Partial<Extract<MessageBlock, { kind: 'subtask_header' }>>,
+): void {
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.kind === 'subtask_header' && b.subtaskId === subtaskId) {
+      blocks[i] = { ...b, ...patch };
+      return;
+    }
+  }
+}
+
+interface OrchestratorMessageDeps {
+  text: string;
+  packName?: string;
+  attachments?: string[];
+  jwt: string;
+  selections: Record<ManagedTier, string>;
+  /** BYOK keys, used by the per-subtask BYOK runner closure. */
+  apiKeys: Record<string, string | undefined>;
+  /** Available providers (BYOK + server + ollama if reachable). */
+  available: Set<Provider>;
+  /** Workspace path; required for tool-using subtasks. Null disables tools. */
+  workspace: string | null;
+  billingTier: 'free' | 'pro' | 'studio';
+  /** Routing telemetry row id; settle on done/fail/cancel. */
+  telemetryId: string | null;
+  set: (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
+}
+
+async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<void> {
+  const { text, packName, attachments, jwt, selections, apiKeys, available, workspace, billingTier, telemetryId, set } = deps;
+  // Push the user message + a streaming assistant placeholder. The
+  // orchestrator updates `useRunStore` for the Run Trace panel and
+  // appends per-subtask text blocks to the assistant message so the
+  // chat itself shows live progress.
+  const userMsg: ChatMessage = {
+    id: makeId(),
+    role: 'user',
+    content: text,
+    packName,
+    attachments: attachments && attachments.length > 0 ? [...attachments] : undefined,
+    createdAt: Date.now(),
+  };
+  const assistantId = makeId();
+  const blocks: MessageBlock[] = [];
+  const assistantMsg: ChatMessage = {
+    id: assistantId,
+    role: 'assistant',
+    content: '',
+    blocks,
+    telemetryId: telemetryId ?? undefined,
+    createdAt: Date.now(),
+  };
+
+  set((state) => ({
+    messages: [...state.messages, userMsg, assistantMsg],
+    isLoading: true,
+    error: null,
+  }));
+
+  const patchBlocks = () =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === assistantId ? { ...m, blocks: [...blocks] } : m,
+      ),
+    }));
+
+  // Create the Run row + bootstrap the run store.
+  let runId: string | null = null;
+  try {
+    const run = await runCreate({ goal: text });
+    runId = run.id;
+    const abort = useRunStore.getState().startRun(run);
+
+    const taskState = emptyTaskState(text);
+    await useRunStore.getState().setTaskState(taskState);
+
+    // Per-subtask runner. Three paths in priority order:
+    //   1. workspace connected → agent tool loop (BYOK or server-Llama).
+    //      Runs *every* subtask through the agent regardless of whether
+    //      the planner declared `needs_tools` — the planner has no way
+    //      to know what files exist locally, so we always enable tools
+    //      and let the model decide whether to call them.
+    //   2. BYOK key + no workspace → BYOK plain (callPlainPreset).
+    //   3. Otherwise → managed proxy (executor's default, when undefined).
+    const byok = byokSet(available);
+    const hasBYOK = byok.size > 0;
+    const runSubtask: SubtaskRunner | undefined =
+      workspace
+        ? async ({ prompt, decision, signal }) => {
+            const toolPreset = pickToolCapableModel(
+              decision.preset.tier,
+              available,
+              billingTier,
+            );
+            if (toolPreset) {
+              // Server provider auths with the user's Clerk JWT; BYOK
+              // providers use their own keys. Ollama doesn't need a key.
+              const apiKey =
+                toolPreset.provider === 'ollama'
+                  ? 'ollama'
+                  : toolPreset.provider === 'server'
+                    ? jwt
+                    : apiKeys[toolPreset.provider] ?? '';
+              return runAgentSubtask({
+                preset: toolPreset,
+                apiKey,
+                workspace,
+                prompt,
+                effort: decision.effort ?? null,
+                signal,
+              });
+            }
+            // No tool-capable preset survived (rare — server is always
+            // available); fall through to managed proxy.
+            const res = await tauriFetch(MANAGED_API_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${jwt}`,
+              },
+              body: JSON.stringify({
+                model: decision.managed.id,
+                messages: [{ role: 'user', content: prompt }],
+                ...managedProxyReasoning(decision.managed.id, decision.effort ?? null),
+              }),
+              signal,
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
+            }
+            const data = (await res.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+              usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
+            };
+            return {
+              text: data.choices?.[0]?.message?.content ?? '',
+              reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens,
+            };
+          }
+        : hasBYOK
+          ? async ({ prompt, decision, signal }) => {
+              // BYOK plain — no workspace, so no tool loop. Pick the
+              // cheapest BYOK preset for the subtask's tier.
+              const plainPreset = pickModel(decision.preset.tier, available);
+              if (plainPreset && byok.has(plainPreset.provider)) {
+                const text = await callPlainPreset(
+                  plainPreset,
+                  apiKeys,
+                  [{ role: 'user', content: prompt }],
+                  undefined,
+                  decision.effort ?? null,
+                );
+                return { text };
+              }
+              // Fall through to managed.
+              const res = await tauriFetch(MANAGED_API_URL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${jwt}`,
+                },
+                body: JSON.stringify({
+                  model: decision.managed.id,
+                  messages: [{ role: 'user', content: prompt }],
+                  ...managedProxyReasoning(decision.managed.id, decision.effort ?? null),
+                }),
+                signal,
+              });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
+              }
+              const data = (await res.json()) as {
+                choices?: Array<{ message?: { content?: string } }>;
+                usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
+              };
+              return {
+                text: data.choices?.[0]?.message?.content ?? '',
+                reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens,
+              };
+            }
+          : undefined;
+
+    // Default planner = inbuilt server (free Llama 3.1 8B). Orchestrator
+    // automatically falls back to the user's managed `cheap` selection
+    // if the server is unreachable. Pass no skill so the planner uses
+    // the server source. `workspace` is forwarded so the planner system
+    // prompt knows file tools are usable at runtime.
+    const orch = new Orchestrator({
+      jwt,
+      selections,
+      signal: abort.signal,
+      workspace,
+      runSubtask,
+    });
+    await orch.run(text, taskState, {
+      onPlan: async (plan, info) => {
+        await useRunStore.getState().patchTaskState((s) => {
+          s.plan = plan;
+        });
+        await useRunStore.getState().patchRun({ status: 'running' });
+        const plannerLabel =
+          info.source === 'server'
+            ? `Llama 3.1 8B (server · free)`
+            : info.modelId;
+        useRunStore.getState().setPlannerInfo({
+          source: info.source,
+          modelId: info.modelId,
+          label: plannerLabel,
+        });
+        // Planner metadata lives in the Run Trace panel — keep the chat
+        // bubble itself focused on prose. No intro text block.
+      },
+      onSubtaskStart: async (s, decision) => {
+        const m = getManagedModel(decision.managed.id);
+        await useRunStore.getState().upsertSubtask({
+          id: s.id,
+          runId: runId!,
+          parentId: null,
+          ord: 0,
+          title: s.title,
+          instruction: s.instruction,
+          complexityHint: s.complexity_hint,
+          reasoningHint: s.reasoning_hint ?? null,
+          needsTools: JSON.stringify(s.needs_tools),
+          dependsOn: JSON.stringify(s.depends_on),
+          status: 'running',
+          presetJson: JSON.stringify(decision.preset),
+          effort: decision.effort ?? null,
+          output: null,
+          confidence: null,
+          credits: null,
+          reasoningTokens: null,
+          retries: 0,
+          error: null,
+          startedAt: Date.now(),
+          endedAt: null,
+        });
+        blocks.push({
+          kind: 'subtask_header',
+          subtaskId: s.id,
+          title: s.title,
+          tier: decision.preset.tier,
+          modelId: decision.managed.id,
+          modelLabel: m?.label ?? decision.managed.label,
+          effort: decision.effort ?? null,
+          status: 'running',
+        });
+        patchBlocks();
+      },
+      onSubtaskDone: async (s, out) => {
+        await useRunStore.getState().patchSubtask(s.id, {
+          status: 'done',
+          output: out.text,
+          reasoningTokens: out.reasoningTokens ?? null,
+          credits: out.credits ?? null,
+          endedAt: Date.now(),
+        });
+        patchSubtaskHeader(blocks, s.id, {
+          status: 'done',
+          reasoningTokens: out.reasoningTokens,
+        });
+        blocks.push({ kind: 'text', text: out.text });
+        patchBlocks();
+      },
+      onSubtaskFailed: async (s, err) => {
+        await useRunStore.getState().patchSubtask(s.id, {
+          status: 'failed',
+          error: err,
+          endedAt: Date.now(),
+        });
+        patchSubtaskHeader(blocks, s.id, { status: 'failed', error: err });
+        patchBlocks();
+      },
+      onFinal: async (final, totalCredits) => {
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: 1,
+            actualRoute: 'workflow',
+          });
+        }
+        await useRunStore.getState().endRun('done');
+        // Replace the streaming per-subtask text blocks with a single
+        // final-answer block. Keep the subtask_header chips so the user
+        // still sees the routing decisions inline. The full per-subtask
+        // outputs remain visible in the Run Trace panel.
+        for (let i = blocks.length - 1; i >= 0; i--) {
+          if (blocks[i].kind === 'text') blocks.splice(i, 1);
+        }
+        blocks.push({ kind: 'text', text: final });
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  blocks: [...blocks],
+                  content: final,
+                  // Deliberately NOT setting `modelId` or `preset` here —
+                  // orchestrator runs use multiple models, and the
+                  // per-subtask chips above the bubble already report
+                  // each one. Showing a single bottom chip would either
+                  // misrepresent (e.g. "Sonnet" when only GPT-5 ran) or
+                  // duplicate the chip that's already inline.
+                }
+              : m,
+          ),
+          isLoading: false,
+        }));
+        void totalCredits;
+      },
+      onError: async (err) => {
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: -1,
+            actualRoute: 'workflow',
+          });
+        }
+        await useRunStore.getState().endRun('failed', err.message);
+        // Mark any still-running subtasks as failed in the chat so the
+        // user sees where execution actually stopped.
+        for (let i = 0; i < blocks.length; i++) {
+          const b = blocks[i];
+          if (b.kind === 'subtask_header' && b.status === 'running') {
+            blocks[i] = { ...b, status: 'failed', error: err.message };
+          }
+        }
+        patchBlocks();
+        set({ error: err.message, isLoading: false });
+      },
+    });
+
+    // Cancel path: Orchestrator.run() returns silently when its abort
+    // signal fires, so neither onFinal nor onError gets called. Tidy up
+    // the chat surface here — flip isLoading off, mark in-flight subtask
+    // chips as cancelled, and clear any stale error toast.
+    if (abort.signal.aborted) {
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        if (b.kind === 'subtask_header' && b.status === 'running') {
+          blocks[i] = { ...b, status: 'failed', error: 'cancelled' };
+        }
+      }
+      blocks.push({ kind: 'text', text: '_(cancelled by user)_' });
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === assistantId ? { ...m, blocks: [...blocks] } : m,
+        ),
+        isLoading: false,
+        error: null,
+      }));
+    }
+  } catch (err) {
+    // Outer catch: only surfaces if Orchestrator.run() rejected synchronously
+    // (e.g. before the planner LLM call). On cancel we expect a silent return,
+    // so guard against `signal.aborted` first.
+    if (useRunStore.getState().abort?.signal.aborted) {
+      set({ isLoading: false, error: null });
+      return;
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (runId) await useRunStore.getState().endRun('failed', msg);
+    set({ error: msg, isLoading: false });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
@@ -755,13 +1223,138 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
-    const tier = classifyTier(text);
+    // Three-head LR classifier:
+    //   - tier  → which managed model serves the prompt
+    //   - effort → reasoning budget (null on fast tier)
+    //   - route → dispatch decision: chat | agent | workflow
+    const { tier, effort } = classifyPrompt(text);
+    const lrRoute = predictRouteWithConfidence(text);
+    let route: RouteClass = lrRoute.route;
+    let fallbackUsed = false;
+    let fallbackRoute: RouteClass | undefined;
+    // Phase 3 — LLM tiebreaker on low-confidence LR predictions. Only
+    // fires when signed in (server endpoint needs the JWT). Ambiguous
+    // prompts fall through to the cheap server Llama for ~150ms; high-
+    // confidence predictions skip the call entirely.
+    const authSessionEarly = useAuthStore.getState().session;
+    if (
+      lrRoute.confidence < FALLBACK_THRESHOLD &&
+      authSessionEarly?.session_token
+    ) {
+      const fb = await llmRouteFallback(text, {
+        jwt: authSessionEarly.session_token,
+      });
+      if (fb && fb !== lrRoute.route) {
+        fallbackUsed = true;
+        fallbackRoute = fb;
+        route = fb;
+      } else if (fb) {
+        // LLM agreed with LR. Keep route, mark fallback for telemetry.
+        fallbackUsed = true;
+        fallbackRoute = fb;
+      }
+    }
+
+    // Settle prior assistant turn (Phase 2 reprompt-within signal). If
+    // the user types another message within 30 seconds of the last
+    // assistant response, we treat that as a soft "wasn't quite right"
+    // signal — useful retraining input.
+    const prev = get()
+      .messages
+      .slice()
+      .reverse()
+      .find((m) => m.role === 'assistant' && m.telemetryId);
+    if (prev?.telemetryId) {
+      const sec = Math.floor((Date.now() - prev.createdAt) / 1000);
+      if (sec >= 0 && sec < 600) {
+        void settleRoute({ id: prev.telemetryId, repromptWithin: sec });
+      }
+    }
+
+    // Log this turn's routing decision. Non-blocking on failure.
+    const wordCount = text.trim().split(/\s+/).length;
+    const telemetryId = await logRoute({
+      prompt: text,
+      wordCount,
+      predictedRoute: lrRoute.route,
+      confidence: lrRoute.confidence,
+      fallbackUsed,
+      fallbackRoute,
+    });
 
     // Managed-mode (credit-metered OpenRouter) — preferred path for casuals.
     // Only active when toggle on AND user signed in (need JWT for proxy auth).
     // Falls through to existing agent/plain dispatch when off or unauthed.
     const authSession = useAuthStore.getState().session;
-    if (settings.managedModeEnabled && authSession?.session_token) {
+
+    // Orchestrator path: planner decomposes the goal, router picks a model
+    // per subtask, executor runs them sequentially, merge produces the
+    // final assistant message. Gated behind a feature flag so existing
+    // flows stay default. Managed-mode only.
+    //
+    // Short-circuit on FOUR conditions:
+    //   1. Fast-tier prompts ("hi", "what is X") — trivial lookups never
+    //      need a planner.
+    //   2. `looksMultiStep` returns false — the goal is a single self-
+    //      contained task (no "then", no list, < 12 words, etc.).
+    //   3. `packName` is set — the user is running a Skill pack whose
+    //      prompts are already curated single-task steps. Letting the
+    //      planner re-decompose them yields nonsense subtasks like
+    //      "parse input text" that lose the workspace + tool context.
+    //   4. Agent mode + workspace selected — workspace presence signals
+    //      "I want tools". The orchestrator's per-subtask managed-proxy
+    //      path doesn't expose tools, so workspace users get the agent
+    //      loop even with SkillFlow toggled on.
+    //
+    // The combined gate means the orchestrator only runs for free-form
+    // multi-step prompts when no workspace is connected and no pack is
+    // driving the message.
+    const workspace = useAgentStore.getState().workspace;
+    const agentMode = get().agentMode;
+    // Dispatch decision now driven by the LR `route` head.
+    //   - `agent`    → tool loop, but only if a workspace is connected
+    //                  (otherwise model can't actually act → degrades to chat)
+    //   - `workflow` → SkillFlow planner + subtasks + merge, gated on
+    //                  toggle + managed mode + signed in + not a pack run
+    //   - anything else → single-shot managed
+    // Pack prompts always bypass orchestration — pack steps are user-
+    // curated single-task units.
+    const wantsAgent = route === 'agent' && Boolean(agentMode && workspace);
+    const shouldOrchestrate =
+      route === 'workflow' &&
+      settings.orchestratorEnabled &&
+      settings.managedModeEnabled &&
+      authSession?.session_token &&
+      !packName &&
+      !wantsAgent;
+    if (shouldOrchestrate) {
+      const ws = useAgentStore.getState().workspace;
+      await runOrchestratorMessage({
+        text,
+        packName,
+        attachments,
+        jwt: authSession.session_token,
+        selections: settings.selectedManagedModels,
+        apiKeys: (apiKeys ?? {}) as Record<string, string | undefined>,
+        available,
+        workspace: ws,
+        billingTier,
+        telemetryId,
+        set,
+      });
+      return;
+    }
+
+    // Workspace + agent-intent prompt preempts the managed-mode branch —
+    // those prompts want tools and the managed proxy doesn't pipe them.
+    // Plain greetings / chitchat with a workspace connected stay on the
+    // managed path (no tool-fishing). `wantsAgent` already encodes both
+    // conditions.
+    if (
+      settings.managedModeEnabled &&
+      authSession?.session_token &&
+      !wantsAgent
+    ) {
       const picked = pickFromSelections(tier, settings.selectedManagedModels);
       const modelId = picked.id;
       // Validate against allowlist (worker rejects unknown anyway; fail fast)
@@ -769,6 +1362,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ error: `Unknown managed model: ${modelId}` });
         return;
       }
+      // If we got here with SkillFlow on, the route head said this
+      // message was `chat` or `agent` — not `workflow`. Flag the
+      // message so the UI can render the auto-bypass hint.
+      const orchestratorSkipped =
+        settings.orchestratorEnabled && route !== 'workflow';
       const userMsg: ChatMessage = {
         id: makeId(),
         role: 'user',
@@ -791,6 +1389,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           modelId,
           history,
           systemPrompt,
+          effort,
         );
         set((state) => ({
           messages: [
@@ -800,12 +1399,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
               role: 'assistant',
               content,
               modelId,
+              tier,
+              effort,
+              orchestratorSkipped,
+              telemetryId: telemetryId ?? undefined,
               createdAt: Date.now(),
             },
           ],
           isLoading: false,
         }));
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: 1,
+            actualRoute: 'chat',
+          });
+        }
       } catch (err) {
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: -1,
+            actualRoute: 'chat',
+          });
+        }
         if (err instanceof SessionExpiredError) {
           set({ error: '__SESSION_EXPIRED__', isLoading: false });
         } else if (err instanceof InsufficientCreditsError) {
@@ -820,8 +1437,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    const agentMode = get().agentMode;
-    const workspace = useAgentStore.getState().workspace;
+    // (agentMode + workspace already pulled at the top of sendMessage)
 
     // Agent path: use tool-capable provider, ignore packs/system overrides
     let agentPresetReady: ModelPreset | null = null;
@@ -904,13 +1520,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (preset.provider === 'anthropic') {
           await runAnthropicAgent(
             (apiKeys ?? {}).anthropic!,
-            preset.modelId,
+            preset,
             workspace,
             history,
             text,
             pushAssistant,
             patchAssistant,
             onBeforeRound,
+            effort,
           );
         } else {
           const baseUrl =
@@ -940,7 +1557,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           await runOpenAIAgent(
             baseUrl,
             apiKey,
-            preset.modelId,
+            preset,
             workspace,
             history,
             text,
@@ -948,20 +1565,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
             pushAssistant,
             patchAssistant,
             onBeforeRound,
+            effort,
           );
         }
-        // Record preset on the last assistant message
+        // Record preset + telemetryId on the last assistant message
         set((state) => {
           const msgs = [...state.messages];
           for (let i = msgs.length - 1; i >= 0; i--) {
             if (msgs[i].role === 'assistant' && !msgs[i].preset) {
-              msgs[i] = { ...msgs[i], preset };
+              msgs[i] = {
+                ...msgs[i],
+                preset,
+                telemetryId: telemetryId ?? msgs[i].telemetryId,
+              };
               break;
             }
           }
           return { messages: msgs, isLoading: false };
         });
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: 1,
+            actualRoute: 'agent',
+          });
+        }
       } catch (err) {
+        if (telemetryId) {
+          void settleRoute({
+            id: telemetryId,
+            completed: -1,
+            actualRoute: 'agent',
+          });
+        }
         set({
           error: err instanceof Error ? err.message : 'Something went wrong',
           isLoading: false,
@@ -1019,6 +1655,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         (apiKeys ?? {}) as Record<string, string | undefined>,
         history,
         systemPrompt,
+        effort,
       );
       if (preset.provider === 'server') {
         incrementServerChatCount();
@@ -1027,11 +1664,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: [
           ...state.messages,
-          { id: makeId(), role: 'assistant', content, preset, createdAt: Date.now() },
+          {
+            id: makeId(),
+            role: 'assistant',
+            content,
+            preset,
+            telemetryId: telemetryId ?? undefined,
+            createdAt: Date.now(),
+          },
         ],
         isLoading: false,
       }));
+      if (telemetryId) {
+        void settleRoute({
+          id: telemetryId,
+          completed: 1,
+          actualRoute: 'chat',
+        });
+      }
     } catch (err) {
+      if (telemetryId) {
+        void settleRoute({
+          id: telemetryId,
+          completed: -1,
+          actualRoute: 'chat',
+        });
+      }
       set({
         error: err instanceof Error ? err.message : 'Something went wrong',
         isLoading: false,
@@ -1041,4 +1699,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearMessages: () => set({ messages: [], error: null }),
   clearError: () => set({ error: null }),
+
+  /**
+   * Persist a thumbs-up / thumbs-down vote on an assistant message and
+   * settle the matching telemetry row. Idempotent — clicking the same
+   * thumb twice toggles it off; clicking the other thumb replaces.
+   */
+  voteOnMessage: (messageId: string, signal: 'thumbs_up' | 'thumbs_down') => {
+    const cur = get().messages.find((m) => m.id === messageId);
+    if (!cur || cur.role !== 'assistant') return;
+    const next = cur.userSignal === signal ? undefined : signal;
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, userSignal: next } : m,
+      ),
+    }));
+    if (cur.telemetryId && next) {
+      void settleRoute({ id: cur.telemetryId, userSignal: next });
+    }
+  },
 }));

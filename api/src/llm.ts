@@ -28,6 +28,20 @@ interface ChatRequestBody {
   temperature?: number;
   top_p?: number;
   stream?: boolean;
+  /**
+   * OpenRouter unified reasoning knob. Forwarded as-is. Field name was
+   * chosen by OpenRouter to be vendor-neutral; under the hood OpenRouter
+   * translates it to `reasoning_effort` (OpenAI o-series, Gemini 2.5,
+   * Grok-3/4) or `thinking.budget_tokens` (Anthropic). Non-reasoning
+   * models silently ignore.
+   */
+  reasoning?: { effort?: "low" | "medium" | "high"; max_tokens?: number; exclude?: boolean };
+  /**
+   * OpenAI-compatible JSON-mode hint. Forwarded so the orchestrator's
+   * planner can request strict JSON output. Models that don't support it
+   * silently ignore.
+   */
+  response_format?: { type?: "json_object" | "text" } | { type: "json_schema"; json_schema?: unknown };
 }
 
 interface OpenRouterUsage {
@@ -137,8 +151,21 @@ export async function handleLlmChat(
   // exactly against OpenRouter's reported cost.
   const inputTokens = estimateTokens(body.messages);
   const tierMultiplier = model.tier === "frontier" ? 25 : model.tier === "mid" ? 5 : 1;
-  const tokenBasedEstimate = Math.ceil((inputTokens / 1000) * tierMultiplier);
-  const estimatedCredits = Math.max(model.creditsPerCall, tokenBasedEstimate);
+  // Reasoning enabled → thinking tokens count as output tokens at the model's
+  // output rate. Scale the reserve so the hold doesn't underflow on high-effort
+  // calls. 3× covers low/medium; high may still overshoot but settles via the
+  // actual `usage.cost` returned by OpenRouter.
+  const reasoningEffort = body.reasoning?.effort;
+  const reasoningMultiplier =
+    reasoningEffort === "high" ? 6 :
+    reasoningEffort === "medium" ? 3 :
+    reasoningEffort === "low" ? 2 :
+    1;
+  const tokenBasedEstimate = Math.ceil((inputTokens / 1000) * tierMultiplier * reasoningMultiplier);
+  const estimatedCredits = Math.max(
+    Math.ceil(model.creditsPerCall * reasoningMultiplier),
+    tokenBasedEstimate,
+  );
 
   const reserve = await reserveCredits(env, clerkId, estimatedCredits, modelId);
   console.log("[llm-chat] reserve:", JSON.stringify({
@@ -178,6 +205,13 @@ export async function handleLlmChat(
         max_tokens: body.max_tokens ?? 8192,
         temperature: body.temperature,
         top_p: body.top_p,
+        // Forward reasoning knob untouched — OpenRouter handles per-provider
+        // translation (reasoning_effort / thinking.budget_tokens / etc).
+        // Worker does NOT validate model-supports-reasoning; the desktop
+        // client only attaches the field for known-reasoning managed models.
+        reasoning: body.reasoning,
+        // Forward JSON-mode hint (used by the orchestrator's planner).
+        response_format: body.response_format,
         // Ask OpenRouter to include actual cost so we can settle accurately
         usage: { include: true },
       }),

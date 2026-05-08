@@ -37,6 +37,11 @@ export async function tauriFetch(url: string, init?: RequestInit): Promise<Respo
       headers: result.headers,
     });
   } catch (err) {
-    throw new TypeError(`Network request failed: ${err}`);
+    // Surface the raw reqwest error string + URL + body size so devtools
+    // can tell DNS / TLS / timeout / payload-too-large apart at a glance.
+    const detail = err instanceof Error ? err.message : String(err);
+    const bodyHint = body ? ` [body=${body.length}B]` : '';
+    console.error('[tauriFetch]', method, url, bodyHint, '→', detail);
+    throw new TypeError(`Network request failed: ${detail} — ${method} ${url}${bodyHint}`);
   }
 }

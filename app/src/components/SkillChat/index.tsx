@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -14,10 +14,14 @@ import { AttachmentBar } from './AttachmentBar';
 import { ToolBlock } from './ToolBlock';
 import { CopyButton } from '../Common/CopyButton';
 import { InfoModal } from '../Common/InfoModal';
+import { MarkdownText } from '../Common/MarkdownText';
+import { LoadingTips } from './LoadingTips';
+import { useRunStore } from '../../stores/runStore';
 import { SaveAsPackModal } from './SaveAsPackModal';
 import { Bookmark } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
 import { getManagedModel } from '../../lib/managed-models';
+import { RunTracePanel } from './RunTrace/RunTracePanel';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -31,15 +35,87 @@ function fillVariables(text: string, values: Record<string, string>): string {
   return text.replace(/\{([^}]+)\}/g, (_, key) => values[key] ?? `{${key}}`);
 }
 
-export function PromptChatPage() {
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode } = useChatStore();
+const EFFORT_CHIP_COLORS: Record<'low' | 'medium' | 'high', string> = {
+  low: 'text-amber-500 bg-amber-500/10',
+  medium: 'text-orange-500 bg-orange-500/10',
+  high: 'text-red-500 bg-red-500/10',
+};
+
+const HEADER_STATUS_COLORS = {
+  running: 'text-blue-500 bg-blue-500/10',
+  done: 'text-emerald-500 bg-emerald-500/10',
+  failed: 'text-red-500 bg-red-500/10',
+};
+
+interface SubtaskHeaderChipProps {
+  block: Extract<MessageBlock, { kind: 'subtask_header' }>;
+}
+
+function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
+  return (
+    <div className="mt-3 mb-1 flex items-center gap-1.5 flex-wrap text-xs">
+      <span className={`px-2 py-0.5 rounded-full font-medium font-mono ${HEADER_STATUS_COLORS[block.status]}`}>
+        {block.status === 'running' ? 'running' : block.status === 'done' ? '✓ done' : '✗ failed'}
+      </span>
+      {block.tier && (
+        <span className={`px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[block.tier]}`}>
+          {TIER_LABELS[block.tier]}
+        </span>
+      )}
+      {block.modelLabel && (
+        <span className="text-[var(--muted-foreground)]">{block.modelLabel}</span>
+      )}
+      {block.effort && (
+        <span
+          className={`px-2 py-0.5 rounded-full font-medium font-mono ${EFFORT_CHIP_COLORS[block.effort]}`}
+          title={
+            block.reasoningTokens
+              ? `${block.reasoningTokens} reasoning tokens`
+              : 'reasoning effort'
+          }
+        >
+          {block.effort}
+        </span>
+      )}
+      <span className="ml-auto text-[var(--muted-foreground)] font-medium">
+        {block.title}
+      </span>
+      {block.error && (
+        <span className="w-full text-red-500 mt-0.5">{block.error}</span>
+      )}
+    </div>
+  );
+}
+
+export function SkillChatPage() {
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, voteOnMessage } = useChatStore();
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session, openSignIn } = useAuthStore();
   const {
     billingTier, serverChatCount,
     managedModeEnabled, creditBalance,
+    orchestratorEnabled, setOrchestratorEnabled,
   } = useSettingsStore();
   const isManagedActive = managedModeEnabled && Boolean(session);
+  // Reactive subscription so the Trace button shows/hides as runs come and go.
+  const currentRun = useRunStore((s) => s.run);
+  const [showRunTrace, setShowRunTrace] = useState(false);
+
+  // Auto-open the Run Trace panel when a new orchestrator run starts, so
+  // users without the manual toggle still see workflow progress live.
+  // Closing the panel mid-run is respected — only re-opens when a fresh
+  // run id appears.
+  const lastAutoOpenedRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (currentRun && currentRun.id !== lastAutoOpenedRun.current) {
+      lastAutoOpenedRun.current = currentRun.id;
+      const inFlight =
+        currentRun.status !== 'done' &&
+        currentRun.status !== 'failed' &&
+        currentRun.status !== 'cancelled';
+      if (inFlight) setShowRunTrace(true);
+    }
+  }, [currentRun?.id, currentRun?.status]);
   const totalCredits = creditBalance ? creditBalance.monthly + creditBalance.topup : 0;
   const { initWorkspace, workspace, attachments, clearAttachments } = useAgentStore();
   const isLimitReached = billingTier === 'free' && serverChatCount >= 3 && !agentMode;
@@ -306,6 +382,40 @@ export function PromptChatPage() {
                 </button>
               </div>
             )}
+            {isManagedActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !orchestratorEnabled;
+                  setOrchestratorEnabled(next);
+                  if (!next) setShowRunTrace(false);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                  orchestratorEnabled
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)]'
+                }`}
+                title={
+                  'SkillFlow: when on, multi-step prompts auto-engage a planner that ' +
+                  'decomposes your goal into subtasks and routes each to a different ' +
+                  'managed model. Trivial / single-task prompts always go single-shot ' +
+                  'regardless. Turn off to force every message through single-shot.'
+                }
+              >
+                <Brain size={14} />
+                SkillFlow {orchestratorEnabled ? 'on' : 'off'}
+              </button>
+            )}
+            {orchestratorEnabled && (currentRun || showRunTrace) && (
+              <button
+                type="button"
+                onClick={() => setShowRunTrace((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
+                title={showRunTrace ? 'Hide Run Trace' : 'Show Run Trace'}
+              >
+                {showRunTrace ? 'Hide trace' : 'Show trace'}
+              </button>
+            )}
             {messages.length > 0 && !isRunningPack && (
               <button
                 onClick={clearMessages}
@@ -412,7 +522,7 @@ export function PromptChatPage() {
                   }`}
                 >
                   <div
-                    className={`absolute -top-7 ${msg.role === 'user' ? 'right-0' : 'left-0'} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--background)]/90 backdrop-blur-sm rounded-md px-0.5 z-10`}
+                    className={`absolute -top-7 ${msg.role === 'user' ? 'right-0' : 'left-0'} opacity-50 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 bg-[var(--background)]/90 backdrop-blur-sm rounded-md px-0.5 z-10`}
                   >
                     <CopyButton getText={copyText} size={11} title="Copy message" />
                     {msg.role === 'user' && session && (
@@ -424,6 +534,34 @@ export function PromptChatPage() {
                       >
                         <Bookmark size={11} />
                       </button>
+                    )}
+                    {msg.role === 'assistant' && msg.telemetryId && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => voteOnMessage(msg.id, 'thumbs_up')}
+                          title="Good response — feeds the routing classifier retrain"
+                          className={`p-1.5 rounded-md transition-colors ${
+                            msg.userSignal === 'thumbs_up'
+                              ? 'text-emerald-500 bg-emerald-500/10'
+                              : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+                          }`}
+                        >
+                          <ThumbsUp size={11} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => voteOnMessage(msg.id, 'thumbs_down')}
+                          title="Wrong route — feeds the routing classifier retrain"
+                          className={`p-1.5 rounded-md transition-colors ${
+                            msg.userSignal === 'thumbs_down'
+                              ? 'text-red-500 bg-red-500/10'
+                              : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+                          }`}
+                        >
+                          <ThumbsDown size={11} />
+                        </button>
+                      </>
                     )}
                   </div>
                   {msg.packName && msg.role === 'user' && (
@@ -443,7 +581,13 @@ export function PromptChatPage() {
                     <div className="space-y-1">
                       {msg.blocks!.map((block, idx) => {
                         if (block.kind === 'text') {
-                          return (
+                          // Assistant text → render as markdown so headings,
+                          // lists, code blocks, hr, etc. show formatted.
+                          // User text blocks (rare — only in agent flow
+                          // assistant turns) keep plain pre-wrap.
+                          return msg.role === 'assistant' ? (
+                            <MarkdownText key={idx} content={block.text} />
+                          ) : (
                             <p key={idx} className="text-sm whitespace-pre-wrap leading-relaxed">
                               {block.text}
                             </p>
@@ -454,9 +598,14 @@ export function PromptChatPage() {
                             <ToolBlock key={idx} block={block} resultByToolUseId={resultByToolUseId} />
                           );
                         }
+                        if (block.kind === 'subtask_header') {
+                          return <SubtaskHeaderChip key={idx} block={block} />;
+                        }
                         return null;
                       })}
                     </div>
+                  ) : msg.role === 'assistant' ? (
+                    <MarkdownText content={msg.content} />
                   ) : (
                     <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                   )}
@@ -476,9 +625,37 @@ export function PromptChatPage() {
                     const tierCost = m ? `${m.creditsPerCall}c` : null;
                     return (
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        {msg.tier && (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.tier]}`}
+                            title="LR classifier tier — picks which managed model serves the prompt"
+                          >
+                            {TIER_LABELS[msg.tier]}
+                          </span>
+                        )}
+                        {msg.effort && (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium font-mono ${EFFORT_CHIP_COLORS[msg.effort]}`}
+                            title="Reasoning effort the model used (low / medium / high). Higher = more thinking tokens, higher cost."
+                          >
+                            {msg.effort}
+                          </span>
+                        )}
                         <span className="text-xs text-[var(--muted-foreground)]">
                           {label}{tierCost ? ` · ${tierCost}` : ''}
                         </span>
+                        {msg.orchestratorSkipped && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500"
+                            title={
+                              'SkillFlow is on, but Skillset detected this as one self-contained task — ' +
+                              'so it bypassed the planner / merge round-trips and ran a single-shot ' +
+                              'call. Multi-step prompts auto-engage SkillFlow.'
+                            }
+                          >
+                            SkillFlow auto-bypassed
+                          </span>
+                        )}
                       </div>
                     );
                   })()}
@@ -489,13 +666,16 @@ export function PromptChatPage() {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)]" />
-                {isRunningPack && packProgress.total > 0 && (
-                  <span className="text-xs text-[var(--muted-foreground)]">
-                    Prompt {packProgress.current}/{packProgress.total}…
-                  </span>
-                )}
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-start gap-3 max-w-[80%]">
+                <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)] mt-0.5 flex-shrink-0" />
+                <div className="flex flex-col gap-1.5 min-w-0">
+                  {isRunningPack && packProgress.total > 0 && (
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      Prompt {packProgress.current}/{packProgress.total}…
+                    </span>
+                  )}
+                  <LoadingTips />
+                </div>
               </div>
             </div>
           )}
@@ -734,7 +914,6 @@ export function PromptChatPage() {
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
               />
-              <CopyButton getText={() => input} />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
@@ -794,6 +973,11 @@ export function PromptChatPage() {
           </div>
         </div>
       )}
+
+      <RunTracePanel
+        open={showRunTrace}
+        onClose={() => setShowRunTrace(false)}
+      />
 
       <InfoModal
         open={showWhyOneChat}

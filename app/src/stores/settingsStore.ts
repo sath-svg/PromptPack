@@ -45,6 +45,11 @@ interface SettingsState extends AppSettings {
 
   // Managed-mode (credit-metered OpenRouter via /api/llm/chat)
   managedModeEnabled: boolean;
+  // Skill Chat orchestrator (planner → router → executor → merge).
+  // Off by default so the existing single-shot path stays the default
+  // experience. Toggle on to route managed-mode messages through the
+  // multi-subtask workflow runner.
+  orchestratorEnabled: boolean;
   advancedSettingsExpanded: boolean;
   // User-chosen model per tier. Auto-routing picks one of these based on
   // prompt complexity. Defaults to recommended pick per tier.
@@ -67,6 +72,7 @@ interface SettingsState extends AppSettings {
   /// without bumping the counter. Use before sending to gate the request.
   getServerDailyCount: () => number;
   setManagedModeEnabled: (enabled: boolean) => void;
+  setOrchestratorEnabled: (enabled: boolean) => void;
   setAdvancedExpanded: (expanded: boolean) => void;
   setSelectedManagedModelForTier: (tier: ManagedTier, modelId: string) => void;
   setCreditBalance: (balance: CreditBalance | null) => void;
@@ -105,6 +111,13 @@ export const useSettingsStore = create<SettingsState>()(
       serverDailyCount: 0,
       serverDailyDate: todayLocal(),
       managedModeEnabled: true,
+      // Auto-routes multi-step prompts through the orchestrator, single-
+      // shot for everything else. The chat header used to expose a manual
+      // toggle for this; the dual gate (`looksMultiStep` + non-fast tier)
+      // is conservative enough that we leave it on by default and surface
+      // the decision via the "Auto: workflow"/"Auto: single-shot" pill on
+      // each assistant message.
+      orchestratorEnabled: true,
       advancedSettingsExpanded: false,
       selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
@@ -144,6 +157,7 @@ export const useSettingsStore = create<SettingsState>()(
         return s.serverDailyCount;
       },
       setManagedModeEnabled: (enabled) => set({ managedModeEnabled: enabled }),
+      setOrchestratorEnabled: (enabled) => set({ orchestratorEnabled: enabled }),
       setAdvancedExpanded: (expanded) => set({ advancedSettingsExpanded: expanded }),
       setSelectedManagedModelForTier: (tier, modelId) =>
         set((s) => ({ selectedManagedModels: { ...s.selectedManagedModels, [tier]: modelId } })),
