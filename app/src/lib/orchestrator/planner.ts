@@ -46,11 +46,11 @@ For each subtask emit:
 - "id": short snake_case id (t1, t2, ...)
 - "title": ≤ 8-word phrase
 - "instruction": full prompt the executor will send. Self-contained PROSE — no template placeholders for upstream outputs (those auto-inject; see above).
-- "complexity_hint": one of "easy" | "moderate" | "complex"
-- "reasoning_hint": one of "none" | "light" | "deep" (the router combines this with its own classifier; do not over-claim)
+- "complexity_hint": one of "easy" | "moderate" | "complex". DEFAULT TO "easy". Use "moderate" only when the subtask requires real synthesis or analysis across multiple inputs. Use "complex" only when a single subtask is doing genuine multi-step reasoning (formal proofs, deep refactors, architecture critique) — NOT for "research X" or "summarize Y", which are easy/moderate. Over-claiming routes the subtask to a frontier model and burns 10×+ the credits for no quality gain.
+- "reasoning_hint": one of "none" | "light" | "deep". DEFAULT TO "none". Use "light" only when shallow reasoning helps (compare, rank, light synthesis). Reserve "deep" for prompts the user explicitly asked to think through ("step by step", "with formal reasoning", "prove that"). Over-claiming inflates output tokens 6×.
 - "needs_tools": array of tool names the executor must enable. Pull EXACTLY from the ALLOWED_TOOLS list in the user message; do not invent names. Empty if the subtask is pure text reasoning.
 - "depends_on": array of earlier subtask ids whose output this subtask needs. Empty for independent subtasks. Independent subtasks run IN PARALLEL — keep depends_on minimal so fan-out work doesn't serialise.
-- "produces": one of "text" | "file" | "json" | "none"
+- "produces": one of "text" | "file" | "json" | "none". Use "json" ONLY when the subtask is explicitly emitting structured data the next step will parse (e.g. "extract 5 fields as JSON"). Fetches that summarise into prose are "text", not "json".
 
 Pick a "merge" strategy:
 - "concat" — paste subtask outputs in order (default for fan-out lists)

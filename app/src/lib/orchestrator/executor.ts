@@ -14,12 +14,8 @@ import { tauriFetch } from '../tauriFetch';
 import { managedProxyReasoning } from '../reasoningParams';
 import { syncCreditsFromHeaders } from '../creditSync';
 import { buildSubtaskPrompt, recordSubtaskDone, recordSubtaskFailed, recordSubtaskStart } from './memory';
-import { decide, buildDecision, type RouterDecision } from './router';
-import {
-  evaluateConfidence,
-  nextEscalation,
-  LOW_CONFIDENCE_THRESHOLD,
-} from './confidence';
+import { decide, type RouterDecision } from './router';
+import { evaluateConfidence } from './confidence';
 import type { PlannerOutput, PlannerSubtask, TaskState } from './types';
 import type { ManagedTier } from '../managed-models';
 
@@ -73,15 +69,22 @@ export interface ExecutorDeps {
     },
   ) => void | Promise<void>;
   /**
-   * Fired when the confidence heuristic triggers an escalation. Lets the
-   * Run Trace flip the chip to "retry" with the new (tier, effort) so the
-   * UI shows progress instead of looking stuck while the second pass runs.
+   * Deprecated since the v1.3 halt-on-error switch — confidence-driven
+   * retries no longer happen, so this never fires. Kept on the type so
+   * existing chatStore wiring compiles; safe to drop in a later cleanup.
    */
   onSubtaskRetry?: (
     subtaskId: string,
     next: { decision: RouterDecision; reason: string; retries: number },
   ) => void | Promise<void>;
   onSubtaskFailed?: (subtaskId: string, err: string) => void | Promise<void>;
+  /**
+   * Halt-on-error hook. The first subtask to throw calls this with its
+   * error message; the orchestrator wires it to its `AbortController`
+   * so every other in-flight subtask gets a chance to bail. Pending
+   * subtasks see their dep as failed and skip.
+   */
+  runAbort?: (reason: string) => void;
 }
 
 /**
@@ -157,49 +160,16 @@ export async function execute(
         await deps.onSubtaskStart?.(subtask.id, decision);
 
         try {
-          // Phase 6 — confidence + 2-axis escalation. First attempt
-          // uses the router's pick. If the heuristic reports a low
-          // score and there's a sensible escalation step, retry once
-          // with the bumped (tier, effort).
-          let attempt = 0;
-          let result = await runOne(subtask, state, decision, deps);
-          let conf = evaluateConfidence({ subtask, text: result.text });
-          let retries = 0;
-
-          while (
-            conf.score < LOW_CONFIDENCE_THRESHOLD &&
-            !deps.signal?.aborted
-          ) {
-            const next = nextEscalation({
-              currentTier: decision.preset.tier,
-              currentEffort: decision.effort ?? null,
-              retries,
-            });
-            if (!next) break; // no more axes to bump
-
-            retries += 1;
-            attempt += 1;
-            decision = buildDecision(
-              next.tier,
-              next.effort,
-              deps.selections,
-            );
-            await deps.onSubtaskRetry?.(subtask.id, {
-              decision,
-              reason: conf.reason,
-              retries,
-            });
-
-            // Re-run with fresh decision. `runOne` rebuilds the prompt
-            // from `state`, which already contains the prior failed
-            // attempt's output — but we don't want the model to see it
-            // verbatim, so the executor's runOne path stays clean and
-            // the retry just gets a fresh call at higher effort/tier.
-            const retryResult = await runOne(subtask, state, decision, deps);
-            result = retryResult;
-            conf = evaluateConfidence({ subtask, text: retryResult.text });
-            void attempt; // surfaced via `retries` in onSubtaskDone
-          }
+          // Single-shot. The Phase 6 confidence-driven retry loop
+          // burned credits on auto-escalation (cheap → mid → frontier)
+          // even when the user wanted a hard halt — a Tesla / Rivian /
+          // Lucid run torched 1,000 credits on GPT-5 Pro retries that
+          // the user never asked for. Confidence is now informational
+          // only: the score is recorded for the Run Trace chip but no
+          // retry is taken. If the user wants another attempt, they
+          // re-run the prompt themselves.
+          const result = await runOne(subtask, state, decision, deps);
+          const conf = evaluateConfidence({ subtask, text: result.text });
 
           recordSubtaskDone(state, subtask.id, {
             output: result.text,
@@ -214,7 +184,7 @@ export async function execute(
             credits: result.credits,
             modelId: decision.managed.id,
             confidence: conf.score,
-            retries,
+            retries: 0,
           });
         } catch (err) {
           // Silent on cancel — runStore already marked the subtask as
@@ -226,6 +196,14 @@ export async function execute(
           const msg = err instanceof Error ? err.message : String(err);
           recordSubtaskFailed(state, subtask.id, msg);
           await deps.onSubtaskFailed?.(subtask.id, msg);
+          // **Halt-on-error.** Abort the whole orchestrator the moment
+          // any subtask fails. Sibling subtasks already in flight
+          // notice the abort signal and bail; pending ones never
+          // start. Prevents the cascade where one failure costs N×
+          // dependency-failed retries + a planner-driven Frontier
+          // escalation + a 1,000-credit burn before the user can
+          // hit Stop.
+          deps.runAbort?.(msg);
           throw err;
         }
       })(),
@@ -233,22 +211,26 @@ export async function execute(
   }
 
   // allSettled gives every subtask a chance to run even if a sibling
-  // fails. After all settle, throw the first real (non-cancel,
-  // non-skip) error so the orchestrator surfaces it once via onError.
+  // fails. Two-pass result triage so the user sees the *originating*
+  // failure (e.g. "Out of credits") instead of a downstream AbortError
+  // from the halt-on-error broadcast.
   const results = await Promise.allSettled(promises.values());
+  let firstAbort: unknown = null;
   for (const r of results) {
-    if (r.status === 'rejected') {
-      const err = r.reason;
-      // AbortError + dependency-skip are expected propagation, not
-      // user-surfaceable failures on their own.
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw err;
-      }
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.startsWith('skipped:')) continue;
-      throw err;
+    if (r.status !== 'rejected') continue;
+    const err = r.reason;
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      firstAbort = firstAbort ?? err;
+      continue;
     }
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith('skipped:')) continue;
+    // Real subtask failure — surface immediately. Halt-on-error path
+    // also lands here (the failing subtask throws its own message
+    // before triggering the abort that cascades).
+    throw err;
   }
+  if (firstAbort) throw firstAbort;
 }
 
 async function runOne(

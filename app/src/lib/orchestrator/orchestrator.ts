@@ -177,28 +177,42 @@ export class Orchestrator {
       // resolves its own fresh token per subtask via authStore, so it
       // ignores this snapshot. Only the no-runSubtask fallback uses it.
       const executorJwt = await this.deps.getJwt();
-      await execute(plan, state, {
-        jwt: executorJwt,
-        selections: this.deps.selections,
-        signal: this.deps.signal,
-        runSubtask: this.deps.runSubtask,
-        onSubtaskStart: async (id, decision) => {
-          const s = byId.get(id);
-          if (s) await ev.onSubtaskStart(s, decision);
-        },
-        onSubtaskDone: async (id, out) => {
-          const s = byId.get(id);
-          if (s) await ev.onSubtaskDone(s, out);
-        },
-        onSubtaskRetry: async (id, next) => {
-          const s = byId.get(id);
-          if (s) await ev.onSubtaskRetry?.(s, next);
-        },
-        onSubtaskFailed: async (id, err) => {
-          const s = byId.get(id);
-          if (s) await ev.onSubtaskFailed(s, err);
-        },
-      });
+
+      // Internal controller — wired to `deps.signal` so user-cancel
+      // still propagates, but we also abort it ourselves the moment
+      // any subtask fails. That halts every still-running sibling +
+      // skips every pending dependent, which is the contract Phase 6
+      // (post-revert) promised the user: no auto-retry, hard halt.
+      const haltController = new AbortController();
+      const onParentAbort = () => haltController.abort();
+      this.deps.signal.addEventListener('abort', onParentAbort, { once: true });
+      try {
+        await execute(plan, state, {
+          jwt: executorJwt,
+          selections: this.deps.selections,
+          signal: haltController.signal,
+          runSubtask: this.deps.runSubtask,
+          runAbort: (_reason) => haltController.abort(),
+          onSubtaskStart: async (id, decision) => {
+            const s = byId.get(id);
+            if (s) await ev.onSubtaskStart(s, decision);
+          },
+          onSubtaskDone: async (id, out) => {
+            const s = byId.get(id);
+            if (s) await ev.onSubtaskDone(s, out);
+          },
+          onSubtaskRetry: async (id, next) => {
+            const s = byId.get(id);
+            if (s) await ev.onSubtaskRetry?.(s, next);
+          },
+          onSubtaskFailed: async (id, err) => {
+            const s = byId.get(id);
+            if (s) await ev.onSubtaskFailed(s, err);
+          },
+        });
+      } finally {
+        this.deps.signal.removeEventListener('abort', onParentAbort);
+      }
 
       // Merge runs after every subtask finishes — could be 1h+ after
       // the run started. Resolve a fresh token here too.
