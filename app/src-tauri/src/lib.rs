@@ -36,12 +36,15 @@ pub fn run() {
         .manage(agent::LspState::default())
         .manage(commands::HttpClient(
             reqwest::Client::builder()
-                // Reasoning-capable models can spend 30–60s thinking before
-                // emitting a single token. Plain chat rarely needs more than
-                // 10s, but the orchestrator's planner + per-subtask calls all
-                // share this client and any one of them can be on a high-
-                // effort reasoning model. 180s covers practical worst-case.
-                .timeout(std::time::Duration::from_secs(180))
+                // Reasoning-capable models can spend several minutes
+                // thinking before emitting a single token, especially
+                // GPT-5 / Opus on multi-round tool loops. The previous
+                // 180s budget tripped on the second-pass GPT-5 call in
+                // pack runs (Stock Analyzer eval timed out mid-thought).
+                // 600s ≈ 10 minutes — covers the worst single round we've
+                // observed without leaving runaway requests dangling
+                // forever.
+                .timeout(std::time::Duration::from_secs(600))
                 .connect_timeout(std::time::Duration::from_secs(15))
                 .build()
                 .expect("failed to create HTTP client"),
