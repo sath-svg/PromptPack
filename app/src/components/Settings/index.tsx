@@ -339,9 +339,26 @@ export function SettingsPage() {
           {/* Per-tier model picks. Auto-router selects one of these
               based on prompt complexity. */}
           <p className="text-sm font-medium text-[var(--foreground)] mb-1">Auto-router models</p>
-          <p className="text-xs text-[var(--muted-foreground)] mb-3">
+          <p className="text-xs text-[var(--muted-foreground)] mb-1">
             Pick one model per tier. Each chat message is routed to the cheapest tier capable of handling it.
           </p>
+          <div className="rounded-md bg-[var(--background)] border border-[var(--border)] px-3 py-2 mb-3 space-y-1">
+            <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+              <span className="font-mono text-[var(--foreground)]">cr/K</span>{' '}
+              = credits per <strong>1,000 tokens</strong>. One credit = $0.005 of upstream model spend.
+            </p>
+            <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+              <span className="font-mono text-[var(--foreground)]">in</span> = your prompt + chat history + tool results sent to the model.
+              {' '}<span className="font-mono text-[var(--foreground)]">out</span> = the model's reply (reasoning tokens count as output).
+            </p>
+            <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+              Example: a model labeled <span className="font-mono">2 cr/K in · 8 cr/K out</span> charges{' '}
+              <span className="font-mono">2 credits</span> for every 1,000 tokens you send and{' '}
+              <span className="font-mono">8 credits</span> for every 1,000 it generates.
+              A typical 500-token question with a 1,000-token answer costs{' '}
+              <span className="font-mono">~9 credits</span>.
+            </p>
+          </div>
           <div className="space-y-3">
             {(['cheap', 'mid', 'frontier'] as const).map((tier) => (
               <div key={tier}>

@@ -1218,12 +1218,14 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // the server source. `workspace` is forwarded so the planner system
     // prompt knows file tools are usable at runtime.
 
-    // Phase 5 — credit preflight. Before kicking off N parallel
-    // subtasks (each placing its own per-call hold), check the user's
-    // total balance vs. a rough envelope estimate. If they're already
-    // short, surface "Top up & resume" up front instead of letting the
-    // first batch of subtasks all 402 in flight. The worker endpoint
-    // does the comparison; no credits are actually held here.
+    // Phase 5 — credit preflight. Telemetry-only. We used to hard-halt
+    // on the worker's 402 here, but the envelope estimate (8 subtasks ×
+    // cheap × 3) over-shot what cheap prompts actually cost — users with
+    // a small but non-zero balance saw "out of credits" up front even
+    // though the run would've succeeded. Per-call holds remain the real
+    // gate; mid-run 402s still surface the Top up & resume UX via
+    // `onError`. The preflight ping is kept so the worker can log
+    // run-start volume without changing behaviour.
     if (!resumeTaskState) {
       const cheapModel = getManagedModel(selections.cheap);
       const planSize = predefinedPlan?.subtasks.length ?? 8;
@@ -1235,29 +1237,23 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
             effort: null,
           })
         : 5;
-      // Inflate by 3× to cover variance + tier escalations from Phase 6.
       const envelope = Math.max(10, planSize * perCallEstimate * 3);
-      try {
-        const jwtForPreflight = await getJwt();
-        const preRes = await tauriFetch('https://api.pmtpk.com/api/llm/run/reserve', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${jwtForPreflight}`,
-          },
-          body: JSON.stringify({ estimatedCredits: envelope }),
-          signal: abort.signal,
-        });
-        if (preRes.status === 402) {
-          await useRunStore.getState().endRun('failed', 'insufficient_credits');
-          set({ error: '__OUT_OF_CREDITS__', isLoading: false });
-          return;
+      void (async () => {
+        try {
+          const jwtForPreflight = await getJwt();
+          await tauriFetch('https://api.pmtpk.com/api/llm/run/reserve', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${jwtForPreflight}`,
+            },
+            body: JSON.stringify({ estimatedCredits: envelope }),
+            signal: abort.signal,
+          });
+        } catch {
+          // Non-blocking — never halt a run on preflight failure.
         }
-        // Non-402 errors here aren't fatal — fall through and let
-        // per-call reserves do the real work.
-      } catch (e) {
-        console.warn('[orchestrator] preflight reserve failed:', e);
-      }
+      })();
     }
 
     const orch = new Orchestrator({
