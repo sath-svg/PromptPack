@@ -62,54 +62,106 @@ export interface ExecutorDeps {
   onSubtaskFailed?: (subtaskId: string, err: string) => void | Promise<void>;
 }
 
+/**
+ * DAG-parallel subtask execution. Each subtask is wrapped in a promise
+ * that awaits its declared dependencies before running. Independent
+ * subtasks fire concurrently. Linear plans (pack runs with chained
+ * `depends_on: ['t<i-1>']`) naturally sequence themselves because each
+ * promise blocks on the previous.
+ *
+ * Failure mode: when a subtask throws, dependents detect the failed
+ * status on their dep and mark themselves "skipped: dependency failed"
+ * without trying to run. The wrapping `Promise.all` rejects on any
+ * subtask error; the orchestrator's outer catch surfaces it once.
+ */
 export async function execute(
   plan: PlannerOutput,
   state: TaskState,
   deps: ExecutorDeps,
 ): Promise<void> {
+  const promises = new Map<string, Promise<void>>();
+
   for (const subtask of plan.subtasks) {
-    if (deps.signal?.aborted) {
-      throw new DOMException('aborted', 'AbortError');
-    }
-    // Skip subtasks whose dependencies failed earlier — propagate failure.
-    if (
-      subtask.depends_on.some((d) => state.subtasks[d]?.status === 'failed')
-    ) {
-      recordSubtaskFailed(state, subtask.id, 'skipped: dependency failed');
-      await deps.onSubtaskFailed?.(subtask.id, 'dependency failed');
-      continue;
-    }
+    promises.set(
+      subtask.id,
+      (async () => {
+        // Wait for declared dependencies. We swallow errors here —
+        // failure is detected via state.subtasks[d].status below so we
+        // can mark this subtask as "skipped" instead of cascading the
+        // raw exception.
+        for (const depId of subtask.depends_on) {
+          const depPromise = promises.get(depId);
+          if (depPromise) {
+            await depPromise.catch(() => {
+              /* swallow — handled via state lookup below */
+            });
+          }
+        }
 
-    const decision = decide(subtask, { selections: deps.selections });
-    recordSubtaskStart(state, subtask.id, subtask);
-    await deps.onSubtaskStart?.(subtask.id, decision);
+        if (deps.signal?.aborted) {
+          throw new DOMException('aborted', 'AbortError');
+        }
 
-    try {
-      const result = await runOne(subtask, state, decision, deps);
-      recordSubtaskDone(state, subtask.id, {
-        output: result.text,
-        modelId: decision.managed.id,
-        effort: decision.effort ?? null,
-        reasoningTokens: result.reasoningTokens,
-        credits: result.credits,
-      });
-      await deps.onSubtaskDone?.(subtask.id, {
-        text: result.text,
-        reasoningTokens: result.reasoningTokens,
-        credits: result.credits,
-        modelId: decision.managed.id,
-      });
-    } catch (err) {
-      // Silent on cancel — runStore already marked the subtask as
-      // failed via `runCancel()` SQL update; surfacing another error
-      // here just spams the UI with stale 502s from in-flight fetches.
-      if (deps.signal?.aborted) {
-        throw new DOMException('aborted', 'AbortError');
+        // Skip if any dep ended up `failed`.
+        if (
+          subtask.depends_on.some(
+            (d) => state.subtasks[d]?.status === 'failed',
+          )
+        ) {
+          recordSubtaskFailed(state, subtask.id, 'skipped: dependency failed');
+          await deps.onSubtaskFailed?.(subtask.id, 'dependency failed');
+          throw new Error(`skipped: dependency failed`);
+        }
+
+        const decision = decide(subtask, { selections: deps.selections });
+        recordSubtaskStart(state, subtask.id, subtask);
+        await deps.onSubtaskStart?.(subtask.id, decision);
+
+        try {
+          const result = await runOne(subtask, state, decision, deps);
+          recordSubtaskDone(state, subtask.id, {
+            output: result.text,
+            modelId: decision.managed.id,
+            effort: decision.effort ?? null,
+            reasoningTokens: result.reasoningTokens,
+            credits: result.credits,
+          });
+          await deps.onSubtaskDone?.(subtask.id, {
+            text: result.text,
+            reasoningTokens: result.reasoningTokens,
+            credits: result.credits,
+            modelId: decision.managed.id,
+          });
+        } catch (err) {
+          // Silent on cancel — runStore already marked the subtask as
+          // failed via runCancel(); surfacing another error here just
+          // spams the UI with stale 502s from in-flight fetches.
+          if (deps.signal?.aborted) {
+            throw new DOMException('aborted', 'AbortError');
+          }
+          const msg = err instanceof Error ? err.message : String(err);
+          recordSubtaskFailed(state, subtask.id, msg);
+          await deps.onSubtaskFailed?.(subtask.id, msg);
+          throw err;
+        }
+      })(),
+    );
+  }
+
+  // allSettled gives every subtask a chance to run even if a sibling
+  // fails. After all settle, throw the first real (non-cancel,
+  // non-skip) error so the orchestrator surfaces it once via onError.
+  const results = await Promise.allSettled(promises.values());
+  for (const r of results) {
+    if (r.status === 'rejected') {
+      const err = r.reason;
+      // AbortError + dependency-skip are expected propagation, not
+      // user-surfaceable failures on their own.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw err;
       }
       const msg = err instanceof Error ? err.message : String(err);
-      recordSubtaskFailed(state, subtask.id, msg);
-      await deps.onSubtaskFailed?.(subtask.id, msg);
-      // Hard-stop on failure for now; Phase 6 adds retry/escalation.
+      if (msg.startsWith('skipped:')) continue;
       throw err;
     }
   }

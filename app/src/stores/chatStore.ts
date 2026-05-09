@@ -910,23 +910,10 @@ import { runCreate } from '../lib/orchestrator/persist';
 import { useRunStore } from './runStore';
 import type { ManagedTier } from '../lib/managed-models';
 
-/**
- * Locate (or upsert) a `subtask_header` block by id so the orchestrator
- * callbacks can patch the same row from `running` → `done` / `failed`.
- */
-function patchSubtaskHeader(
-  blocks: MessageBlock[],
-  subtaskId: string,
-  patch: Partial<Extract<MessageBlock, { kind: 'subtask_header' }>>,
-): void {
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i];
-    if (b.kind === 'subtask_header' && b.subtaskId === subtaskId) {
-      blocks[i] = { ...b, ...patch };
-      return;
-    }
-  }
-}
+// `patchSubtaskHeader` removed — orchestrator no longer pushes
+// subtask_header blocks to chat. Per-subtask routing/status renders
+// from runStore in the Run Trace panel only. The block type is kept
+// in the MessageBlock union so historical sessions still render.
 
 interface OrchestratorMessageDeps {
   text: string;
@@ -1000,12 +987,10 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     error: null,
   }));
 
-  const patchBlocks = () =>
-    set((state) => ({
-      messages: state.messages.map((m) =>
-        m.id === assistantId ? { ...m, blocks: [...blocks] } : m,
-      ),
-    }));
+  // `patchBlocks` removed — orchestrator no longer streams chips into
+  // the chat bubble during execution. Final answer is set once in
+  // `onFinal`; intermediate state lives in runStore for the Run Trace
+  // panel.
 
   // Create the Run row + bootstrap the run store.
   let runId: string | null = null;
@@ -1147,9 +1132,6 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           s.plan = plan;
         });
         await useRunStore.getState().patchRun({ status: 'running' });
-        // Pack runs use the user-authored plan — no LLM was actually
-        // called. Surface that honestly so users know the planner cost
-        // was zero.
         const plannerLabel = predefinedPlan
           ? `Pack-defined plan (no planner LLM)`
           : info.source === 'server'
@@ -1160,17 +1142,16 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           modelId: info.modelId,
           label: plannerLabel,
         });
-        // Inline caption — first block in the orchestrator bubble — so
-        // users see the planner without opening the Run Trace panel.
-        blocks.push({
-          kind: 'planner_hint',
-          label: plannerLabel,
-          isFree: true, // pack plans + free Llama planner are both zero-cost
-        });
-        patchBlocks();
+        // Plan + per-step routing live in the Run Trace panel, not the
+        // chat bubble. Keeps the response surface clean — only the
+        // final answer renders inline. User opens Trace if they want
+        // to inspect the orchestration.
       },
       onSubtaskStart: async (s, decision) => {
-        const m = getManagedModel(decision.managed.id);
+        // Update runStore only — the Run Trace panel renders chips,
+        // model chips, effort chips, and subtask outputs from there.
+        // Chat bubble stays clean; final merged answer is the only
+        // inline text the user sees.
         await useRunStore.getState().upsertSubtask({
           id: s.id,
           runId: runId!,
@@ -1194,17 +1175,6 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           startedAt: Date.now(),
           endedAt: null,
         });
-        blocks.push({
-          kind: 'subtask_header',
-          subtaskId: s.id,
-          title: s.title,
-          tier: decision.preset.tier,
-          modelId: decision.managed.id,
-          modelLabel: m?.label ?? decision.managed.label,
-          effort: decision.effort ?? null,
-          status: 'running',
-        });
-        patchBlocks();
       },
       onSubtaskDone: async (s, out) => {
         await useRunStore.getState().patchSubtask(s.id, {
@@ -1214,12 +1184,6 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           credits: out.credits ?? null,
           endedAt: Date.now(),
         });
-        patchSubtaskHeader(blocks, s.id, {
-          status: 'done',
-          reasoningTokens: out.reasoningTokens,
-        });
-        blocks.push({ kind: 'text', text: out.text });
-        patchBlocks();
       },
       onSubtaskFailed: async (s, err) => {
         await useRunStore.getState().patchSubtask(s.id, {
@@ -1227,8 +1191,6 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           error: err,
           endedAt: Date.now(),
         });
-        patchSubtaskHeader(blocks, s.id, { status: 'failed', error: err });
-        patchBlocks();
       },
       onFinal: async (final, totalCredits) => {
         if (telemetryId) {
@@ -1239,28 +1201,16 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           });
         }
         await useRunStore.getState().endRun('done');
-        // Replace the streaming per-subtask text blocks with a single
-        // final-answer block. Keep the subtask_header chips so the user
-        // still sees the routing decisions inline. The full per-subtask
-        // outputs remain visible in the Run Trace panel.
-        for (let i = blocks.length - 1; i >= 0; i--) {
-          if (blocks[i].kind === 'text') blocks.splice(i, 1);
-        }
+        // Chat bubble shows ONLY the final synthesized answer. Plan,
+        // per-subtask routing, model picks, and intermediate outputs
+        // all live in the Run Trace panel — chat is the response
+        // surface, Trace is the execution surface.
+        blocks.length = 0;
         blocks.push({ kind: 'text', text: final });
         set((state) => ({
           messages: state.messages.map((m) =>
             m.id === assistantId
-              ? {
-                  ...m,
-                  blocks: [...blocks],
-                  content: final,
-                  // Deliberately NOT setting `modelId` or `preset` here —
-                  // orchestrator runs use multiple models, and the
-                  // per-subtask chips above the bubble already report
-                  // each one. Showing a single bottom chip would either
-                  // misrepresent (e.g. "Sonnet" when only GPT-5 ran) or
-                  // duplicate the chip that's already inline.
-                }
+              ? { ...m, blocks: [...blocks], content: final }
               : m,
           ),
           isLoading: false,
@@ -1276,30 +1226,17 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           });
         }
         await useRunStore.getState().endRun('failed', err.message);
-        // Mark any still-running subtasks as failed in the chat so the
-        // user sees where execution actually stopped.
-        for (let i = 0; i < blocks.length; i++) {
-          const b = blocks[i];
-          if (b.kind === 'subtask_header' && b.status === 'running') {
-            blocks[i] = { ...b, status: 'failed', error: err.message };
-          }
-        }
-        patchBlocks();
+        // Subtask state lives in runStore — Run Trace panel shows
+        // failed chips. Surface a single error toast inline.
         set({ error: err.message, isLoading: false });
       },
     });
 
     // Cancel path: Orchestrator.run() returns silently when its abort
-    // signal fires, so neither onFinal nor onError gets called. Tidy up
-    // the chat surface here — flip isLoading off, mark in-flight subtask
-    // chips as cancelled, and clear any stale error toast.
+    // signal fires. Tidy up the chat — flip isLoading off, push a
+    // small "(cancelled by user)" line, clear any stale toast. Subtask
+    // chip cancellations live in runStore for the Run Trace panel.
     if (abort.signal.aborted) {
-      for (let i = 0; i < blocks.length; i++) {
-        const b = blocks[i];
-        if (b.kind === 'subtask_header' && b.status === 'running') {
-          blocks[i] = { ...b, status: 'failed', error: 'cancelled' };
-        }
-      }
       blocks.push({ kind: 'text', text: '_(cancelled by user)_' });
       set((state) => ({
         messages: state.messages.map((m) =>
