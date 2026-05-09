@@ -24,6 +24,7 @@ import { getManagedModel, formatCreditRate } from '../../lib/managed-models';
 import { RunTracePanel } from './RunTrace/RunTracePanel';
 import { extractPackContext } from '../../lib/packExtractor';
 import { refreshCreditBalance } from '../../lib/creditSync';
+import { predictRouteWithConfidence } from '../../lib/classifierModel';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -216,6 +217,11 @@ export function SkillChatPage() {
   // and after each successful pack run.
   const [pendingPackExtras, setPendingPackExtras] = useState<string | null>(null);
   const [isRefreshingCredits, setIsRefreshingCredits] = useState(false);
+  // SkillFlow gate prompt — when the LR route head says a typed prompt
+  // is a multi-step `workflow` but the user has SkillFlow disabled,
+  // we hold the input here and surface a modal instead of silently
+  // running it single-shot. Cleared when the user picks an action.
+  const [skillflowGatePrompt, setSkillflowGatePrompt] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -394,6 +400,28 @@ export function SkillChatPage() {
   const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
+
+    // SkillFlow gate. The LR route head sees this prompt as a
+    // multi-step `workflow` but the user has SkillFlow disabled. Pause
+    // here, surface a modal asking them to enable it (or run single-
+    // shot anyway). Pack runs and active in-flight queues bypass the
+    // gate — those have explicit user intent already.
+    const packPromptsExist = getPackPrompts().length > 0;
+    const settings = useSettingsStore.getState();
+    if (
+      !isLoading &&
+      !selectedPack &&
+      !packPromptsExist &&
+      settings.managedModeEnabled &&
+      !orchestratorEnabled
+    ) {
+      const lr = predictRouteWithConfidence(text);
+      if (lr.route === 'workflow' && lr.confidence >= 0.6) {
+        setSkillflowGatePrompt(text);
+        return;
+      }
+    }
+
     setInput('');
 
     // While a previous turn is still running, queue the new prompt
@@ -1371,6 +1399,78 @@ export function SkillChatPage() {
         promptText={saveAsPackText ?? ''}
         onClose={() => setSaveAsPackText(null)}
       />
+
+      {/* SkillFlow gate — the LR route head flagged the typed prompt as
+          multi-step but the user has SkillFlow off. Modal forces an
+          explicit pick so the user understands which path runs. */}
+      {skillflowGatePrompt !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setSkillflowGatePrompt(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 space-y-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <Brain size={18} className="text-amber-400" />
+              <h3 className="text-base font-semibold text-[var(--foreground)]">
+                Looks like a multi-step task
+              </h3>
+            </div>
+            <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
+              SkillFlow can break this prompt into subtasks, run independent
+              ones in parallel, and route each to the right model. It's off
+              right now — turn it on, or run as a single-shot anyway.
+            </p>
+            <div className="rounded-md bg-[var(--background)] border border-[var(--border)] px-3 py-2">
+              <p className="text-[11px] text-[var(--muted-foreground)] line-clamp-3">
+                {skillflowGatePrompt}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button
+                onClick={() => {
+                  const text = skillflowGatePrompt;
+                  if (!text) return;
+                  setOrchestratorEnabled(true);
+                  setShowRunTrace(true);
+                  setSkillflowGatePrompt(null);
+                  setInput('');
+                  // Run after the orchestratorEnabled commit lands —
+                  // microtask boundary is enough since both stores are
+                  // synchronous Zustand writes.
+                  void Promise.resolve().then(() => {
+                    void sendMessage(text, selectedPack?.title, buildSystemPrompt());
+                  });
+                }}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500/15 text-amber-500 text-sm hover:bg-amber-500/25 transition-colors"
+              >
+                <Brain size={13} />
+                Turn on SkillFlow & run
+              </button>
+              <button
+                onClick={() => {
+                  const text = skillflowGatePrompt;
+                  if (!text) return;
+                  setSkillflowGatePrompt(null);
+                  setInput('');
+                  void sendMessage(text, selectedPack?.title, buildSystemPrompt());
+                }}
+                className="px-4 py-1.5 rounded-lg border border-[var(--border)] text-sm text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
+              >
+                Run anyway (single-shot)
+              </button>
+              <button
+                onClick={() => setSkillflowGatePrompt(null)}
+                className="ml-auto text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
