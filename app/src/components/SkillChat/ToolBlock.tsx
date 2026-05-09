@@ -10,6 +10,9 @@ import {
   Wrench,
   AlertCircle,
   Hand,
+  Globe,
+  Network,
+  Paperclip,
 } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
 import { useAgentStore } from '../../stores/agentStore';
@@ -24,6 +27,9 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   grep: Search,
   bash: Terminal,
   lsp_diagnostics: AlertCircle,
+  web_fetch: Globe,
+  http: Network,
+  attachment_read: Paperclip,
 };
 
 interface ToolBlockProps {
@@ -163,6 +169,12 @@ function describeInput(name: string, input: Record<string, unknown>): string {
       return `${input.pattern}${input.glob_filter ? ` in ${input.glob_filter}` : ''}`;
     case 'bash':
       return String(input.command ?? '');
+    case 'web_fetch':
+      return String(input.url ?? '');
+    case 'http':
+      return `${String(input.method ?? 'GET').toUpperCase()} ${String(input.url ?? '')}`;
+    case 'attachment_read':
+      return String(input.path ?? '');
     default:
       return JSON.stringify(input).slice(0, 80);
   }

@@ -85,6 +85,24 @@ export function decide(subtask: PlannerSubtask, deps: RouterDeps): RouterDecisio
   return { preset, managed, effort: clamped };
 }
 
+/**
+ * Build a `RouterDecision` directly from an explicit (tier, effort) pair.
+ * Used by Phase 6's escalation loop in `executor.ts` — when a subtask's
+ * first attempt scores low confidence, the executor calls
+ * `nextEscalation()` to pick a bumped tier/effort and feeds it here to
+ * get a fresh `(preset, managed, effort)` triple to retry with.
+ */
+export function buildDecision(
+  tier: ModelTier,
+  effort: EffortLevel | null,
+  selections: Record<ManagedTier, string>,
+): RouterDecision {
+  const managed = pickFromSelections(tier, selections);
+  const clamped = effort ? clampEffortForManaged(managed, effort) : null;
+  const preset = managedToPreset(managed, tier);
+  return { preset, managed, effort: clamped };
+}
+
 /** Translate the curated managed model into a `ModelPreset`-shaped object. */
 function managedToPreset(m: ManagedModel, tier: ModelTier): ModelPreset {
   // Try to find a real preset entry first so we inherit the right

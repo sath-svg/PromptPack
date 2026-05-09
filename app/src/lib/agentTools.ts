@@ -130,6 +130,59 @@ export const AGENT_TOOLS: ToolSpec[] = [
       required: ['path'],
     },
   },
+  {
+    name: 'web_fetch',
+    description:
+      'Fetch a public URL and return its body as text. Follows up to 10 redirects, caps at 5 MB, 60s timeout. Use for live web pages, RSS feeds, public APIs the model needs to read. URL must be http(s).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'Absolute http(s) URL to fetch.' },
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'http',
+    description:
+      'Generic HTTP request — choose method, set headers, send a body. Same caps as web_fetch (5 MB, 60s, http/https only). Use for JSON APIs that need POST/PUT, custom headers, or auth.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        method: {
+          type: 'string',
+          description: 'GET | POST | PUT | PATCH | DELETE | HEAD | OPTIONS',
+        },
+        url: { type: 'string', description: 'Absolute http(s) URL.' },
+        headers: {
+          type: 'object',
+          description: 'Optional request headers as { name: value }.',
+          additionalProperties: { type: 'string' },
+        },
+        body: {
+          type: 'string',
+          description: 'Optional request body (e.g. JSON-stringified payload).',
+        },
+      },
+      required: ['method', 'url'],
+    },
+  },
+  {
+    name: 'attachment_read',
+    description:
+      'Read the contents of a file the user attached to this run via the attachment bar. Pass the workspace-relative path shown in the attachment list. Use for PDFs / docs the user dropped in instead of asking the user to paste content.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description:
+            'Workspace-relative path of the attached file (matches what list_attachments returns).',
+        },
+      },
+      required: ['path'],
+    },
+  },
 ];
 
 function makeId(): string {
@@ -377,6 +430,65 @@ export async function dispatchTool(
               }: ${d.message}`,
           )
           .join('\n'),
+      };
+    }
+
+    case 'web_fetch': {
+      const url = String(input.url);
+      const res = await invoke<{
+        status: number;
+        url: string;
+        content_type: string | null;
+        body: string;
+        truncated: boolean;
+      }>('agent_web_fetch', { url });
+      const header = `${res.status} ${res.url}${res.content_type ? ` (${res.content_type})` : ''}${res.truncated ? ' [TRUNCATED]' : ''}`;
+      return { output: `${header}\n\n${truncate(res.body, 12000)}` };
+    }
+
+    case 'http': {
+      const method = String(input.method ?? 'GET').toUpperCase();
+      const url = String(input.url);
+      const headersIn = (input.headers as Record<string, string> | undefined) ?? undefined;
+      const bodyIn = input.body !== undefined ? String(input.body) : undefined;
+      const res = await invoke<{
+        status: number;
+        headers: Record<string, string>;
+        body: string;
+        truncated: boolean;
+      }>('agent_http', {
+        input: { method, url, headers: headersIn, body: bodyIn },
+      });
+      const headerLines = Object.entries(res.headers)
+        .slice(0, 20)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('\n');
+      const header = `${method} ${url} → ${res.status}${res.truncated ? ' [TRUNCATED]' : ''}`;
+      return {
+        output: `${header}\n${headerLines}\n\n${truncate(res.body, 12000)}`,
+      };
+    }
+
+    case 'attachment_read': {
+      // Attachments are copied into the workspace when the user drops
+      // them in, so a normal `agent_read` against the relative path
+      // serves the same bytes. We still tag the tool separately so the
+      // model knows what surface to call when it needs a user-supplied
+      // doc rather than a file it wrote earlier in the run.
+      const path = String(input.path);
+      const known = useAgentStore.getState().attachments;
+      if (known.length > 0 && !known.includes(path)) {
+        const list = known.map((p) => `- ${p}`).join('\n');
+        return {
+          output: `Path "${path}" is not in the user's attachment list.\nAvailable attachments:\n${list}`,
+        };
+      }
+      const res = await invoke<{ content: string; line_count: number }>(
+        'agent_read',
+        { workspace: ctx.workspace, path },
+      );
+      return {
+        output: `${path} (${res.line_count} lines)\n\n${truncate(res.content, 12000)}`,
       };
     }
 

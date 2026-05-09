@@ -155,6 +155,8 @@ pub fn run() {
             agent::agent_glob,
             agent::agent_grep,
             agent::agent_bash,
+            agent::agent_web_fetch,
+            agent::agent_http,
             agent::agent_attach_files,
             agent::agent_init_workspace_doc,
             agent::agent_git_status,

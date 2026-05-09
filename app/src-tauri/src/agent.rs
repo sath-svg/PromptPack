@@ -921,3 +921,154 @@ pub async fn lsp_stop(state: State<'_, LspState>, handle: String) -> Result<(), 
     Ok(())
 }
 
+// ─── Web tools (Phase 8) ───────────────────────────────────────────────────
+//
+// `agent_web_fetch` — fetch a URL, follow up to 10 redirects, cap response
+// at 5 MB. Returns final URL + status + content-type + body. Used by the
+// agent loop's `web_fetch` tool to pull live page text without exposing
+// the user's full network stack to the model.
+//
+// `agent_http` — generic verb/headers/body request, same client. Same caps
+// apply; intended for JSON APIs the model wants to talk to.
+//
+// Both build a fresh `reqwest::Client` per call so the global proxy_fetch
+// allowlist + 600s read timeout don't bleed into web traffic. Web traffic
+// uses a 60s timeout and a 5 MB body cap by default.
+
+const WEB_FETCH_MAX_BYTES: usize = 5 * 1024 * 1024;
+const WEB_FETCH_TIMEOUT_SECS: u64 = 60;
+
+#[derive(Debug, Serialize)]
+pub struct WebFetchResult {
+    pub status: u16,
+    /// Final URL after redirect chain.
+    pub url: String,
+    pub content_type: Option<String>,
+    /// Body decoded as UTF-8 (lossy). Truncation note appended when the
+    /// upstream payload exceeded `WEB_FETCH_MAX_BYTES`.
+    pub body: String,
+    pub truncated: bool,
+}
+
+fn build_web_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(WEB_FETCH_TIMEOUT_SECS))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .user_agent("Skillset/1.0 (+https://skillset.so)")
+        .build()
+        .map_err(|e| format!("client build: {}", e))
+}
+
+#[tauri::command]
+pub async fn agent_web_fetch(url: String) -> Result<WebFetchResult, String> {
+    let parsed = url::Url::parse(&url).map_err(|e| format!("invalid url: {}", e))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        s => return Err(format!("unsupported scheme: {}", s)),
+    }
+    let client = build_web_client()?;
+    let response = client
+        .get(parsed.clone())
+        .send()
+        .await
+        .map_err(|e| format!("request: {}", e))?;
+    let status = response.status().as_u16();
+    let final_url = response.url().to_string();
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("body read: {}", e))?;
+    let truncated = bytes.len() > WEB_FETCH_MAX_BYTES;
+    let slice: &[u8] = if truncated { &bytes[..WEB_FETCH_MAX_BYTES] } else { &bytes };
+    let mut body = String::from_utf8_lossy(slice).into_owned();
+    if truncated {
+        body.push_str(&format!(
+            "\n…[truncated; {} bytes total, kept first {}]",
+            bytes.len(),
+            WEB_FETCH_MAX_BYTES
+        ));
+    }
+    Ok(WebFetchResult {
+        status,
+        url: final_url,
+        content_type,
+        body,
+        truncated,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AgentHttpRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: Option<HashMap<String, String>>,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AgentHttpResponse {
+    pub status: u16,
+    pub headers: HashMap<String, String>,
+    pub body: String,
+    pub truncated: bool,
+}
+
+#[tauri::command]
+pub async fn agent_http(input: AgentHttpRequest) -> Result<AgentHttpResponse, String> {
+    let parsed = url::Url::parse(&input.url).map_err(|e| format!("invalid url: {}", e))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        s => return Err(format!("unsupported scheme: {}", s)),
+    }
+    let method: reqwest::Method = input
+        .method
+        .parse()
+        .map_err(|_| format!("invalid method: {}", input.method))?;
+    let client = build_web_client()?;
+    let mut req_builder = client.request(method, parsed);
+    if let Some(headers) = input.headers {
+        for (k, v) in headers {
+            req_builder = req_builder.header(k, v);
+        }
+    }
+    if let Some(body) = input.body {
+        req_builder = req_builder.body(body);
+    }
+    let response = req_builder
+        .send()
+        .await
+        .map_err(|e| format!("request: {}", e))?;
+    let status = response.status().as_u16();
+    let mut response_headers = HashMap::new();
+    for (k, v) in response.headers() {
+        if let Ok(value) = v.to_str() {
+            response_headers.insert(k.as_str().to_string(), value.to_string());
+        }
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("body read: {}", e))?;
+    let truncated = bytes.len() > WEB_FETCH_MAX_BYTES;
+    let slice: &[u8] = if truncated { &bytes[..WEB_FETCH_MAX_BYTES] } else { &bytes };
+    let mut body = String::from_utf8_lossy(slice).into_owned();
+    if truncated {
+        body.push_str(&format!(
+            "\n…[truncated; {} bytes total, kept first {}]",
+            bytes.len(),
+            WEB_FETCH_MAX_BYTES
+        ));
+    }
+    Ok(AgentHttpResponse {
+        status,
+        headers: response_headers,
+        body,
+        truncated,
+    })
+}
+

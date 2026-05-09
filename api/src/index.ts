@@ -727,6 +727,118 @@ export default {
         return addCors(response);
       }
 
+      // POST /api/llm/run/reserve — Phase 5 preflight.
+      //
+      // The orchestrator hits this once at run start with the estimated
+      // total credit envelope (e.g. `maxSubtasks * cheapPerCall * 3`).
+      // Worker checks the user's current balance vs. the estimate and
+      // either:
+      //   - 200 + { balance, headroom } if the run can plausibly fit
+      //   - 402 + insufficient_credits if the user already can't cover
+      //     even a fraction of the run
+      //
+      // No credits are actually held — per-call holds in
+      // `/api/llm/chat` still do the real reservation. This endpoint
+      // exists so the desktop UI can fail fast (and surface "Top up &
+      // resume" up front) before kicking off N parallel subtask
+      // requests that would otherwise all 402 mid-flight.
+      if (path === "/api/llm/run/reserve" && method === "POST") {
+        const auth = request.headers.get("Authorization");
+        const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+        const claims = token ? await verifyAuthToken(token, env) : null;
+        const clerkId = claims?.sub ?? null;
+        if (!clerkId) {
+          return addCors(
+            new Response(JSON.stringify({ error: "unauthorized" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        let estimatedCredits = 0;
+        try {
+          const body = (await request.json()) as { estimatedCredits?: number };
+          estimatedCredits = Math.max(1, Math.floor(body.estimatedCredits ?? 0));
+        } catch {
+          return addCors(
+            new Response(JSON.stringify({ error: "invalid_json" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+
+        try {
+          const balanceRes = await fetch(
+            `${env.CONVEX_URL}/api/extension/credit-balance`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clerkId }),
+            },
+          );
+          if (!balanceRes.ok) {
+            return addCors(
+              new Response(
+                JSON.stringify({ error: "balance_lookup_failed" }),
+                {
+                  status: 502,
+                  headers: { "Content-Type": "application/json" },
+                },
+              ),
+            );
+          }
+          const balance = (await balanceRes.json()) as {
+            monthly?: number;
+            topup?: number;
+          };
+          const total = (balance.monthly ?? 0) + (balance.topup ?? 0);
+          if (total < estimatedCredits) {
+            return addCors(
+              new Response(
+                JSON.stringify({
+                  error: "insufficient_credits",
+                  code: "INSUFFICIENT_CREDITS",
+                  estimated: estimatedCredits,
+                  available: total,
+                }),
+                {
+                  status: 402,
+                  headers: { "Content-Type": "application/json" },
+                },
+              ),
+            );
+          }
+          return addCors(
+            new Response(
+              JSON.stringify({
+                ok: true,
+                estimated: estimatedCredits,
+                available: total,
+                headroom: total - estimatedCredits,
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          );
+        } catch (err) {
+          return addCors(
+            new Response(
+              JSON.stringify({
+                error: "internal",
+                message: err instanceof Error ? err.message : String(err),
+              }),
+              {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          );
+        }
+      }
+
       // Groq-enhanced prompt endpoint
       // POST /api/enhance
       if (path === "/api/enhance" && method === "POST") {

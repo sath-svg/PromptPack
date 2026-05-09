@@ -73,11 +73,12 @@ const ALLOWED_TOOLS_DEFAULT = [
   'grep',
   'bash',
   'lsp_diagnostics',
-  // Phase 8 (`web_fetch`, `http`, `attachment_read`) deliberately
-  // excluded until the Rust handlers ship. Listing them earlier was
-  // making the planner emit subtasks that require them, then the
-  // executor's `dispatchTool` would error mid-loop ("unknown tool").
-  // Re-add once Phase 8 lands.
+  // Phase 8 — Rust handlers (`agent_web_fetch`, `agent_http`) shipped;
+  // `attachment_read` reuses `agent_read` against the workspace path.
+  // Planners may declare these for live page text + API access.
+  'web_fetch',
+  'http',
+  'attachment_read',
 ];
 
 export interface PlannerDeps {

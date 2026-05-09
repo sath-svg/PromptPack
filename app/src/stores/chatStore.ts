@@ -20,7 +20,7 @@ import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
-import { pickFromSelections, getManagedModel } from '../lib/managed-models';
+import { pickFromSelections, getManagedModel, estimateCreditsForCall } from '../lib/managed-models';
 import { syncCreditsFromHeaders } from '../lib/creditSync';
 
 // ---------------------------------------------------------------------------
@@ -207,6 +207,14 @@ interface ChatState {
    * orchestrator's planner LLM is skipped — pack prompts ARE the plan.
    * Run Trace panel auto-opens with one chip per pack step.
    */
+  /**
+   * Phase 5 — resume an orchestrator run that hit a mid-flow 402.
+   * Re-runs the orchestrator with the cached `runStore.taskState`; the
+   * executor's done-skip short-circuit means subtasks that already
+   * succeeded don't burn credits a second time. The user is expected
+   * to top up first; this just replays the rest of the plan.
+   */
+  resumeOrchestratorRun: () => Promise<void>;
   runPack: (
     packTitle: string,
     steps: PackStep[],
@@ -954,6 +962,13 @@ interface OrchestratorMessageDeps {
   /** Override label for the planner_hint chip when predefinedPlan is set. */
   predefinedPlanLabel?: string;
   /**
+   * Phase 5 resume support. When set, `runOrchestratorMessage` seeds
+   * `runStore.taskState` with this snapshot before kicking off the
+   * orchestrator. The executor's done-skip path then short-circuits
+   * subtasks that already completed in the prior run.
+   */
+  resumeTaskState?: import('../lib/orchestrator/types').TaskState;
+  /**
    * Free-form extra context (e.g. workspace `skillset.md` contents)
    * pre-loaded into `TaskState.summaries.rolling` so every subtask sees
    * it under "CONTEXT SO FAR". Lets users layer per-pack instructions
@@ -978,6 +993,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     predefinedPlan,
     predefinedPlanLabel,
     extraContext,
+    resumeTaskState,
     set,
   } = deps;
   // `deps.jwt` is intentionally ignored — refresh-aware tokens are
@@ -1024,12 +1040,15 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     runId = run.id;
     const abort = useRunStore.getState().startRun(run);
 
-    const taskState = emptyTaskState(text);
-    // Seed the rolling summary with skillset.md / user-supplied extras
-    // so every subtask sees them under "CONTEXT SO FAR". The rebuild
-    // job in memory.ts later overwrites this slot — the user-instructions
-    // header is preserved by including it inside the cap budget.
-    if (extraContext?.trim()) {
+    // Phase 5 — resume: skip emptyTaskState and reuse the snapshot the
+    // caller passed in. Done subtasks short-circuit in the executor;
+    // pending/failed ones run fresh.
+    const taskState = resumeTaskState ?? emptyTaskState(text);
+    if (!resumeTaskState && extraContext?.trim()) {
+      // Seed the rolling summary with skillset.md / user-supplied extras
+      // so every subtask sees them under "CONTEXT SO FAR". The rebuild
+      // job in memory.ts later overwrites this slot — the user-instructions
+      // header is preserved by including it inside the cap budget.
       taskState.summaries.rolling = extraContext.trim();
     }
     await useRunStore.getState().setTaskState(taskState);
@@ -1198,6 +1217,49 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // if the server is unreachable. Pass no skill so the planner uses
     // the server source. `workspace` is forwarded so the planner system
     // prompt knows file tools are usable at runtime.
+
+    // Phase 5 — credit preflight. Before kicking off N parallel
+    // subtasks (each placing its own per-call hold), check the user's
+    // total balance vs. a rough envelope estimate. If they're already
+    // short, surface "Top up & resume" up front instead of letting the
+    // first batch of subtasks all 402 in flight. The worker endpoint
+    // does the comparison; no credits are actually held here.
+    if (!resumeTaskState) {
+      const cheapModel = getManagedModel(selections.cheap);
+      const planSize = predefinedPlan?.subtasks.length ?? 8;
+      const perCallEstimate = cheapModel
+        ? estimateCreditsForCall({
+            model: cheapModel,
+            inputTokens: 800,
+            maxOutputTokens: 2048,
+            effort: null,
+          })
+        : 5;
+      // Inflate by 3× to cover variance + tier escalations from Phase 6.
+      const envelope = Math.max(10, planSize * perCallEstimate * 3);
+      try {
+        const jwtForPreflight = await getJwt();
+        const preRes = await tauriFetch('https://api.pmtpk.com/api/llm/run/reserve', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${jwtForPreflight}`,
+          },
+          body: JSON.stringify({ estimatedCredits: envelope }),
+          signal: abort.signal,
+        });
+        if (preRes.status === 402) {
+          await useRunStore.getState().endRun('failed', 'insufficient_credits');
+          set({ error: '__OUT_OF_CREDITS__', isLoading: false });
+          return;
+        }
+        // Non-402 errors here aren't fatal — fall through and let
+        // per-call reserves do the real work.
+      } catch (e) {
+        console.warn('[orchestrator] preflight reserve failed:', e);
+      }
+    }
+
     const orch = new Orchestrator({
       getJwt,
       selections,
@@ -1279,6 +1341,8 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           output: out.text,
           reasoningTokens: out.reasoningTokens ?? null,
           credits: out.credits ?? null,
+          confidence: out.confidence ?? null,
+          retries: out.retries ?? 0,
           endedAt: Date.now(),
         });
         await useRunStore.getState().patchTaskState((st) => {
@@ -1286,6 +1350,17 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           st.summaries = { ...taskState.summaries };
           st.facts = [...taskState.facts];
           st.artifacts = [...taskState.artifacts];
+        });
+      },
+      onSubtaskRetry: async (s, next) => {
+        // Phase 6 — escalation. Confidence heuristic flagged a low score,
+        // bump (tier, effort) on the chip in real time so the user sees
+        // the retry happen instead of staring at a stuck row.
+        await useRunStore.getState().patchSubtask(s.id, {
+          presetJson: JSON.stringify(next.decision.preset),
+          effort: next.decision.effort ?? null,
+          retries: next.retries,
+          error: `retry ${next.retries}: ${next.reason}`,
         });
       },
       onSubtaskFailed: async (s, err) => {
@@ -1365,9 +1440,23 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           });
         }
         await useRunStore.getState().endRun('failed', err.message);
+        // Phase 5 — credit-exhausted runs get a sentinel error so the UI
+        // can render a "Top up & resume" button instead of a raw toast.
+        // Detection is loose: the message can come from the friendly
+        // 402 string we emit in agentSubtask / chatStore subtask
+        // runners, or from the worker's `insufficient_credits` body.
+        const msg = err.message;
+        const looksOutOfCredits =
+          /\bout of credits\b/i.test(msg) ||
+          /\binsufficient[_ ]credits\b/i.test(msg) ||
+          /\b402\b/.test(msg);
+        if (looksOutOfCredits) {
+          set({ error: '__OUT_OF_CREDITS__', isLoading: false });
+          return;
+        }
         // Subtask state lives in runStore — Run Trace panel shows
         // failed chips. Surface a single error toast inline.
-        set({ error: err.message, isLoading: false });
+        set({ error: msg, isLoading: false });
       },
     });
 
@@ -2011,6 +2100,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * settle the matching telemetry row. Idempotent — clicking the same
    * thumb twice toggles it off; clicking the other thumb replaces.
    */
+  resumeOrchestratorRun: async () => {
+    // Phase 5 — pull the existing taskState + plan from runStore and
+    // re-run the orchestrator with `predefinedPlan`. The executor's
+    // done-skip short-circuit means subtasks that already succeeded
+    // don't repeat; only pending/failed ones run.
+    const runState = useRunStore.getState();
+    const ts = runState.taskState;
+    const run = runState.run;
+    if (!ts?.plan || !run) {
+      set({
+        error:
+          'Nothing to resume — the previous run was cleared from memory.',
+      });
+      return;
+    }
+    const settings = useSettingsStore.getState();
+    const authSession = useAuthStore.getState().session;
+    if (!authSession?.session_token) {
+      set({ error: '__SESSION_EXPIRED__' });
+      return;
+    }
+    const { apiKeys, billingTier } = settings;
+    const available = await getAvailableProvidersAsync(
+      (apiKeys ?? {}) as Record<string, string | undefined>,
+    );
+    const workspace = useAgentStore.getState().workspace;
+    set({ error: null });
+    // Reset done counts on the runStore-side row so the UI flips
+    // pending subtasks back into the queue. Done rows stay green.
+    await runState.patchRun({ status: 'running', endedAt: null });
+    await runOrchestratorMessage({
+      text: ts.goal,
+      jwt: authSession.session_token,
+      selections: settings.selectedManagedModels,
+      apiKeys: (apiKeys ?? {}) as Record<string, string | undefined>,
+      available,
+      workspace,
+      managedModeEnabled: settings.managedModeEnabled,
+      billingTier,
+      telemetryId: null,
+      predefinedPlan: ts.plan,
+      predefinedPlanLabel: 'resume',
+      // Carry the existing TaskState forward so the executor's
+      // done-skip path sees prior outputs.
+      resumeTaskState: ts,
+      set,
+    });
+  },
+
   runPack: async (packTitle, steps, attachments, extraInstructions) => {
     if (steps.length === 0) return;
     const settings = useSettingsStore.getState();

@@ -291,6 +291,7 @@ export function SkillChatPage() {
   };
 
   const runPack = useChatStore((s) => s.runPack);
+  const resumeOrchestratorRun = useChatStore((s) => s.resumeOrchestratorRun);
 
   /**
    * Pack run — orchestrator path. Each pack prompt becomes a subtask
@@ -917,6 +918,37 @@ export function SkillChatPage() {
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
                 >
                   Sign in again
+                </button>
+                <button onClick={clearError} className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : error === '__OUT_OF_CREDITS__' ? (
+            <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
+              <p className="text-sm font-semibold text-[var(--foreground)]">Run paused — out of credits</p>
+              <p className="text-sm text-[var(--muted-foreground)]">
+                The orchestrator stopped mid-run because your balance ran out.
+                Top up below, then click Resume to pick up where the run left
+                off — completed subtasks won't re-run.
+              </p>
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                <button
+                  onClick={() => open('https://skillset.so/dashboard?topup=open')}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                >
+                  <Sparkles size={13} />
+                  Top up
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!session?.user_id) return;
+                    await refreshCreditBalance(session.user_id);
+                    void resumeOrchestratorRun();
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500/15 text-amber-500 text-sm hover:bg-amber-500/25 transition-colors"
+                >
+                  Resume run
                 </button>
                 <button onClick={clearError} className="text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
                   Dismiss

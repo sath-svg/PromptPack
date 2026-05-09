@@ -14,7 +14,12 @@ import { tauriFetch } from '../tauriFetch';
 import { managedProxyReasoning } from '../reasoningParams';
 import { syncCreditsFromHeaders } from '../creditSync';
 import { buildSubtaskPrompt, recordSubtaskDone, recordSubtaskFailed, recordSubtaskStart } from './memory';
-import { decide, type RouterDecision } from './router';
+import { decide, buildDecision, type RouterDecision } from './router';
+import {
+  evaluateConfidence,
+  nextEscalation,
+  LOW_CONFIDENCE_THRESHOLD,
+} from './confidence';
 import type { PlannerOutput, PlannerSubtask, TaskState } from './types';
 import type { ManagedTier } from '../managed-models';
 
@@ -58,7 +63,23 @@ export interface ExecutorDeps {
   /** Called on success with output + token usage. */
   onSubtaskDone?: (
     subtaskId: string,
-    out: { text: string; reasoningTokens?: number; credits?: number; modelId: string },
+    out: {
+      text: string;
+      reasoningTokens?: number;
+      credits?: number;
+      modelId: string;
+      confidence?: number;
+      retries?: number;
+    },
+  ) => void | Promise<void>;
+  /**
+   * Fired when the confidence heuristic triggers an escalation. Lets the
+   * Run Trace flip the chip to "retry" with the new (tier, effort) so the
+   * UI shows progress instead of looking stuck while the second pass runs.
+   */
+  onSubtaskRetry?: (
+    subtaskId: string,
+    next: { decision: RouterDecision; reason: string; retries: number },
   ) => void | Promise<void>;
   onSubtaskFailed?: (subtaskId: string, err: string) => void | Promise<void>;
 }
@@ -103,6 +124,23 @@ export async function execute(
           throw new DOMException('aborted', 'AbortError');
         }
 
+        // Phase 5 — resume support. If the prior run already completed
+        // this subtask (e.g. user hit 402, topped up, clicked Resume),
+        // short-circuit. The previous output stays in TaskState and
+        // downstream subtasks will see it under DEPENDENCY OUTPUTS.
+        const existingState = state.subtasks[subtask.id];
+        if (existingState?.status === 'done' && existingState.output) {
+          await deps.onSubtaskDone?.(subtask.id, {
+            text: existingState.output,
+            modelId: existingState.modelId ?? '',
+            reasoningTokens: existingState.reasoningTokens,
+            credits: existingState.credits,
+            confidence: existingState.confidence,
+            retries: 0,
+          });
+          return;
+        }
+
         // Skip if any dep ended up `failed`.
         if (
           subtask.depends_on.some(
@@ -114,12 +152,55 @@ export async function execute(
           throw new Error(`skipped: dependency failed`);
         }
 
-        const decision = decide(subtask, { selections: deps.selections });
+        let decision = decide(subtask, { selections: deps.selections });
         recordSubtaskStart(state, subtask.id, subtask);
         await deps.onSubtaskStart?.(subtask.id, decision);
 
         try {
-          const result = await runOne(subtask, state, decision, deps);
+          // Phase 6 — confidence + 2-axis escalation. First attempt
+          // uses the router's pick. If the heuristic reports a low
+          // score and there's a sensible escalation step, retry once
+          // with the bumped (tier, effort).
+          let attempt = 0;
+          let result = await runOne(subtask, state, decision, deps);
+          let conf = evaluateConfidence({ subtask, text: result.text });
+          let retries = 0;
+
+          while (
+            conf.score < LOW_CONFIDENCE_THRESHOLD &&
+            !deps.signal?.aborted
+          ) {
+            const next = nextEscalation({
+              currentTier: decision.preset.tier,
+              currentEffort: decision.effort ?? null,
+              retries,
+            });
+            if (!next) break; // no more axes to bump
+
+            retries += 1;
+            attempt += 1;
+            decision = buildDecision(
+              next.tier,
+              next.effort,
+              deps.selections,
+            );
+            await deps.onSubtaskRetry?.(subtask.id, {
+              decision,
+              reason: conf.reason,
+              retries,
+            });
+
+            // Re-run with fresh decision. `runOne` rebuilds the prompt
+            // from `state`, which already contains the prior failed
+            // attempt's output — but we don't want the model to see it
+            // verbatim, so the executor's runOne path stays clean and
+            // the retry just gets a fresh call at higher effort/tier.
+            const retryResult = await runOne(subtask, state, decision, deps);
+            result = retryResult;
+            conf = evaluateConfidence({ subtask, text: retryResult.text });
+            void attempt; // surfaced via `retries` in onSubtaskDone
+          }
+
           recordSubtaskDone(state, subtask.id, {
             output: result.text,
             modelId: decision.managed.id,
@@ -132,6 +213,8 @@ export async function execute(
             reasoningTokens: result.reasoningTokens,
             credits: result.credits,
             modelId: decision.managed.id,
+            confidence: conf.score,
+            retries,
           });
         } catch (err) {
           // Silent on cancel — runStore already marked the subtask as

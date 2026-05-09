@@ -5,7 +5,7 @@ workflow plan in `~/.claude/plans/implementation-plan-multi-model-clever-toucan.
 Update at the end of each work session so the next one resumes without
 re-deriving state.
 
-Last updated: 2026-05-09
+Last updated: 2026-05-09 (session 2 — Phases 5/6/8 landed)
 
 ---
 
@@ -31,40 +31,31 @@ Last updated: 2026-05-09
 | extra | Credit-rate model labels (`1 cr/K in · 3 cr/K out`) | `formatCreditRate` in `managed-models.ts` (12cb2fc) |
 | extra | OS notification on pending edit (background popup) | `agentStore.notifyPendingEdit` (12cb2fc) |
 | extra | Pack-tagged free-text auto-route + var extraction | `lib/packExtractor.ts` + SkillChat `handleSend` reroute. User types "do this for NVDA and 6 months" with pack tag → free Llama 8B extracts vars + extras → runs pack with both. Extras layer alongside `skillset.md` under unified "User instructions" block. |
+| 5 | **Per-run credit preflight + Top up & resume UX** | Worker `POST /api/llm/run/reserve` checks total balance vs envelope estimate; orchestrator hits it once at run start. Mid-run 402s now surface `__OUT_OF_CREDITS__` instead of generic error → SkillChat renders a "Top up · Resume" card with `chatStore.resumeOrchestratorRun()` action. Executor short-circuits subtasks already marked `done` so resume only re-runs pending/failed work. Per-call holds unchanged (no schema migration). |
+| 6 | **Confidence + 2-axis escalation** | New `lib/orchestrator/confidence.ts` heuristic (empty / refusal / truncation / produces=json parse / produces=file path / length-vs-instruction). Score < 0.55 triggers one retry: bump `effort` first (`null → medium`), then tier (`fast → balanced → powerful`). `executor.ts` rewires the per-subtask try/catch to loop until confidence passes or `nextEscalation` returns null. Run Trace shows `↻ N` retry badge + confidence percentage chip; chatStore `onSubtaskRetry` flips chip to bumped (tier, effort) live. |
+| 8 | **Web tools — `web_fetch`, `http`, `attachment_read`** | Rust `agent_web_fetch` + `agent_http` (reqwest, redirect-follow up to 10, 5 MB body cap, 60s timeout, http(s) only). `attachment_read` reuses `agent_read` against the user's attachment list with a guard. Tool schemas in `agentTools.ts`, dispatch cases, ToolBlock icons (Globe / Network / Paperclip), planner allowlist re-extended. |
 
 ---
 
 ## Pending — plan phases
 
-### Phase 5 — Per-run credit reserve (partial)
-Today every subtask creates its own per-call hold. Pack with 8 subtasks = 8 separate holds.
-Missing:
-- `POST /api/llm/run/reserve` worker endpoint that holds a single per-run estimate.
-- Orchestrator passes `runId` per subtask call so settles draw down the run's hold.
-- 402 → "Top up & resume" UX (toast + button that mints a fresh reserve).
-- `creditTransactions.runId` index in Convex (schema field exists, no index).
+### Phase 5 — full per-run hold (deferred)
+Preflight + resume UX shipped. Still on the wishlist:
+- True per-run hold (one envelope, per-call settles draw down) — needs Convex `creditTransactions.runId` index + run-scoped `reserveCredits` variant.
+- Settle path that prefers the run-hold over creating a fresh per-call hold (avoids the 8-subtask = 8-holds situation we have today).
 
-Files: `api/src/credits.ts`, `api/src/llm.ts`, `web/convex/schema.ts`, `chatStore.runOrchestratorMessage`.
+Why we stopped: requires a Convex schema migration and a settle-path rewrite. Preflight + resume already deliver the user-facing promise ("don't blow up mid-run; let me top up and continue"). Real envelope-style reserve is a v2.
 
-### Phase 6 — Confidence + 2-axis escalation (partial)
-Tool subtasks ship. Missing:
-- `app/src/lib/orchestrator/confidence.ts` — heuristic on `finish_reason`, output length vs `produces`, JSON validity if `produces=json`.
-- Self-rating fast-tier call ("rate 0–1 how complete this answer is").
-- Escalation: if `confidence < 0.55` and `effort === null` → retry same preset with `effort='medium'`. Still low → tier up at `effort='medium'`.
-- Wire `subtasks.retries` increment into executor.
+### Phase 6 — self-rating call (deferred)
+Heuristic + 2-axis escalation shipped. Plan also calls for an optional fast-tier self-rating ("rate 0–1 how complete this answer is given the instruction") — skipped for now to keep the per-subtask cost flat. Heuristic is high-precision enough that the false-negative bias is acceptable. Revisit if confusion-matrix telemetry shows real product issues.
 
-Files: new `confidence.ts`, `executor.ts` retry loop, `chatStore` onSubtaskDone.
+### Phase 8 — extras (deferred)
+Web tools shipped. Plan also lists:
+- `pdf_generate(html, path)` — staged like write_file, Rust `printpdf` or chrome-headless.
+- `send_email(to, subject, body)` — Resend HTTP API.
+- Cron scheduler for skill runs.
 
-### Phase 8 — Web tools (NOT shipped)
-Unblocks real research packs (Stock Analyzer 3rd step currently fails because no way to fetch live data).
-Missing:
-- `agent_web_fetch` Rust handler — reqwest, 5MB cap, redirect-follow, charset detect.
-- `http(method, url, headers, body)` generic tool, same Rust handler.
-- `attachment_read(filename)` — expose `useAgentStore.attachments` as a tool.
-- Tool schemas in `app/src/lib/agentTools.ts`.
-- Icons in `ToolBlock.tsx`.
-
-Files: `app/src-tauri/src/agent.rs`, `lib.rs`, `agentTools.ts`, `ToolBlock.tsx`.
+These are Phase 10 in the original plan and stay there.
 
 ### Phase 9 — Skill library (partial)
 Pack→orchestrator path works. Missing:

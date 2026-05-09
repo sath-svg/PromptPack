@@ -399,8 +399,25 @@ function DevSubtaskRow({ subtask: s }: { subtask: Subtask }) {
           </span>
         )}
         {s.retries > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 font-mono">
+          <span
+            className="px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-400 font-mono"
+            title="Confidence heuristic escalated this subtask. Run Trace shows the bumped (tier, effort)."
+          >
             ↻ {s.retries}
+          </span>
+        )}
+        {typeof s.confidence === 'number' && s.status === 'done' && (
+          <span
+            className={`px-1.5 py-0.5 rounded font-mono ${
+              s.confidence >= 0.75
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : s.confidence >= 0.55
+                  ? 'bg-amber-500/15 text-amber-400'
+                  : 'bg-red-500/15 text-red-400'
+            }`}
+            title={`Confidence score: ${s.confidence.toFixed(2)}`}
+          >
+            {Math.round(s.confidence * 100)}%
           </span>
         )}
         <span className="ml-auto text-zinc-500 font-mono text-[10px]">
@@ -414,7 +431,18 @@ function DevSubtaskRow({ subtask: s }: { subtask: Subtask }) {
         </p>
       )}
       {s.error && (
-        <p className="text-red-400 text-[11px]">{s.error}</p>
+        // Retry notes start with "retry N: …" — render in amber so users
+        // don't read them as a hard failure. Real failures (status=failed)
+        // still surface red.
+        <p
+          className={
+            s.status === 'failed'
+              ? 'text-red-400 text-[11px]'
+              : 'text-amber-400 text-[11px]'
+          }
+        >
+          {s.error}
+        </p>
       )}
     </div>
   );

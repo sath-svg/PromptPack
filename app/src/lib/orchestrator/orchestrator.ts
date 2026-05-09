@@ -33,7 +33,23 @@ export interface OrchestratorEvents {
   /** Fires when a subtask completes successfully. */
   onSubtaskDone(
     subtask: PlannerSubtask,
-    out: { text: string; reasoningTokens?: number; credits?: number; modelId: string },
+    out: {
+      text: string;
+      reasoningTokens?: number;
+      credits?: number;
+      modelId: string;
+      confidence?: number;
+      retries?: number;
+    },
+  ): void | Promise<void>;
+  /**
+   * Fires when the confidence heuristic escalates a subtask along the
+   * effort or tier axis. Lets the Run Trace flip the chip + model label
+   * to the new pick so users can see the retry happen in real time.
+   */
+  onSubtaskRetry?(
+    subtask: PlannerSubtask,
+    next: { decision: RouterDecision; reason: string; retries: number },
   ): void | Promise<void>;
   onSubtaskFailed(subtask: PlannerSubtask, err: string): void | Promise<void>;
   /** Fires after merge with the final assistant message. */
@@ -173,6 +189,10 @@ export class Orchestrator {
         onSubtaskDone: async (id, out) => {
           const s = byId.get(id);
           if (s) await ev.onSubtaskDone(s, out);
+        },
+        onSubtaskRetry: async (id, next) => {
+          const s = byId.get(id);
+          if (s) await ev.onSubtaskRetry?.(s, next);
         },
         onSubtaskFailed: async (id, err) => {
           const s = byId.get(id);
