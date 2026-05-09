@@ -1386,7 +1386,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     //   - anything else → single-shot managed
     // Pack prompts always bypass orchestration — pack steps are user-
     // curated single-task units.
-    const wantsAgent = route === 'agent' && Boolean(agentMode && workspace);
+    // Dispatch override: if the user explicitly asks to save a file
+    // ("output as plan.md", "save to report.json"), the prompt
+    // unambiguously needs file tools. Force agent path even when the LR
+    // route head guessed `chat` — managed proxy doesn't pipe tools, so
+    // routing there would leave the model with no way to write.
+    const writeFileIntent = detectWriteFileIntent(text);
+    const wantsAgent =
+      Boolean(agentMode && workspace) &&
+      (route === 'agent' || writeFileIntent !== null);
     const shouldOrchestrate =
       route === 'workflow' &&
       settings.orchestratorEnabled &&
