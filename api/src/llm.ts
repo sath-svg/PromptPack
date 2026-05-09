@@ -34,6 +34,15 @@ interface ChatRequestBody {
   top_p?: number;
   stream?: boolean;
   /**
+   * OpenAI-compat tool catalog. Forwarded to OpenRouter so managed-mode
+   * users can run agent loops (write_file / read_file / bash / etc.)
+   * with premium models (Opus, GPT-5, Sonnet) instead of falling back
+   * to the free Llama 8B which drops tool calls.
+   */
+  tools?: unknown;
+  /** OpenAI-compat tool_choice. `'auto' | 'required' | 'none' | { type: 'function', function: { name } }`. */
+  tool_choice?: unknown;
+  /**
    * OpenRouter unified reasoning knob. Forwarded as-is. Field name was
    * chosen by OpenRouter to be vendor-neutral; under the hood OpenRouter
    * translates it to `reasoning_effort` (OpenAI o-series, Gemini 2.5,
@@ -211,6 +220,11 @@ export async function handleLlmChat(
         reasoning: body.reasoning,
         // Forward JSON-mode hint (used by the orchestrator's planner).
         response_format: body.response_format,
+        // Forward agent tool catalog + tool_choice. Lets pack runs and
+        // SkillFlow subtasks use file / shell tools on premium managed
+        // models (Opus, GPT-5) without requiring BYOK keys.
+        tools: body.tools,
+        tool_choice: body.tool_choice,
         // Ask OpenRouter to include actual cost so we can settle accurately
         usage: { include: true },
       }),

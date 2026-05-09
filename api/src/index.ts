@@ -643,8 +643,14 @@ export default {
 
     try {
       // Managed-mode LLM proxy (credit-metered OpenRouter)
-      // POST /api/llm/chat
-      if (path === "/api/llm/chat" && method === "POST") {
+      // POST /api/llm/chat — primary route
+      // POST /api/llm/chat/completions — OpenAI-compat alias used by the
+      //   desktop agent loop so it can post to the managed proxy with
+      //   tools enabled. Same handler, identical body shape.
+      if (
+        (path === "/api/llm/chat" || path === "/api/llm/chat/completions") &&
+        method === "POST"
+      ) {
         const response = await handleLlmChat(
           request,
           env,

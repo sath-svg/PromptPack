@@ -1521,12 +1521,51 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // Agent path: use tool-capable provider, ignore packs/system overrides
     let agentPresetReady: ModelPreset | null = null;
+    let useManagedProxyAgent = false;
     if (agentMode && workspace) {
       let preset = pickToolCapableModel(tier, available, billingTier);
       if (preset?.provider === 'ollama') {
         const loaded = await fetchOllamaModels();
         const reconciled = reconcileOllamaPreset(preset, loaded);
         preset = reconciled; // null if Ollama unusable — fall through to plain
+      }
+      // Pack runs must NEVER fall to Llama 8B. Llama drops tool calls,
+      // emits malformed `<formation=...>` wrappers, and writes 0-byte
+      // files when forced via tool_choice. Swap to the user's managed
+      // model selection (Sonnet / GPT-5 / Opus) and route through the
+      // managed proxy `/api/llm/chat/completions` alias which now
+      // forwards `tools` + `tool_choice` to OpenRouter.
+      if (
+        packName &&
+        preset?.provider === 'server' &&
+        settings.managedModeEnabled &&
+        authSession?.session_token
+      ) {
+        const managedModel = pickFromSelections(tier, settings.selectedManagedModels);
+        preset = {
+          provider: 'openrouter', // cosmetic; runtime URL is the managed proxy
+          modelId: managedModel.id,
+          label: managedModel.label,
+          tier,
+          costPer1M: 0,
+          supportsReasoning: managedModel.supportsReasoning,
+          reasoningEfforts: managedModel.reasoningEfforts,
+          alwaysReasons: managedModel.alwaysReasons,
+        };
+        useManagedProxyAgent = true;
+      } else if (
+        packName &&
+        preset?.provider === 'server' &&
+        !settings.managedModeEnabled
+      ) {
+        // Pack run, no BYOK, managed mode off → no premium model
+        // available. Halting beats letting Llama produce broken output.
+        set({
+          error:
+            'Pack steps need a stronger model than the inbuilt Llama 8B. ' +
+            'Turn on Managed mode in Settings, or add a BYOK key (Anthropic / OpenAI / Groq / etc.).',
+        });
+        return;
       }
       // If a powerful-tier prompt resolved to nothing tool-capable, surface
       // a clear hint instead of silent fallback so the user knows BYOK is
@@ -1615,27 +1654,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
             loopEffort,
           );
         } else {
-          const baseUrl =
-            preset.provider === 'server'
+          // Managed-proxy agent path: pack runs without BYOK route here.
+          // Posts to `/api/llm/chat/completions` (worker alias added so
+          // OpenAI-compat clients can target the managed proxy directly).
+          // Worker forwards `tools` + `tool_choice` to OpenRouter,
+          // letting Sonnet/GPT-5/Opus run agent loops on managed credit.
+          const baseUrl = useManagedProxyAgent
+            ? 'https://api.pmtpk.com/api/llm'
+            : preset.provider === 'server'
               ? SERVER_OPENAI_COMPAT_BASE
               : PROVIDER_BASE_URLS[preset.provider];
           const keyMap = (apiKeys ?? {}) as Record<string, string | undefined>;
-          // Server provider auths with the user's Clerk JWT; the backend
-          // proxy holds the actual Groq API key and enforces tier caps
-          // server-side. Sent via standard `Authorization: Bearer <jwt>`
-          // so the openai-compat client can pass it through unchanged.
           const serverJwt = useAuthStore.getState().session?.session_token ?? '';
-          if (preset.provider === 'server' && !serverJwt) {
-            throw new Error('Sign in to use the inbuilt Skillset agent.');
+          if (
+            (preset.provider === 'server' || useManagedProxyAgent) &&
+            !serverJwt
+          ) {
+            throw new Error('Sign in to use the managed Skillset agent.');
           }
-          const apiKey =
-            preset.provider === 'ollama'
+          const apiKey = useManagedProxyAgent
+            ? serverJwt
+            : preset.provider === 'ollama'
               ? 'ollama'
               : preset.provider === 'server'
                 ? serverJwt
                 : keyMap[preset.provider] ?? '';
           const extra: Record<string, string> = {};
-          if (preset.provider === 'openrouter') {
+          if (preset.provider === 'openrouter' && !useManagedProxyAgent) {
             extra['http-referer'] = 'https://skillset.so';
             extra['x-title'] = 'Skillset';
           }
