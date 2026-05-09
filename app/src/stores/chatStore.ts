@@ -778,7 +778,12 @@ async function runOpenAIAgent(
       }
       apiMessages.push({
         role: 'assistant',
-        content: textBuf || null,
+        // Force empty-string content (never null) — OpenRouter's
+        // adapter for Anthropic models iterates `msg.content` even
+        // when null, throwing `TypeError: msg.content is not iterable`
+        // on tool-only assistant turns. Empty string passes the
+        // iteration safely.
+        content: textBuf || '',
         tool_calls: toolCalls.length ? toolCalls : undefined,
       });
       apiMessages.push(...results);
@@ -838,7 +843,7 @@ async function runOpenAIAgent(
 
     apiMessages.push({
       role: 'assistant',
-      content: reply.content ?? null,
+      content: reply.content ?? '',
       tool_calls: reply.tool_calls,
     });
 

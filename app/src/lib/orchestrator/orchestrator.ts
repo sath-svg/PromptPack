@@ -61,6 +61,21 @@ export interface OrchestratorDeps {
    * keys + a workspace.
    */
   runSubtask?: SubtaskRunner;
+  /**
+   * When set, the orchestrator skips its planner LLM call and runs
+   * this user-authored plan directly. Used by pack runs — the pack
+   * prompts ARE the plan, so re-decomposing them via the planner is
+   * wasteful and lossy. Each pack prompt becomes a subtask. Shared
+   * TaskState (rolling summary, facts, dependency outputs) carries
+   * across steps automatically.
+   */
+  predefinedPlan?: PlannerOutput;
+  /**
+   * Source label shown in telemetry / Run Trace when `predefinedPlan`
+   * is used. Defaults to `'pack'`. The model id field becomes the
+   * pack title or skill id for traceability.
+   */
+  predefinedPlanSource?: { sourceLabel: string; modelId: string };
 }
 
 export class Orchestrator {

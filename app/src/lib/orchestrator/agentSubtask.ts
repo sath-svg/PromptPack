@@ -263,7 +263,9 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
 
     apiMessages.push({
       role: 'assistant',
-      content: reply.content ?? null,
+      // Empty string instead of null — see chatStore.ts comment about
+      // OpenRouter's Anthropic adapter iterating `msg.content`.
+      content: reply.content ?? '',
       tool_calls: reply.tool_calls,
     });
     for (const tc of reply.tool_calls) {
