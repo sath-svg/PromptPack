@@ -35,6 +35,59 @@ function fillVariables(text: string, values: Record<string, string>): string {
   return text.replace(/\{([^}]+)\}/g, (_, key) => values[key] ?? `{${key}}`);
 }
 
+/**
+ * Inline placeholder rendered inside an empty assistant bubble while
+ * the orchestrator is still running. Reads current subtask progress
+ * directly from `useRunStore` so the bubble fills with useful context
+ * ("Running step 2 of 3 — Stock Analysis Eval") instead of staying
+ * blank until the final answer lands.
+ */
+function OrchestratorPlaceholder() {
+  const run = useRunStore((s) => s.run);
+  const subtasks = useRunStore((s) => s.subtasks);
+  const taskState = useRunStore((s) => s.taskState);
+  const plannerInfo = useRunStore((s) => s.plannerInfo);
+
+  const total = taskState?.plan?.subtasks.length ?? subtasks.length;
+  const done = subtasks.filter((s) => s.status === 'done').length;
+  const failed = subtasks.filter((s) => s.status === 'failed').length;
+  const running = subtasks.find((s) => s.status === 'running');
+
+  let label: React.ReactNode;
+  if (!run || run.status === 'planning' || (total === 0 && !running)) {
+    label = plannerInfo?.label ? `Planning · ${plannerInfo.label}` : 'Planning…';
+  } else if (running) {
+    label = (
+      <>
+        Step {done + failed + 1} of {total} —{' '}
+        <span className="text-[var(--foreground)]">{running.title}</span>
+      </>
+    );
+  } else if (done < total) {
+    label = `Step ${done + 1} of ${total} — preparing…`;
+  } else {
+    label = 'Synthesizing final answer…';
+  }
+
+  return (
+    <div className="flex items-start gap-3 py-0.5">
+      <Loader2
+        size={14}
+        className="animate-spin text-amber-500 mt-1 flex-shrink-0"
+      />
+      <div className="space-y-1 min-w-0">
+        <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
+          {label}
+        </p>
+        <p className="text-[11px] text-[var(--muted-foreground)]/70">
+          Open the Run Trace panel for live model picks, reasoning effort,
+          and per-step output.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const EFFORT_CHIP_COLORS: Record<'low' | 'medium' | 'high', string> = {
   low: 'text-amber-500 bg-amber-500/10',
   medium: 'text-orange-500 bg-orange-500/10',
@@ -602,7 +655,12 @@ export function SkillChatPage() {
                       📎 {msg.attachments.length} file{msg.attachments.length > 1 ? 's' : ''} saved to workspace
                     </p>
                   )}
-                  {hasBlocks ? (
+                  {msg.role === 'assistant' &&
+                  !hasBlocks &&
+                  !msg.content?.trim() &&
+                  isLoading ? (
+                    <OrchestratorPlaceholder />
+                  ) : hasBlocks ? (
                     <div className="space-y-1">
                       {msg.blocks!.map((block, idx) => {
                         if (block.kind === 'text') {
@@ -713,21 +771,34 @@ export function SkillChatPage() {
             );
           })}
 
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-start gap-3 max-w-[80%]">
-                <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)] mt-0.5 flex-shrink-0" />
-                <div className="flex flex-col gap-1.5 min-w-0">
-                  {isRunningPack && packProgress.total > 0 && (
-                    <span className="text-xs text-[var(--muted-foreground)]">
-                      Prompt {packProgress.current}/{packProgress.total}…
-                    </span>
-                  )}
-                  <LoadingTips />
+          {(() => {
+            if (!isLoading) return null;
+            // Suppress the bottom loading bubble when the latest message
+            // is an empty assistant placeholder — `OrchestratorPlaceholder`
+            // already renders inside that bubble (live step count + Run
+            // Trace pointer). Showing both = duplicate spinners.
+            const last = messages[messages.length - 1];
+            const placeholderActive =
+              last?.role === 'assistant' &&
+              !(last.blocks && last.blocks.length > 0) &&
+              !last.content?.trim();
+            if (placeholderActive) return null;
+            return (
+              <div className="flex justify-start">
+                <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-start gap-3 max-w-[80%]">
+                  <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)] mt-0.5 flex-shrink-0" />
+                  <div className="flex flex-col gap-1.5 min-w-0">
+                    {isRunningPack && packProgress.total > 0 && (
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        Prompt {packProgress.current}/{packProgress.total}…
+                      </span>
+                    )}
+                    <LoadingTips />
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {error === '__SESSION_EXPIRED__' ? (
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
