@@ -156,9 +156,47 @@ export function SkillChatPage() {
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [input]);
 
-  // Auto-advance pack sequence after each response
+  // Auto-advance pack sequence after each response. Halts on:
+  //   - Tool error in the latest assistant message (file not found,
+  //     bash exit≠0, etc.) — running step N+1 would feed nonsense.
+  //   - Empty assistant output — model failed silently, downstream
+  //     steps would hallucinate against vapor.
+  // Either case clears the queue and surfaces a chat-level error so
+  // the user can inspect the failed step before retrying.
   useEffect(() => {
     if (isLoading || !isRunningPack) return;
+
+    const latest = useChatStore.getState().messages.slice(-1)[0];
+    if (latest?.role === 'assistant') {
+      const hadToolError =
+        latest.blocks?.some((b) => b.kind === 'tool_result' && b.isError) ?? false;
+      const hasContent =
+        (latest.content ?? '').trim().length > 0 ||
+        (latest.blocks ?? []).some(
+          (b) => b.kind === 'text' && b.text.trim().length > 0,
+        );
+      if (hadToolError) {
+        packQueueRef.current = [];
+        setIsRunningPack(false);
+        setPackProgress({ current: 0, total: 0 });
+        useChatStore.setState({
+          error:
+            'Pack halted — a tool call failed in the previous step. Inspect the message above and re-run if the workspace state is recoverable.',
+        });
+        return;
+      }
+      if (!hasContent) {
+        packQueueRef.current = [];
+        setIsRunningPack(false);
+        setPackProgress({ current: 0, total: 0 });
+        useChatStore.setState({
+          error:
+            'Pack halted — the previous step produced no output. Check the model selection (cheap models can drop tool calls) and re-run.',
+        });
+        return;
+      }
+    }
+
     if (packQueueRef.current.length === 0) {
       setIsRunningPack(false);
       setPackProgress({ current: 0, total: 0 });

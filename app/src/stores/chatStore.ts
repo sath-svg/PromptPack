@@ -1246,7 +1246,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     //   - tier  → which managed model serves the prompt
     //   - effort → reasoning budget (null on fast tier)
     //   - route → dispatch decision: chat | agent | workflow
-    const { tier, effort } = classifyPrompt(text);
+    const { tier: rawTier, effort: rawEffort } = classifyPrompt(text);
+    // Pack prompts always ride mid+ tier — cheap models hallucinate
+    // tool calls (write_file, read_file) too often, breaking pack flows
+    // that depend on file artifacts surviving across steps. Force at
+    // least `balanced` for any packName-tagged message and seed an
+    // effort floor of `low` so reasoning models actually reason instead
+    // of dumping a one-shot guess.
+    const tier = packName && rawTier === 'fast' ? 'balanced' : rawTier;
+    const effort: typeof rawEffort =
+      packName && tier !== 'fast' && !rawEffort ? 'low' : rawEffort;
     const lrRoute = predictRouteWithConfidence(text);
     let route: RouteClass = lrRoute.route;
     let fallbackUsed = false;
