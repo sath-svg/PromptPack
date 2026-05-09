@@ -23,7 +23,44 @@ import type { ModelPreset } from '../classifier';
 import type { EffortLevel } from '../classifier';
 import type { SubtaskRunResult } from './executor';
 
-const MAX_TOOL_ROUNDS = 8;
+// Hard cap on tool-loop rounds per subtask. 8 used to be the value but
+// observability traces showed a Tesla / Rivian / Lucid run where a
+// single subtask burned 18,000 input tokens on round 8 alone (history
+// accumulates linearly so round N ≈ N × base prompt). Lowered to 5;
+// any model that can't finish in 5 tool calls is almost certainly
+// looping (web_fetch returning empty repeatedly, etc).
+const MAX_TOOL_ROUNDS = 5;
+
+// If the loop sees this many consecutive tool results that look empty
+// or errored, give up — usually means the model is stuck in a fetch
+// loop (web_fetch URL paywalled / 404'd, model retries another URL,
+// repeat). Returning what we have is far cheaper than another GPT-5
+// Pro round at 15K+ input tokens.
+const MAX_CONSECUTIVE_EMPTY_TOOLS = 2;
+
+// Hard char cap on the cumulative tool-history that gets resent every
+// round. Each call to OpenRouter sends `apiMessages` verbatim — when
+// a subtask balloons past this, we stop adding to it and exit with
+// whatever text we've got. ~60 KB ≈ 15 K tokens, well below frontier
+// model context but well past the cost-effective per-call window.
+const MAX_HISTORY_CHARS = 60_000;
+
+function looksEmptyOrError(s: string): boolean {
+  const trimmed = s.trim();
+  if (!trimmed) return true;
+  if (trimmed.length < 16 && /^\(?(empty|no\s+(matches|results)|null|n\/?a)\)?$/i.test(trimmed)) {
+    return true;
+  }
+  return /^(?:ERROR:|HTTP\s+\d{3}\s|\[error\])/i.test(trimmed);
+}
+
+function historyChars(messages: { content?: string | null }[]): number {
+  let total = 0;
+  for (const m of messages) {
+    if (typeof m.content === 'string') total += m.content.length;
+  }
+  return total;
+}
 
 interface AgentSubtaskInput {
   preset: ModelPreset;
@@ -81,6 +118,7 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
   ];
   let textOut = '';
   let reasoningTokens: number | undefined;
+  let consecutiveEmptyRounds = 0;
   const forceWritePath = detectWriteFileIntent(input.prompt);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -155,6 +193,7 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
       content: string;
       is_error?: boolean;
     }> = [];
+    let allEmptyThisRound = true;
     for (const block of apiContent) {
       if (block.type !== 'tool_use' || !block.id || !block.name) continue;
       try {
@@ -168,6 +207,7 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
           tool_use_id: block.id,
           content: r.output,
         });
+        if (!looksEmptyOrError(r.output)) allEmptyThisRound = false;
       } catch (e) {
         toolResults.push({
           type: 'tool_result',
@@ -178,6 +218,15 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
       }
     }
     messages.push({ role: 'user', content: toolResults });
+    if (allEmptyThisRound) {
+      consecutiveEmptyRounds += 1;
+      if (consecutiveEmptyRounds >= MAX_CONSECUTIVE_EMPTY_TOOLS) break;
+    } else {
+      consecutiveEmptyRounds = 0;
+    }
+    // Anthropic message bodies are nested arrays — fall back to a
+    // rough JSON-stringify length to keep the budget check honest.
+    if (JSON.stringify(messages).length > MAX_HISTORY_CHARS) break;
   }
   return { text: textOut, reasoningTokens };
 }
@@ -210,6 +259,7 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
   }
   let textOut = '';
   let reasoningTokens: number | undefined;
+  let consecutiveEmptyRounds = 0;
   const forceWritePath = detectWriteFileIntent(input.prompt);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -289,6 +339,7 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
       content: reply.content ?? '',
       tool_calls: reply.tool_calls,
     });
+    let allEmptyThisRound = true;
     for (const tc of reply.tool_calls) {
       let parsed: Record<string, unknown> = {};
       try {
@@ -307,6 +358,7 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
           tool_call_id: tc.id,
           content: r.output,
         });
+        if (!looksEmptyOrError(r.output)) allEmptyThisRound = false;
       } catch (e) {
         apiMessages.push({
           role: 'tool',
@@ -314,6 +366,22 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
           content: `ERROR: ${e instanceof Error ? e.message : String(e)}`,
         });
       }
+    }
+    if (allEmptyThisRound) {
+      consecutiveEmptyRounds += 1;
+      if (consecutiveEmptyRounds >= MAX_CONSECUTIVE_EMPTY_TOOLS) {
+        // Model is looping on dead tool calls — break before the
+        // next round burns another big input on the same context.
+        break;
+      }
+    } else {
+      consecutiveEmptyRounds = 0;
+    }
+    if (historyChars(apiMessages) > MAX_HISTORY_CHARS) {
+      // Cumulative history blew the budget; stop sending more tool
+      // rounds and let the next/final assistant turn synthesize from
+      // what's already in `textOut` plus what the model knows.
+      break;
     }
   }
   return { text: textOut, reasoningTokens };

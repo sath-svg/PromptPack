@@ -541,10 +541,13 @@ async function callPlainPreset(
 
 // Agent-loop round cap. Each round is one full LLM call + tool dispatch.
 // Tighter caps protect against runaway loops on stubborn models that
-// keep tool-fishing without converging. 8 covers the realistic ceiling
-// for plan-then-do tasks; rare cases that need more should be split
-// into multiple user messages.
-const MAX_TOOL_ROUNDS = 8;
+// keep tool-fishing without converging. Lowered from 8 to 5 after a
+// Tesla / Rivian / Lucid run on GPT-5 Pro burned $8 / 1,000 credits in
+// one prompt — the model was looping on `web_fetch` calls that kept
+// returning empty pages, with each round resending the full
+// accumulating tool history. Rare cases that need more rounds should
+// be split into multiple user messages.
+const MAX_TOOL_ROUNDS = 5;
 
 interface AnthropicContentBlock {
   type: 'text' | 'tool_use';
