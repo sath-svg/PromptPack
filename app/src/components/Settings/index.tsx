@@ -4,7 +4,7 @@ import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PROVIDER_LABELS } from '../../lib/classifier';
-import { MANAGED_MODELS, MANAGED_TIER_LABELS } from '../../lib/managed-models';
+import { MANAGED_MODELS, MANAGED_TIER_LABELS, formatCreditRate } from '../../lib/managed-models';
 import { CONVEX_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
@@ -358,8 +358,8 @@ export function SettingsPage() {
                     <option key={m.id} value={m.id}>
                       {m.label}
                       {m.expensive ? ' · expensive — burns credits fast' : ''}
-                      {' · $'}
-                      {m.usdPer1MInput.toFixed(2)}/M in · ${m.usdPer1MOutput.toFixed(2)}/M out
+                      {' · '}
+                      {formatCreditRate(m)}
                     </option>
                   ))}
                 </select>

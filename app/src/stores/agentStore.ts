@@ -18,6 +18,32 @@ import {
 
 const WORKSPACE_KEY = 'skillset.agent.workspace';
 
+/**
+ * Fire a desktop Notification when the agent stages a write that the
+ * user has to approve. Lets long-running pack runs surface the gate
+ * even when the Skillset window is in the background.
+ *
+ * Permission is requested lazily on the first stage. Browsers/Tauri
+ * webviews that deny or unsupport Notification silently no-op — the
+ * in-app DiffPanel always remains the source of truth for accept/reject.
+ */
+async function notifyPendingEdit(path: string): Promise<void> {
+  if (typeof Notification === 'undefined') return;
+  try {
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    if (Notification.permission !== 'granted') return;
+    const filename = path.split(/[\\/]/).pop() ?? path;
+    new Notification('Skillset · approval needed', {
+      body: `Review changes to ${filename}`,
+      tag: 'skillset-pending-edit',
+    });
+  } catch {
+    // Permission flow blocked by the OS / settings. Skip.
+  }
+}
+
 export interface PendingEdit {
   id: string;
   path: string;
@@ -161,6 +187,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         },
       },
     }));
+    // OS-level toast so a long pack run that hits an "Accept edits: ask"
+    // gate doesn't silently stall while the user is in another window.
+    // Best-effort: requests permission once; no-ops on platforms / OS
+    // permission states that block. Pairs with the in-app DiffPanel —
+    // clicking the notification only flags attention, doesn't auto-accept.
+    void notifyPendingEdit(edit.path);
   },
 
   acceptEdit: async (id) => {

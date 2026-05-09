@@ -85,6 +85,21 @@ export function estimateCreditsForCall(args: {
   return Math.max(1, Math.ceil(usd / CREDIT_USD_VALUE));
 }
 
+/**
+ * Pretty per-1K-token cost in **credits** (not USD). One credit = $0.005,
+ * so $5/M input → 1 credit/K input. Rounds to one decimal so the UI
+ * stays readable on both cheap and frontier rows.
+ *
+ * Example: GPT-5 ($5 in / $15 out per M) → "1 cr/K in · 3 cr/K out".
+ */
+export function formatCreditRate(model: ManagedModel): string {
+  // (USD per 1M tokens) ÷ (USD per credit) ÷ 1000 = credits per 1K tokens
+  const inRate = model.usdPer1MInput / CREDIT_USD_VALUE / 1000;
+  const outRate = model.usdPer1MOutput / CREDIT_USD_VALUE / 1000;
+  const fmt = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
+  return `${fmt(inRate)} cr/K in · ${fmt(outRate)} cr/K out`;
+}
+
 export const MANAGED_TIER_LABELS: Record<ManagedTier, string> = {
   cheap: 'Cheap',
   mid: 'Mid',

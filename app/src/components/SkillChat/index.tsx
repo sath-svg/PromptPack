@@ -20,7 +20,7 @@ import { useRunStore } from '../../stores/runStore';
 import { SaveAsPackModal } from './SaveAsPackModal';
 import { Bookmark } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
-import { getManagedModel } from '../../lib/managed-models';
+import { getManagedModel, formatCreditRate } from '../../lib/managed-models';
 import { RunTracePanel } from './RunTrace/RunTracePanel';
 
 function extractVariables(text: string): string[] {
@@ -734,13 +734,11 @@ export function SkillChatPage() {
                   {msg.role === 'assistant' && msg.modelId && !msg.preset && (() => {
                     const m = getManagedModel(msg.modelId);
                     const label = m?.label ?? msg.modelId;
-                    // Token-based estimation now happens worker-side per call;
-                    // stop pretending there's a flat per-call price. Show
-                    // a "$/M tok" hint instead so users can compare cost
-                    // density at a glance.
-                    const tierCost = m
-                      ? `${m.usdPer1MInput.toFixed(2)}/M in · ${m.usdPer1MOutput.toFixed(2)}/M out`
-                      : null;
+                    // Per-call cost is variable (token-based); render a
+                    // density hint in the user's native unit — credits —
+                    // instead of upstream USD/M which most users can't
+                    // map back to their balance.
+                    const tierCost = m ? formatCreditRate(m) : null;
                     return (
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {msg.tier && (
