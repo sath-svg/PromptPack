@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/core';
 import { tauriFetch } from '../lib/tauriFetch';
 import {
   classifyTier,
@@ -943,6 +944,13 @@ interface OrchestratorMessageDeps {
   predefinedPlan?: import('../lib/orchestrator/types').PlannerOutput;
   /** Override label for the planner_hint chip when predefinedPlan is set. */
   predefinedPlanLabel?: string;
+  /**
+   * Free-form extra context (e.g. workspace `skillset.md` contents)
+   * pre-loaded into `TaskState.summaries.rolling` so every subtask sees
+   * it under "CONTEXT SO FAR". Lets users layer per-pack instructions
+   * on top of the pack's hard-coded prompts without forking the pack.
+   */
+  extraContext?: string;
   set: (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
 }
 
@@ -960,6 +968,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     telemetryId,
     predefinedPlan,
     predefinedPlanLabel,
+    extraContext,
     set,
   } = deps;
   // `deps.jwt` is intentionally ignored — refresh-aware tokens are
@@ -1007,6 +1016,13 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     const abort = useRunStore.getState().startRun(run);
 
     const taskState = emptyTaskState(text);
+    // Seed the rolling summary with skillset.md / user-supplied extras
+    // so every subtask sees them under "CONTEXT SO FAR". The rebuild
+    // job in memory.ts later overwrites this slot — the user-instructions
+    // header is preserved by including it inside the cap budget.
+    if (extraContext?.trim()) {
+      taskState.summaries.rolling = extraContext.trim();
+    }
     await useRunStore.getState().setTaskState(taskState);
 
     // Per-subtask runner. Three paths in priority order:
@@ -1995,6 +2011,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
     const workspace = useAgentStore.getState().workspace;
 
+    // Optional skillset.md — extra instructions the user drops into the
+    // workspace root that every subtask in the pack should see. Threaded
+    // into TaskState.summaries.rolling so memory.ts injects it under
+    // "CONTEXT SO FAR" for every subtask. Absent file = silent skip.
+    let extraContext: string | undefined;
+    if (workspace) {
+      for (const candidate of ['skillset.md', '.skillset.md']) {
+        try {
+          const result = await invoke<{ content: string }>('agent_read', {
+            workspace,
+            path: candidate,
+          });
+          if (result?.content?.trim()) {
+            extraContext = `## User instructions (from ${candidate})\n\n${result.content.trim()}`;
+            break;
+          }
+        } catch {
+          // File missing or unreadable — try next candidate.
+        }
+      }
+    }
+
     // Synthetic plan: one subtask per pack step. Each step depends on
     // the previous so memory.ts auto-injects the prior output into the
     // next step's prompt. Allow a broad tool set since pack prompts
@@ -2056,6 +2094,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       telemetryId,
       predefinedPlan,
       predefinedPlanLabel: packTitle,
+      extraContext,
       set,
     });
   },

@@ -180,9 +180,13 @@ export const useAuthStore = create<AuthState>()(
                 refreshExpiresAtMs = exchanged.refreshTokenExpiresAt;
               }
             } else {
+              // Surface the worker's error body so a misconfigured
+              // JWT_SECRET on Convex (the most common 500 cause) is
+              // diagnosable from devtools.
+              const errBody = await exchangeRes.text().catch(() => '');
               console.warn(
                 '[auth] Convex exchange-code failed; falling back to raw Clerk token. ' +
-                  `status=${exchangeRes.status}`,
+                  `status=${exchangeRes.status} body=${errBody.slice(0, 500)}`,
               );
             }
           } catch (e) {
