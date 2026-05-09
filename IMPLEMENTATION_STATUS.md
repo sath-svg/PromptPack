@@ -28,6 +28,9 @@ Last updated: 2026-05-09
 | extra | OS notification on pending edit | `agentStore.notifyPendingEdit` (12cb2fc) |
 | extra | Reqwest timeout 180s → 600s for slow reasoning rounds | `app/src-tauri/src/lib.rs` (8533b3e) |
 | extra | Skipped-subtask render in Run Trace | chatStore `onSubtaskFailed` upsert (1f25577) |
+| extra | Credit-rate model labels (`1 cr/K in · 3 cr/K out`) | `formatCreditRate` in `managed-models.ts` (12cb2fc) |
+| extra | OS notification on pending edit (background popup) | `agentStore.notifyPendingEdit` (12cb2fc) |
+| extra | Pack-tagged free-text auto-route + var extraction | `lib/packExtractor.ts` + SkillChat `handleSend` reroute. User types "do this for NVDA and 6 months" with pack tag → free Llama 8B extracts vars + extras → runs pack with both. Extras layer alongside `skillset.md` under unified "User instructions" block. |
 
 ---
 

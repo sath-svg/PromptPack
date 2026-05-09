@@ -22,6 +22,7 @@ import { Bookmark } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
 import { getManagedModel, formatCreditRate } from '../../lib/managed-models';
 import { RunTracePanel } from './RunTrace/RunTracePanel';
+import { extractPackContext } from '../../lib/packExtractor';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -204,6 +205,11 @@ export function SkillChatPage() {
     { vars: string[]; prompts: { text: string; header?: string }[] } | null
   >(null);
   const [packVarValues, setPackVarValues] = useState<Record<string, string>>({});
+  // Free-text adjustments the user typed alongside the pack tag that
+  // didn't map to a pack variable. Forwarded into runPack as
+  // `extraInstructions` once the var form submits. Cleared on cancel
+  // and after each successful pack run.
+  const [pendingPackExtras, setPendingPackExtras] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -310,11 +316,18 @@ export function SkillChatPage() {
       header: p.header,
       text: fillVariables(p.text, values),
     }));
+    const extras = pendingPackExtras ?? undefined;
     setPackVarForm(null);
     setVariablePrompt(null);
+    setPendingPackExtras(null);
     setPackProgress({ current: 0, total: filled.length });
     setIsRunningPack(true);
-    void runPack(selectedPack?.title ?? 'Pack', filled).finally(() => {
+    void runPack(
+      selectedPack?.title ?? 'Pack',
+      filled,
+      undefined,
+      extras,
+    ).finally(() => {
       setIsRunningPack(false);
       setPackProgress({ current: 0, total: 0 });
     });
@@ -362,10 +375,67 @@ export function SkillChatPage() {
     const text = input.trim();
     if (!text || isLoading) return;
     setInput('');
-    // If attachments are staged, prepend a note so the agent reads them
-    // locally instead of expecting their content inline. Also pass the
-    // list to the chat store so the user message renders a reusable
-    // tooltip with the saved paths.
+
+    // Pack-tagged free-text routing: if a pack with prompts is selected
+    // and the user typed something into the chat input, the typed text
+    // is treated as run-time adjustments to the pack rather than a
+    // standalone single-shot message. The Llama 8B extractor pulls any
+    // pack variables out of the text; whatever doesn't map to a var
+    // becomes `extraInstructions` (layered alongside `skillset.md`).
+    const packPromptsList = getPackPrompts();
+    if (selectedPack && packPromptsList.length > 0) {
+      const allVars = new Set<string>();
+      packPromptsList.forEach((p) =>
+        extractVariables(p.text).forEach((v) => allVars.add(v)),
+      );
+      const varList = Array.from(allVars);
+      const jwt =
+        useAuthStore.getState().session?.session_token ?? '';
+      const { values: extracted, extras } = await extractPackContext({
+        jwt,
+        vars: varList,
+        prompt: text,
+      });
+      const fullPrompts = packPromptsList.map((p) => ({
+        text: p.text,
+        header: p.header,
+      }));
+      const missing = varList.filter((v) => !(extracted[v] ?? '').trim());
+      if (missing.length === 0) {
+        // All vars covered by the user's text (or no vars in the pack).
+        // Run the pack directly with extras layered into TaskState.
+        const filled = fullPrompts.map((p) => ({
+          header: p.header,
+          text: fillVariables(p.text, extracted),
+        }));
+        const snapshot =
+          attachments.length > 0 ? [...attachments] : undefined;
+        if (snapshot) clearAttachments();
+        setPackProgress({ current: 0, total: filled.length });
+        setIsRunningPack(true);
+        void runPack(
+          selectedPack.title ?? 'Pack',
+          filled,
+          snapshot,
+          extras || undefined,
+        ).finally(() => {
+          setIsRunningPack(false);
+          setPackProgress({ current: 0, total: 0 });
+        });
+        return;
+      }
+      // Some vars still unfilled → fall back to the var form, but
+      // pre-populate the values we did extract so the user only fills
+      // the gaps. The remaining `extras` text is preserved by stashing
+      // it on the form state so submit can forward it to runPack.
+      setPackVarForm({ vars: varList, prompts: fullPrompts });
+      setPackVarValues(extracted);
+      setPendingPackExtras(extras || null);
+      return;
+    }
+
+    // Default path: no pack tag, or pack has no prompts → single-shot
+    // chat / orchestrator depending on the LR route head.
     let finalText = text;
     let snapshot: string[] | undefined;
     if (attachments.length > 0) {
@@ -885,8 +955,24 @@ export function SkillChatPage() {
                 <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   {packVarForm.prompts.length} prompts will run in sequence
                 </p>
+                {pendingPackExtras && (
+                  <p className="text-[11px] text-[var(--primary)]/80 mt-1">
+                    Your typed instructions will be applied:{' '}
+                    <span className="text-[var(--foreground)]">
+                      “{pendingPackExtras.length > 80
+                        ? pendingPackExtras.slice(0, 80) + '…'
+                        : pendingPackExtras}”
+                    </span>
+                  </p>
+                )}
               </div>
-              <button onClick={() => setPackVarForm(null)} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
+              <button
+                onClick={() => {
+                  setPackVarForm(null);
+                  setPendingPackExtras(null);
+                }}
+                className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+              >
                 <X size={14} />
               </button>
             </div>

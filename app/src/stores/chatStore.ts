@@ -211,6 +211,15 @@ interface ChatState {
     packTitle: string,
     steps: PackStep[],
     attachments?: string[],
+    /**
+     * Free-form per-run instructions to layer on top of the pack.
+     * Threaded into `TaskState.summaries.rolling` so every subtask
+     * sees them under "CONTEXT SO FAR". Used for both the workspace
+     * `skillset.md` file (auto-detected here) and the chat-input text
+     * the user types while a pack tag is selected (passed in by the
+     * SkillChat handler).
+     */
+    extraInstructions?: string,
   ) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
@@ -1986,7 +1995,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * settle the matching telemetry row. Idempotent — clicking the same
    * thumb twice toggles it off; clicking the other thumb replaces.
    */
-  runPack: async (packTitle, steps, attachments) => {
+  runPack: async (packTitle, steps, attachments, extraInstructions) => {
     if (steps.length === 0) return;
     const settings = useSettingsStore.getState();
     const { apiKeys, billingTier } = settings;
@@ -2015,7 +2024,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // workspace root that every subtask in the pack should see. Threaded
     // into TaskState.summaries.rolling so memory.ts injects it under
     // "CONTEXT SO FAR" for every subtask. Absent file = silent skip.
-    let extraContext: string | undefined;
+    // Per-run `extraInstructions` (typed by the user in the chat input
+    // alongside the pack tag) layer on top of skillset.md — both end
+    // up under one "User instructions" block so the model treats them
+    // as a single bundle of run-time adjustments.
+    const contextBlocks: string[] = [];
     if (workspace) {
       for (const candidate of ['skillset.md', '.skillset.md']) {
         try {
@@ -2024,7 +2037,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
             path: candidate,
           });
           if (result?.content?.trim()) {
-            extraContext = `## User instructions (from ${candidate})\n\n${result.content.trim()}`;
+            contextBlocks.push(
+              `### From ${candidate}\n\n${result.content.trim()}`,
+            );
             break;
           }
         } catch {
@@ -2032,6 +2047,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     }
+    if (extraInstructions?.trim()) {
+      contextBlocks.push(
+        `### From this run's chat input\n\n${extraInstructions.trim()}`,
+      );
+    }
+    const extraContext =
+      contextBlocks.length > 0
+        ? `## User instructions\n\n${contextBlocks.join('\n\n')}`
+        : undefined;
 
     // Synthetic plan: one subtask per pack step. Each step depends on
     // the previous so memory.ts auto-injects the prior output into the
