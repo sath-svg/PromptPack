@@ -51,6 +51,7 @@ function OrchestratorPlaceholder() {
   const taskState = useRunStore((s) => s.taskState);
   const plannerInfo = useRunStore((s) => s.plannerInfo);
   const developerMode = useSettingsStore((s) => s.developerMode);
+  const routeLabel = useChatStore((s) => s.pendingRouteLabel);
 
   const total = taskState?.plan?.subtasks.length ?? subtasks.length;
   const done = subtasks.filter((s) => s.status === 'done').length;
@@ -82,6 +83,11 @@ function OrchestratorPlaceholder() {
         className="animate-spin text-amber-500 mt-1 flex-shrink-0"
       />
       <div className="space-y-1 min-w-0">
+        {routeLabel && (
+          <p className="text-[11px] font-mono text-amber-500/90">
+            {routeLabel}
+          </p>
+        )}
         <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
           {label}
         </p>
@@ -150,6 +156,7 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
 export function SkillChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, voteOnMessage } = useChatStore();
   const retryFromAssistant = useChatStore((s) => s.retryFromAssistant);
+  const pendingRouteLabel = useChatStore((s) => s.pendingRouteLabel);
   const messageQueue = useChatStore((s) => s.messageQueue);
   const enqueueMessage = useChatStore((s) => s.enqueueMessage);
   const removeQueuedMessage = useChatStore((s) => s.removeQueuedMessage);
@@ -243,6 +250,15 @@ export function SkillChatPage() {
     removeQueuedMessage(0);
     void sendMessage(next.text, next.packName, next.systemPrompt, next.attachments);
   }, [isLoading, messageQueue, removeQueuedMessage, sendMessage]);
+
+  // Clear the upfront routing pill once the in-flight call resolves.
+  // The per-message model chip carries the same info long-term once
+  // the response materialises.
+  useEffect(() => {
+    if (!isLoading) {
+      useChatStore.setState({ pendingRouteLabel: null });
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -1011,6 +1027,11 @@ export function SkillChatPage() {
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl rounded-bl-sm px-4 py-3 flex items-start gap-3 max-w-[80%]">
                   <Loader2 size={16} className="animate-spin text-[var(--muted-foreground)] mt-0.5 flex-shrink-0" />
                   <div className="flex flex-col gap-1.5 min-w-0">
+                    {pendingRouteLabel && (
+                      <span className="text-[11px] font-mono text-amber-500/90">
+                        {pendingRouteLabel}
+                      </span>
+                    )}
                     {isRunningPack && packProgress.total > 0 && (
                       <span className="text-xs text-[var(--muted-foreground)]">
                         Prompt {packProgress.current}/{packProgress.total}…

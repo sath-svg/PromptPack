@@ -174,6 +174,14 @@ export interface ChatMessage {
    */
   orchestratorSkipped?: boolean;
   /**
+   * Up-front routing decision shown in the placeholder bubble *before*
+   * any LLM call lands, so the user sees which path the cost-aware
+   * router picked the moment they hit send. Cleared once the assistant
+   * response is materialised — at that point the model chip carries
+   * the same info more permanently.
+   */
+  routeLabel?: string;
+  /**
    * Routing-telemetry row id (Phase 2). Set on the assistant message so
    * the UI can settle the row with thumbs-up / thumbs-down on click and
    * so a follow-up user message can record reprompt-within seconds for
@@ -198,6 +206,15 @@ interface ChatState {
   isLoading: boolean;
   error: string | null;
   agentMode: boolean;
+  /**
+   * One-line routing decision rendered immediately after the user
+   * hits send and BEFORE any LLM call. Lets users confirm the
+   * cost-aware router picked the right path (single-shot / agent /
+   * SkillFlow) without waiting for tokens to land. Cleared once the
+   * response is materialised — by then the per-message model chip
+   * carries the same info long-term.
+   */
+  pendingRouteLabel: string | null;
   setAgentMode: (on: boolean) => void;
   /**
    * FIFO of prompts the user typed while a previous message was still
@@ -1540,6 +1557,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
   error: null,
   agentMode: false,
+  pendingRouteLabel: null,
   messageQueue: [],
 
   setAgentMode: (on) => set({ agentMode: on }),
@@ -1712,6 +1730,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       !wantsAgent;
     if (shouldOrchestrate) {
       const ws = useAgentStore.getState().workspace;
+      set({
+        pendingRouteLabel: `Routing → SkillFlow workflow · planner + subtasks`,
+      });
       await runOrchestratorMessage({
         text,
         packName,
@@ -1762,10 +1783,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         attachments: attachments && attachments.length > 0 ? [...attachments] : undefined,
         createdAt: Date.now(),
       };
+      const managedModel = getManagedModel(modelId);
+      const routeLabelStr = orchestratorSkipped
+        ? `Routing → single-shot (auto-bypassed SkillFlow) · ${managedModel?.label ?? modelId}`
+        : `Routing → single-shot · ${managedModel?.label ?? modelId}`;
       set((state) => ({
         messages: [...state.messages, userMsg],
         isLoading: true,
         error: null,
+        pendingRouteLabel: routeLabelStr,
       }));
       const fullHistory = get()
         .messages.map((m) => ({ role: m.role, content: m.content }));
