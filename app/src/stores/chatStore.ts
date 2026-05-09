@@ -249,6 +249,13 @@ interface ChatState {
   clearMessages: () => void;
   clearError: () => void;
   voteOnMessage: (messageId: string, signal: 'thumbs_up' | 'thumbs_down') => void;
+  /**
+   * Re-run the user message that produced `assistantId`. Drops the
+   * existing assistant message + any error sentinel and dispatches
+   * `sendMessage` again with the original args. Used by the manual
+   * "Retry" button on failed/empty assistant bubbles.
+   */
+  retryFromAssistant: (assistantId: string) => Promise<void>;
 }
 
 function makeId() {
@@ -2342,5 +2349,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (cur.telemetryId && next) {
       void settleRoute({ id: cur.telemetryId, userSignal: next });
     }
+  },
+
+  retryFromAssistant: async (assistantId) => {
+    const messages = get().messages;
+    const idx = messages.findIndex((m) => m.id === assistantId);
+    if (idx < 0) return;
+    // Walk back to the user message that drove this assistant turn.
+    let userIdx = idx - 1;
+    while (userIdx >= 0 && messages[userIdx].role !== 'user') userIdx--;
+    if (userIdx < 0) return;
+    const userMsg = messages[userIdx];
+    // Drop the failed assistant + clear any error sentinel so the UI
+    // doesn't show stale state while the retry runs.
+    set((state) => ({
+      messages: state.messages.filter((m) => m.id !== assistantId),
+      error: null,
+    }));
+    await get().sendMessage(
+      userMsg.content,
+      userMsg.packName,
+      undefined,
+      userMsg.attachments,
+    );
   },
 }));

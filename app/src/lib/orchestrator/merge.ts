@@ -47,7 +47,17 @@ function mergeFirst(plan: PlannerOutput, state: TaskState): string {
   for (const s of plan.subtasks) for (const d of s.depends_on) referenced.add(d);
   const leaves = ids.filter((id) => !referenced.has(id));
   const target = leaves[leaves.length - 1] ?? ids[ids.length - 1];
-  return state.subtasks[target]?.output ?? '';
+  const primary = (state.subtasks[target]?.output ?? '').trim();
+  if (primary) return primary;
+  // Fallback — the picked leaf was empty (common when the last subtask
+  // only wrote a file via `write_file` and never followed up with text).
+  // Walk the plan in reverse and return the most recent non-empty
+  // output so the chat bubble shows *something* instead of going blank.
+  for (let i = plan.subtasks.length - 1; i >= 0; i--) {
+    const out = (state.subtasks[plan.subtasks[i].id]?.output ?? '').trim();
+    if (out) return out;
+  }
+  return '';
 }
 
 function mergeConcat(plan: PlannerOutput, state: TaskState): string {

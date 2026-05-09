@@ -149,6 +149,7 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
 
 export function SkillChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, voteOnMessage } = useChatStore();
+  const retryFromAssistant = useChatStore((s) => s.retryFromAssistant);
   const messageQueue = useChatStore((s) => s.messageQueue);
   const enqueueMessage = useChatStore((s) => s.enqueueMessage);
   const removeQueuedMessage = useChatStore((s) => s.removeQueuedMessage);
@@ -785,6 +786,31 @@ export function SkillChatPage() {
                         <Bookmark size={11} />
                       </button>
                     )}
+                    {msg.role === 'assistant' && !isLoading && (() => {
+                      // Retry surface: any assistant message that came
+                      // back empty, errored, or got cancelled. Catches
+                      // both the "(run failed: …)" placeholder and the
+                      // empty bubble cases.
+                      const looksFailed =
+                        (msg.content?.startsWith('_(run failed') ?? false) ||
+                        (msg.content?.startsWith('_(cancelled') ?? false);
+                      const looksEmpty =
+                        !msg.content?.trim() &&
+                        !(msg.blocks ?? []).some(
+                          (b) => b.kind === 'text' && b.text.trim().length > 0,
+                        );
+                      if (!looksFailed && !looksEmpty) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => void retryFromAssistant(msg.id)}
+                          title="Retry — re-run the user message that produced this turn"
+                          className="p-1.5 rounded-md text-amber-500 hover:bg-amber-500/10 transition-colors"
+                        >
+                          <RefreshCw size={11} />
+                        </button>
+                      );
+                    })()}
                     {msg.role === 'assistant' && msg.telemetryId && (
                       <>
                         <button
