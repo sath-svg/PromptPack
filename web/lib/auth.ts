@@ -3,7 +3,10 @@ import { dash } from "@better-auth/infra";
 import bcrypt from "bcrypt";
 
 export const auth = betterAuth({
-  // BetterAuth Infra handles the database
+  database: {
+    type: "postgres",
+    url: process.env.DATABASE_URL!,
+  },
   plugins: [
     dash(),
   ],
