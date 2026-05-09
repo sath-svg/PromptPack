@@ -417,7 +417,11 @@ export function SkillChatPage() {
       !orchestratorEnabled
     ) {
       const lr = predictRouteWithConfidence(text);
-      if (lr.route === 'workflow' && lr.confidence >= 0.6) {
+      // Match chatStore's WORKFLOW_CONFIDENCE_FLOOR — if we wouldn't
+      // auto-route to SkillFlow even with the toggle on, don't bug
+      // the user about turning it on either. Saves the modal from
+      // firing on borderline predictions like comparison prompts.
+      if (lr.route === 'workflow' && lr.confidence >= 0.7) {
         setSkillflowGatePrompt(text);
         return;
       }
@@ -972,12 +976,14 @@ export function SkillChatPage() {
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500"
                             title={
-                              'SkillFlow is on, but Skillset detected this as one self-contained task — ' +
-                              'so it bypassed the planner / merge round-trips and ran a single-shot ' +
-                              'call. Multi-step prompts auto-engage SkillFlow.'
+                              'SkillFlow is on, but Skillset auto-routed this turn to a single-shot ' +
+                              'call to save credits. The orchestrator only engages when the route ' +
+                              'classifier reports a multi-step workflow with high confidence ' +
+                              '(≥ 70%). Single-shot Sonnet/Haiku handles compare / explain / ' +
+                              'summarise prompts at a fraction of the cost.'
                             }
                           >
-                            SkillFlow auto-bypassed
+                            Auto-routed to single-shot
                           </span>
                         )}
                       </div>

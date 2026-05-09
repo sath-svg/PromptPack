@@ -1681,8 +1681,30 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const wantsAgent =
       Boolean(agentMode && workspace) &&
       (route === 'agent' || writeFileIntent !== null);
-    const shouldOrchestrate =
+    // Cost-aware confidence floor for orchestrator routing.
+    //
+    // The LR route head outputs a soft probability across {chat, agent,
+    // workflow}. A barely-confident `workflow` prediction (say 0.45)
+    // shouldn't pay the ~20cr orchestrator overhead — single-shot
+    // Sonnet/Haiku handles those cases at ~5cr. We only auto-route to
+    // SkillFlow when the head is *clearly* signalling fan-out work
+    // (≥ 0.7 confidence, after the LLM tiebreaker if it ran).
+    //
+    // Tradeoff calibrated against actual session traces — a 218cr run
+    // burnt on a Compare-React-Vue-Svelte prompt that single-shot
+    // Sonnet would've answered for ~5cr. The LR head said `workflow`
+    // at ~0.6 confidence; this floor would have kept it single-shot.
+    const WORKFLOW_CONFIDENCE_FLOOR = 0.7;
+    const workflowConfident =
       route === 'workflow' &&
+      // After LLM tiebreaker, lrRoute.confidence is the original LR
+      // probability — not the fallback's. Treat the fallback agreement
+      // as a confidence boost (2nd opinion confirmed), but still
+      // require ≥ floor so disagreements don't auto-route to expensive.
+      (lrRoute.confidence >= WORKFLOW_CONFIDENCE_FLOOR ||
+        (fallbackUsed && fallbackRoute === 'workflow'));
+    const shouldOrchestrate =
+      workflowConfident &&
       settings.orchestratorEnabled &&
       settings.managedModeEnabled &&
       authSession?.session_token &&
@@ -1725,10 +1747,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
       // If we got here with SkillFlow on, the route head said this
-      // message was `chat` or `agent` — not `workflow`. Flag the
-      // message so the UI can render the auto-bypass hint.
+      // message was `chat`/`agent`, OR it said `workflow` but with
+      // low confidence — both cases auto-bypass the orchestrator's
+      // ~20cr overhead and run single-shot. Surface the bypass so
+      // users see why no Run Trace activity fired.
       const orchestratorSkipped =
-        settings.orchestratorEnabled && route !== 'workflow';
+        settings.orchestratorEnabled &&
+        (route !== 'workflow' || !workflowConfident);
       const userMsg: ChatMessage = {
         id: makeId(),
         role: 'user',
