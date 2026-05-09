@@ -1,8 +1,7 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, useAuth } from "@/lib/auth-compat";
 import { useEffect } from "react";
-import { useAuth } from "@clerk/nextjs";
 
 /**
  * Wrapper around Clerk's UserButton that syncs logout events with the browser extension

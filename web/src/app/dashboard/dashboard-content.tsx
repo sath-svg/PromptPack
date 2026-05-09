@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useUser } from "@/lib/auth-compat";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
@@ -15,12 +15,12 @@ import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
 import { TutorialOverlay } from "@/components/onboarding/tutorial-overlay";
 
 export function DashboardContent() {
-  const { user: clerkUser, isLoaded } = useUser();
+  const { user: authUser, isLoaded } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
   const convexUser = useQuery(
-    api.users.getByClerkId,
-    clerkUser?.id ? { clerkId: clerkUser.id } : "skip"
+    api.users.getByBetterAuthId,
+    authUser?.id ? { betterAuthId: authUser.id } : "skip"
   );
   const upsertUser = useMutation(api.users.upsert);
   const savedPacks = useQuery(
@@ -35,10 +35,10 @@ export function DashboardContent() {
   const [toast, setToast] = useState<string | null>(null);
   const signupTracked = useRef(false);
 
-  // Auto-sync Clerk user to Convex if not exists
+  // Auto-sync auth user to Convex if not exists
   useEffect(() => {
     async function syncUser() {
-      if (isLoaded && clerkUser && convexUser === null) {
+      if (isLoaded && authUser && convexUser === null) {
         // Track first-time sign-up
         if (!signupTracked.current) {
           signupTracked.current = true;
@@ -46,15 +46,15 @@ export function DashboardContent() {
           trackLinkedInConversion(24381820);
         }
         await upsertUser({
-          clerkId: clerkUser.id,
-          email: clerkUser.primaryEmailAddress?.emailAddress || "",
-          name: clerkUser.fullName || clerkUser.firstName || undefined,
-          imageUrl: clerkUser.imageUrl || undefined,
+          clerkId: authUser.id, // Using betterAuthId as clerkId for backward compat
+          email: authUser.primaryEmailAddress?.emailAddress || "",
+          name: authUser.fullName || undefined,
+          imageUrl: authUser.imageUrl || undefined,
         });
       }
     }
     syncUser();
-  }, [isLoaded, clerkUser, convexUser, upsertUser]);
+  }, [isLoaded, authUser, convexUser, upsertUser]);
 
   // Track post-checkout success
   useEffect(() => {
@@ -79,7 +79,7 @@ export function DashboardContent() {
   }
 
   // Still syncing user to Convex
-  if (convexUser === null && clerkUser) {
+  if (convexUser === null && authUser) {
     return <div className="loading">Setting up your account...</div>;
   }
 
@@ -109,8 +109,8 @@ export function DashboardContent() {
     savedPromptsCount === 0;
 
   const handleCompleteOnboarding = async () => {
-    if (clerkUser?.id) {
-      await completeOnboarding({ clerkId: clerkUser.id });
+    if (authUser?.id) {
+      await completeOnboarding({ clerkId: authUser.id });
     }
   };
 
@@ -131,7 +131,7 @@ export function DashboardContent() {
         <TutorialOverlay onComplete={handleCompleteOnboarding} />
       )}
 
-      <h1>Welcome back, {clerkUser?.firstName || "there"}!</h1>
+      <h1>Welcome back, {authUser?.fullName?.split(" ")[0] || "there"}!</h1>
 
       <div className="dashboard-grid">
         <div className="dashboard-card">
@@ -220,27 +220,27 @@ export function DashboardContent() {
 
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
-        {convexUser?._id && clerkUser?.id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={clerkUser.id} savedPromptsCount={savedPromptsCount} />
+        {convexUser?._id && authUser?.id && (
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={authUser.id} savedPromptsCount={savedPromptsCount} />
         )}
       </div>
 
       {/* PromptControl Section (Pro+ only) */}
-      {(hasPro || isStudio) && convexUser?._id && clerkUser?.id && (
+      {(hasPro || isStudio) && convexUser?._id && authUser?.id && (
         <div className="dashboard-section">
-          <PromptControl userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={clerkUser.id} />
+          <PromptControl userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={authUser.id} />
         </div>
       )}
 
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
         <h2>Your Saved Prompts</h2>
-        {convexUser?._id && clerkUser?.id && (
+        {convexUser?._id && authUser?.id && (
           <SavedPrompts
             userId={convexUser._id}
             hasPro={hasPro}
             isStudio={isStudio}
-            clerkId={clerkUser.id}
+            clerkId={authUser.id}
           />
         )}
       </div>

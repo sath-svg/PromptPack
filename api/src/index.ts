@@ -18,9 +18,15 @@ export interface Env {
   ALLOWED_ORIGINS: string;
   OLLAMA_URL: string;
   GROQ_API_KEY: string;
+  // Clerk (legacy, active until cutover)
   CLERK_ISSUER: string;
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
+  // BetterAuth (new provider)
+  BETTER_AUTH_ISSUER: string;
+  BETTER_AUTH_JWKS_URL: string;
+  BETTER_AUTH_AUDIENCE: string;
+  // MCP tokens
   MCP_TOKEN_SECRET: string;
 }
 
@@ -358,11 +364,12 @@ async function getHmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-async function mintMcpToken(clerkId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
+async function mintMcpToken(userId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
+  // Works with both Clerk IDs and BetterAuth IDs
   const now = Math.floor(Date.now() / 1000);
   const expiresAt = now + 30 * 24 * 60 * 60; // 30 days
   const header = { alg: "HS256", typ: "JWT" };
-  const payload = { sub: clerkId, iat: now, exp: expiresAt, type: "mcp" };
+  const payload = { sub: userId, iat: now, exp: expiresAt, type: "mcp" };
   const enc = new TextEncoder();
   const headerB64 = encodeBase64Url(enc.encode(JSON.stringify(header)));
   const payloadB64 = encodeBase64Url(enc.encode(JSON.stringify(payload)));
@@ -390,13 +397,61 @@ async function verifyMcpToken(token: string, env: Env): Promise<{ sub?: string }
   return { sub: payload.sub };
 }
 
-async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
-  // Try Clerk RS256 first (no conflict: verifyClerkJwt checks alg === "RS256")
+async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPayload | null> {
+  // BetterAuth uses same RS256 format as Clerk
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
+  const header = parseJwtPart<ClerkJwtHeader>(encodedHeader);
+  const payload = parseJwtPart<ClerkJwtPayload>(encodedPayload);
+  if (!header || !payload) return null;
+  if (header.alg !== "RS256" || !header.kid) return null;
+
+  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+  if (payload.nbf && payload.nbf * 1000 > Date.now()) return null;
+  if (env.BETTER_AUTH_ISSUER && payload.iss !== env.BETTER_AUTH_ISSUER) return null;
+  if (!isAudienceValid(payload, env.BETTER_AUTH_AUDIENCE || null)) return null;
+
+  const jwksUrl = env.BETTER_AUTH_JWKS_URL || (env.BETTER_AUTH_ISSUER ? `${env.BETTER_AUTH_ISSUER}/.well-known/jwks.json` : "");
+  if (!jwksUrl) return null;
+  const jwks = await getClerkJwks(jwksUrl); // Reuse JWKS fetching (generic RS256)
+  if (!jwks?.keys?.length) return null;
+
+  const jwk = jwks.keys.find((key) => key.kid === header.kid && key.kty === "RSA");
+  if (!jwk) return null;
+
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+
+  const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
+  const signature = decodeBase64Url(encodedSignature);
+  const verified = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
+  if (!verified) return null;
+
+  return payload;
+}
+
+async function verifyMcpOrClerkOrBetterAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Try Clerk RS256 first
   const clerk = await verifyClerkJwt(token, env);
   if (clerk) return clerk;
+  // Try BetterAuth RS256 second
+  const betterAuth = await verifyBetterAuthJwt(token, env);
+  if (betterAuth) return betterAuth;
   // Fall back to MCP HS256 token
   if (!env.MCP_TOKEN_SECRET) return null;
   return verifyMcpToken(token, env);
+}
+
+async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Kept for backward compat, delegates to triple-auth version
+  return verifyMcpOrClerkOrBetterAuthJwt(token, env);
 }
 
 function getEnhanceMode(input: unknown): EnhanceMode | null {

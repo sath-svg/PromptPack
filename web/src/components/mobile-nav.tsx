@@ -1,6 +1,6 @@
 "use client";
 
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton } from "@/lib/auth-compat";
 import Link from "next/link";
 import { useState } from "react";
 

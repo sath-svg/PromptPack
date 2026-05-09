@@ -2,9 +2,10 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Users synced from Clerk
+  // Users synced from Clerk (or BetterAuth post-migration)
   users: defineTable({
     clerkId: v.string(),
+    betterAuthId: v.optional(v.string()), // User's BetterAuth ID after migration
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
@@ -12,14 +13,20 @@ export default defineSchema({
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     createdAt: v.number(),
+    migratedAt: v.optional(v.number()), // Timestamp when user migrated from Clerk to BetterAuth
     // Grace period for downgraded users (timestamp when packs will be deleted)
     packDeletionAt: v.optional(v.number()),
     // Lifetime free evaluation trials used (max 3 for free users)
     evalTrialsUsed: v.optional(v.number()),
     // Whether the user has completed the onboarding tutorial
     onboardingCompleted: v.optional(v.boolean()),
+    // Monthly credits for AI features
+    monthlyCredits: v.optional(v.number()),
+    monthlyCreditsResetAt: v.optional(v.number()),
+    topupCredits: v.optional(v.number()),
   })
     .index("by_clerk_id", ["clerkId"])
+    .index("by_better_auth_id", ["betterAuthId"])
     .index("by_stripe_customer_id", ["stripeCustomerId"]),
 
   // User-created packs (metadata only - files stored in R2)

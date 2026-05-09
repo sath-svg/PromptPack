@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useAuth, useUser, useClerk, SignIn } from "@clerk/nextjs";
+import { useAuth, useUser, useClerk, SignIn } from "@/lib/auth-compat";
 
 /**
  * Desktop Auth page for Tauri desktop app OAuth flow
@@ -56,9 +56,7 @@ export default function DesktopAuthPage() {
         return;
       }
 
-      const firstName = user.firstName || "";
-      const lastName = user.lastName || "";
-      const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
+      const name = user.fullName || "";
       const email = user.primaryEmailAddress?.emailAddress || "";
       const image = user.imageUrl || "";
 
@@ -139,7 +137,7 @@ export default function DesktopAuthPage() {
 
   // If signed in and NOT switching accounts, show confirmation screen
   if (isLoaded && isSignedIn && user && !switchingAccount) {
-    const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.username || "User";
+    const displayName = user.fullName || "User";
     const firstName = displayName.split(" ")[0];
 
     return (
@@ -235,11 +233,7 @@ export default function DesktopAuthPage() {
         <p className="text-muted-foreground text-sm mb-8">
           {switchingAccount ? "Sign in with a different account" : "Connect your desktop app to sync prompts"}
         </p>
-        <SignIn
-          routing="hash"
-          forceRedirectUrl={isDesktopSource ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}` : "/desktop-auth"}
-          signUpForceRedirectUrl={isDesktopSource ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}` : "/desktop-auth"}
-        />
+        <SignIn />
       </div>
     );
   }

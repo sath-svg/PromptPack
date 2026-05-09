@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
           ? {
               id: user.id,
               email: user.emailAddresses[0]?.emailAddress || "",
-              name: user.firstName || user.username || undefined,
+              name: user.fullName || undefined,
             }
           : undefined,
       },

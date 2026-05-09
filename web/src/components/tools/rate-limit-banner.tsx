@@ -1,6 +1,6 @@
 "use client";
 
-import { SignUpButton } from "@clerk/nextjs";
+import { SignUpButton } from "@/lib/auth-compat";
 import Link from "next/link";
 
 interface RateLimitBannerProps {

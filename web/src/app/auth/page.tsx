@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@/lib/auth-compat";
 
 /**
  * Auth page for Chrome extension OAuth flow

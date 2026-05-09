@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SignedIn } from "@clerk/nextjs";
+import { SignedIn } from "@/lib/auth-compat";
 import { startStripeCheckout } from "@/lib/billing-client";
 
 export function UpgradeButton() {

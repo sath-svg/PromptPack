@@ -590,3 +590,55 @@ export const syncPlanFromClerk = mutation({
     }
   },
 });
+
+// Migration: Move user from Clerk to BetterAuth
+export const migrateClerkToBetterAuth = mutation({
+  args: {
+    clerkId: v.string(),
+    betterAuthId: v.string(),
+  },
+  handler: async (ctx, { clerkId, betterAuthId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User not found with clerkId: ${clerkId}`);
+    }
+
+    // Check if BetterAuth ID already exists (user already migrated)
+    if (user.betterAuthId) {
+      return {
+        success: false,
+        error: `User already migrated to BetterAuth (id: ${user.betterAuthId})`,
+      };
+    }
+
+    // Perform migration
+    await ctx.db.patch(user._id, {
+      betterAuthId,
+      migratedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: `User migrated from Clerk to BetterAuth`,
+      userId: user._id,
+      clerkId,
+      betterAuthId,
+      migratedAt: Date.now(),
+    };
+  },
+});
+
+// Get user by BetterAuth ID (for post-migration)
+export const getByBetterAuthId = query({
+  args: { betterAuthId: v.string() },
+  handler: async (ctx, { betterAuthId }) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_better_auth_id", (q) => q.eq("betterAuthId", betterAuthId))
+      .first();
+  },
+});

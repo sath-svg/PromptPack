@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useAuth } from "@clerk/nextjs";
-import { SignUpButton } from "@clerk/nextjs";
+import { useAuth, SignUpButton } from "@/lib/auth-compat";
 import Link from "next/link";
 import { ToolResultCard } from "./tool-result-card";
 import { RateLimitBanner } from "./rate-limit-banner";

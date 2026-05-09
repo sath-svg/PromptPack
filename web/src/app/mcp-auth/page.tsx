@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, useRef } from "react";
-import { useAuth, useUser, SignIn } from "@clerk/nextjs";
+import { useAuth, useUser, SignIn } from "@/lib/auth-compat";
 import { useSearchParams } from "next/navigation";
 
 const API_BASE = "https://api.pmtpk.com";
@@ -128,11 +128,7 @@ function McpAuthContent() {
         <p className="text-muted-foreground text-sm mb-8 text-center max-w-md">
           Sign in to connect your OpenClaw or AI assistant to PromptPack
         </p>
-        <SignIn
-          routing="hash"
-          forceRedirectUrl={`/mcp-auth?code=${code}`}
-          signUpForceRedirectUrl={`/mcp-auth?code=${code}`}
-        />
+        <SignIn />
       </div>
     );
   }

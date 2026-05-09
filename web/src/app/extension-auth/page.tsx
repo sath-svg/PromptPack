@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, useUser, SignIn } from "@clerk/nextjs";
+import { useAuth, useUser, SignIn } from "@/lib/auth-compat";
 
 /**
  * Extension Auth page for Chrome extension OAuth flow
@@ -225,10 +225,7 @@ export default function ExtensionAuthPage() {
         <p style={{ color: "var(--muted)", marginBottom: "1rem" }}>
           Sign in to connect your extension
         </p>
-        <SignIn
-          routing="hash"
-          afterSignInUrl={currentUrl.toString()}
-        />
+        <SignIn />
       </div>
     );
   }

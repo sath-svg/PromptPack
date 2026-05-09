@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth-compat";
 import { PromptInput } from "./prompt-input";
 import { ToolResultCard } from "./tool-result-card";
 import { RateLimitBanner } from "./rate-limit-banner";

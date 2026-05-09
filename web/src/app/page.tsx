@@ -1,4 +1,4 @@
-import { SignUpButton, SignedIn, SignedOut } from "@clerk/nextjs";
+import { SignUpButton, SignedIn, SignedOut } from "@/lib/auth-compat";
 import Image from "next/image";
 import Link from "next/link";
 import { assetUrl } from "@/lib/constants";

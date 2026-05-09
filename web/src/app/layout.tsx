@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import {
-  ClerkProvider,
+  AuthProvider,
   SignInButton,
   SignUpButton,
   SignedIn,
   SignedOut,
-} from "@clerk/nextjs";
-import { dark } from "@clerk/themes";
+} from "@/lib/auth-compat";
 import Link from "next/link";
 import Image from "next/image";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
@@ -111,7 +110,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider appearance={{ baseTheme: dark }}>
+    <AuthProvider>
       <html lang="en">
         <head>
           <link rel="icon" type="image/png" sizes="16x16" href="/img/icon-16.png" />
@@ -216,6 +215,6 @@ window._linkedin_data_partner_ids.push(window._linkedin_partner_id);`}
           />
         </body>
       </html>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
 
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL!;
