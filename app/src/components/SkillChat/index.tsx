@@ -166,6 +166,22 @@ export function SkillChatPage() {
   useEffect(() => {
     if (isLoading || !isRunningPack) return;
 
+    // Halt if the previous step errored at the chat-store level (worker
+    // 500, session expired, insufficient credits, etc.). The error
+    // handlers in `chatStore.sendMessage` flip `isLoading=false` without
+    // pushing an assistant message, so the older `latest.role` check
+    // would silently fall through and fire the next pack prompt against
+    // a still-broken state. Inspect the live error sentinel instead.
+    const liveError = useChatStore.getState().error;
+    if (liveError) {
+      packQueueRef.current = [];
+      setIsRunningPack(false);
+      setPackProgress({ current: 0, total: 0 });
+      // Keep the existing error toast; don't overwrite it. User sees the
+      // original 500 / session-expired message and can decide what to do.
+      return;
+    }
+
     const latest = useChatStore.getState().messages.slice(-1)[0];
     if (latest?.role === 'assistant') {
       const hadToolError =
@@ -467,10 +483,13 @@ export function SkillChatPage() {
         </div>
 
         {/* Messages */}
-        {/* `pt-8` gives the floating toolbar (`absolute -top-7`) room to
-            render above the first message — without it `overflow-y-auto`
-            clips the copy / bookmark / thumbs icons on the topmost bubble. */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-8 min-h-0">
+        {/* `pt-10` reserves space above the first message for its
+            floating toolbar (`absolute -top-7`). `overflow-y-auto`
+            otherwise clips the copy / bookmark / thumbs icons on the
+            topmost bubble — visible whenever the first prompt of a
+            session sits alone (e.g. a sign-in error blocks the
+            assistant reply). */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-10 min-h-0">
           {messages.length === 0 && !packVarForm && !variablePrompt && (
             <div className="flex h-full items-center justify-center py-12">
               <div className="relative w-full max-w-[520px]">
