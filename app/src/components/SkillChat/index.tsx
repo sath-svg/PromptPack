@@ -787,10 +787,11 @@ export function SkillChatPage() {
                       </button>
                     )}
                     {msg.role === 'assistant' && !isLoading && (() => {
-                      // Retry surface: any assistant message that came
-                      // back empty, errored, or got cancelled. Catches
-                      // both the "(run failed: …)" placeholder and the
-                      // empty bubble cases.
+                      // Retry surfaces only when something actually went
+                      // wrong: explicit failure / cancel sentinel, fully
+                      // empty bubble, or low-confidence run trace. Hidden
+                      // on a happy answer the user could just edit / vote
+                      // on — keeps the toolbar quiet.
                       const looksFailed =
                         (msg.content?.startsWith('_(run failed') ?? false) ||
                         (msg.content?.startsWith('_(cancelled') ?? false);
@@ -799,12 +800,32 @@ export function SkillChatPage() {
                         !(msg.blocks ?? []).some(
                           (b) => b.kind === 'text' && b.text.trim().length > 0,
                         );
-                      if (!looksFailed && !looksEmpty) return null;
+                      // Pull the lowest confidence across this turn's
+                      // subtasks (orchestrator runs only). Below the
+                      // 0.55 threshold = the heuristic flagged the
+                      // output, surface a retry option for the user.
+                      const lowConfidence =
+                        msg.role === 'assistant' &&
+                        runSubtasks.length > 0 &&
+                        runSubtasks.some(
+                          (s) =>
+                            typeof s.confidence === 'number' &&
+                            s.confidence < 0.55,
+                        );
+                      if (!looksFailed && !looksEmpty && !lowConfidence) {
+                        return null;
+                      }
                       return (
                         <button
                           type="button"
                           onClick={() => void retryFromAssistant(msg.id)}
-                          title="Retry — re-run the user message that produced this turn"
+                          title={
+                            looksFailed
+                              ? 'Retry — re-run the user message that produced this turn'
+                              : looksEmpty
+                                ? 'Retry — bubble came back empty'
+                                : 'Retry — confidence on at least one subtask was below 55%'
+                          }
                           className="p-1.5 rounded-md text-amber-500 hover:bg-amber-500/10 transition-colors"
                         >
                           <RefreshCw size={11} />
