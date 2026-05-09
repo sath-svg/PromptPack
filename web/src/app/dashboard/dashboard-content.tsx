@@ -46,10 +46,11 @@ export function DashboardContent() {
           trackLinkedInConversion(24381820);
         }
         await upsertUser({
-          clerkId: authUser.id, // Using betterAuthId as clerkId for backward compat
+          clerkId: authUser.id,
           email: authUser.primaryEmailAddress?.emailAddress || "",
           name: authUser.fullName || undefined,
           imageUrl: authUser.imageUrl || undefined,
+          betterAuthId: authUser.id,
         });
       }
     }

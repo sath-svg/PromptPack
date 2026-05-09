@@ -14,9 +14,13 @@ import { join } from "node:path";
 import { betterAuth } from "better-auth";
 import { dash } from "@better-auth/infra";
 import bcrypt from "bcrypt";
+import { Pool } from "pg";
 
 // Inline auth config (same as lib/auth.ts) to avoid ESM resolution issues
 const auth = betterAuth({
+  database: new Pool({
+    connectionString: process.env.DATABASE_URL!,
+  }),
   plugins: [dash()],
   emailAndPassword: {
     enabled: true,
