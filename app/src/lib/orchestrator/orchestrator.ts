@@ -90,25 +90,40 @@ export class Orchestrator {
     ev: OrchestratorEvents,
   ): Promise<void> {
     try {
-      const plannerResult = await runPlanner(goal, {
-        jwt: this.deps.jwt,
-        // `'server'` (free Llama 3.1 8B via Skillset Groq proxy) is the
-        // default — keeps the planner cost zero. `skill.plannerModelId`
-        // forces a managed-mode override when the user explicitly picked
-        // a smarter planner per-skill.
-        source: this.deps.skill?.plannerModelId ? 'managed' : 'server',
-        modelId: this.deps.skill?.plannerModelId ?? undefined,
-        hints: this.deps.skill?.plannerHints
-          ? safeJSON(this.deps.skill.plannerHints)
-          : undefined,
-        workspace: this.deps.workspace ?? null,
-        signal: this.deps.signal,
-      });
-      const plan = plannerResult.output;
+      // Pack runs supply a predefined plan — pack prompts ARE the
+      // subtask list. Skip the planner LLM entirely; it would only
+      // re-decompose an already-decomposed task and lose domain
+      // context the user encoded into the pack steps.
+      let plan: PlannerOutput;
+      let planSource: PlannerSource = 'server';
+      let planModelId = '';
+      if (this.deps.predefinedPlan) {
+        plan = this.deps.predefinedPlan;
+        planSource = 'server'; // synthetic; nothing was actually called
+        planModelId = this.deps.predefinedPlanSource?.modelId ?? 'pack';
+      } else {
+        const plannerResult = await runPlanner(goal, {
+          jwt: this.deps.jwt,
+          // `'server'` (free Llama 3.1 8B via Skillset Groq proxy) is the
+          // default — keeps the planner cost zero. `skill.plannerModelId`
+          // forces a managed-mode override when the user explicitly picked
+          // a smarter planner per-skill.
+          source: this.deps.skill?.plannerModelId ? 'managed' : 'server',
+          modelId: this.deps.skill?.plannerModelId ?? undefined,
+          hints: this.deps.skill?.plannerHints
+            ? safeJSON(this.deps.skill.plannerHints)
+            : undefined,
+          workspace: this.deps.workspace ?? null,
+          signal: this.deps.signal,
+        });
+        plan = plannerResult.output;
+        planSource = plannerResult.source;
+        planModelId = plannerResult.modelId;
+      }
       state.plan = plan;
       await ev.onPlan(plan, {
-        source: plannerResult.source,
-        modelId: plannerResult.modelId,
+        source: planSource,
+        modelId: planModelId,
       });
 
       // Index subtasks by id so the start callback can resolve back to the

@@ -135,11 +135,16 @@ export function SkillChatPage() {
   const [variablePrompt, setVariablePrompt] = useState<{ text: string; vars: string[] } | null>(null);
   const [variableValues, setVariableValues] = useState<Record<string, string>>({});
 
-  // Pack workflow runner
-  const packQueueRef = useRef<string[]>([]);
+  // Pack runner — drives the orchestrator path. The whole pack runs as
+  // ONE Run with subtasks chained via `depends_on`, so step N inherits
+  // step N-1's output through shared TaskState. No more client-side
+  // queue draining; the orchestrator's executor handles sequencing,
+  // halt-on-error, and cancel.
   const [isRunningPack, setIsRunningPack] = useState(false);
   const [packProgress, setPackProgress] = useState({ current: 0, total: 0 });
-  const [packVarForm, setPackVarForm] = useState<{ vars: string[]; prompts: string[] } | null>(null);
+  const [packVarForm, setPackVarForm] = useState<
+    { vars: string[]; prompts: { text: string; header?: string }[] } | null
+  >(null);
   const [packVarValues, setPackVarValues] = useState<Record<string, string>>({});
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -156,73 +161,17 @@ export function SkillChatPage() {
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [input]);
 
-  // Auto-advance pack sequence after each response. Halts on:
-  //   - Tool error in the latest assistant message (file not found,
-  //     bash exit≠0, etc.) — running step N+1 would feed nonsense.
-  //   - Empty assistant output — model failed silently, downstream
-  //     steps would hallucinate against vapor.
-  // Either case clears the queue and surfaces a chat-level error so
-  // the user can inspect the failed step before retrying.
+  // Pack progress mirror — the orchestrator drives execution; this
+  // effect just syncs `packProgress` to the live runStore subtask
+  // counts so the existing `Running 2/3` chip in the header keeps
+  // working without any orchestration changes.
+  const runSubtasks = useRunStore((s) => s.subtasks);
   useEffect(() => {
-    if (isLoading || !isRunningPack) return;
-
-    // Halt if the previous step errored at the chat-store level (worker
-    // 500, session expired, insufficient credits, etc.). The error
-    // handlers in `chatStore.sendMessage` flip `isLoading=false` without
-    // pushing an assistant message, so the older `latest.role` check
-    // would silently fall through and fire the next pack prompt against
-    // a still-broken state. Inspect the live error sentinel instead.
-    const liveError = useChatStore.getState().error;
-    if (liveError) {
-      packQueueRef.current = [];
-      setIsRunningPack(false);
-      setPackProgress({ current: 0, total: 0 });
-      // Keep the existing error toast; don't overwrite it. User sees the
-      // original 500 / session-expired message and can decide what to do.
-      return;
-    }
-
-    const latest = useChatStore.getState().messages.slice(-1)[0];
-    if (latest?.role === 'assistant') {
-      const hadToolError =
-        latest.blocks?.some((b) => b.kind === 'tool_result' && b.isError) ?? false;
-      const hasContent =
-        (latest.content ?? '').trim().length > 0 ||
-        (latest.blocks ?? []).some(
-          (b) => b.kind === 'text' && b.text.trim().length > 0,
-        );
-      if (hadToolError) {
-        packQueueRef.current = [];
-        setIsRunningPack(false);
-        setPackProgress({ current: 0, total: 0 });
-        useChatStore.setState({
-          error:
-            'Pack halted — a tool call failed in the previous step. Inspect the message above and re-run if the workspace state is recoverable.',
-        });
-        return;
-      }
-      if (!hasContent) {
-        packQueueRef.current = [];
-        setIsRunningPack(false);
-        setPackProgress({ current: 0, total: 0 });
-        useChatStore.setState({
-          error:
-            'Pack halted — the previous step produced no output. Check the model selection (cheap models can drop tool calls) and re-run.',
-        });
-        return;
-      }
-    }
-
-    if (packQueueRef.current.length === 0) {
-      setIsRunningPack(false);
-      setPackProgress({ current: 0, total: 0 });
-      return;
-    }
-    const next = packQueueRef.current.shift()!;
-    setPackProgress((p) => ({ ...p, current: p.current + 1 }));
-    sendMessage(next, selectedPack?.title, buildSystemPrompt());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, isRunningPack]);
+    if (!isRunningPack) return;
+    const done = runSubtasks.filter((s) => s.status === 'done').length;
+    const total = runSubtasks.length;
+    if (total > 0) setPackProgress({ current: done, total });
+  }, [isRunningPack, runSubtasks]);
 
   const allPacks = [
     ...cloudPacks.map((p) => ({ ...p, type: 'cloud' as const, title: p.source })),
@@ -266,19 +215,28 @@ export function SkillChatPage() {
     if (!prompts.length) return;
     const allVars = new Set<string>();
     prompts.forEach((p) => extractVariables(p.text).forEach((v) => allVars.add(v)));
+    const fullPrompts = prompts.map((p) => ({ text: p.text, header: p.header }));
     if (allVars.size > 0) {
-      setPackVarForm({ vars: Array.from(allVars), prompts: prompts.map((p) => p.text) });
+      setPackVarForm({ vars: Array.from(allVars), prompts: fullPrompts });
       setPackVarValues({});
     } else {
-      startPackRun(prompts.map((p) => p.text), {});
+      startPackRun(fullPrompts, {});
     }
   };
 
-  const startPackRun = (promptTexts: string[], values: Record<string, string>) => {
-    // Guardrail: with agent OFF the model can't gather missing values via
-    // tool calls, so any blank variable would silently send "{name}" to
-    // the LLM and produce a nonsense response. Block the run and surface
-    // a clear error instead. Agent mode can recover by asking the user.
+  const runPack = useChatStore((s) => s.runPack);
+
+  /**
+   * Pack run — orchestrator path. Each pack prompt becomes a subtask
+   * with `depends_on` chained to the previous, so step N inherits
+   * step N-1's output via shared TaskState. Run Trace panel auto-opens
+   * with one chip per step. Single Run row in SQLite spans the whole
+   * pack (used to be one row per step under the old queue path).
+   */
+  const startPackRun = (
+    prompts: { text: string; header?: string }[],
+    values: Record<string, string>,
+  ) => {
     if (!agentMode) {
       const required = packVarForm?.vars ?? [];
       const missing = required.filter((v) => !(values[v] ?? '').trim());
@@ -290,18 +248,25 @@ export function SkillChatPage() {
       }
     }
     setVarGuardError(null);
-    const filled = promptTexts.map((t) => fillVariables(t, values));
+    const filled = prompts.map((p) => ({
+      header: p.header,
+      text: fillVariables(p.text, values),
+    }));
     setPackVarForm(null);
     setVariablePrompt(null);
-    const [first, ...rest] = filled;
-    packQueueRef.current = rest;
-    setPackProgress({ current: 1, total: filled.length });
+    setPackProgress({ current: 0, total: filled.length });
     setIsRunningPack(true);
-    sendMessage(first, selectedPack?.title, buildSystemPrompt());
+    void runPack(selectedPack?.title ?? 'Pack', filled).finally(() => {
+      setIsRunningPack(false);
+      setPackProgress({ current: 0, total: 0 });
+    });
   };
 
   const cancelPackRun = () => {
-    packQueueRef.current = [];
+    // Pack now runs as one orchestrator Run — cancelling fires the
+    // shared AbortController which propagates into in-flight LLM calls
+    // and marks the run row + remaining subtasks as cancelled.
+    void useRunStore.getState().cancelRun();
     setIsRunningPack(false);
     setPackProgress({ current: 0, total: 0 });
   };

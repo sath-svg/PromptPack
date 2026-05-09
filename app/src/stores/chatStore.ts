@@ -187,6 +187,14 @@ export interface ChatMessage {
   createdAt: number;
 }
 
+/** A single pack prompt — already filled with variable values. */
+export interface PackStep {
+  /** Optional short label rendered above the prompt (e.g. `Stock Analysis Plan`). */
+  header?: string;
+  /** Filled prompt text sent to the model. */
+  text: string;
+}
+
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
@@ -194,6 +202,18 @@ interface ChatState {
   agentMode: boolean;
   setAgentMode: (on: boolean) => void;
   sendMessage: (text: string, packName?: string, systemPrompt?: string, attachments?: string[]) => Promise<void>;
+  /**
+   * Run an entire pack as ONE orchestrator run. Each pack step becomes
+   * a subtask whose `depends_on` chains to the previous step, so step N
+   * automatically inherits step N-1's output via shared TaskState. The
+   * orchestrator's planner LLM is skipped — pack prompts ARE the plan.
+   * Run Trace panel auto-opens with one chip per pack step.
+   */
+  runPack: (
+    packTitle: string,
+    steps: PackStep[],
+    attachments?: string[],
+  ) => Promise<void>;
   clearMessages: () => void;
   clearError: () => void;
   voteOnMessage: (messageId: string, signal: 'thumbs_up' | 'thumbs_down') => void;
@@ -923,11 +943,34 @@ interface OrchestratorMessageDeps {
   billingTier: 'free' | 'pro' | 'studio';
   /** Routing telemetry row id; settle on done/fail/cancel. */
   telemetryId: string | null;
+  /**
+   * When set, skip the orchestrator's planner LLM and run this user-
+   * authored plan instead. Pack runs use this — pack prompts ARE the
+   * subtask list, no need to re-decompose. Each subtask's instruction
+   * is the corresponding pack prompt.
+   */
+  predefinedPlan?: import('../lib/orchestrator/types').PlannerOutput;
+  /** Override label for the planner_hint chip when predefinedPlan is set. */
+  predefinedPlanLabel?: string;
   set: (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
 }
 
 async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<void> {
-  const { text, packName, attachments, jwt, selections, apiKeys, available, workspace, billingTier, telemetryId, set } = deps;
+  const {
+    text,
+    packName,
+    attachments,
+    jwt,
+    selections,
+    apiKeys,
+    available,
+    workspace,
+    billingTier,
+    telemetryId,
+    predefinedPlan,
+    predefinedPlanLabel,
+    set,
+  } = deps;
   // Push the user message + a streaming assistant placeholder. The
   // orchestrator updates `useRunStore` for the Run Trace panel and
   // appends per-subtask text blocks to the assistant message so the
@@ -1093,6 +1136,10 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
       signal: abort.signal,
       workspace,
       runSubtask,
+      predefinedPlan,
+      predefinedPlanSource: predefinedPlan
+        ? { sourceLabel: 'pack', modelId: predefinedPlanLabel ?? 'pack' }
+        : undefined,
     });
     await orch.run(text, taskState, {
       onPlan: async (plan, info) => {
@@ -1100,8 +1147,12 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           s.plan = plan;
         });
         await useRunStore.getState().patchRun({ status: 'running' });
-        const plannerLabel =
-          info.source === 'server'
+        // Pack runs use the user-authored plan — no LLM was actually
+        // called. Surface that honestly so users know the planner cost
+        // was zero.
+        const plannerLabel = predefinedPlan
+          ? `Pack-defined plan (no planner LLM)`
+          : info.source === 'server'
             ? 'Llama 3.1 8B (free)'
             : `${info.modelId} (managed fallback)`;
         useRunStore.getState().setPlannerInfo({
@@ -1114,7 +1165,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         blocks.push({
           kind: 'planner_hint',
           label: plannerLabel,
-          isFree: info.source === 'server',
+          isFree: true, // pack plans + free Llama planner are both zero-cost
         });
         patchBlocks();
       },
@@ -1877,6 +1928,95 @@ export const useChatStore = create<ChatState>((set, get) => ({
    * settle the matching telemetry row. Idempotent — clicking the same
    * thumb twice toggles it off; clicking the other thumb replaces.
    */
+  runPack: async (packTitle, steps, attachments) => {
+    if (steps.length === 0) return;
+    const settings = useSettingsStore.getState();
+    const { apiKeys, billingTier } = settings;
+    const authSession = useAuthStore.getState().session;
+    if (!authSession?.session_token) {
+      set({
+        error:
+          'Sign in to run packs. Pack runs use the orchestrator with shared memory across steps; that needs your Skillset session.',
+      });
+      return;
+    }
+    if (!settings.managedModeEnabled) {
+      set({
+        error:
+          'Turn on Managed mode in Settings to run packs. Pack steps share memory and route to managed models per step.',
+      });
+      return;
+    }
+
+    const available = await getAvailableProvidersAsync(
+      (apiKeys ?? {}) as Record<string, string | undefined>,
+    );
+    const workspace = useAgentStore.getState().workspace;
+
+    // Synthetic plan: one subtask per pack step. Each step depends on
+    // the previous so memory.ts auto-injects the prior output into the
+    // next step's prompt. Allow a broad tool set since pack prompts
+    // commonly read / write / search files. Merge=first → final answer
+    // is the last subtask's output (not a synthesized recap).
+    const ALLOWED_TOOLS = [
+      'read_file',
+      'write_file',
+      'edit_file',
+      'list_dir',
+      'glob',
+      'grep',
+      'bash',
+      'lsp_diagnostics',
+    ];
+    const subtasks = steps.map((step, i) => ({
+      id: `t${i + 1}`,
+      title: step.header?.trim() || `Step ${i + 1}`,
+      instruction: step.text,
+      complexity_hint: 'moderate' as const,
+      reasoning_hint: 'none' as const,
+      needs_tools: ALLOWED_TOOLS,
+      depends_on: i === 0 ? [] : [`t${i}`],
+      produces: 'text' as const,
+    }));
+    const predefinedPlan: import('../lib/orchestrator/types').PlannerOutput = {
+      goal: packTitle,
+      subtasks,
+      merge: 'first',
+    };
+
+    // Telemetry — log the pack as one workflow event so retraining
+    // sees pack runs as `workflow` ground truth.
+    const telemetryId = await logRoute({
+      prompt: `[pack:${packTitle}] ${steps.map((s) => s.header ?? s.text.slice(0, 40)).join(' → ')}`,
+      wordCount: steps.reduce(
+        (n, s) => n + s.text.trim().split(/\s+/).length,
+        0,
+      ),
+      predictedRoute: 'workflow',
+      confidence: 1,
+      actualRoute: 'workflow',
+    });
+
+    await runOrchestratorMessage({
+      // The synthetic "user message" surfaced in chat is the pack title
+      // — keeps the bubble compact. Step prompts live inside the
+      // subtask chips below.
+      text: packTitle,
+      packName: packTitle,
+      attachments,
+      jwt: authSession.session_token,
+      selections: settings.selectedManagedModels,
+      apiKeys: (apiKeys ?? {}) as Record<string, string | undefined>,
+      available,
+      workspace,
+      billingTier,
+      telemetryId,
+      predefinedPlan,
+      predefinedPlanLabel: packTitle,
+      set,
+    });
+  },
+
   voteOnMessage: (messageId: string, signal: 'thumbs_up' | 'thumbs_down') => {
     const cur = get().messages.find((m) => m.id === messageId);
     if (!cur || cur.role !== 'assistant') return;
