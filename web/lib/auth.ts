@@ -1,12 +1,12 @@
 import { betterAuth } from "better-auth";
 import { dash } from "@better-auth/infra";
 import bcrypt from "bcrypt";
+import { Pool } from "pg";
 
 export const auth = betterAuth({
-  database: {
-    type: "postgres",
-    url: process.env.DATABASE_URL!,
-  },
+  database: new Pool({
+    connectionString: process.env.DATABASE_URL!,
+  }),
   plugins: [
     dash(),
   ],
