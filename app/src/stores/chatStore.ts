@@ -1248,11 +1248,44 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         });
       },
       onSubtaskFailed: async (s, err) => {
-        await useRunStore.getState().patchSubtask(s.id, {
-          status: 'failed',
-          error: err,
-          endedAt: Date.now(),
-        });
+        const existing = useRunStore
+          .getState()
+          .subtasks.find((x) => x.id === s.id);
+        if (existing) {
+          await useRunStore.getState().patchSubtask(s.id, {
+            status: 'failed',
+            error: err,
+            endedAt: Date.now(),
+          });
+        } else {
+          // Dependency-skip path: executor jumps straight to onSubtaskFailed
+          // when a dep failed, never firing onSubtaskStart. Upsert the row
+          // so the Run Trace shows step 3 of N as "failed: dependency
+          // failed" instead of dropping it from the panel entirely.
+          await useRunStore.getState().upsertSubtask({
+            id: s.id,
+            runId: runId!,
+            parentId: null,
+            ord: 0,
+            title: s.title,
+            instruction: s.instruction,
+            complexityHint: s.complexity_hint,
+            reasoningHint: s.reasoning_hint ?? null,
+            needsTools: JSON.stringify(s.needs_tools),
+            dependsOn: JSON.stringify(s.depends_on),
+            status: 'failed',
+            presetJson: null,
+            effort: null,
+            output: null,
+            confidence: null,
+            credits: null,
+            reasoningTokens: null,
+            retries: 0,
+            error: err,
+            startedAt: Date.now(),
+            endedAt: Date.now(),
+          });
+        }
         await useRunStore.getState().patchTaskState((st) => {
           st.subtasks[s.id] = { ...taskState.subtasks[s.id] };
         });
