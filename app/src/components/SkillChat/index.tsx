@@ -467,7 +467,10 @@ export function SkillChatPage() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 min-h-0">
+        {/* `pt-8` gives the floating toolbar (`absolute -top-7`) room to
+            render above the first message — without it `overflow-y-auto`
+            clips the copy / bookmark / thumbs icons on the topmost bubble. */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-8 min-h-0">
           {messages.length === 0 && !packVarForm && !variablePrompt && (
             <div className="flex h-full items-center justify-center py-12">
               <div className="relative w-full max-w-[520px]">
