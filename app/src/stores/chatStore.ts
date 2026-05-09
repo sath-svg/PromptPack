@@ -349,7 +349,12 @@ function pickToolCapableModel(
     const s = MODEL_PRESETS.find(
       (m) => m.provider === 'server' && m.modelId === 'llama-3.1-8b-instant',
     );
-    if (s) return tier === s.tier ? s : { ...s, tier };
+    // Don't override the server preset's tier when falling back. The
+    // chip label should reflect what's *actually* running (Llama 3.1
+    // 8B = `fast` tier), not the tier the user wished for. Misleading
+    // to label an 8B model "Powerful" just because the prompt was
+    // classified powerful.
+    if (s) return s;
   }
 
   // 3. Anything else tool-capable (e.g. Ollama) as last resort

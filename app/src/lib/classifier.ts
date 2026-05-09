@@ -252,7 +252,10 @@ export function pickModel(
     const s = MODEL_PRESETS.find(
       (m) => m.provider === 'server' && m.modelId === 'llama-3.1-8b-instant',
     );
-    if (s) return tier === s.tier ? s : { ...s, tier };
+    // Don't override the server preset's tier on fallback. UI should
+    // show the model's actual tier (Llama 8B = `fast`), not the tier
+    // the LR classifier originally requested.
+    if (s) return s;
   }
 
   return (

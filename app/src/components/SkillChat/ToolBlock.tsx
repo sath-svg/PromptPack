@@ -9,8 +9,10 @@ import {
   Terminal,
   Wrench,
   AlertCircle,
+  Hand,
 } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
+import { useAgentStore } from '../../stores/agentStore';
 import { DiffPanel } from './DiffPanel';
 
 const TOOL_ICONS: Record<string, typeof Wrench> = {
@@ -31,21 +33,36 @@ interface ToolBlockProps {
 }
 
 export function ToolBlock({ block, resultByToolUseId }: ToolBlockProps) {
-  const [open, setOpen] = useState(false);
-
   if (block.kind !== 'tool_use') return null;
 
   const Icon = TOOL_ICONS[block.name] ?? Wrench;
   const result = resultByToolUseId?.[block.toolUseId];
   const isError = result?.kind === 'tool_result' && result.isError;
   const summary = describeInput(block.name, block.input);
+  const pendingEditId =
+    result?.kind === 'tool_result' ? result.pendingEditId : undefined;
+  // Subscribe to the pending-edit's accept state so the orange "awaiting"
+  // highlight clears as soon as the user clicks Accept / Reject inside
+  // the embedded DiffPanel.
+  const pendingEdit = useAgentStore((s) =>
+    pendingEditId ? s.pendingEdits[pendingEditId] : undefined,
+  );
+  const awaitingReview =
+    Boolean(pendingEditId) && pendingEdit?.accepted === null;
+
+  // Auto-expand for awaiting-review pending edits OR errors so the user
+  // can see what needs attention without clicking. Manual toggle still
+  // works after first render.
+  const [open, setOpen] = useState(awaitingReview || isError);
+
+  const borderClass = isError
+    ? 'border-red-500/40 bg-red-500/5'
+    : awaitingReview
+      ? 'border-amber-500/50 bg-amber-500/5 shadow-[0_0_0_1px_rgba(245,158,11,0.15)]'
+      : 'border-[var(--border)] bg-[var(--card)]';
 
   return (
-    <div
-      className={`my-1 rounded-lg border ${
-        isError ? 'border-red-500/30 bg-red-500/5' : 'border-[var(--border)] bg-[var(--card)]'
-      } overflow-hidden`}
-    >
+    <div className={`my-1 rounded-lg border ${borderClass} overflow-hidden`}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] transition-colors text-left"
@@ -55,7 +72,16 @@ export function ToolBlock({ block, resultByToolUseId }: ToolBlockProps) {
         ) : (
           <ChevronRight size={12} className="text-[var(--muted-foreground)]" />
         )}
-        <Icon size={12} className={isError ? 'text-red-500' : 'text-[var(--primary)]'} />
+        <Icon
+          size={12}
+          className={
+            isError
+              ? 'text-red-500'
+              : awaitingReview
+                ? 'text-amber-500'
+                : 'text-[var(--primary)]'
+          }
+        />
         <span
           className="text-xs text-[var(--foreground)]"
           style={{ fontFamily: 'var(--font-mono)' }}
@@ -65,6 +91,14 @@ export function ToolBlock({ block, resultByToolUseId }: ToolBlockProps) {
         <span className="text-xs text-[var(--muted-foreground)] truncate flex-1">
           {summary}
         </span>
+        {awaitingReview && (
+          <span
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-medium uppercase tracking-wider whitespace-nowrap"
+            title="This edit is staged on disk. Accept to keep, Reject to revert. Toggle Accept edits: auto in the workspace bar to skip future prompts."
+          >
+            <Hand size={10} /> awaiting your review
+          </span>
+        )}
       </button>
       {open && (
         <div className="px-3 pb-2 pt-1 border-t border-[var(--border)] space-y-2">
