@@ -39,14 +39,17 @@ Decompose the user's goal into the minimum number of subtasks needed (≤ MAX_SU
 Each subtask must be small enough that a single LLM call can complete it. Merge trivial subtasks.
 Prefer fewer steps over more.
 
+CRITICAL — DEPENDENCY OUTPUTS ARE INJECTED AUTOMATICALLY.
+When a subtask declares "depends_on": ["t1", "t2"], the executor automatically prepends each named output under a "DEPENDENCY OUTPUTS" section before calling the model. You MUST write the "instruction" as plain English that REFERS to those upstream outputs by their role (e.g. "Combine the three adoption summaries into a 200-word comparison"). NEVER write template placeholders like {t1_output}, {t2_output}, {{output of t1}}, etc — they are NOT substituted and the executor will send them verbatim to the model.
+
 For each subtask emit:
 - "id": short snake_case id (t1, t2, ...)
 - "title": ≤ 8-word phrase
-- "instruction": full prompt the executor will send to the model. Must be self-contained — assume the model has only the rolling summary + listed dependency outputs available.
+- "instruction": full prompt the executor will send. Self-contained PROSE — no template placeholders for upstream outputs (those auto-inject; see above).
 - "complexity_hint": one of "easy" | "moderate" | "complex"
 - "reasoning_hint": one of "none" | "light" | "deep" (the router combines this with its own classifier; do not over-claim)
-- "needs_tools": array of tool names the executor must enable. Allowed: ALLOWED_TOOLS (see user message). Empty if the subtask is pure text reasoning.
-- "depends_on": array of earlier subtask ids whose output this subtask needs. Empty for independent subtasks.
+- "needs_tools": array of tool names the executor must enable. Pull EXACTLY from the ALLOWED_TOOLS list in the user message; do not invent names. Empty if the subtask is pure text reasoning.
+- "depends_on": array of earlier subtask ids whose output this subtask needs. Empty for independent subtasks. Independent subtasks run IN PARALLEL — keep depends_on minimal so fan-out work doesn't serialise.
 - "produces": one of "text" | "file" | "json" | "none"
 
 Pick a "merge" strategy:
@@ -70,12 +73,11 @@ const ALLOWED_TOOLS_DEFAULT = [
   'grep',
   'bash',
   'lsp_diagnostics',
-  // Phase 8 additions — listed up-front so planners learn the surface even
-  // if the executor doesn't yet implement them. Subtasks needing these get
-  // routed but tool calls will fail until the Rust handlers ship.
-  'web_fetch',
-  'http',
-  'attachment_read',
+  // Phase 8 (`web_fetch`, `http`, `attachment_read`) deliberately
+  // excluded until the Rust handlers ship. Listing them earlier was
+  // making the planner emit subtasks that require them, then the
+  // executor's `dispatchTool` would error mid-loop ("unknown tool").
+  // Re-add once Phase 8 lands.
 ];
 
 export interface PlannerDeps {

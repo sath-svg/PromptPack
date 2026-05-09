@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -23,6 +23,7 @@ import type { MessageBlock } from '../../stores/chatStore';
 import { getManagedModel, formatCreditRate } from '../../lib/managed-models';
 import { RunTracePanel } from './RunTrace/RunTracePanel';
 import { extractPackContext } from '../../lib/packExtractor';
+import { refreshCreditBalance } from '../../lib/creditSync';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -210,6 +211,7 @@ export function SkillChatPage() {
   // `extraInstructions` once the var form submits. Cleared on cancel
   // and after each successful pack run.
   const [pendingPackExtras, setPendingPackExtras] = useState<string | null>(null);
+  const [isRefreshingCredits, setIsRefreshingCredits] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -513,6 +515,30 @@ export function SkillChatPage() {
                 >
                   <Sparkles size={12} />
                   {totalCredits} credits
+                </button>
+                {/* Refresh balance from Convex. The header sync only
+                    fires after a settled managed-proxy call, so users
+                    who topped up out-of-band or got an admin grant
+                    need this to pull the new total without sending a
+                    throwaway message. */}
+                <button
+                  type="button"
+                  disabled={isRefreshingCredits || !session?.user_id}
+                  onClick={async () => {
+                    if (!session?.user_id) return;
+                    setIsRefreshingCredits(true);
+                    await refreshCreditBalance(session.user_id);
+                    // Brief visual delay so the spin finishes a tick
+                    // even on a fast response.
+                    setTimeout(() => setIsRefreshingCredits(false), 250);
+                  }}
+                  className="flex items-center justify-center w-7 h-7 rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors disabled:opacity-50"
+                  title="Refresh credit balance"
+                >
+                  <RefreshCw
+                    size={12}
+                    className={isRefreshingCredits ? 'animate-spin' : ''}
+                  />
                 </button>
               </>
             )}
