@@ -42,6 +42,18 @@ export async function reserveCredits(
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // Convex's `credits.ts` mutation throws `Error("INSUFFICIENT_CREDITS")`
+    // when the user is out of budget, which surfaces here as an HTTP 500
+    // with the message embedded in the body. Reclassify as 402 so
+    // `reserveErrorResponse` returns the friendly "insufficient_credits"
+    // shape instead of a confusing internal-error blob to the desktop.
+    const messageBlob = JSON.stringify(body);
+    if (
+      res.status === 500 &&
+      /INSUFFICIENT_CREDITS/i.test(messageBlob)
+    ) {
+      return { ok: false, status: 402, body };
+    }
     return { ok: false, status: res.status, body };
   }
   return { ok: true, data: (await res.json()) as ReserveResponse };

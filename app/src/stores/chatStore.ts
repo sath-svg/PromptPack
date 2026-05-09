@@ -1126,6 +1126,16 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
             });
             if (!res.ok) {
               const err = await res.json().catch(() => ({}));
+              if (res.status === 402) {
+                throw new Error(
+                  'Out of credits — top up to keep this run going.',
+                );
+              }
+              if (res.status === 401) {
+                throw new Error(
+                  'Session expired — sign in again to continue this run.',
+                );
+              }
               throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
             }
             syncCreditsFromHeaders(res);

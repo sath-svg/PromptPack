@@ -251,6 +251,16 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
       if (textOut.trim().length > 0) {
         return { text: textOut, reasoningTokens };
       }
+      if (res.status === 402) {
+        throw new Error(
+          'Out of credits — top up to keep this run going.',
+        );
+      }
+      if (res.status === 401) {
+        throw new Error(
+          'Session expired — sign in again to continue this run.',
+        );
+      }
       throw new Error(`Agent subtask error ${res.status}: ${JSON.stringify(err)}`);
     }
     // No-op on direct provider URLs; emits credit balance update on
