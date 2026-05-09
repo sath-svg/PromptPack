@@ -1198,6 +1198,12 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
       predefinedPlanSource: predefinedPlan
         ? { sourceLabel: 'pack', modelId: predefinedPlanLabel ?? 'pack' }
         : undefined,
+      // Use the user's cheap-tier managed pick as the planner — Llama 8B
+      // serialises multi-step prompts into chains and kills the DAG
+      // executor's parallelism. The cost is a few credits per run; the
+      // payoff is real fan-out on prompts like "compare A, B, C, then
+      // summarise". Skill-level `plannerModelId` overrides this when set.
+      defaultPlannerModelId: selections.cheap,
     });
     await orch.run(text, taskState, {
       onPlan: async (plan, info) => {

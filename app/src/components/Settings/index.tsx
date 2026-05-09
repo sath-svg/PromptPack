@@ -355,7 +355,15 @@ export function SettingsPage() {
                   className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] disabled:opacity-50"
                 >
                   {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
-                    <option key={m.id} value={m.id}>
+                    <option
+                      key={m.id}
+                      value={m.id}
+                      // Chromium-based browsers (Tauri webview) honour
+                      // option style attributes when the listbox is
+                      // open. The selected-row colour is OS-themed and
+                      // can't be overridden — that's expected.
+                      style={m.expensive ? { color: '#f97316' } : undefined}
+                    >
                       {m.label}
                       {m.expensive ? ' · expensive — burns credits fast' : ''}
                       {' · '}

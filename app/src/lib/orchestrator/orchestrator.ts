@@ -84,6 +84,16 @@ export interface OrchestratorDeps {
    * pack title or skill id for traceability.
    */
   predefinedPlanSource?: { sourceLabel: string; modelId: string };
+  /**
+   * Default planner override. When set and `skill.plannerModelId` is
+   * absent, the orchestrator routes the planner call through this
+   * managed model instead of the free Llama 3.1 8B server endpoint.
+   * chatStore wires this to the user's selected `cheap`-tier model so
+   * the planner reliably emits independent-subtask DAGs (Llama 8B
+   * tends to over-serialize), at the cost of a few cheap credits per
+   * run.
+   */
+  defaultPlannerModelId?: string;
 }
 
 export class Orchestrator {
@@ -111,14 +121,20 @@ export class Orchestrator {
         planModelId = this.deps.predefinedPlanSource?.modelId ?? 'pack';
       } else {
         const plannerJwt = await this.deps.getJwt();
+        // Resolution order:
+        //   1. `skill.plannerModelId` — explicit per-skill override
+        //   2. `defaultPlannerModelId` — chatStore's cheap-tier pick
+        //   3. server Llama 3.1 8B (free) — no override available
+        // Llama 8B tends to over-serialize multi-step prompts (every
+        // subtask becomes `depends_on: [tN-1]`), which collapses the
+        // DAG executor's parallelism. Routing the planner through the
+        // user's cheap-tier managed pick fixes that for a few credits.
+        const plannerModelId =
+          this.deps.skill?.plannerModelId ?? this.deps.defaultPlannerModelId;
         const plannerResult = await runPlanner(goal, {
           jwt: plannerJwt,
-          // `'server'` (free Llama 3.1 8B via Skillset Groq proxy) is the
-          // default — keeps the planner cost zero. `skill.plannerModelId`
-          // forces a managed-mode override when the user explicitly picked
-          // a smarter planner per-skill.
-          source: this.deps.skill?.plannerModelId ? 'managed' : 'server',
-          modelId: this.deps.skill?.plannerModelId ?? undefined,
+          source: plannerModelId ? 'managed' : 'server',
+          modelId: plannerModelId,
           hints: this.deps.skill?.plannerHints
             ? safeJSON(this.deps.skill.plannerHints)
             : undefined,
