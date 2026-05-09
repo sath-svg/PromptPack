@@ -951,10 +951,34 @@ pub struct WebFetchResult {
 }
 
 fn build_web_client() -> Result<reqwest::Client, String> {
+    // Browser-spoofed user-agent. The previous "Skillset/1.0 …" UA was
+    // getting rejected by anti-bot layers (Cloudflare, Akamai) on
+    // ~half the sites the agent tried, returning challenge HTML
+    // instead of content — looked "empty" to the model and triggered
+    // expensive retry loops. A real Chrome UA gets past most casual
+    // filters; sites that still gate (CAPTCHA, JS challenge) need a
+    // search-API based tool which is on the roadmap.
+    //
+    // gzip/brotli/deflate features (Cargo.toml) auto-decompress
+    // responses; without them, servers like Yahoo Finance returned
+    // gzipped bodies that we lossy-decoded into junk.
+    const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+    let mut default_headers = reqwest::header::HeaderMap::new();
+    default_headers.insert(
+        reqwest::header::ACCEPT,
+        reqwest::header::HeaderValue::from_static(
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        ),
+    );
+    default_headers.insert(
+        reqwest::header::ACCEPT_LANGUAGE,
+        reqwest::header::HeaderValue::from_static("en-US,en;q=0.9"),
+    );
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(WEB_FETCH_TIMEOUT_SECS))
         .redirect(reqwest::redirect::Policy::limited(10))
-        .user_agent("Skillset/1.0 (+https://skillset.so)")
+        .user_agent(CHROME_UA)
+        .default_headers(default_headers)
         .build()
         .map_err(|e| format!("client build: {}", e))
 }
