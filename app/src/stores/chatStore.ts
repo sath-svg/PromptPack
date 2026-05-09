@@ -20,6 +20,7 @@ import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel } from '../lib/managed-models';
+import { syncCreditsFromHeaders } from '../lib/creditSync';
 
 // ---------------------------------------------------------------------------
 // Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
@@ -85,11 +86,7 @@ async function callManagedProxy(
   }
 
   // Sync balance from response headers
-  const monthly = parseInt(res.headers.get('X-Credits-Monthly') ?? '', 10);
-  const topup = parseInt(res.headers.get('X-Credits-Topup') ?? '', 10);
-  if (Number.isFinite(monthly) && Number.isFinite(topup)) {
-    useSettingsStore.getState().setCreditBalance({ monthly, topup });
-  }
+  syncCreditsFromHeaders(res);
 
   const data = await res.json() as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -628,6 +625,9 @@ async function openaiAgentTurn(
     const err = await response.json().catch(() => ({}));
     throw new Error(err?.error?.message || `${baseUrl} error ${response.status}`);
   }
+  // Worker emits X-Credits-* on the managed-proxy alias only; helper
+  // no-ops on direct provider URLs (api.openai.com, etc).
+  syncCreditsFromHeaders(response);
   const data = await response.json();
   return data?.choices?.[0]?.message ?? { role: 'assistant', content: '' };
 }
@@ -927,6 +927,10 @@ interface OrchestratorMessageDeps {
   available: Set<Provider>;
   /** Workspace path; required for tool-using subtasks. Null disables tools. */
   workspace: string | null;
+  /** Managed mode flag — controls whether no-BYOK + workspace subtasks
+   *  redirect through the managed-proxy agent loop instead of falling
+   *  to the free Llama 8B (which hallucinates tool calls). */
+  managedModeEnabled: boolean;
   billingTier: 'free' | 'pro' | 'studio';
   /** Routing telemetry row id; settle on done/fail/cancel. */
   telemetryId: string | null;
@@ -947,17 +951,20 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     text,
     packName,
     attachments,
-    jwt,
     selections,
     apiKeys,
     available,
     workspace,
+    managedModeEnabled,
     billingTier,
     telemetryId,
     predefinedPlan,
     predefinedPlanLabel,
     set,
   } = deps;
+  // `deps.jwt` is intentionally ignored — refresh-aware tokens are
+  // resolved via `useAuthStore.getValidAccessToken()` in `getJwt`
+  // below + at every managed-proxy call site that follows.
   // Push the user message + a streaming assistant placeholder. The
   // orchestrator updates `useRunStore` for the Run Trace panel and
   // appends per-subtask text blocks to the assistant message so the
@@ -1012,6 +1019,15 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     //   3. Otherwise → managed proxy (executor's default, when undefined).
     const byok = byokSet(available);
     const hasBYOK = byok.size > 0;
+    // Long-running pack runs blow past the 60s Clerk-token lifetime,
+    // so each subtask call resolves a fresh access token via the
+    // refresh flow before firing. `getValidAccessToken` rotates the
+    // token in-place when within 60s of expiry.
+    const getJwt = async (): Promise<string> => {
+      const t = await useAuthStore.getState().getValidAccessToken();
+      if (!t) throw new Error('Sign in to continue this run.');
+      return t;
+    };
     const runSubtask: SubtaskRunner | undefined =
       workspace
         ? async ({ prompt, decision, signal }) => {
@@ -1020,6 +1036,36 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
               available,
               billingTier,
             );
+            // No-BYOK + managed mode + workspace: route through managed
+            // proxy `/api/llm/chat/completions` so the agent loop runs on
+            // Sonnet/GPT-5/Opus instead of free Llama 8B (which drops
+            // tool calls and produces 0-byte writes). `urlOverride` flips
+            // agentSubtask's OpenAI-compat path to the worker alias.
+            const wantManagedAgent =
+              managedModeEnabled &&
+              !hasBYOK &&
+              (!toolPreset || toolPreset.provider === 'server');
+            if (wantManagedAgent) {
+              const proxyPreset: ModelPreset = {
+                provider: 'openrouter', // cosmetic; URL is overridden
+                modelId: decision.managed.id,
+                label: decision.managed.label,
+                tier: decision.preset.tier,
+                costPer1M: 0,
+                supportsReasoning: decision.managed.supportsReasoning,
+                reasoningEfforts: decision.managed.reasoningEfforts,
+                alwaysReasons: decision.managed.alwaysReasons,
+              };
+              return runAgentSubtask({
+                preset: proxyPreset,
+                apiKey: await getJwt(),
+                workspace,
+                prompt,
+                effort: decision.effort ?? null,
+                signal,
+                urlOverride: 'https://api.pmtpk.com/api/llm',
+              });
+            }
             if (toolPreset) {
               // Server provider auths with the user's Clerk JWT; BYOK
               // providers use their own keys. Ollama doesn't need a key.
@@ -1027,7 +1073,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 toolPreset.provider === 'ollama'
                   ? 'ollama'
                   : toolPreset.provider === 'server'
-                    ? jwt
+                    ? await getJwt()
                     : apiKeys[toolPreset.provider] ?? '';
               return runAgentSubtask({
                 preset: toolPreset,
@@ -1044,7 +1090,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${jwt}`,
+                Authorization: `Bearer ${await getJwt()}`,
               },
               body: JSON.stringify({
                 model: decision.managed.id,
@@ -1057,6 +1103,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
               const err = await res.json().catch(() => ({}));
               throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
             }
+            syncCreditsFromHeaders(res);
             const data = (await res.json()) as {
               choices?: Array<{ message?: { content?: string } }>;
               usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
@@ -1086,7 +1133,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
-                  Authorization: `Bearer ${jwt}`,
+                  Authorization: `Bearer ${await getJwt()}`,
                 },
                 body: JSON.stringify({
                   model: decision.managed.id,
@@ -1099,6 +1146,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 const err = await res.json().catch(() => ({}));
                 throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
               }
+              syncCreditsFromHeaders(res);
               const data = (await res.json()) as {
                 choices?: Array<{ message?: { content?: string } }>;
                 usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
@@ -1116,7 +1164,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // the server source. `workspace` is forwarded so the planner system
     // prompt knows file tools are usable at runtime.
     const orch = new Orchestrator({
-      jwt,
+      getJwt,
       selections,
       signal: abort.signal,
       workspace,
@@ -1175,6 +1223,14 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           startedAt: Date.now(),
           endedAt: null,
         });
+        // Mirror taskState mutation into runStore so the Memory Snapshot
+        // panel sees subtask counts. Orchestrator mutates the same
+        // TaskState ref but Zustand needs a fresh reference to re-emit.
+        await useRunStore.getState().patchTaskState((st) => {
+          st.subtasks[s.id] = {
+            ...(taskState.subtasks[s.id] ?? { status: 'running', instruction: s.instruction }),
+          };
+        });
       },
       onSubtaskDone: async (s, out) => {
         await useRunStore.getState().patchSubtask(s.id, {
@@ -1184,12 +1240,21 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           credits: out.credits ?? null,
           endedAt: Date.now(),
         });
+        await useRunStore.getState().patchTaskState((st) => {
+          st.subtasks[s.id] = { ...taskState.subtasks[s.id] };
+          st.summaries = { ...taskState.summaries };
+          st.facts = [...taskState.facts];
+          st.artifacts = [...taskState.artifacts];
+        });
       },
       onSubtaskFailed: async (s, err) => {
         await useRunStore.getState().patchSubtask(s.id, {
           status: 'failed',
           error: err,
           endedAt: Date.now(),
+        });
+        await useRunStore.getState().patchTaskState((st) => {
+          st.subtasks[s.id] = { ...taskState.subtasks[s.id] };
         });
       },
       onFinal: async (final, totalCredits) => {
@@ -1411,6 +1476,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         apiKeys: (apiKeys ?? {}) as Record<string, string | undefined>,
         available,
         workspace: ws,
+        managedModeEnabled: settings.managedModeEnabled,
         billingTier,
         telemetryId,
         set,
@@ -1658,7 +1724,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
               ? SERVER_OPENAI_COMPAT_BASE
               : PROVIDER_BASE_URLS[preset.provider];
           const keyMap = (apiKeys ?? {}) as Record<string, string | undefined>;
-          const serverJwt = useAuthStore.getState().session?.session_token ?? '';
+          // Resolve via the refresh-aware accessor so multi-round agent
+          // loops don't 401 when the access token rolls past 1h. Returns
+          // null when refresh fails — surface the same "sign in" message.
+          const serverJwt =
+            (preset.provider === 'server' || useManagedProxyAgent)
+              ? (await useAuthStore.getState().getValidAccessToken()) ?? ''
+              : '';
           if (
             (preset.provider === 'server' || useManagedProxyAgent) &&
             !serverJwt
@@ -1946,6 +2018,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       apiKeys: (apiKeys ?? {}) as Record<string, string | undefined>,
       available,
       workspace,
+      managedModeEnabled: settings.managedModeEnabled,
       billingTier,
       telemetryId,
       predefinedPlan,

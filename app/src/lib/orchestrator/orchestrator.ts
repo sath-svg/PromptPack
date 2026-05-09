@@ -42,7 +42,15 @@ export interface OrchestratorEvents {
 }
 
 export interface OrchestratorDeps {
-  jwt: string;
+  /**
+   * Thunk that returns a non-expired managed-mode access token. Each
+   * lifecycle phase (planner / per-subtask / merge) calls this anew so
+   * a long pack run can refresh past Clerk's session-token expiry
+   * without 401-ing mid-flow. Should reject (or return empty) when the
+   * user's refresh token is revoked — the orchestrator surfaces that
+   * via `onError`.
+   */
+  getJwt: () => Promise<string>;
   selections: Record<ManagedTier, string>;
   skill?: Skill | null;
   signal: AbortSignal;
@@ -102,8 +110,9 @@ export class Orchestrator {
         planSource = 'server'; // synthetic; nothing was actually called
         planModelId = this.deps.predefinedPlanSource?.modelId ?? 'pack';
       } else {
+        const plannerJwt = await this.deps.getJwt();
         const plannerResult = await runPlanner(goal, {
-          jwt: this.deps.jwt,
+          jwt: plannerJwt,
           // `'server'` (free Llama 3.1 8B via Skillset Groq proxy) is the
           // default — keeps the planner cost zero. `skill.plannerModelId`
           // forces a managed-mode override when the user explicitly picked
@@ -131,8 +140,13 @@ export class Orchestrator {
       const byId = new Map<string, PlannerSubtask>();
       for (const s of plan.subtasks) byId.set(s.id, s);
 
+      // Snapshot the access token for the executor's default managed
+      // proxy fallback. The chatStore-supplied `runSubtask` closure
+      // resolves its own fresh token per subtask via authStore, so it
+      // ignores this snapshot. Only the no-runSubtask fallback uses it.
+      const executorJwt = await this.deps.getJwt();
       await execute(plan, state, {
-        jwt: this.deps.jwt,
+        jwt: executorJwt,
         selections: this.deps.selections,
         signal: this.deps.signal,
         runSubtask: this.deps.runSubtask,
@@ -150,8 +164,11 @@ export class Orchestrator {
         },
       });
 
+      // Merge runs after every subtask finishes — could be 1h+ after
+      // the run started. Resolve a fresh token here too.
+      const mergeJwt = await this.deps.getJwt();
       const final = await merge(plan, state, {
-        jwt: this.deps.jwt,
+        jwt: mergeJwt,
         signal: this.deps.signal,
       });
       // Total credits is summed by the worker via response headers; until

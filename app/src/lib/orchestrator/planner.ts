@@ -11,6 +11,7 @@
  */
 
 import { tauriFetch } from '../tauriFetch';
+import { syncCreditsFromHeaders } from '../creditSync';
 import type { PlannerHints, PlannerOutput, PlannerSubtask } from './types';
 
 const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
@@ -254,6 +255,7 @@ async function callPlannerLLM(
       `Planner LLM error ${res.status} (${source}): ${JSON.stringify(err)}`,
     );
   }
+  syncCreditsFromHeaders(res);
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };

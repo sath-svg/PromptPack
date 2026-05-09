@@ -31,6 +31,14 @@ export interface Env {
   CLERK_AUDIENCE: string;
   OPENROUTER_API_KEY: string;
   SKILLSET_INTERNAL_KEY: string;
+  /**
+   * Shared HMAC secret used to verify HS256 desktop access tokens
+   * minted by Convex (`web/convex/jwt.ts`). Set via:
+   *   wrangler secret put JWT_SECRET
+   * Same value must be deployed to Convex via:
+   *   npx convex env set JWT_SECRET <hex>
+   */
+  JWT_SECRET?: string;
 }
 
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
@@ -362,6 +370,66 @@ function encodeBase64Url(data: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// --- Desktop access token (HS256) verify ------------------------------------
+//
+// Convex `web/convex/jwt.ts` mints these on /exchange-code + /refresh-token.
+// They carry { sub: clerkId, iss: "promptpack-desktop", iat, exp }. Verifying
+// here lets the worker bypass Clerk's JWKS hop on every managed-proxy call,
+// and lets desktop runs survive past Clerk's 60s session-token exp.
+async function verifyDesktopAccessToken(
+  token: string,
+  env: Env,
+): Promise<ClerkJwtPayload | null> {
+  if (!env.JWT_SECRET) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
+  const header = parseJwtPart<ClerkJwtHeader>(encodedHeader);
+  const payload = parseJwtPart<ClerkJwtPayload>(encodedPayload);
+  if (!header || !payload) return null;
+  if (header.alg !== "HS256") return null;
+  if (payload.iss !== "promptpack-desktop") return null;
+  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+  if (payload.nbf && payload.nbf * 1000 > Date.now()) return null;
+
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(env.JWT_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["verify"],
+  );
+  const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
+  const signature = decodeBase64Url(encodedSignature);
+  const verified = await crypto.subtle.verify("HMAC", key, signature, data);
+  if (!verified) return null;
+  return payload;
+}
+
+// Tries the short-lived RS256 Clerk JWT first (web flows), then the
+// long-lived HS256 desktop access token (Tauri). Either path returns a
+// minimal `ClerkJwtPayload` with `.sub` set to the user's Clerk id.
+async function verifyAuthToken(
+  token: string,
+  env: Env,
+): Promise<ClerkJwtPayload | null> {
+  // Peek at the header alg so we don't attempt an RSA verify on an
+  // HS256 payload (or vice versa). Saves a JWKS round-trip when the
+  // token is a desktop HS256.
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const header = parseJwtPart<ClerkJwtHeader>(parts[0]);
+  if (!header) return null;
+  if (header.alg === "HS256") {
+    return verifyDesktopAccessToken(token, env);
+  }
+  if (header.alg === "RS256") {
+    return verifyClerkJwt(token, env);
+  }
+  return null;
+}
+
 function getEnhanceMode(input: unknown): EnhanceMode | null {
   if (typeof input !== "string") return ENHANCE_DEFAULT_MODE;
   const mode = input.toLowerCase();
@@ -654,7 +722,7 @@ export default {
         const response = await handleLlmChat(
           request,
           env,
-          (token) => verifyClerkJwt(token, env),
+          (token) => verifyAuthToken(token, env),
         );
         return addCors(response);
       }
@@ -702,7 +770,7 @@ export default {
               status: 401, headers: { "Content-Type": "application/json" },
             }), true);
           }
-          const claims = await verifyClerkJwt(token, env);
+          const claims = await verifyAuthToken(token, env);
           if (!claims?.sub) {
             return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
               status: 401, headers: { "Content-Type": "application/json" },
@@ -813,7 +881,7 @@ export default {
               status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-          const claims = await verifyClerkJwt(token, env);
+          const claims = await verifyAuthToken(token, env);
           if (!claims?.sub) {
             return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
               status: 401, headers: { "Content-Type": "application/json" },
@@ -1509,7 +1577,7 @@ How they want AI responses formatted. Constraints, formatting preferences.
       if (path === "/auth/status" && (method === "GET" || method === "POST")) {
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-        const payload = token ? await verifyClerkJwt(token, env) : null;
+        const payload = token ? await verifyAuthToken(token, env) : null;
         if (!payload?.sub) {
           return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
             status: 401,
@@ -1560,6 +1628,8 @@ How they want AI responses formatted. Constraints, formatting preferences.
             error?: string;
             message?: string;
             user?: { clerkId: string; email: string; plan: string };
+            accessToken?: string;
+            accessTokenExpiresAt?: number;
             refreshToken?: string;
             refreshTokenExpiresAt?: number;
           };
@@ -1574,11 +1644,12 @@ How they want AI responses formatted. Constraints, formatting preferences.
             }));
           }
 
-          // Return the new tokens
-          // Note: Client will need to get a fresh Clerk JWT separately or we can include one
+          // Forward the new access + refresh token pair from Convex.
           return addCors(new Response(JSON.stringify({
             success: true,
             user: refreshData.user,
+            accessToken: refreshData.accessToken,
+            accessTokenExpiresAt: refreshData.accessTokenExpiresAt,
             refreshToken: refreshData.refreshToken,
             refreshTokenExpiresAt: refreshData.refreshTokenExpiresAt,
             // expiresIn is for compatibility with existing frontend
@@ -2479,7 +2550,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-          const claims = await verifyClerkJwt(token, env);
+          const claims = await verifyAuthToken(token, env);
           if (!claims?.sub) {
             return addCors(new Response(JSON.stringify({ error: { message: "Invalid or expired session" } }), {
               status: 401, headers: { "Content-Type": "application/json" },
@@ -2615,7 +2686,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-          const claims = await verifyClerkJwt(token, env);
+          const claims = await verifyAuthToken(token, env);
           if (!claims?.sub) {
             return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
               status: 401, headers: { "Content-Type": "application/json" },

@@ -2,6 +2,21 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { corsHeaders } from "./httpDesktop";
+import { mintDesktopAccessToken } from "./jwt";
+
+// Convex env: `npx convex env set JWT_SECRET <hex>` (32+ bytes).
+// Same secret deployed to the Cloudflare Worker via
+// `wrangler secret put JWT_SECRET` so the worker can HMAC-verify.
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 16) {
+    throw new Error(
+      "JWT_SECRET env missing or too short — refresh-token flow disabled. " +
+        "Set via `npx convex env set JWT_SECRET <hex>`.",
+    );
+  }
+  return secret;
+}
 
 export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
   // Handle CORS preflight
@@ -190,6 +205,15 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           userAgent,
         });
 
+        // Mint a 1-hour HS256 access token. Worker validates it via the
+        // shared JWT_SECRET, no Clerk round-trip needed. Long pack runs
+        // (multi-subtask, multi-round agent loops) used to 401 mid-flow
+        // because Clerk session tokens default to 60s — this is the fix.
+        const accessTokenResult = await mintDesktopAccessToken(
+          user.clerkId,
+          getJwtSecret(),
+        );
+
         // Return user data + tokens for extension to store
         return new Response(
           JSON.stringify({
@@ -200,8 +224,10 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
               name: user.name,
               plan: user.plan,
             },
-            token: authData.token, // Clerk session token (short-lived)
-            refreshToken: refreshTokenResult.refreshToken, // Long-lived refresh token
+            token: authData.token, // Clerk session token (legacy, kept for compat)
+            accessToken: accessTokenResult.token, // 1h HS256, primary auth for desktop
+            accessTokenExpiresAt: accessTokenResult.expiresAt,
+            refreshToken: refreshTokenResult.refreshToken, // 7d rotating
             refreshTokenExpiresAt: refreshTokenResult.expiresAt,
           }),
           {
@@ -300,9 +326,14 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Return new tokens
-        // Note: The caller should get a fresh Clerk JWT from Clerk's API
-        // We return the user info and new refresh token
+        // Mint a fresh HS256 access token alongside the rotated refresh
+        // token. Client replaces both in keychain + memory and resumes
+        // its in-flight call. No Clerk hop required.
+        const accessTokenResult = await mintDesktopAccessToken(
+          result.clerkId,
+          getJwtSecret(),
+        );
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -312,6 +343,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
               name: user.name,
               plan: user.plan,
             },
+            accessToken: accessTokenResult.token,
+            accessTokenExpiresAt: accessTokenResult.expiresAt,
             refreshToken: result.refreshToken,
             refreshTokenExpiresAt: result.expiresAt,
           }),

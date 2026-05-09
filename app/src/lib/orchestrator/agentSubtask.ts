@@ -18,6 +18,7 @@
 import { tauriFetch } from '../tauriFetch';
 import { applyReasoning, capEffortForAgentLoop } from '../reasoningParams';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../agentTools';
+import { syncCreditsFromHeaders } from '../creditSync';
 import type { ModelPreset } from '../classifier';
 import type { EffortLevel } from '../classifier';
 import type { SubtaskRunResult } from './executor';
@@ -31,6 +32,13 @@ interface AgentSubtaskInput {
   prompt: string;
   effort?: EffortLevel | null;
   signal?: AbortSignal;
+  /**
+   * Override the base URL used by the OpenAI-compat path. Set when
+   * routing through the managed proxy (`/api/llm/chat/completions`)
+   * for no-BYOK users so premium managed models can run agent loops
+   * with tools instead of falling to the free server Llama 8B.
+   */
+  urlOverride?: string;
 }
 
 export async function runAgentSubtask(input: AgentSubtaskInput): Promise<SubtaskRunResult> {
@@ -190,7 +198,7 @@ interface OpenAIMessage {
 }
 
 async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<SubtaskRunResult> {
-  const baseUrl = providerBaseUrl(input.preset.provider);
+  const baseUrl = input.urlOverride ?? providerBaseUrl(input.preset.provider);
   const apiMessages: OpenAIMessage[] = [
     { role: 'system', content: AGENT_SYSTEM_PROMPT },
     { role: 'user', content: input.prompt },
@@ -245,6 +253,9 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
       }
       throw new Error(`Agent subtask error ${res.status}: ${JSON.stringify(err)}`);
     }
+    // No-op on direct provider URLs; emits credit balance update on
+    // managed-proxy responses.
+    syncCreditsFromHeaders(res);
     const data = (await res.json()) as {
       choices?: Array<{ message?: OpenAIMessage }>;
       usage?: {

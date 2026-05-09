@@ -12,6 +12,7 @@
 
 import { tauriFetch } from '../tauriFetch';
 import { managedProxyReasoning } from '../reasoningParams';
+import { syncCreditsFromHeaders } from '../creditSync';
 import { buildSubtaskPrompt, recordSubtaskDone, recordSubtaskFailed, recordSubtaskStart } from './memory';
 import { decide, type RouterDecision } from './router';
 import type { PlannerOutput, PlannerSubtask, TaskState } from './types';
@@ -208,6 +209,7 @@ async function runOne(
     }
     throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
   }
+  syncCreditsFromHeaders(res);
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
     usage?: {
