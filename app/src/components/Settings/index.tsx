@@ -23,6 +23,7 @@ export function SettingsPage() {
     advancedSettingsExpanded, setAdvancedExpanded,
     selectedManagedModels, setSelectedManagedModelForTier,
     creditBalance, setCreditBalance,
+    tokenUsage, resetTokenUsage,
   } = useSettingsStore();
   const { session } = useAuthStore();
 
@@ -334,6 +335,45 @@ export function SettingsPage() {
             </div>
           ) : (
             <p className="text-xs text-[var(--muted-foreground)] mb-3">Sign in to see your credit balance.</p>
+          )}
+
+          {/* Token usage — pulled from worker headers on every settled
+              managed-proxy call. Resets on logout or via the button.
+              Only renders when the user has actually used managed mode
+              this session, so a fresh sign-in doesn't show all zeros. */}
+          {session && tokenUsage.calls > 0 && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 mb-3 text-[11px] text-[var(--muted-foreground)] space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-[var(--foreground)]">
+                  Tokens this session
+                </span>
+                <button
+                  onClick={resetTokenUsage}
+                  className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  title="Reset session token counter"
+                >
+                  Reset
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 font-mono">
+                <span>input</span>
+                <span className="text-right">{tokenUsage.input.toLocaleString()}</span>
+                <span>output</span>
+                <span className="text-right">{tokenUsage.output.toLocaleString()}</span>
+                {tokenUsage.reasoning > 0 && (
+                  <>
+                    <span>reasoning</span>
+                    <span className="text-right">
+                      {tokenUsage.reasoning.toLocaleString()}
+                    </span>
+                  </>
+                )}
+                <span>total</span>
+                <span className="text-right">{tokenUsage.total.toLocaleString()}</span>
+                <span>calls</span>
+                <span className="text-right">{tokenUsage.calls.toLocaleString()}</span>
+              </div>
+            </div>
           )}
 
           {/* Per-tier model picks. Auto-router selects one of these

@@ -125,7 +125,20 @@ export function reserveErrorResponse(outcome: { status: number; body: unknown })
 }
 
 // Build response headers reporting balance + amount charged.
-export function creditsHeaders(settled: SettleResponse | null, base?: HeadersInit): Headers {
+//
+// `tokenUsage` is the OpenRouter usage block; the worker forwards
+// prompt/completion/reasoning counts so the desktop UI can show real
+// token spend per call without a second API hop.
+export function creditsHeaders(
+  settled: SettleResponse | null,
+  base?: HeadersInit,
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    reasoningTokens?: number;
+    totalTokens?: number;
+  },
+): Headers {
   const h = new Headers(base);
   if (settled) {
     h.set("X-Credits-Remaining", String(settled.monthlyAfter + settled.topupAfter));
@@ -134,6 +147,20 @@ export function creditsHeaders(settled: SettleResponse | null, base?: HeadersIni
     h.set("X-Credits-Charged", String(settled.actualCredits));
     if (settled.shortfall > 0) {
       h.set("X-Credits-Shortfall", String(settled.shortfall));
+    }
+  }
+  if (tokenUsage) {
+    if (typeof tokenUsage.promptTokens === "number") {
+      h.set("X-Tokens-Input", String(tokenUsage.promptTokens));
+    }
+    if (typeof tokenUsage.completionTokens === "number") {
+      h.set("X-Tokens-Output", String(tokenUsage.completionTokens));
+    }
+    if (typeof tokenUsage.reasoningTokens === "number") {
+      h.set("X-Tokens-Reasoning", String(tokenUsage.reasoningTokens));
+    }
+    if (typeof tokenUsage.totalTokens === "number") {
+      h.set("X-Tokens-Total", String(tokenUsage.totalTokens));
     }
   }
   return h;

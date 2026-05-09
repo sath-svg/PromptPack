@@ -257,6 +257,12 @@ export async function handleLlmChat(
   const actualCost = usage.cost ?? 0;
   const actualInputTokens = usage.prompt_tokens ?? inputTokens;
   const actualOutputTokens = usage.completion_tokens ?? 0;
+  const reasoningTokens =
+    (usage as { completion_tokens_details?: { reasoning_tokens?: number } })
+      .completion_tokens_details?.reasoning_tokens;
+  const totalTokens =
+    (usage as { total_tokens?: number }).total_tokens ??
+    actualInputTokens + actualOutputTokens;
 
   const settled = await settleCredits(
     env,
@@ -268,6 +274,15 @@ export async function handleLlmChat(
 
   return new Response(JSON.stringify(openRouterBody), {
     status: 200,
-    headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
+    headers: creditsHeaders(
+      settled,
+      { "Content-Type": "application/json" },
+      {
+        promptTokens: actualInputTokens,
+        completionTokens: actualOutputTokens,
+        reasoningTokens,
+        totalTokens,
+      },
+    ),
   });
 }

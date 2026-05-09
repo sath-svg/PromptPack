@@ -23,6 +23,21 @@ export function syncCreditsFromHeaders(res: Response | { headers: Headers }): vo
   if (Number.isFinite(monthly) && Number.isFinite(topup)) {
     useSettingsStore.getState().setCreditBalance({ monthly, topup });
   }
+  // Token totals — worker emits these on every settled managed-proxy
+  // response. No-op on direct provider URLs (anthropic / openai etc.)
+  // because they don't set the X-Tokens-* headers.
+  const inputTok = parseInt(h.get('X-Tokens-Input') ?? '', 10);
+  const outputTok = parseInt(h.get('X-Tokens-Output') ?? '', 10);
+  const reasoningTok = parseInt(h.get('X-Tokens-Reasoning') ?? '', 10);
+  const totalTok = parseInt(h.get('X-Tokens-Total') ?? '', 10);
+  if (Number.isFinite(inputTok) || Number.isFinite(outputTok)) {
+    useSettingsStore.getState().recordTokenUsage({
+      input: Number.isFinite(inputTok) ? inputTok : undefined,
+      output: Number.isFinite(outputTok) ? outputTok : undefined,
+      reasoning: Number.isFinite(reasoningTok) ? reasoningTok : undefined,
+      total: Number.isFinite(totalTok) ? totalTok : undefined,
+    });
+  }
 }
 
 /**

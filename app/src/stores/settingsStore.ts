@@ -32,6 +32,21 @@ export interface CreditBalance {
   resetAt?: number;
 }
 
+/**
+ * Cumulative token spend across managed-proxy calls in this session.
+ * Reset on logout. Per-call deltas come from the worker's
+ * `X-Tokens-Input` / `X-Tokens-Output` / `X-Tokens-Reasoning` /
+ * `X-Tokens-Total` headers (see `creditSync.syncCreditsFromHeaders`).
+ */
+export interface TokenUsageTotals {
+  input: number;
+  output: number;
+  reasoning: number;
+  total: number;
+  /** Number of managed-proxy calls counted into the totals above. */
+  calls: number;
+}
+
 interface SettingsState extends AppSettings {
   session: UserSession | null;
   hasCompletedOnboarding: boolean;
@@ -62,6 +77,8 @@ interface SettingsState extends AppSettings {
   // prompt complexity. Defaults to recommended pick per tier.
   selectedManagedModels: Record<ManagedTier, string>;
   creditBalance: CreditBalance | null;
+  /** Running totals — see TokenUsageTotals doc. */
+  tokenUsage: TokenUsageTotals;
 
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -84,6 +101,9 @@ interface SettingsState extends AppSettings {
   setAdvancedExpanded: (expanded: boolean) => void;
   setSelectedManagedModelForTier: (tier: ManagedTier, modelId: string) => void;
   setCreditBalance: (balance: CreditBalance | null) => void;
+  /** Add a single managed-proxy call's token usage to the running totals. */
+  recordTokenUsage: (delta: { input?: number; output?: number; reasoning?: number; total?: number }) => void;
+  resetTokenUsage: () => void;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
@@ -130,6 +150,7 @@ export const useSettingsStore = create<SettingsState>()(
       advancedSettingsExpanded: false,
       selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
+      tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -172,6 +193,20 @@ export const useSettingsStore = create<SettingsState>()(
       setSelectedManagedModelForTier: (tier, modelId) =>
         set((s) => ({ selectedManagedModels: { ...s.selectedManagedModels, [tier]: modelId } })),
       setCreditBalance: (balance) => set({ creditBalance: balance }),
+      recordTokenUsage: (delta) => set((s) => ({
+        tokenUsage: {
+          input: s.tokenUsage.input + (delta.input ?? 0),
+          output: s.tokenUsage.output + (delta.output ?? 0),
+          reasoning: s.tokenUsage.reasoning + (delta.reasoning ?? 0),
+          total:
+            s.tokenUsage.total +
+            (delta.total ?? (delta.input ?? 0) + (delta.output ?? 0)),
+          calls: s.tokenUsage.calls + 1,
+        },
+      })),
+      resetTokenUsage: () => set({
+        tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
+      }),
       logout: () =>
         set({
           session: null,
@@ -181,6 +216,7 @@ export const useSettingsStore = create<SettingsState>()(
           serverDailyCount: 0,
           serverDailyDate: todayLocal(),
           creditBalance: null,
+          tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
         }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       initTheme: () => {
