@@ -47,6 +47,7 @@ function OrchestratorPlaceholder() {
   const subtasks = useRunStore((s) => s.subtasks);
   const taskState = useRunStore((s) => s.taskState);
   const plannerInfo = useRunStore((s) => s.plannerInfo);
+  const developerMode = useSettingsStore((s) => s.developerMode);
 
   const total = taskState?.plan?.subtasks.length ?? subtasks.length;
   const done = subtasks.filter((s) => s.status === 'done').length;
@@ -55,7 +56,9 @@ function OrchestratorPlaceholder() {
 
   let label: React.ReactNode;
   if (!run || run.status === 'planning' || (total === 0 && !running)) {
-    label = plannerInfo?.label ? `Planning · ${plannerInfo.label}` : 'Planning…';
+    label = developerMode && plannerInfo?.label
+      ? `Planning · ${plannerInfo.label}`
+      : 'Planning…';
   } else if (running) {
     label = (
       <>
@@ -80,8 +83,9 @@ function OrchestratorPlaceholder() {
           {label}
         </p>
         <p className="text-[11px] text-[var(--muted-foreground)]/70">
-          Open the Run Trace panel for live model picks, reasoning effort,
-          and per-step output.
+          {developerMode
+            ? 'Open the Run Trace panel for live model picks, reasoning effort, and per-step output.'
+            : 'Open the Progress panel to see step-by-step status.'}
         </p>
       </div>
     </div>
@@ -148,6 +152,7 @@ export function SkillChatPage() {
     billingTier, serverChatCount,
     managedModeEnabled, creditBalance,
     orchestratorEnabled, setOrchestratorEnabled,
+    developerMode,
   } = useSettingsStore();
   const isManagedActive = managedModeEnabled && Boolean(session);
   // Reactive subscription so the Trace button shows/hides as runs come and go.
@@ -483,9 +488,15 @@ export function SkillChatPage() {
                 type="button"
                 onClick={() => setShowRunTrace((v) => !v)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
-                title={showRunTrace ? 'Hide Run Trace' : 'Show Run Trace'}
+                title={
+                  developerMode
+                    ? showRunTrace ? 'Hide Run Trace' : 'Show Run Trace'
+                    : showRunTrace ? 'Hide Progress' : 'Show Progress'
+                }
               >
-                {showRunTrace ? 'Hide trace' : 'Show trace'}
+                {developerMode
+                  ? showRunTrace ? 'Hide trace' : 'Show trace'
+                  : showRunTrace ? 'Hide progress' : 'Show progress'}
               </button>
             )}
             {messages.length > 0 && !isRunningPack && (

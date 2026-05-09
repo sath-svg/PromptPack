@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight } from 'lucide-react';
+import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, Code2 } from 'lucide-react';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -19,6 +19,7 @@ export function SettingsPage() {
   const {
     theme, setTheme, globalHotkey, apiKeys, setApiKey, setBillingTier,
     managedModeEnabled, setManagedModeEnabled,
+    developerMode, setDeveloperMode,
     advancedSettingsExpanded, setAdvancedExpanded,
     selectedManagedModels, setSelectedManagedModelForTier,
     creditBalance, setCreditBalance,
@@ -365,6 +366,29 @@ export function SettingsPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Display — Developer mode for Run Trace verbosity */}
+        <section className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)]">
+          <div className="flex items-center gap-2 mb-3">
+            <Code2 size={18} className="text-[var(--muted-foreground)]" />
+            <h3 className="text-lg font-medium text-[var(--foreground)]">Display</h3>
+          </div>
+          <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">Developer mode</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Show technical details in the Run Trace panel — tool catalogs, planner internals,
+                shared-memory snapshot, model ids. Off by default for a friendlier progress view.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={developerMode}
+              onChange={(e) => setDeveloperMode(e.target.checked)}
+              className="w-5 h-5 accent-[var(--primary)]"
+            />
+          </label>
         </section>
 
         {/* Advanced — Developer keys (BYOK) */}

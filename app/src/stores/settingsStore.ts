@@ -50,6 +50,13 @@ interface SettingsState extends AppSettings {
   // experience. Toggle on to route managed-mode messages through the
   // multi-subtask workflow runner.
   orchestratorEnabled: boolean;
+  /**
+   * Developer mode. Off by default — Run Trace renders a friendly,
+   * jargon-free progress view (step 1 of 3, current model, plain
+   * status text). On — full technical view with tool catalogs,
+   * shared-memory snapshot, planner JSON, etc. Toggle in Settings.
+   */
+  developerMode: boolean;
   advancedSettingsExpanded: boolean;
   // User-chosen model per tier. Auto-routing picks one of these based on
   // prompt complexity. Defaults to recommended pick per tier.
@@ -73,6 +80,7 @@ interface SettingsState extends AppSettings {
   getServerDailyCount: () => number;
   setManagedModeEnabled: (enabled: boolean) => void;
   setOrchestratorEnabled: (enabled: boolean) => void;
+  setDeveloperMode: (enabled: boolean) => void;
   setAdvancedExpanded: (expanded: boolean) => void;
   setSelectedManagedModelForTier: (tier: ManagedTier, modelId: string) => void;
   setCreditBalance: (balance: CreditBalance | null) => void;
@@ -118,6 +126,7 @@ export const useSettingsStore = create<SettingsState>()(
       // the decision via the "Auto: workflow"/"Auto: single-shot" pill on
       // each assistant message.
       orchestratorEnabled: true,
+      developerMode: false,
       advancedSettingsExpanded: false,
       selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
@@ -158,6 +167,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setManagedModeEnabled: (enabled) => set({ managedModeEnabled: enabled }),
       setOrchestratorEnabled: (enabled) => set({ orchestratorEnabled: enabled }),
+      setDeveloperMode: (enabled) => set({ developerMode: enabled }),
       setAdvancedExpanded: (expanded) => set({ advancedSettingsExpanded: expanded }),
       setSelectedManagedModelForTier: (tier, modelId) =>
         set((s) => ({ selectedManagedModels: { ...s.selectedManagedModels, [tier]: modelId } })),

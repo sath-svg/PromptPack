@@ -1,12 +1,17 @@
 /**
- * Run Trace panel — minimal Phase 7 version.
+ * Run Trace panel.
  *
- * Subscribes to `useRunStore` and renders the planner output, subtask
- * status list, and final merged output. Visible only when the
- * orchestrator path is active and a run exists.
+ * Two render modes, gated by `settings.developerMode`:
+ *   - **User mode** (default): jargon-free progress view. Step counter,
+ *     friendly status text, plain-English effort labels. No tool catalog,
+ *     no shared-memory snapshot, no planner internals.
+ *   - **Developer mode**: full technical view with planner source,
+ *     tools-per-subtask, shared memory grid, model ids.
+ *
+ * Subscribes to `useRunStore` and renders only when a run is active.
  */
 
-import { Brain, X, Database, Cpu } from 'lucide-react';
+import { Brain, X, Database, Cpu, CheckCircle2, Loader2, AlertCircle, Circle } from 'lucide-react';
 import { useRunStore, SUBTASK_STATUS_COLORS } from '../../../stores/runStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getManagedModel } from '../../../lib/managed-models';
@@ -26,10 +31,7 @@ interface RunTracePanelProps {
 
 export function RunTracePanel({ open, onClose }: RunTracePanelProps) {
   const { run, subtasks, taskState, plannerInfo, cancelRun } = useRunStore();
-  // Default label shown before any plan has run. Once a run starts the
-  // store fills in `plannerInfo` with the concrete source / model and the
-  // chip switches to that. The fallback default is the inbuilt Llama 8B
-  // so users see the right answer even if they haven't run yet.
+  const developerMode = useSettingsStore((s) => s.developerMode);
   const fallbackManagedId = useSettingsStore((s) => s.selectedManagedModels.cheap);
   const fallbackManaged = getManagedModel(fallbackManagedId);
   const plannerLabel =
@@ -42,7 +44,14 @@ export function RunTracePanel({ open, onClose }: RunTracePanelProps) {
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
         <div className="flex items-center gap-2">
           <Brain size={16} className="text-amber-400" />
-          <h2 className="text-sm font-medium text-zinc-100">Run Trace</h2>
+          <h2 className="text-sm font-medium text-zinc-100">
+            {developerMode ? 'Run Trace' : 'Progress'}
+          </h2>
+          {developerMode && (
+            <span className="text-[10px] uppercase tracking-wider text-amber-500/80 font-mono">
+              dev
+            </span>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -54,38 +63,197 @@ export function RunTracePanel({ open, onClose }: RunTracePanelProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        <ArchitectureNote plannerLabel={plannerLabel} />
-
         {!run && (
           <p className="text-xs text-zinc-500 italic">
-            No active run. Send a multi-step message with SkillFlow on to see the
-            planner output, per-subtask routing decisions, and live progress here.
+            {developerMode
+              ? 'No active run. Send a multi-step message with SkillFlow on to see the planner output, per-subtask routing decisions, and live progress here.'
+              : 'Nothing running right now. Send a message and progress will show up here.'}
           </p>
         )}
 
-        {run && (
-          <>
-            <RunHeader run={run} subtaskCount={subtasks.length} />
-            {taskState?.plan && (
-              <PlanCard
-                merge={taskState.plan.merge}
-                count={taskState.plan.subtasks.length}
-              />
-            )}
-            <SubtaskList subtasks={subtasks} />
-            {taskState && <MemorySnapshot state={taskState} />}
-            {run.status === 'running' && (
-              <button
-                onClick={() => void cancelRun()}
-                className="w-full py-2 text-xs rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
-              >
-                Cancel run
-              </button>
-            )}
-          </>
+        {run && developerMode && (
+          <DeveloperView
+            run={run}
+            subtasks={subtasks}
+            taskState={taskState}
+            plannerLabel={plannerLabel}
+            onCancel={() => void cancelRun()}
+          />
+        )}
+
+        {run && !developerMode && (
+          <UserView
+            run={run}
+            subtasks={subtasks}
+            onCancel={() => void cancelRun()}
+          />
         )}
       </div>
     </div>
+  );
+}
+
+// ─── User-friendly view ────────────────────────────────────────────────────
+
+interface ViewProps {
+  run: { id: string; status: string; goal: string };
+  subtasks: Subtask[];
+  onCancel: () => void;
+}
+
+function UserView({ run, subtasks, onCancel }: ViewProps) {
+  const total = subtasks.length;
+  const done = subtasks.filter((s) => s.status === 'done').length;
+  const current = subtasks.find((s) => s.status === 'running');
+  const failed = subtasks.find((s) => s.status === 'failed');
+
+  let summaryText = '';
+  if (run.status === 'running') {
+    summaryText = current
+      ? `Working on step ${subtasks.indexOf(current) + 1} of ${total}…`
+      : `Starting…`;
+  } else if (run.status === 'done') {
+    summaryText = `Finished all ${total} step${total === 1 ? '' : 's'}.`;
+  } else if (run.status === 'failed') {
+    summaryText = failed
+      ? `Stopped on step ${subtasks.indexOf(failed) + 1}.`
+      : `Stopped with an error.`;
+  } else if (run.status === 'cancelled') {
+    summaryText = `Stopped by you.`;
+  } else {
+    summaryText = `${done} of ${total} done.`;
+  }
+
+  return (
+    <>
+      <div className="rounded border border-zinc-800 bg-zinc-900/50 px-3 py-2.5 space-y-2">
+        <p className="text-zinc-200 text-sm leading-snug">{run.goal}</p>
+        <div className="flex items-center gap-2 text-xs">
+          {run.status === 'running' && (
+            <Loader2 size={12} className="text-amber-400 animate-spin" />
+          )}
+          {run.status === 'done' && (
+            <CheckCircle2 size={12} className="text-green-400" />
+          )}
+          {(run.status === 'failed' || run.status === 'cancelled') && (
+            <AlertCircle size={12} className="text-red-400" />
+          )}
+          <span className="text-zinc-400">{summaryText}</span>
+        </div>
+        {total > 0 && (
+          <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+            <div
+              className="h-full bg-amber-400 transition-all"
+              style={{ width: `${total === 0 ? 0 : (done / total) * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        {subtasks.map((s, i) => (
+          <UserSubtaskRow key={s.id} subtask={s} index={i} />
+        ))}
+      </div>
+
+      {run.status === 'running' && (
+        <button
+          onClick={onCancel}
+          className="w-full py-2 text-xs rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+        >
+          Stop
+        </button>
+      )}
+    </>
+  );
+}
+
+function UserSubtaskRow({ subtask: s, index }: { subtask: Subtask; index: number }) {
+  const Icon =
+    s.status === 'done'
+      ? CheckCircle2
+      : s.status === 'running'
+        ? Loader2
+        : s.status === 'failed'
+          ? AlertCircle
+          : Circle;
+  const iconColor =
+    s.status === 'done'
+      ? 'text-green-400'
+      : s.status === 'running'
+        ? 'text-amber-400 animate-spin'
+        : s.status === 'failed'
+          ? 'text-red-400'
+          : 'text-zinc-600';
+
+  const effortLabel = s.effort
+    ? s.effort === 'low'
+      ? 'Quick'
+      : s.effort === 'medium'
+        ? 'Standard'
+        : 'Deep'
+    : null;
+
+  return (
+    <div className="flex items-start gap-2.5 px-3 py-2 rounded bg-zinc-900/30">
+      <Icon size={14} className={`${iconColor} mt-0.5 shrink-0`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-zinc-500 font-mono">
+            Step {index + 1}
+          </span>
+          {effortLabel && s.status !== 'pending' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+              {effortLabel}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-zinc-200 leading-snug">
+          {s.title ?? '(untitled)'}
+        </p>
+        {s.error && (
+          <p className="text-[11px] text-red-400 mt-1">{s.error}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Developer view (the existing technical layout) ────────────────────────
+
+interface DeveloperViewProps extends ViewProps {
+  taskState: TaskState | null;
+  plannerLabel: string;
+}
+
+function DeveloperView({
+  run,
+  subtasks,
+  taskState,
+  plannerLabel,
+  onCancel,
+}: DeveloperViewProps) {
+  return (
+    <>
+      <ArchitectureNote plannerLabel={plannerLabel} />
+      <RunHeader run={run} subtaskCount={subtasks.length} />
+      {taskState?.plan && (
+        <PlanCard
+          merge={taskState.plan.merge}
+          count={taskState.plan.subtasks.length}
+        />
+      )}
+      <DevSubtaskList subtasks={subtasks} />
+      {taskState && <MemorySnapshot state={taskState} />}
+      {run.status === 'running' && (
+        <button
+          onClick={onCancel}
+          className="w-full py-2 text-xs rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+        >
+          Cancel run
+        </button>
+      )}
+    </>
   );
 }
 
@@ -184,20 +352,20 @@ function PlanCard({ merge, count }: { merge: string; count: number }) {
   );
 }
 
-function SubtaskList({ subtasks }: { subtasks: Subtask[] }) {
+function DevSubtaskList({ subtasks }: { subtasks: Subtask[] }) {
   if (subtasks.length === 0) {
     return <p className="text-xs text-zinc-500 italic">No subtasks yet.</p>;
   }
   return (
     <div className="space-y-2">
       {subtasks.map((s) => (
-        <SubtaskRow key={s.id} subtask={s} />
+        <DevSubtaskRow key={s.id} subtask={s} />
       ))}
     </div>
   );
 }
 
-function SubtaskRow({ subtask: s }: { subtask: Subtask }) {
+function DevSubtaskRow({ subtask: s }: { subtask: Subtask }) {
   // The planner-supplied tool list is stored as a JSON string; parse
   // defensively so a malformed value doesn't crash the panel.
   let needsTools: string[] = [];
