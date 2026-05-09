@@ -17,7 +17,7 @@
 
 import { tauriFetch } from '../tauriFetch';
 import { applyReasoning, capEffortForAgentLoop } from '../reasoningParams';
-import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../agentTools';
+import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../agentTools';
 import type { ModelPreset } from '../classifier';
 import type { EffortLevel } from '../classifier';
 import type { SubtaskRunResult } from './executor';
@@ -73,12 +73,13 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
   ];
   let textOut = '';
   let reasoningTokens: number | undefined;
+  const forceWritePath = detectWriteFileIntent(input.prompt);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (input.signal?.aborted) {
       throw new DOMException('aborted', 'AbortError');
     }
-    const body = applyReasoning(input.preset, input.effort ?? null, {
+    const baseBody: Record<string, unknown> = {
       model: input.preset.modelId,
       max_tokens: 4096,
       system: AGENT_SYSTEM_PROMPT,
@@ -88,7 +89,11 @@ async function runAnthropicSubtask(input: AgentSubtaskInput): Promise<SubtaskRun
         input_schema: t.input_schema,
       })),
       messages,
-    });
+    };
+    if (round === 0 && forceWritePath) {
+      baseBody.tool_choice = { type: 'tool', name: 'write_file' };
+    }
+    const body = applyReasoning(input.preset, input.effort ?? null, baseBody);
     const res = await tauriFetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -197,12 +202,13 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
   }
   let textOut = '';
   let reasoningTokens: number | undefined;
+  const forceWritePath = detectWriteFileIntent(input.prompt);
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     if (input.signal?.aborted) {
       throw new DOMException('aborted', 'AbortError');
     }
-    const body = applyReasoning(input.preset, input.effort ?? null, {
+    const baseBody: Record<string, unknown> = {
       model: input.preset.modelId,
       max_tokens: 4096,
       messages: apiMessages,
@@ -214,7 +220,11 @@ async function runOpenAICompatSubtask(input: AgentSubtaskInput): Promise<Subtask
           parameters: t.input_schema,
         },
       })),
-    });
+    };
+    if (round === 0 && forceWritePath) {
+      baseBody.tool_choice = { type: 'function', function: { name: 'write_file' } };
+    }
+    const body = applyReasoning(input.preset, input.effort ?? null, baseBody);
     const res = await tauriFetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {

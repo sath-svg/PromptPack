@@ -18,7 +18,7 @@ import { applyReasoning, capEffortForAgentLoop, managedProxyReasoning } from '..
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
-import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../lib/agentTools';
+import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel } from '../lib/managed-models';
 
 // ---------------------------------------------------------------------------
@@ -513,8 +513,9 @@ async function anthropicAgentTurn(
   messages: AnthropicMessage[],
   system: string,
   effort?: EffortLevel | null,
+  forceToolName?: string,
 ): Promise<{ content: AnthropicContentBlock[]; stop_reason: string }> {
-  const body = applyReasoning(preset, effort ?? null, {
+  const baseBody: Record<string, unknown> = {
     model: preset.modelId,
     max_tokens: 4096,
     system,
@@ -524,7 +525,13 @@ async function anthropicAgentTurn(
       input_schema: t.input_schema,
     })),
     messages,
-  });
+  };
+  // Anthropic forces a specific tool with: tool_choice = { type: 'tool', name: '...' }
+  // Used on the first round when the user explicitly asked to save a file.
+  if (forceToolName) {
+    baseBody.tool_choice = { type: 'tool', name: forceToolName };
+  }
+  const body = applyReasoning(preset, effort ?? null, baseBody);
   const response = await tauriFetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -563,8 +570,9 @@ async function openaiAgentTurn(
   messages: OpenAIMessage[],
   extraHeaders: Record<string, string>,
   effort?: EffortLevel | null,
+  forceToolName?: string,
 ): Promise<OpenAIMessage> {
-  const body = applyReasoning(preset, effort ?? null, {
+  const baseBody: Record<string, unknown> = {
     model: preset.modelId,
     max_tokens: 4096,
     messages,
@@ -576,7 +584,12 @@ async function openaiAgentTurn(
         parameters: t.input_schema,
       },
     })),
-  });
+  };
+  // OpenAI / OpenAI-compat: tool_choice = { type: 'function', function: { name: '...' } }
+  if (forceToolName) {
+    baseBody.tool_choice = { type: 'function', function: { name: forceToolName } };
+  }
+  const body = applyReasoning(preset, effort ?? null, baseBody);
   const response = await tauriFetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -649,9 +662,23 @@ async function runAnthropicAgent(
     createdAt: Date.now(),
   });
 
+  // First-round tool-choice nudge: when the user explicitly asks to
+  // save a file ("save as foo.md", "output it as plan.md", etc.), force
+  // the model to call write_file on the first round. Cheaper and more
+  // reliable than hoping the system prompt convinces the model.
+  const forceWritePath = detectWriteFileIntent(userText);
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     onBeforeRound?.();
-    const turn = await anthropicAgentTurn(apiKey, preset, apiMessages, AGENT_SYSTEM_PROMPT, effort ?? null);
+    const forceTool = round === 0 && forceWritePath ? 'write_file' : undefined;
+    const turn = await anthropicAgentTurn(
+      apiKey,
+      preset,
+      apiMessages,
+      AGENT_SYSTEM_PROMPT,
+      effort ?? null,
+      forceTool,
+    );
     const apiContent: AnthropicContentBlock[] = [];
 
     for (const block of turn.content) {
@@ -766,9 +793,21 @@ async function runOpenAIAgent(
     createdAt: Date.now(),
   });
 
+  // First-round tool-choice nudge — see anthropicAgent above.
+  const forceWritePath = detectWriteFileIntent(userText);
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     onBeforeRound?.();
-    const reply = await openaiAgentTurn(baseUrl, apiKey, preset, apiMessages, extraHeaders, effort ?? null);
+    const forceTool = round === 0 && forceWritePath ? 'write_file' : undefined;
+    const reply = await openaiAgentTurn(
+      baseUrl,
+      apiKey,
+      preset,
+      apiMessages,
+      extraHeaders,
+      effort ?? null,
+      forceTool,
+    );
     if (reply.content) {
       assistantBlocks.push({ kind: 'text', text: reply.content });
     }

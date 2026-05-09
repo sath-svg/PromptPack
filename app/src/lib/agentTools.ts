@@ -136,6 +136,32 @@ function makeId(): string {
   return Math.random().toString(36).slice(2, 12);
 }
 
+/**
+ * Detect whether the user prompt explicitly asks the assistant to save
+ * content to a file. When this returns a path, the agent runner should
+ * force `tool_choice: write_file` on the first model round so the model
+ * physically cannot reply in chat without calling the tool.
+ *
+ * Conservative — false positives cause an awkward forced call, false
+ * negatives just leave the existing system-prompt nudge in place.
+ */
+export function detectWriteFileIntent(text: string): string | null {
+  // Match common explicit save phrasings + a filename with extension.
+  // Order: longest / most specific patterns first.
+  const patterns: RegExp[] = [
+    /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)\s+(?:as|to|into)\s+([\w./\\-]+\.\w{1,6})\b/i,
+    /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)?\s*as\s+a\s+\w+\s+file\s+(?:named|called)\s+([\w./\\-]+\.\w{1,6})\b/i,
+    /(?:save|write|output)\s+([\w./\\-]+\.\w{1,6})\b/i,
+    /(?:save\s+(?:the\s+)?(?:corrected\s+)?(?:version\s+)?)?back\s+to\s+([\w./\\-]+\.\w{1,6})\b/i,
+    /(?:produce\s+(?:a\s+)?(?:pdf\s+)?(?:report\s+)?saved\s+as)\s+([\w./\\-]+\.\w{1,6})\b/i,
+  ];
+  for (const rx of patterns) {
+    const m = text.match(rx);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
 interface ToolContext {
   workspace: string;
 }
@@ -368,6 +394,10 @@ You have tools to read, edit, search, and run commands inside the workspace. Use
 If the user's request mentions producing, saving, creating, writing, or outputting a file (markdown, code, JSON, PDF, etc.), you MUST call \`write_file\` (for new content) or \`edit_file\` (for partial updates). **Never substitute by pasting the file contents into chat.** The user explicitly wants a file on disk — chat output does not satisfy that.
 
 When the user names a target path (e.g. "save as foo.md", "output to plan.md"), call \`write_file\` with that exact path. Do not invent a different name. Do not summarize the content "for context" before calling — call the tool first, then summarize what you wrote in one or two short lines.
+
+**Markdown code fences are not a substitute.** If you are about to emit a triple-backtick block (\`\`\`markdown ... \`\`\` or \`\`\`json ... \`\`\` or any other fence) containing the contents of a file the user asked you to create, you are doing the wrong thing. Stop. Call \`write_file\` with that content as the \`content\` argument. The chat surface should never receive a fenced dump of a file you were asked to save.
+
+**Do not fabricate completion banners.** Lines like \`*File: foo.md*\`, \`*Status: Ready for evaluation*\`, \`✅ The file has been created\`, or any similar status text claiming a save happened are forbidden unless an actual \`write_file\` tool call returned successfully in the same response. The user inspects the workspace; lies are caught immediately.
 
 # Never fabricate after a tool error
 
