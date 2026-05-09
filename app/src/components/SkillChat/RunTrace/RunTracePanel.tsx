@@ -244,6 +244,7 @@ function DeveloperView({
         />
       )}
       <DevSubtaskList subtasks={subtasks} />
+      <ChipLegend />
       {taskState && <MemorySnapshot state={taskState} />}
       {run.status === 'running' && (
         <button
@@ -276,12 +277,46 @@ function ArchitectureNote({ plannerLabel }: { plannerLabel: string }) {
           {plannerLabel}
         </span>
       </div>
-      <p className="text-[10px] text-zinc-500">
-        Default planner = your <strong>cheap</strong>-tier managed pick
-        (Settings → AI Credits). Free Llama 3.1 8B was the default before
-        v1.2 — switched to a managed cheap-tier model because Llama 8B
-        over-serialised plans and killed parallelism. Per-skill
-        plannerModelId still overrides this when set.
+    </div>
+  );
+}
+
+// One-shot legend below the dev-mode subtask list so the % / ↻ / Light /
+// Standard / Deep chips aren't black boxes. Folds together what would
+// otherwise have to live as separate hover tooltips on each row.
+function ChipLegend() {
+  return (
+    <div className="rounded border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-[11px] text-zinc-500 space-y-1.5 leading-relaxed">
+      <p className="text-zinc-300 font-medium">Chip legend</p>
+      <p>
+        <span className="font-mono px-1 py-px rounded bg-emerald-500/15 text-emerald-400">
+          85%
+        </span>{' '}
+        confidence — heuristic check on the output (empty / refusal /
+        truncation / JSON validity / file mention / length).
+        Green ≥ 75%, amber ≥ 55%, red below. Sub-55% triggers one retry.
+      </p>
+      <p>
+        <span className="font-mono px-1 py-px rounded bg-orange-500/15 text-orange-400">
+          ↻ 1
+        </span>{' '}
+        retry count — Skillset re-ran this subtask once at a higher
+        effort (then tier) because the first attempt scored low.
+      </p>
+      <p>
+        <span className="font-mono px-1 py-px rounded bg-amber-500/15 text-amber-400">
+          Light
+        </span>{' '}
+        /{' '}
+        <span className="font-mono px-1 py-px rounded bg-orange-500/15 text-orange-400">
+          Standard
+        </span>{' '}
+        /{' '}
+        <span className="font-mono px-1 py-px rounded bg-red-500/15 text-red-400">
+          Deep
+        </span>{' '}
+        — reasoning effort the model was asked to spend. Higher = more
+        thinking tokens, higher cost.
       </p>
     </div>
   );
@@ -417,7 +452,15 @@ function DevSubtaskRow({ subtask: s }: { subtask: Subtask }) {
                   ? 'bg-amber-500/15 text-amber-400'
                   : 'bg-red-500/15 text-red-400'
             }`}
-            title={`Confidence score: ${s.confidence.toFixed(2)}`}
+            title={
+              [
+                'Confidence score (0–100%) — Skillset\'s heuristic check on the model\'s output.',
+                'Looks at: empty / refusal / truncation / JSON validity (when produces=json) / file mention (when produces=file) / length-vs-instruction.',
+                'Below 55% triggers one retry at a higher effort or tier; this chip shows the FINAL score after any retries.',
+                '',
+                `Score: ${s.confidence.toFixed(2)}`,
+              ].join('\n')
+            }
           >
             {Math.round(s.confidence * 100)}%
           </span>
