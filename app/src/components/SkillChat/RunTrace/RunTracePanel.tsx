@@ -277,9 +277,11 @@ function ArchitectureNote({ plannerLabel }: { plannerLabel: string }) {
         </span>
       </div>
       <p className="text-[10px] text-zinc-500">
-        Default planner = <strong>inbuilt Llama 3.1 8B</strong> via the
-        Skillset server (free, daily-capped). Falls back to your{' '}
-        <strong>cheap</strong> managed pick if the server is unreachable.
+        Default planner = your <strong>cheap</strong>-tier managed pick
+        (Settings → AI Credits). Free Llama 3.1 8B was the default before
+        v1.2 — switched to a managed cheap-tier model because Llama 8B
+        over-serialised plans and killed parallelism. Per-skill
+        plannerModelId still overrides this when set.
       </p>
     </div>
   );

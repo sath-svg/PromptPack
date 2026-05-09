@@ -1464,12 +1464,32 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           /\binsufficient[_ ]credits\b/i.test(msg) ||
           /\b402\b/.test(msg);
         if (looksOutOfCredits) {
-          set({ error: '__OUT_OF_CREDITS__', isLoading: false });
+          // Drop the empty assistant placeholder so the chat doesn't
+          // show a blank bubble next to the "Top up & resume" card.
+          set((state) => ({
+            messages: state.messages.filter((m) => m.id !== assistantId),
+            error: '__OUT_OF_CREDITS__',
+            isLoading: false,
+          }));
           return;
         }
-        // Subtask state lives in runStore — Run Trace panel shows
-        // failed chips. Surface a single error toast inline.
-        set({ error: msg, isLoading: false });
+        // Real failure — fold the error into the assistant bubble so
+        // it's not just a floating empty placeholder + a separate red
+        // toast. Run Trace still owns per-subtask chips.
+        blocks.length = 0;
+        blocks.push({
+          kind: 'text',
+          text: `_(run failed: ${msg.slice(0, 280)})_`,
+        });
+        set((state) => ({
+          messages: state.messages.map((m) =>
+            m.id === assistantId
+              ? { ...m, blocks: [...blocks], content: msg }
+              : m,
+          ),
+          error: msg,
+          isLoading: false,
+        }));
       },
     });
 

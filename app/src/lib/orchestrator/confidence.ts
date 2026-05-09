@@ -62,9 +62,14 @@ export function evaluateConfidence(input: ConfidenceInput): ConfidenceResult {
     return { score: 0.4, reason: 'output appears truncated' };
   }
 
-  // `produces: 'json'` requires parseable JSON. Strip surrounding
-  // markdown fences before parsing — many models still wrap.
-  if (input.subtask.produces === 'json') {
+  // `produces: 'json'` requires parseable JSON — but only when the
+  // subtask is pure-text reasoning. Tool-using subtasks (`needs_tools`
+  // non-empty) routinely write prose summaries after fetching data
+  // through `web_fetch`/`http`, so flagging those as low-confidence
+  // burns credits on pointless retries. Skip the JSON gate when tools
+  // are in play.
+  const hasTools = (input.subtask.needs_tools?.length ?? 0) > 0;
+  if (input.subtask.produces === 'json' && !hasTools) {
     const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
     try {
       JSON.parse(stripped);
