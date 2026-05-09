@@ -148,6 +148,10 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
 
 export function SkillChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, voteOnMessage } = useChatStore();
+  const messageQueue = useChatStore((s) => s.messageQueue);
+  const enqueueMessage = useChatStore((s) => s.enqueueMessage);
+  const removeQueuedMessage = useChatStore((s) => s.removeQueuedMessage);
+  const stopGeneration = useChatStore((s) => s.stopGeneration);
   const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts } = useSyncStore();
   const { session, openSignIn } = useAuthStore();
   const {
@@ -219,6 +223,19 @@ export function SkillChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
+  // Drain the queued-message FIFO whenever the in-flight assistant turn
+  // resolves. Pops one entry per transition so each message gets its
+  // own complete `sendMessage` lifecycle (including orchestrator + Run
+  // Trace updates). The user can still type further follow-ups while
+  // earlier ones are running.
+  useEffect(() => {
+    if (isLoading) return;
+    if (messageQueue.length === 0) return;
+    const next = messageQueue[0];
+    removeQueuedMessage(0);
+    void sendMessage(next.text, next.packName, next.systemPrompt, next.attachments);
+  }, [isLoading, messageQueue, removeQueuedMessage, sendMessage]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -376,8 +393,27 @@ export function SkillChatPage() {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isLoading) return;
+    if (!text) return;
     setInput('');
+
+    // While a previous turn is still running, queue the new prompt
+    // instead of dropping it. The drain effect picks it up as soon as
+    // the in-flight call resolves. Pack-tagged routing only applies
+    // when the user can run synchronously — queued plain prompts
+    // bypass the extractor (the pack tag may not even be selected by
+    // the time the queue drains).
+    if (isLoading) {
+      const snapshot =
+        attachments.length > 0 ? [...attachments] : undefined;
+      enqueueMessage({
+        text,
+        packName: selectedPack?.title,
+        systemPrompt: buildSystemPrompt(),
+        attachments: snapshot,
+      });
+      if (snapshot) clearAttachments();
+      return;
+    }
 
     // Pack-tagged free-text routing: if a pack with prompts is selected
     // and the user typed something into the chat input, the typed text
@@ -1125,6 +1161,34 @@ export function SkillChatPage() {
           </div>
         )}
 
+        {/* Queued prompts — drained one-at-a-time as the in-flight
+            assistant turn resolves. Each chip is removable so a user
+            who changed their mind can drop a queued send. */}
+        {!variablePrompt && !packVarForm && messageQueue.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-[var(--muted-foreground)] mr-1">
+              Queued ({messageQueue.length}):
+            </span>
+            {messageQueue.map((q, i) => (
+              <span
+                key={i}
+                className="flex items-center gap-1 max-w-[260px] px-2 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[11px]"
+                title={q.text}
+              >
+                <SkipForward size={10} />
+                <span className="truncate">{q.text.slice(0, 60)}{q.text.length > 60 ? '…' : ''}</span>
+                <button
+                  onClick={() => removeQueuedMessage(i)}
+                  className="text-amber-500 hover:text-amber-400"
+                  aria-label="Remove from queue"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {/* Normal text input — hidden while forms active */}
         {!variablePrompt && !packVarForm && (
           <div className="mt-4 border border-[var(--border)] rounded-xl bg-[var(--card)] focus-within:border-[var(--primary)] transition-colors">
@@ -1180,20 +1244,47 @@ export function SkillChatPage() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  agentMode && workspace
-                    ? 'Ask the agent to read, edit, or run code…'
-                    : 'Type a message… (Shift+Enter for new line)'
+                  isLoading
+                    ? 'Type to queue another prompt — runs after the current one'
+                    : agentMode && workspace
+                      ? 'Ask the agent to read, edit, or run code…'
+                      : 'Type a message… (Shift+Enter for new line)'
                 }
                 rows={1}
                 className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] resize-none outline-none py-2 px-1"
               />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                className="p-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] disabled:opacity-40 hover:opacity-90 transition-opacity flex-shrink-0"
-              >
-                <Send size={16} />
-              </button>
+              {isLoading ? (
+                input.trim() ? (
+                  // Busy + user typed something → primary action becomes
+                  // "queue this prompt". Drain effect picks it up when
+                  // the current turn finishes.
+                  <button
+                    onClick={handleSend}
+                    className="p-2 rounded-lg bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 transition-colors flex-shrink-0"
+                    title="Queue this prompt — runs after the current one"
+                  >
+                    <SkipForward size={16} />
+                  </button>
+                ) : (
+                  // Busy + nothing typed → primary action is Stop the
+                  // in-flight generation (orchestrator AbortController).
+                  <button
+                    onClick={stopGeneration}
+                    className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors flex-shrink-0"
+                    title="Stop the current run"
+                  >
+                    <X size={16} />
+                  </button>
+                )
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className="p-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] disabled:opacity-40 hover:opacity-90 transition-opacity flex-shrink-0"
+                >
+                  <Send size={16} />
+                </button>
+              )}
             </div>
           </div>
         )}

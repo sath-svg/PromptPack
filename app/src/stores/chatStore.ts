@@ -199,6 +199,23 @@ interface ChatState {
   error: string | null;
   agentMode: boolean;
   setAgentMode: (on: boolean) => void;
+  /**
+   * FIFO of prompts the user typed while a previous message was still
+   * running. Drained one-at-a-time after each `sendMessage` resolves —
+   * the user can keep adding follow-ups instead of waiting for the
+   * current generation to finish.
+   */
+  messageQueue: { text: string; packName?: string; systemPrompt?: string; attachments?: string[] }[];
+  enqueueMessage: (entry: { text: string; packName?: string; systemPrompt?: string; attachments?: string[] }) => void;
+  removeQueuedMessage: (index: number) => void;
+  clearQueue: () => void;
+  /**
+   * Cancel the in-flight assistant turn. Aborts the orchestrator's
+   * AbortController + flips `isLoading` off so the input + send button
+   * become responsive again. The queue is preserved so users can clear
+   * it explicitly via `clearQueue` if they want to drop pending sends.
+   */
+  stopGeneration: () => void;
   sendMessage: (text: string, packName?: string, systemPrompt?: string, attachments?: string[]) => Promise<void>;
   /**
    * Run an entire pack as ONE orchestrator run. Each pack step becomes
@@ -1493,8 +1510,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoading: false,
   error: null,
   agentMode: false,
+  messageQueue: [],
 
   setAgentMode: (on) => set({ agentMode: on }),
+
+  enqueueMessage: (entry) => {
+    set((state) => ({ messageQueue: [...state.messageQueue, entry] }));
+  },
+  removeQueuedMessage: (index) => {
+    set((state) => ({
+      messageQueue: state.messageQueue.filter((_, i) => i !== index),
+    }));
+  },
+  clearQueue: () => set({ messageQueue: [] }),
+  stopGeneration: () => {
+    // Run-store holds the AbortController for any orchestrator pass.
+    // Aborting it propagates into in-flight tauriFetch + agent loops.
+    void useRunStore.getState().cancelRun();
+    set({ isLoading: false });
+  },
 
   sendMessage: async (text, packName, systemPrompt, attachments) => {
     const settings = useSettingsStore.getState();
