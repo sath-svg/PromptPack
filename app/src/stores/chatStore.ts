@@ -129,6 +129,14 @@ export type MessageBlock =
       status: 'running' | 'done' | 'failed';
       reasoningTokens?: number;
       error?: string;
+    }
+  | {
+      // Orchestrator-only: tiny "Planned by X" caption above the subtask
+      // stream. Pushed once on `onPlan` so users see who decomposed their
+      // goal without opening the Run Trace panel.
+      kind: 'planner_hint';
+      label: string;
+      isFree: boolean;
     };
 
 export interface ChatMessage {
@@ -1045,15 +1053,21 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         await useRunStore.getState().patchRun({ status: 'running' });
         const plannerLabel =
           info.source === 'server'
-            ? `Llama 3.1 8B (server · free)`
-            : info.modelId;
+            ? 'Llama 3.1 8B (free)'
+            : `${info.modelId} (managed fallback)`;
         useRunStore.getState().setPlannerInfo({
           source: info.source,
           modelId: info.modelId,
           label: plannerLabel,
         });
-        // Planner metadata lives in the Run Trace panel — keep the chat
-        // bubble itself focused on prose. No intro text block.
+        // Inline caption — first block in the orchestrator bubble — so
+        // users see the planner without opening the Run Trace panel.
+        blocks.push({
+          kind: 'planner_hint',
+          label: plannerLabel,
+          isFree: info.source === 'server',
+        });
+        patchBlocks();
       },
       onSubtaskStart: async (s, decision) => {
         const m = getManagedModel(decision.managed.id);

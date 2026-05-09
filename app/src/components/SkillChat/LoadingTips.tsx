@@ -60,6 +60,28 @@ const TIPS: Array<{ feature: string; body: string }> = [
     feature: 'Skill export → Claude',
     body: 'Export any Skill as a `.skill` markdown file compatible with Claude.ai\'s skills format. Bring your Skillset workflow to other tools.',
   },
+
+  // ── Token-reduction tips — help users stretch credits further ─────
+  {
+    feature: 'Save tokens · be specific',
+    body: 'Tell the model exactly how long an answer to write ("3 bullet points", "150 words"). Vague asks get verbose answers — and verbose answers cost output tokens.',
+  },
+  {
+    feature: 'Save tokens · use {variables}',
+    body: 'Wrap context once in {curly_braces}. Skillset fills it on each run so you stop re-pasting the same project description into every prompt.',
+  },
+  {
+    feature: 'Save tokens · point at files',
+    body: 'With a workspace connected, ask "summarize src/utils.ts" instead of pasting code. The agent reads the file directly — same answer, ~10× fewer input tokens.',
+  },
+  {
+    feature: 'Save tokens · stay on Light',
+    body: 'Reasoning effort scales output 1×/1.3×/2×/4× for Light/Standard/Deep. Quick rewrites and lookups don\'t need Deep — let the LR router pick.',
+  },
+  {
+    feature: 'Save tokens · clear chat often',
+    body: 'Long chats stuff every previous turn back into the next call. Hit Clear when the conversation drifts to a new topic — drops the rolling history bill.',
+  },
 ];
 
 export function LoadingTips() {

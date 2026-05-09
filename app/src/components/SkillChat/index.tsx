@@ -601,6 +601,24 @@ export function SkillChatPage() {
                         if (block.kind === 'subtask_header') {
                           return <SubtaskHeaderChip key={idx} block={block} />;
                         }
+                        if (block.kind === 'planner_hint') {
+                          return (
+                            <p
+                              key={idx}
+                              className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-1"
+                              style={{ fontFamily: 'var(--font-mono)' }}
+                              title={
+                                block.isFree
+                                  ? 'Planner runs free on the inbuilt Skillset server. Subtasks below burn credits per the routed model.'
+                                  : 'Planner is using your managed cheap selection because the inbuilt server was unavailable.'
+                              }
+                            >
+                              <Brain size={9} className="inline-block mr-1 -mt-0.5 text-amber-500" />
+                              Planned by {block.label}
+                              {block.isFree ? '' : ' · fallback'}
+                            </p>
+                          );
+                        }
                         return null;
                       })}
                     </div>
