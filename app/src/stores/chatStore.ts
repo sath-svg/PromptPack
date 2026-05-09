@@ -1697,8 +1697,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set({ isLoading: false });
           return;
         }
+        // Map worker auth errors to the friendly session-expired pill so
+        // the chat surface renders the "Sign in again" CTA instead of a
+        // raw red toast with the worker's `error` string.
+        const rawMsg = err instanceof Error ? err.message : String(err);
+        if (
+          /invalid or expired session/i.test(rawMsg) ||
+          /\b401\b/.test(rawMsg) ||
+          /\bunauthorized\b/i.test(rawMsg)
+        ) {
+          set({ error: '__SESSION_EXPIRED__', isLoading: false });
+          return;
+        }
         set({
-          error: err instanceof Error ? err.message : 'Something went wrong',
+          error: rawMsg || 'Something went wrong',
           isLoading: false,
         });
       }
@@ -1789,10 +1801,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
           actualRoute: 'chat',
         });
       }
-      set({
-        error: err instanceof Error ? err.message : 'Something went wrong',
-        isLoading: false,
-      });
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      if (
+        /invalid or expired session/i.test(rawMsg) ||
+        /\b401\b/.test(rawMsg) ||
+        /\bunauthorized\b/i.test(rawMsg)
+      ) {
+        set({ error: '__SESSION_EXPIRED__', isLoading: false });
+        return;
+      }
+      set({ error: rawMsg || 'Something went wrong', isLoading: false });
     }
   },
 

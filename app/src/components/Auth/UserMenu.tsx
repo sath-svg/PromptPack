@@ -67,7 +67,7 @@ export function UserMenu({ onLoginClick }: UserMenuProps) {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-[var(--card)] rounded-lg shadow-xl border border-[var(--border)] overflow-hidden z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-[var(--card)] rounded-lg shadow-xl border border-[var(--border)] overflow-hidden z-[100]">
           {/* User Info */}
           <div className="p-3 border-b border-[var(--border)]">
             <p className="text-sm font-medium text-[var(--foreground)] truncate">
