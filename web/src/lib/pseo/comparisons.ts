@@ -54,7 +54,7 @@ export const comparisonPages: ComparisonPage[] = [
       },
       {
         feature: "Pricing",
-        promptpack: "Pro from $9/mo (early bird $1.99/mo)",
+        promptpack: "Pro from $15/mo (early bird $1.99/mo)",
         competitor: "Plus from $9/mo",
         winner: "promptpack",
       },
@@ -114,7 +114,7 @@ export const comparisonPages: ComparisonPage[] = [
       },
       {
         feature: "Pricing",
-        promptpack: "Free tier available, Pro from $9/mo",
+        promptpack: "Free tier available, Pro from $15/mo",
         competitor: "Free tier with limits, Pro from $9.99/mo",
         winner: "promptpack",
       },

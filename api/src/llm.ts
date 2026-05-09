@@ -1,4 +1,9 @@
-import { getManagedModel, isManagedModel, MANAGED_MODELS } from "./managed-models";
+import {
+  getManagedModel,
+  isManagedModel,
+  MANAGED_MODELS,
+  estimateCreditsForCall,
+} from "./managed-models";
 import {
   reserveCredits,
   settleCredits,
@@ -146,26 +151,20 @@ export async function handleLlmChat(
 
   const model = getManagedModel(modelId)!;
 
-  // Estimate credits: take the larger of (a) flat per-call estimate from the
-  // allowlist and (b) a rough token-based estimate scaled by tier. Settles
-  // exactly against OpenRouter's reported cost.
+  // Token-based reservation. Uses the model's actual OpenRouter pricing
+  // (`usdPer1MInput` + `usdPer1MOutput`) plus the requested `max_tokens`
+  // cap to compute a tight credit hold. Reasoning effort scales the
+  // output term (1× / 1.3× / 2× / 4× for null / low / medium / high)
+  // to cover thinking-token spend. Settle uses the real `usage.cost`
+  // returned by OpenRouter, so any over-estimate refunds automatically.
   const inputTokens = estimateTokens(body.messages);
-  const tierMultiplier = model.tier === "frontier" ? 25 : model.tier === "mid" ? 5 : 1;
-  // Reasoning enabled → thinking tokens count as output tokens at the model's
-  // output rate. Scale the reserve so the hold doesn't underflow on high-effort
-  // calls. 3× covers low/medium; high may still overshoot but settles via the
-  // actual `usage.cost` returned by OpenRouter.
   const reasoningEffort = body.reasoning?.effort;
-  const reasoningMultiplier =
-    reasoningEffort === "high" ? 6 :
-    reasoningEffort === "medium" ? 3 :
-    reasoningEffort === "low" ? 2 :
-    1;
-  const tokenBasedEstimate = Math.ceil((inputTokens / 1000) * tierMultiplier * reasoningMultiplier);
-  const estimatedCredits = Math.max(
-    Math.ceil(model.creditsPerCall * reasoningMultiplier),
-    tokenBasedEstimate,
-  );
+  const estimatedCredits = estimateCreditsForCall({
+    model,
+    inputTokens,
+    maxOutputTokens: body.max_tokens ?? 8192,
+    effort: reasoningEffort ?? null,
+  });
 
   const reserve = await reserveCredits(env, clerkId, estimatedCredits, modelId);
   console.log("[llm-chat] reserve:", JSON.stringify({

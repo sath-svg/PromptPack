@@ -6,7 +6,7 @@ import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAgentStore } from '../../stores/agentStore';
-import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS } from '../../lib/classifier';
+import { TIER_COLORS, TIER_LABELS, PROVIDER_LABELS, EFFORT_DISPLAY_LABELS } from '../../lib/classifier';
 import { WorkspaceBar } from './WorkspaceBar';
 import { LspStatusBar } from './LspStatusBar';
 import { GitBar } from './GitBar';
@@ -67,14 +67,14 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
       )}
       {block.effort && (
         <span
-          className={`px-2 py-0.5 rounded-full font-medium font-mono ${EFFORT_CHIP_COLORS[block.effort]}`}
+          className={`px-2 py-0.5 rounded-full font-medium ${EFFORT_CHIP_COLORS[block.effort]}`}
           title={
             block.reasoningTokens
-              ? `${block.reasoningTokens} reasoning tokens`
-              : 'reasoning effort'
+              ? `Reasoning effort · ${block.reasoningTokens} thinking tokens`
+              : 'Reasoning effort'
           }
         >
-          {block.effort}
+          {EFFORT_DISPLAY_LABELS[block.effort]}
         </span>
       )}
       <span className="ml-auto text-[var(--muted-foreground)] font-medium">
@@ -622,7 +622,13 @@ export function SkillChatPage() {
                   {msg.role === 'assistant' && msg.modelId && !msg.preset && (() => {
                     const m = getManagedModel(msg.modelId);
                     const label = m?.label ?? msg.modelId;
-                    const tierCost = m ? `${m.creditsPerCall}c` : null;
+                    // Token-based estimation now happens worker-side per call;
+                    // stop pretending there's a flat per-call price. Show
+                    // a "$/M tok" hint instead so users can compare cost
+                    // density at a glance.
+                    const tierCost = m
+                      ? `${m.usdPer1MInput.toFixed(2)}/M in · ${m.usdPer1MOutput.toFixed(2)}/M out`
+                      : null;
                     return (
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {msg.tier && (
@@ -635,10 +641,10 @@ export function SkillChatPage() {
                         )}
                         {msg.effort && (
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium font-mono ${EFFORT_CHIP_COLORS[msg.effort]}`}
-                            title="Reasoning effort the model used (low / medium / high). Higher = more thinking tokens, higher cost."
+                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${EFFORT_CHIP_COLORS[msg.effort]}`}
+                            title="Reasoning effort the model used (Light / Standard / Deep). Higher = more thinking tokens, higher cost."
                           >
-                            {msg.effort}
+                            {EFFORT_DISPLAY_LABELS[msg.effort]}
                           </span>
                         )}
                         <span className="text-xs text-[var(--muted-foreground)]">

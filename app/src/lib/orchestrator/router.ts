@@ -100,7 +100,7 @@ function managedToPreset(m: ManagedModel, tier: ModelTier): ModelPreset {
     modelId: m.id,
     label: m.label,
     tier,
-    costPer1M: 0, // unused; managed cost lives in `creditsPerCall`
+    costPer1M: 0, // unused; managed cost is computed via usdPer1MInput/Output
     supportsReasoning: m.supportsReasoning,
     reasoningEfforts: m.reasoningEfforts,
     alwaysReasons: m.alwaysReasons,

@@ -10,6 +10,7 @@ import { Brain, X, Database, Cpu } from 'lucide-react';
 import { useRunStore, SUBTASK_STATUS_COLORS } from '../../../stores/runStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getManagedModel } from '../../../lib/managed-models';
+import { EFFORT_DISPLAY_LABELS } from '../../../lib/classifier';
 import type { Subtask, TaskState } from '../../../lib/orchestrator/types';
 
 const EFFORT_COLORS: Record<'low' | 'medium' | 'high', string> = {
@@ -219,14 +220,14 @@ function SubtaskRow({ subtask: s }: { subtask: Subtask }) {
         </span>
         {s.effort && (
           <span
-            className={`px-1.5 py-0.5 rounded font-mono ${EFFORT_COLORS[s.effort]}`}
+            className={`px-1.5 py-0.5 rounded ${EFFORT_COLORS[s.effort]}`}
             title={
               s.reasoningTokens
-                ? `${s.reasoningTokens} reasoning tokens`
-                : 'reasoning effort'
+                ? `Reasoning effort · ${s.reasoningTokens} thinking tokens`
+                : 'Reasoning effort'
             }
           >
-            {s.effort}
+            {EFFORT_DISPLAY_LABELS[s.effort]}
           </span>
         )}
         {s.retries > 0 && (

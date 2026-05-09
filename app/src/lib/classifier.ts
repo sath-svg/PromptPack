@@ -274,6 +274,19 @@ export const TIER_LABELS: Record<ModelTier, string> = {
   powerful: 'Powerful',
 };
 
+/**
+ * User-facing effort labels. Internal LR head still emits
+ * `low | medium | high` — those names mirror sklearn class ids and
+ * OpenRouter's `reasoning_effort` field. The UI uses these prettier
+ * synonyms so the word "medium" doesn't collide with the managed
+ * model tier `Mid`.
+ */
+export const EFFORT_DISPLAY_LABELS: Record<EffortLevel, string> = {
+  low:    'Light',
+  medium: 'Standard',
+  high:   'Deep',
+};
+
 export const PROVIDER_LABELS: Record<Provider, string> = {
   server:     'Skillset',
   anthropic:  'Anthropic (Claude)',

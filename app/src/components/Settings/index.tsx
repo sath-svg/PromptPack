@@ -355,7 +355,10 @@ export function SettingsPage() {
                 >
                   {MANAGED_MODELS.filter((m) => m.tier === tier).map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.label} · {m.creditsPerCall}c
+                      {m.label}
+                      {m.expensive ? ' · expensive — burns credits fast' : ''}
+                      {' · $'}
+                      {m.usdPer1MInput.toFixed(2)}/M in · ${m.usdPer1MOutput.toFixed(2)}/M out
                     </option>
                   ))}
                 </select>
