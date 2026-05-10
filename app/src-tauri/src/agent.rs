@@ -1146,18 +1146,21 @@ pub async fn agent_pdf_generate(
     }
 
     // A4 portrait = 210 × 297 mm. Margins ~20mm each side.
-    const PAGE_W_MM: f64 = 210.0;
-    const PAGE_H_MM: f64 = 297.0;
-    const MARGIN_X_MM: f64 = 20.0;
-    const MARGIN_TOP_MM: f64 = 25.0;
-    const MARGIN_BOTTOM_MM: f64 = 20.0;
-    const BODY_FONT_SIZE: f64 = 11.0;
-    const H1_FONT_SIZE: f64 = 18.0;
-    const H2_FONT_SIZE: f64 = 14.0;
-    const LINE_HEIGHT_BODY_MM: f64 = 5.5;
-    const LINE_HEIGHT_H1_MM: f64 = 9.0;
-    const LINE_HEIGHT_H2_MM: f64 = 7.5;
-    const PARA_GAP_MM: f64 = 3.0;
+    // printpdf's `Mm` and `use_text` font_size are `f32`, so all the
+    // page-geometry constants stay in f32 to avoid casts at every
+    // call site.
+    const PAGE_W_MM: f32 = 210.0;
+    const PAGE_H_MM: f32 = 297.0;
+    const MARGIN_X_MM: f32 = 20.0;
+    const MARGIN_TOP_MM: f32 = 25.0;
+    const MARGIN_BOTTOM_MM: f32 = 20.0;
+    const BODY_FONT_SIZE: f32 = 11.0;
+    const H1_FONT_SIZE: f32 = 18.0;
+    const H2_FONT_SIZE: f32 = 14.0;
+    const LINE_HEIGHT_BODY_MM: f32 = 5.5;
+    const LINE_HEIGHT_H1_MM: f32 = 9.0;
+    const LINE_HEIGHT_H2_MM: f32 = 7.5;
+    const PARA_GAP_MM: f32 = 3.0;
 
     let doc_title = title.as_deref().unwrap_or("Document");
     let (doc, page1, layer1) =
@@ -1173,7 +1176,7 @@ pub async fn agent_pdf_generate(
     let mut y = PAGE_H_MM - MARGIN_TOP_MM;
     let mut pages = 1usize;
 
-    fn approx_char_width_mm(font_size_pt: f64) -> f64 {
+    fn approx_char_width_mm(font_size_pt: f32) -> f32 {
         // Helvetica ≈ 0.5 of em-square width on average. 1pt = 0.353mm.
         font_size_pt * 0.5 * 0.353
     }
