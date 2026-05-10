@@ -19,8 +19,8 @@ const FEATURES = [
 export function FreeCard() {
   const { user } = useUser();
   const convexUser = useQuery(
-    api.users.getByClerkId,
-    user?.id ? { clerkId: user.id } : "skip"
+    api.users.getByUserId,
+    user?.id ? { userId: user.id } : "skip"
   );
 
   const isPaidPlan = convexUser?.plan === "pro" || convexUser?.plan === "studio";

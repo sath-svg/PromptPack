@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const returnUrl = process.env.STRIPE_PORTAL_RETURN_URL ?? `${origin}/dashboard`;
 
     const session = await convexClient.action(api.stripe.createCustomerPortalSession, {
-      clerkId: userId,
+      userId,
       email,
       name: user?.fullName ?? undefined,
       returnUrl,

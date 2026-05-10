@@ -14,7 +14,7 @@ export interface User {
   email: string;
   name?: string;
   imageUrl?: string;
-  clerkId?: string;
+  userId?: string;
   betterAuthId?: string;
 }
 
@@ -63,7 +63,7 @@ function useClerkUser() {
 function mapClerkUserToAuthUser(clerkUser: any): User {
   return {
     id: clerkUser.id,
-    clerkId: clerkUser.id,
+    userId: clerkUser.id,
     email: clerkUser.primaryEmailAddress?.emailAddress || "",
     name: clerkUser.fullName || undefined,
     imageUrl: clerkUser.imageUrl || undefined,
@@ -142,8 +142,8 @@ export function shouldUseBetterAuth(user: User): boolean {
 
 /**
  * Get user identifier for database lookups
- * Returns betterAuthId if available, falls back to clerkId
+ * Returns betterAuthId if available, falls back to userId
  */
 export function getUserId(user: User): string | undefined {
-  return user.betterAuthId || user.clerkId;
+  return user.betterAuthId || user.userId;
 }

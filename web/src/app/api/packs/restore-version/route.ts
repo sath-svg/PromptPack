@@ -11,9 +11,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clerkId, packId, versionNumber } = body;
+    const { userId: bodyUserId, packId, versionNumber } = body;
 
-    if (!clerkId || !packId || versionNumber === undefined) {
+    if (!bodyUserId || !packId || versionNumber === undefined) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const res = await fetch(`${CONVEX_URL}/api/desktop/restore-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clerkId, packId, versionNumber }),
+      body: JSON.stringify({ userId: bodyUserId, packId, versionNumber }),
     });
 
     const data = await res.json();

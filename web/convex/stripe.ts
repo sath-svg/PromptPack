@@ -8,7 +8,7 @@ const stripeClient = new StripeSubscriptions(components.stripe, {});
 
 export const createSubscriptionCheckout = action({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
     priceId: v.string(),
@@ -22,7 +22,7 @@ export const createSubscriptionCheckout = action({
   }),
   handler: async (ctx, args) => {
     const customer = await stripeClient.getOrCreateCustomer(ctx, {
-      userId: args.clerkId,
+      userId: args.userId,
       email: args.email,
       name: args.name,
     });
@@ -38,9 +38,9 @@ export const createSubscriptionCheckout = action({
         success_url: args.successUrl,
         cancel_url: args.cancelUrl,
         discounts: [{ coupon: args.couponId }],
-        metadata: { userId: args.clerkId },
+        metadata: { userId: args.userId },
         subscription_data: {
-          metadata: { userId: args.clerkId },
+          metadata: { userId: args.userId },
         },
       });
       return { sessionId: session.id, url: session.url };
@@ -52,8 +52,8 @@ export const createSubscriptionCheckout = action({
       mode: "subscription",
       successUrl: args.successUrl,
       cancelUrl: args.cancelUrl,
-      metadata: { userId: args.clerkId },
-      subscriptionMetadata: { userId: args.clerkId },
+      metadata: { userId: args.userId },
+      subscriptionMetadata: { userId: args.userId },
     });
   },
 });
@@ -100,7 +100,7 @@ export const createTopupCheckout = action({
 
 export const createCustomerPortalSession = action({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     email: v.optional(v.string()),
     name: v.optional(v.string()),
     returnUrl: v.string(),
@@ -110,7 +110,7 @@ export const createCustomerPortalSession = action({
   }),
   handler: async (ctx, args) => {
     const customer = await stripeClient.getOrCreateCustomer(ctx, {
-      userId: args.clerkId,
+      userId: args.userId,
       email: args.email,
       name: args.name,
     });

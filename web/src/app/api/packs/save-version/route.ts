@@ -11,9 +11,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clerkId, packId, message, prompts } = body;
+    const { userId: bodyUserId, packId, message, prompts } = body;
 
-    if (!clerkId || !packId) {
+    if (!bodyUserId || !packId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const res = await fetch(`${CONVEX_URL}/api/desktop/save-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clerkId, packId, message, prompts }),
+      body: JSON.stringify({ userId: bodyUserId, packId, message, prompts }),
     });
 
     const data = await res.json();

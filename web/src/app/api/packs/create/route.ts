@@ -43,8 +43,8 @@ export async function POST(request: Request) {
     const resolvedIsEncrypted = typeof isEncrypted === "boolean" ? isEncrypted : inferIsEncrypted(fileData);
 
     // Get user from Convex by Clerk ID
-    let convexUser = await convex.query(api.users.getByClerkId, {
-      clerkId: userId,
+    let convexUser = await convex.query(api.users.getByUserId, {
+      userId,
     });
 
     // If user doesn't exist, create them
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       const email = clerkUser?.emailAddresses[0]?.emailAddress || "";
 
       await convex.mutation(api.users.upsert, {
-        clerkId: userId,
+        userId,
         email,
         name: clerkUser?.fullName || undefined,
         imageUrl: clerkUser?.imageUrl || undefined,
@@ -61,8 +61,8 @@ export async function POST(request: Request) {
       });
 
       // Fetch the created user
-      convexUser = await convex.query(api.users.getByClerkId, {
-        clerkId: userId,
+      convexUser = await convex.query(api.users.getByUserId, {
+        userId,
       });
     }
 

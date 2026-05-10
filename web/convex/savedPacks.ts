@@ -104,18 +104,18 @@ export const removeByUserAndSource = mutation({
   },
 });
 
-// Save pack metadata using clerkId (called after R2 upload from extension)
-export const upsertByClerkId = mutation({
+// Save pack metadata using userId (called after R2 upload from extension)
+export const upsertByUserId = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     source: v.union(v.literal("chatgpt"), v.literal("claude"), v.literal("gemini"), v.literal("perplexity"), v.literal("grok"), v.literal("deepseek"), v.literal("kimi")),
     r2Key: v.string(),
     promptCount: v.number(),
     fileSize: v.number(),
     headers: v.optional(v.record(v.string(), v.string())), // Map of promptId -> header
   },
-  handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize, headers }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, source, r2Key, promptCount, fileSize, headers }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
       throw new Error("User not found");

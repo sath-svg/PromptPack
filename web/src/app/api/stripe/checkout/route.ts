@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const session = await convexClient.action(api.stripe.createSubscriptionCheckout, {
-      clerkId: userId,
+      userId,
       email,
       name: user?.fullName ?? undefined,
       priceId,

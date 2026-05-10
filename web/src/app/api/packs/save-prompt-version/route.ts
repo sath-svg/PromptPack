@@ -11,16 +11,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clerkId, packId, promptCreatedAt, text, header } = body;
+    const { userId: bodyUserId, packId, promptCreatedAt, text, header } = body;
 
-    if (!clerkId || !packId || !promptCreatedAt || !text) {
+    if (!bodyUserId || !packId || !promptCreatedAt || !text) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const res = await fetch(`${CONVEX_URL}/api/desktop/save-prompt-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clerkId, packId, promptCreatedAt, text, header }),
+      body: JSON.stringify({ userId: bodyUserId, packId, promptCreatedAt, text, header }),
     });
 
     const data = await res.json();

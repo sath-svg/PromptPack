@@ -10,7 +10,7 @@ import { registerInternalRoutes } from "./httpInternal";
 
 const http = httpRouter();
 
-const resolveClerkId = (metadata?: Stripe.Metadata): string | undefined => {
+const resolveUserId = (metadata?: Stripe.Metadata): string | undefined => {
   if (!metadata) return undefined;
   const userId = metadata.userId ?? metadata.clerkId ?? metadata.clerkUserId;
   return userId || undefined;
@@ -71,21 +71,21 @@ registerRoutes(http, components.stripe, {
   events: {
     "customer.created": async (ctx, event: Stripe.CustomerCreatedEvent) => {
       const customer = event.data.object;
-      const clerkId = resolveClerkId(customer.metadata);
-      if (!clerkId) return;
+      const userId = resolveUserId(customer.metadata);
+      if (!userId) return;
 
-      await ctx.runMutation(internal.users.setStripeCustomerIdByClerkId, {
-        clerkId,
+      await ctx.runMutation(internal.users.setStripeCustomerIdByUserId, {
+        userId,
         stripeCustomerId: customer.id,
       });
     },
     "customer.updated": async (ctx, event: Stripe.CustomerUpdatedEvent) => {
       const customer = event.data.object;
-      const clerkId = resolveClerkId(customer.metadata);
-      if (!clerkId) return;
+      const userId = resolveUserId(customer.metadata);
+      if (!userId) return;
 
-      await ctx.runMutation(internal.users.setStripeCustomerIdByClerkId, {
-        clerkId,
+      await ctx.runMutation(internal.users.setStripeCustomerIdByUserId, {
+        userId,
         stripeCustomerId: customer.id,
       });
     },
@@ -94,15 +94,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionCreatedEvent
     ) => {
       const subscription = event.data.object;
-      const clerkId = resolveClerkId(subscription.metadata);
-      if (!clerkId) return;
+      const userId = resolveUserId(subscription.metadata);
+      if (!userId) return;
 
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
-        clerkId,
+        userId,
         plan: resolvePlanFromSubscription(subscription.status, subscription),
         stripeCustomerId,
         stripeSubscriptionId: subscription.id,
@@ -114,15 +114,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionUpdatedEvent
     ) => {
       const subscription = event.data.object;
-      const clerkId = resolveClerkId(subscription.metadata);
-      if (!clerkId) return;
+      const userId = resolveUserId(subscription.metadata);
+      if (!userId) return;
 
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
-        clerkId,
+        userId,
         plan: resolvePlanFromSubscription(subscription.status, subscription),
         stripeCustomerId,
         stripeSubscriptionId: subscription.id,
@@ -134,15 +134,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionDeletedEvent
     ) => {
       const subscription = event.data.object;
-      const clerkId = resolveClerkId(subscription.metadata);
-      if (!clerkId) return;
+      const userId = resolveUserId(subscription.metadata);
+      if (!userId) return;
 
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
-        clerkId,
+        userId,
         plan: "free",
         stripeCustomerId,
         stripeSubscriptionId: subscription.id,
@@ -343,7 +343,7 @@ http.route({
         const plan = public_metadata?.plan === "pro" ? "pro" : "free";
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
-          clerkId: id,
+          userId: id,
           email,
           name,
           imageUrl: image_url,
@@ -370,7 +370,7 @@ http.route({
         );
 
         await ctx.runMutation(internal.users.upsertFromWebhook, {
-          clerkId: id,
+          userId: id,
           email,
           name,
           imageUrl: image_url,
@@ -391,7 +391,7 @@ http.route({
       case "user.deleted": {
         const { id } = event.data;
         if (id) {
-          await ctx.runMutation(internal.users.deleteByClerkId, { clerkId: id });
+          await ctx.runMutation(internal.users.deleteByUserId, { userId: id });
         }
         break;
       }
@@ -432,8 +432,8 @@ http.route({
 
         const plan = hasActivePro ? "pro" : "free";
 
-        await ctx.runMutation(internal.users.updatePlanByClerkId, {
-          clerkId: userId,
+        await ctx.runMutation(internal.users.updatePlanByUserId, {
+          userId,
           plan: plan as "free" | "pro",
         });
         break;
@@ -451,8 +451,8 @@ http.route({
 
         // Active subscription means Pro plan
         const plan = resolvePlan(status, planSlug);
-        await ctx.runMutation(internal.users.updatePlanByClerkId, {
-          clerkId: userId,
+        await ctx.runMutation(internal.users.updatePlanByUserId, {
+          userId,
           plan: plan as "free" | "pro",
         });
         break;
@@ -466,8 +466,8 @@ http.route({
         }
 
         // Downgrade to free plan
-        await ctx.runMutation(internal.users.updatePlanByClerkId, {
-          clerkId: userId,
+        await ctx.runMutation(internal.users.updatePlanByUserId, {
+          userId,
           plan: "free",
         });
         break;

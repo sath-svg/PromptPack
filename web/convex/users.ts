@@ -1,18 +1,18 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation, DatabaseReader } from "./_generated/server";
 
-// Shared user lookup: tries clerkId index first, then betterAuthId index.
-// All queries/mutations that accept a "clerkId" arg should use this so
+// Shared user lookup: tries betterAuthId index first, then clerkId index.
+// All queries/mutations that accept a "userId" arg should use this so
 // BetterAuth users are found regardless of which ID the caller provides.
 export async function findUserByAnyId(db: DatabaseReader, id: string) {
-  const byClerk = await db
-    .query("users")
-    .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
-    .first();
-  if (byClerk) return byClerk;
-  return await db
+  const byBetterAuth = await db
     .query("users")
     .withIndex("by_better_auth_id", (q) => q.eq("betterAuthId", id))
+    .first();
+  if (byBetterAuth) return byBetterAuth;
+  return await db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", id))
     .first();
 }
 
@@ -35,17 +35,17 @@ export const countProUsers = query({
   },
 });
 
-export const getByClerkId = query({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    return await findUserByAnyId(ctx.db, clerkId);
+export const getByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    return await findUserByAnyId(ctx.db, userId);
   },
 });
 
 export const getGracePeriodInfo = query({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user || !user.packDeletionAt) {
       return null;
@@ -62,10 +62,10 @@ export const getGracePeriodInfo = query({
   },
 });
 
-// Create or update user from Clerk webhook
+// Create or update user
 export const upsert = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
@@ -73,7 +73,7 @@ export const upsert = mutation({
     stripeCustomerId: v.optional(v.string()),
     betterAuthId: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId, betterAuthId }) => {
+  handler: async (ctx, { userId, email, name, imageUrl, plan, stripeCustomerId, betterAuthId }) => {
     // Try betterAuthId first (post-migration users)
     let existing = betterAuthId
       ? await ctx.db
@@ -82,11 +82,11 @@ export const upsert = mutation({
           .first()
       : null;
 
-    // Fallback: try clerkId lookup
+    // Fallback: try userId lookup
     if (!existing) {
       existing = await ctx.db
         .query("users")
-        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
         .first();
     }
 
@@ -111,7 +111,7 @@ export const upsert = mutation({
     }
 
     return await ctx.db.insert("users", {
-      clerkId,
+      clerkId: userId,
       email,
       name,
       imageUrl,
@@ -126,11 +126,11 @@ export const upsert = mutation({
 // Store Stripe customer ID for a user
 export const setStripeCustomerId = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     stripeCustomerId: v.string(),
   },
-  handler: async (ctx, { clerkId, stripeCustomerId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, stripeCustomerId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
       return null;
@@ -141,14 +141,14 @@ export const setStripeCustomerId = mutation({
   },
 });
 
-// Internal mutation: set Stripe customer ID by Clerk ID (no-op if missing)
-export const setStripeCustomerIdByClerkId = internalMutation({
+// Internal mutation: set Stripe customer ID by userId (no-op if missing)
+export const setStripeCustomerIdByUserId = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     stripeCustomerId: v.string(),
   },
-  handler: async (ctx, { clerkId, stripeCustomerId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, stripeCustomerId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
       return;
@@ -161,14 +161,14 @@ export const setStripeCustomerIdByClerkId = internalMutation({
 // Update user plan
 export const updatePlan = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
-  handler: async (ctx, { clerkId, plan }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, plan }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
-      throw new Error(`User not found with clerkId: ${clerkId}`);
+      throw new Error(`User not found with userId: ${userId}`);
     }
 
     await ctx.db.patch(user._id, { plan });
@@ -186,15 +186,15 @@ export const listAll = query({
 // Internal mutation for webhook: upsert user
 export const upsertFromWebhook = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
-    const existing = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, email, name, imageUrl, plan, stripeCustomerId }) => {
+    const existing = await findUserByAnyId(ctx.db, userId);
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -208,7 +208,7 @@ export const upsertFromWebhook = internalMutation({
     }
 
     return await ctx.db.insert("users", {
-      clerkId,
+      clerkId: userId,
       email,
       name,
       imageUrl,
@@ -219,11 +219,11 @@ export const upsertFromWebhook = internalMutation({
   },
 });
 
-// Internal mutation for webhook: delete user by Clerk ID
-export const deleteByClerkId = internalMutation({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+// Internal mutation for webhook: delete user by userId
+export const deleteByUserId = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (user) {
       await ctx.db.delete(user._id);
@@ -231,15 +231,15 @@ export const deleteByClerkId = internalMutation({
   },
 });
 
-// Internal mutation for webhook: update plan by Clerk ID
-export const updatePlanByClerkId = internalMutation({
+// Internal mutation for webhook: update plan by userId
+export const updatePlanByUserId = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     subscriptionCancelledAt: v.optional(v.number()), // Timestamp when subscription was cancelled
   },
-  handler: async (ctx, { clerkId, plan, subscriptionCancelledAt }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, plan, subscriptionCancelledAt }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) return;
 
@@ -281,20 +281,20 @@ export const updatePlanByClerkId = internalMutation({
 // Internal mutation: update plan from Stripe webhook events
 export const updatePlanFromStripeEvent = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     subscriptionCancelledAt: v.optional(v.number()),
   },
   handler: async (ctx, {
-    clerkId,
+    userId,
     plan,
     stripeCustomerId,
     stripeSubscriptionId,
     subscriptionCancelledAt,
   }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) return;
 
@@ -412,14 +412,14 @@ export const testCleanupExpiredPacks = mutation({
 // Test mutation: Set grace period for current user (for testing warning display)
 export const testSetGracePeriod = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     hoursUntilExpiry: v.number(), // How many hours until packs are deleted (can be < 1)
   },
-  handler: async (ctx, { clerkId, hoursUntilExpiry }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, hoursUntilExpiry }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
-      throw new Error(`User not found with clerkId: ${clerkId}`);
+      throw new Error(`User not found with userId: ${userId}`);
     }
 
     const now = Date.now();
@@ -471,19 +471,18 @@ export const checkWebhookSecret = query({
 });
 
 /**
- * Admin utility: Manually sync user plan from Clerk
+ * Admin utility: Manually sync user plan
  * Use this when webhooks fail or for manual plan updates
  *
  * Usage from Convex Dashboard:
- * 1. Go to Functions → users → syncPlanFromClerk
- * 2. Pass arguments: { "clerkId": "user_xxx", "plan": "pro" }
- * 3. Or from your Clerk user ID: { "clerkId": "user_2abc123", "plan": "free" }
+ * 1. Go to Functions → users → syncPlan
+ * 2. Pass arguments: { "userId": "user_xxx", "plan": "pro" }
  */
 // Get remaining free evaluation trials for a user
 export const getEvalTrials = query({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return { used: 0, remaining: 3 };
     const used = user.evalTrialsUsed ?? 0;
     return { used, remaining: Math.max(0, 3 - used) };
@@ -492,9 +491,9 @@ export const getEvalTrials = query({
 
 // Increment evaluation trial counter (for free users)
 export const incrementEvalTrial = mutation({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) throw new Error("User not found");
     const used = (user.evalTrialsUsed ?? 0) + 1;
     await ctx.db.patch(user._id, { evalTrialsUsed: used });
@@ -504,24 +503,24 @@ export const incrementEvalTrial = mutation({
 
 // Mark onboarding tutorial as completed
 export const completeOnboarding = mutation({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) throw new Error("User not found");
     await ctx.db.patch(user._id, { onboardingCompleted: true });
   },
 });
 
-export const syncPlanFromClerk = mutation({
+export const syncPlan = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
   },
-  handler: async (ctx, { clerkId, plan }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, plan }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
-      throw new Error(`User with clerkId ${clerkId} not found in database`);
+      throw new Error(`User with userId ${userId} not found in database`);
     }
 
     const oldPlan = user.plan;
@@ -587,14 +586,14 @@ export const syncPlanFromClerk = mutation({
 // Migration: Move user from Clerk to BetterAuth
 export const migrateClerkToBetterAuth = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     betterAuthId: v.string(),
   },
-  handler: async (ctx, { clerkId, betterAuthId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, betterAuthId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
-      throw new Error(`User not found with clerkId: ${clerkId}`);
+      throw new Error(`User not found with userId: ${userId}`);
     }
 
     // Check if BetterAuth ID already exists (user already migrated)
@@ -614,8 +613,8 @@ export const migrateClerkToBetterAuth = mutation({
     return {
       success: true,
       message: `User migrated from Clerk to BetterAuth`,
-      userId: user._id,
-      clerkId,
+      convexId: user._id,
+      userId,
       betterAuthId,
       migratedAt: Date.now(),
     };
@@ -654,14 +653,14 @@ export const migrateBetterAuthByEmail = mutation({
 // Force-update betterAuthId (overwrites even if already set)
 export const forceSetBetterAuthId = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     betterAuthId: v.string(),
   },
-  handler: async (ctx, { clerkId, betterAuthId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, betterAuthId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
-      throw new Error(`User not found with clerkId: ${clerkId}`);
+      throw new Error(`User not found with userId: ${userId}`);
     }
 
     await ctx.db.patch(user._id, {
