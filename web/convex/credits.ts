@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { findUserByAnyId } from "./users";
 
 /* ────────────────────────────────────────────────────────────────────────── *
  * Constants
@@ -113,10 +114,7 @@ export const reserveCredits = internalMutation({
       throw new Error("estimatedCredits must be positive");
     }
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) throw new Error("USER_NOT_FOUND");
 
     const now = Date.now();
@@ -349,10 +347,7 @@ export const grantFreeSignupCreditsIfEligible = internalMutation({
   args: { clerkId: v.string() },
   returns: v.object({ granted: v.boolean() }),
   handler: async (ctx, { clerkId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return { granted: false };
     if (user.freeCreditsGrantedAt) return { granted: false };
     if (!user.emailVerified) return { granted: false };
@@ -396,10 +391,7 @@ export const grantMonthlyFromInvoice = internalMutation({
       .first();
     if (existing) return { granted: false };
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return { granted: false };
 
     const now = Date.now();
@@ -463,10 +455,7 @@ export const grantTopup = internalMutation({
       .first();
     if (existing) return { granted: false };
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return { granted: false };
 
     const now = Date.now();
@@ -503,10 +492,7 @@ export const addCredits = internalMutation({
   handler: async (ctx, { clerkId, credits, reason }) => {
     if (credits <= 0) throw new Error("credits must be > 0");
 
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return { granted: false, topupAfter: 0 };
 
     const now = Date.now();
@@ -711,10 +697,7 @@ export const getBalance = query({
     }),
   ),
   handler: async (ctx, { clerkId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return null;
     return {
       monthly: user.monthlyCredits ?? 0,
@@ -731,10 +714,7 @@ export const listTransactions = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { clerkId, limit }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return [];
 
     const max = Math.min(limit ?? 50, 200);
@@ -764,10 +744,7 @@ export const getBalanceInternal = internalQuery({
     }),
   ),
   handler: async (ctx, { clerkId }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) return null;
     return {
       monthly: user.monthlyCredits ?? 0,
@@ -786,10 +763,7 @@ export const setManagedModeEnabled = mutation({
   args: { clerkId: v.string(), enabled: v.boolean() },
   returns: v.null(),
   handler: async (ctx, { clerkId, enabled }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
     if (!user) throw new Error("USER_NOT_FOUND");
     await ctx.db.patch(user._id, { managedModeEnabled: enabled });
     return null;
