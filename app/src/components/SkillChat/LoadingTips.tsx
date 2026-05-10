@@ -42,7 +42,7 @@ const TIPS: Array<{ feature: string; body: string }> = [
   },
   {
     feature: 'BYOK + Managed',
-    body: 'Add your own Anthropic / OpenAI / Groq keys for unlimited use, or stay on Managed mode for a single credit pool across all 200+ OpenRouter models.',
+    body: 'Add your own Anthropic / OpenAI / Google keys for unlimited use, or stay on Managed mode for a single credit pool across all available models.',
   },
   {
     feature: 'Reasoning routing',

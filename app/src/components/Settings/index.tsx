@@ -38,7 +38,7 @@ export function SettingsPage() {
         const r = await tauriFetch(`${CONVEX_URL}/api/extension/credit-balance`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clerkId: session.user_id }),
+          body: JSON.stringify({ userId: session.user_id }),
         });
         if (!r.ok) return;
         const data = await r.json() as {
@@ -75,8 +75,10 @@ export function SettingsPage() {
     { key: 'deepseek',   placeholder: 'sk-...' },
     { key: 'perplexity', placeholder: 'pplx-...' },
     { key: 'kimi',       placeholder: 'sk-...' },
-    { key: 'groq',       placeholder: 'gsk_...' },
-    { key: 'openrouter', placeholder: 'sk-or-...' },
+    // `groq` + `openrouter` BYOK fields removed from the UI so the
+    // user surface stays brand-clean. Stored values still pass through
+    // the runtime providers list — users with a key already saved keep
+    // it; only the input row is hidden.
   ];
   const [inputs, setInputs] = useState<Record<KeyedProvider, string>>({
     anthropic:  apiKeys?.anthropic  ?? '',
@@ -106,7 +108,7 @@ export function SettingsPage() {
         const response = await tauriFetch(`${CONVEX_URL}/api/extension/billing-status`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ clerkId: session.user_id }),
+          body: JSON.stringify({ userId: session.user_id }),
         });
 
         if (response.ok) {
@@ -385,7 +387,7 @@ export function SettingsPage() {
           <div className="rounded-md bg-[var(--background)] border border-[var(--border)] px-3 py-2 mb-3 space-y-1">
             <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
               <span className="font-mono text-[var(--foreground)]">cr/K</span>{' '}
-              = credits per <strong>1,000 tokens</strong>. One credit = $0.005 of upstream model spend.
+              = credits per <strong>1,000 tokens</strong>.
             </p>
             <p className="text-[11px] text-[var(--muted-foreground)] leading-relaxed">
               <span className="font-mono text-[var(--foreground)]">in</span> = your prompt + chat history + tool results sent to the model.
@@ -484,8 +486,7 @@ export function SettingsPage() {
 
           <p className="text-sm text-[var(--muted-foreground)] mb-4">
             Add any key below to unlock that provider as an additional option in Chat.
-            <br />
-            <span className="text-[var(--primary)]">Tip:</span> OpenRouter gives access to 200+ models including Gemma 4.
+            Keys stay on this device and are sent directly to the provider — Skillset never sees them.
           </p>
 
           <div className="space-y-4">

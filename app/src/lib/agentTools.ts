@@ -288,6 +288,19 @@ export async function dispatchTool(
     case 'write_file': {
       const path = String(input.path);
       const content = String(input.content);
+      // Hard guard — write_file produces a plain-text file with the
+      // requested extension. PDFs need a binary header (`%PDF-1.x`)
+      // that this tool can't produce. Force the model to call
+      // `pdf_generate` instead so the user gets a real, openable PDF
+      // rather than a `.pdf`-named text file that every PDF reader
+      // rejects.
+      if (/\.pdf$/i.test(path)) {
+        return {
+          output:
+            `ERROR: write_file refuses .pdf paths — the result would be a text file with a .pdf extension that PDF readers reject. ` +
+            `Call \`pdf_generate\` with the same path and pass the body as \`content\` (plain text or simple #/## markdown).`,
+        };
+      }
       // Snapshot current content (if exists) for diff
       let before = '';
       try {
@@ -557,7 +570,12 @@ You have tools to read, edit, search, and run commands inside the workspace. Use
 
 # Tool-use is mandatory for file artifacts
 
-If the user's request mentions producing, saving, creating, writing, or outputting a file (markdown, code, JSON, PDF, etc.), you MUST call \`write_file\` (for new content) or \`edit_file\` (for partial updates). **Never substitute by pasting the file contents into chat.** The user explicitly wants a file on disk — chat output does not satisfy that.
+If the user's request mentions producing, saving, creating, writing, or outputting a file, you MUST call the right write tool — never paste contents into chat instead.
+
+Pick the tool by extension:
+
+- **\`.pdf\` → call \`pdf_generate\`.** \`write_file\` with a .pdf path produces a plain-text file with a .pdf extension; PDF readers reject it. Pass the body as \`content\` (plain text or simple \`#\`/\`##\` markdown) and the desired path. NEVER use \`write_file\` for a .pdf path.
+- **All other text formats (\`.md\`, \`.txt\`, \`.json\`, \`.html\`, source code, etc.) → call \`write_file\`** for new content or \`edit_file\` for partial updates.
 
 When the user names a target path (e.g. "save as foo.md", "output to plan.md"), call \`write_file\` with that exact path. Do not invent a different name. Do not summarize the content "for context" before calling — call the tool first, then summarize what you wrote in one or two short lines.
 

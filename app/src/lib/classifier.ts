@@ -299,8 +299,12 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   deepseek:   'DeepSeek',
   perplexity: 'Perplexity',
   kimi:       'Moonshot (Kimi)',
-  groq:       'Groq',
-  openrouter: 'OpenRouter',
+  // groq + openrouter brand names are intentionally suppressed —
+  // these providers power the inbuilt server (groq) and the BYOK
+  // multi-model option (openrouter), but the UI surfaces them as
+  // "Skillset" / "Multi-model" so end users only see the abstractions.
+  groq:       'Skillset Server',
+  openrouter: 'Multi-model (BYOK)',
   ollama:     'Ollama (local)',
 };
 
