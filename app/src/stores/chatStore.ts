@@ -1917,6 +1917,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         (preset?.provider === 'server' || preset === null);
 
       if (needsRedirect && managedRedirectAvailable) {
+        // Use the LR-classified tier as-is. Managed cheap-tier
+        // (Haiku 4.5 / Gemini 2.5 Flash / GPT-5 Mini) all handle
+        // OpenAI-compat tool-calls reliably; only the inbuilt Llama
+        // 8B can't be trusted with tools, and that's already
+        // excluded by the `preset.provider === 'server'` redirect
+        // condition. Forcing balanced for every tool call would burn
+        // 4-5× the credits for no quality gain on simple writes.
         const managedModel = pickFromSelections(tier, settings.selectedManagedModels);
         preset = {
           provider: 'openrouter', // cosmetic; runtime URL is the managed proxy
