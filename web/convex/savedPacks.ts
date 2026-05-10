@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { findUserByAnyId } from "./users";
 
 // Get all saved packs for a user (metadata only, file is in R2)
 export const listByUser = query({
@@ -114,11 +115,7 @@ export const upsertByClerkId = mutation({
     headers: v.optional(v.record(v.string(), v.string())), // Map of promptId -> header
   },
   handler: async (ctx, { clerkId, source, r2Key, promptCount, fileSize, headers }) => {
-    // Find user by clerkId
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
 
     if (!user) {
       throw new Error("User not found");

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { findUserByAnyId } from "./users";
 
 // Get all public user packs for marketplace
 export const listPublic = query({
@@ -46,10 +47,7 @@ export const listByClerkId = query({
   args: { clerkId: v.string() },
   handler: async (ctx, { clerkId }) => {
     // First find the user by clerkId
-    const user = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+    const user = await findUserByAnyId(ctx.db, clerkId);
 
     if (!user) {
       return [];
