@@ -1,8 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "../../../../../lib/auth";
 import { NextResponse } from "next/server";
+import { headers } from "next/headers";
 
 export async function GET(request: Request) {
-  // Add CORS headers for extension
   const origin = request.headers.get("origin");
   const allowedOrigins = [
     "https://skillset.so",
@@ -11,43 +11,41 @@ export async function GET(request: Request) {
     "https://www.pmtpk.com",
   ];
 
-  // Allow chrome-extension:// origins for browser extensions
-  const isExtension = origin?.startsWith("chrome-extension://") ||
-                      origin?.startsWith("moz-extension://") ||
-                      origin?.startsWith("safari-web-extension://");
+  const isExtension =
+    origin?.startsWith("chrome-extension://") ||
+    origin?.startsWith("moz-extension://") ||
+    origin?.startsWith("safari-web-extension://");
 
   const corsHeaders = {
-    "Access-Control-Allow-Origin": isExtension || allowedOrigins.includes(origin || "")
-      ? origin || "*"
-      : allowedOrigins[0],
+    "Access-Control-Allow-Origin":
+      isExtension || allowedOrigins.includes(origin || "")
+        ? origin || "*"
+        : allowedOrigins[0],
     "Access-Control-Allow-Credentials": "true",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   };
 
   try {
-    const { userId } = await auth();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    if (!userId) {
+    if (!session) {
       return NextResponse.json(
         { isAuthenticated: false },
         { headers: corsHeaders }
       );
     }
 
-    // Fetch user details if authenticated
-    const user = await currentUser();
-
     return NextResponse.json(
       {
         isAuthenticated: true,
-        user: user
-          ? {
-              id: user.id,
-              email: user.emailAddresses[0]?.emailAddress || "",
-              name: user.firstName || user.username || undefined,
-            }
-          : undefined,
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name || undefined,
+        },
       },
       { headers: corsHeaders }
     );
@@ -60,17 +58,19 @@ export async function GET(request: Request) {
   }
 }
 
-// Handle preflight requests
 export async function OPTIONS(request: Request) {
   const origin = request.headers.get("origin");
-  const isExtension = origin?.startsWith("chrome-extension://") ||
-                      origin?.startsWith("moz-extension://") ||
-                      origin?.startsWith("safari-web-extension://");
+  const isExtension =
+    origin?.startsWith("chrome-extension://") ||
+    origin?.startsWith("moz-extension://") ||
+    origin?.startsWith("safari-web-extension://");
 
   return new NextResponse(null, {
     status: 200,
     headers: {
-      "Access-Control-Allow-Origin": isExtension ? origin || "*" : "https://skillset.so",
+      "Access-Control-Allow-Origin": isExtension
+        ? origin || "*"
+        : "https://skillset.so",
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",

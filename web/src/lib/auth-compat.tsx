@@ -65,7 +65,15 @@ export function useAuth() {
     isSignedIn: !!session,
     userId: user?.id ?? null,
     sessionId: session?.id ?? null,
-    getToken: async () => null, // BetterAuth uses cookies, not tokens
+    getToken: async () => {
+      // Bearer plugin on the server accepts the session token as Authorization header.
+      // Read it from the cookie so desktop-auth and API callers can pass it along.
+      if (typeof document === "undefined") return null;
+      const match = document.cookie
+        .split("; ")
+        .find((c) => c.startsWith("better-auth.session_token="));
+      return match ? decodeURIComponent(match.split("=")[1]) : null;
+    },
     signOut: () => authClient.signOut(),
   };
 }
