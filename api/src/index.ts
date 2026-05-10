@@ -10,6 +10,7 @@
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
 import { handleMcpRequest } from "./mcp";
+import { handleLlmChat } from "./llm";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -440,11 +441,32 @@ async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPay
   return payload;
 }
 
+async function verifyDesktopAccessToken(token: string, env: Env): Promise<{ sub?: string } | null> {
+  if (!env.JWT_SECRET) return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  const header = parseJwtPart<{ alg?: string; typ?: string }>(headerB64);
+  if (!header || header.alg !== "HS256") return null;
+  const payload = parseJwtPart<{ sub?: string; exp?: number; iss?: string }>(payloadB64);
+  if (!payload || payload.iss !== "promptpack-desktop") return null;
+  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+  const key = await getHmacKey(env.JWT_SECRET);
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = decodeBase64Url(sigB64);
+  const valid = await crypto.subtle.verify("HMAC", key, signature, signingInput);
+  if (!valid) return null;
+  return { sub: payload.sub };
+}
+
 async function verifyMcpOrClerkOrBetterAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
-  // Try Clerk RS256 first
+  // Try desktop HS256 access token first (most common for desktop app)
+  const desktop = await verifyDesktopAccessToken(token, env);
+  if (desktop) return desktop;
+  // Try Clerk RS256
   const clerk = await verifyClerkJwt(token, env);
   if (clerk) return clerk;
-  // Try BetterAuth RS256 second
+  // Try BetterAuth RS256
   const betterAuth = await verifyBetterAuthJwt(token, env);
   if (betterAuth) return betterAuth;
   // Fall back to MCP HS256 token
@@ -665,7 +687,7 @@ async function checkUserBillingStatus(userId: string, convexUrl: string): Promis
     const response = await fetch(`${convexUrl}/api/extension/billing-status`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clerkId: userId }),
+      body: JSON.stringify({ userId }),
     });
     if (!response.ok) {
       return { isPro: false, isStudio: false, tier: "free" };
@@ -737,6 +759,16 @@ export default {
     };
 
     try {
+      // Managed-mode LLM proxy (credit-metered OpenRouter)
+      if ((path === "/api/llm/chat" || path === "/api/llm/chat/completions") && method === "POST") {
+        const res = await handleLlmChat(
+          request,
+          env as any,
+          (token) => verifyMcpOrClerkOrBetterAuthJwt(token, env),
+        );
+        return addCors(res);
+      }
+
       // Groq-enhanced prompt endpoint
       // POST /api/enhance
       if (path === "/api/enhance" && method === "POST") {
@@ -1182,7 +1214,7 @@ Do NOT include any explanation or markdown formatting.`;
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                clerkId: userId,
+                userId,
                 promptHash,
                 overallScore,
                 scores,
@@ -1769,7 +1801,7 @@ How they want AI responses formatted. Constraints, formatting preferences.
             success?: boolean;
             error?: string;
             message?: string;
-            user?: { clerkId: string; email: string; plan: string };
+            user?: { userId: string; email: string; plan: string };
             refreshToken?: string;
             refreshTokenExpiresAt?: number;
           };
@@ -2569,10 +2601,11 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
       // Complete device auth (called by web app after user signs in)
       if (path === "/auth/device-complete" && method === "POST") {
         const body = await request.json().catch(() => null) as {
-          code?: string; clerkId?: string; refreshToken?: string;
+          code?: string; userId?: string; clerkId?: string; refreshToken?: string;
         } | null;
-        if (!body?.code || !body.clerkId || !body.refreshToken) {
-          return addCors(new Response(JSON.stringify({ error: "Missing code, clerkId, or refreshToken" }), {
+        const userId = body?.userId ?? body?.clerkId;
+        if (!body?.code || !userId || !body.refreshToken) {
+          return addCors(new Response(JSON.stringify({ error: "Missing code, userId, or refreshToken" }), {
             status: 400, headers: { "Content-Type": "application/json" },
           }));
         }
@@ -2591,12 +2624,12 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         if (env.MCP_TOKEN_SECRET) {
           // Verify the Clerk JWT to confirm identity
           const clerkPayload = await verifyClerkJwt(body.refreshToken, env);
-          if (!clerkPayload || clerkPayload.sub !== body.clerkId) {
+          if (!clerkPayload || clerkPayload.sub !== userId) {
             return addCors(new Response(JSON.stringify({ error: "Invalid Clerk token" }), {
               status: 401, headers: { "Content-Type": "application/json" },
             }));
           }
-          const minted = await mintMcpToken(body.clerkId, env);
+          const minted = await mintMcpToken(userId, env);
           tokenToStore = minted.token;
           expiresAt = minted.expiresAt;
         }
@@ -2604,7 +2637,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         // Update cache with completion data
         const cacheRes = new Response(JSON.stringify({
           status: "complete",
-          clerkId: body.clerkId,
+          userId,
           refreshToken: tokenToStore,
           ...(expiresAt ? { expiresAt } : {}),
         }), {
@@ -2865,6 +2898,127 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
 
         } catch (error) {
           console.error("chat error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // POST /v1/chat/completions — OpenAI-compatible alias around the
+      // free-tier Groq Llama 3.1 8B model. Used by:
+      //   - orchestrator's planner.ts (JSON-mode plan emission)
+      //   - orchestrator's merge.ts (synthesis)
+      //   - lib/routeFallback.ts (LR tiebreaker classifier)
+      //   - lib/packExtractor.ts (free var extraction)
+      // All four expect a real OpenAI-compat shape (model + messages →
+      // choices[0].message.content). The legacy `/chat` endpoint
+      // returns `{content, model}` not `{choices: …}`, so it can't
+      // serve here. Auth via Skillset session JWT (HS256 desktop or
+      // RS256 Clerk). Free, rate-limited per IP same as `/chat`.
+      if (path === "/v1/chat/completions" && method === "POST") {
+        try {
+          const groqKey = getGroqApiKey(env);
+          if (!groqKey) {
+            return addCors(new Response(JSON.stringify({ error: "Service not configured" }), {
+              status: 503, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Auth — accept any of: BetterAuth bearer, MCP long-lived
+          // token, RS256 Clerk session JWT. Mirrors the managed-proxy
+          // verifier surface so desktop, web, and MCP clients all work.
+          const auth = request.headers.get("Authorization");
+          const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
+          const claims = token ? await verifyMcpOrClerkOrBetterAuthJwt(token, env) : null;
+          if (!claims?.sub) {
+            return addCors(new Response(JSON.stringify({ error: "unauthorized" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const body = (await request.json().catch(() => null)) as {
+            model?: string;
+            messages?: Array<{ role: string; content: string }>;
+            max_tokens?: number;
+            temperature?: number;
+            response_format?: unknown;
+          } | null;
+          if (!body?.messages?.length) {
+            return addCors(new Response(JSON.stringify({ error: "messages required" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Per-user rate limit: 30 req/min. Free-tier Llama is cheap
+          // for us but a runaway client could still rack up Groq spend.
+          const rlReq = new Request(
+            `https://rate.pmtpk.com/v1chat/${encodeURIComponent(claims.sub)}`,
+            { method: "GET" },
+          );
+          const cache = caches.default;
+          const rlHit = await cache.match(rlReq);
+          if (rlHit) {
+            const count = parseInt(await rlHit.text(), 10);
+            if (count >= 30) {
+              return addCors(new Response(JSON.stringify({ error: "Rate limit exceeded. Max 30 requests/minute." }), {
+                status: 429, headers: { "Content-Type": "application/json" },
+              }));
+            }
+            await cache.put(rlReq, new Response(String(count + 1), { headers: { "Cache-Control": "max-age=60" } }));
+          } else {
+            await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
+          }
+
+          // Whitelist Groq-hosted Llama variants so a malicious caller
+          // can't use this endpoint to hit any Groq model.
+          const allowed = new Set([
+            "llama-3.1-8b-instant",
+            "llama-3.3-70b-versatile",
+          ]);
+          const requestedModel = typeof body.model === "string" && allowed.has(body.model)
+            ? body.model
+            : "llama-3.1-8b-instant";
+
+          const groqPayload: Record<string, unknown> = {
+            model: requestedModel,
+            messages: body.messages,
+            max_tokens: typeof body.max_tokens === "number" ? body.max_tokens : 2048,
+          };
+          if (typeof body.temperature === "number") {
+            groqPayload.temperature = body.temperature;
+          }
+          if (body.response_format) {
+            groqPayload.response_format = body.response_format;
+          }
+
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(groqPayload),
+          });
+
+          if (!groqRes.ok) {
+            const errText = await groqRes.text().catch(() => "");
+            console.error("/v1/chat/completions Groq error:", groqRes.status, errText);
+            return addCors(new Response(JSON.stringify({
+              error: "upstream_error",
+              upstreamStatus: groqRes.status,
+            }), {
+              status: 502, headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Forward the Groq response as-is (already OpenAI-compat).
+          const respBody = await groqRes.text();
+          return addCors(new Response(respBody, {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }));
+        } catch (error) {
+          console.error("/v1/chat/completions error:", error);
           return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
             status: 500, headers: { "Content-Type": "application/json" },
           }));
