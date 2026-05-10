@@ -1874,24 +1874,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     // (agentMode + workspace already pulled at the top of sendMessage)
 
-    // Agent path: use tool-capable provider, ignore packs/system overrides
+    // Agent path: use tool-capable provider, ignore packs/system overrides.
+    // Entry condition is `wantsAgent` (computed earlier from agent-toggle
+    // OR write-intent + workspace) so prompts like "write hello.pdf in
+    // workspace" engage tools even without the user flipping the agent
+    // toggle on first.
     let agentPresetReady: ModelPreset | null = null;
     let useManagedProxyAgent = false;
-    if (agentMode && workspace) {
+    if (wantsAgent && workspace) {
       let preset = pickToolCapableModel(tier, available, billingTier);
       if (preset?.provider === 'ollama') {
         const loaded = await fetchOllamaModels();
         const reconciled = reconcileOllamaPreset(preset, loaded);
         preset = reconciled; // null if Ollama unusable — fall through to plain
       }
-      // Pack runs must NEVER fall to Llama 8B. Llama drops tool calls,
-      // emits malformed `<formation=...>` wrappers, and writes 0-byte
-      // files when forced via tool_choice. Swap to the user's managed
-      // model selection (Sonnet / GPT-5 / Opus) and route through the
-      // managed proxy `/api/llm/chat/completions` alias which now
+      // Pack runs AND any write-intent prompt must NEVER fall to Llama 8B.
+      // Llama drops tool calls, emits malformed `<formation=...>` wrappers
+      // (or pseudo-bash text claiming "file created" when nothing happened),
+      // and writes 0-byte files when forced via tool_choice. Swap to the
+      // user's managed model selection (Haiku / Sonnet / GPT-5) and route
+      // through the managed proxy `/api/llm/chat/completions` alias which
       // forwards `tools` + `tool_choice` to OpenRouter.
+      const llamaCantBeTrustedHere =
+        packName !== undefined ||      // pack run
+        writeFileIntent !== null;       // explicit/implicit file-write intent
       if (
-        packName &&
+        llamaCantBeTrustedHere &&
         preset?.provider === 'server' &&
         settings.managedModeEnabled &&
         authSession?.session_token
@@ -1909,16 +1917,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
         useManagedProxyAgent = true;
       } else if (
-        packName &&
+        llamaCantBeTrustedHere &&
         preset?.provider === 'server' &&
         !settings.managedModeEnabled
       ) {
-        // Pack run, no BYOK, managed mode off → no premium model
-        // available. Halting beats letting Llama produce broken output.
+        // Write-intent / pack run, no BYOK, managed mode off → no
+        // premium model available. Halting beats letting Llama produce
+        // hallucinated tool calls (e.g. fake `pandoc` shell output).
         set({
-          error:
-            'Pack steps need a stronger model than the inbuilt Llama 8B. ' +
-            'Turn on Managed mode in Settings, or add a BYOK key (Anthropic / OpenAI / Groq / etc.).',
+          error: packName
+            ? 'Pack steps need a stronger model than the inbuilt Llama 8B. Turn on Managed mode in Settings, or add a BYOK key (Anthropic / OpenAI / Groq / etc.).'
+            : 'Writing files needs a stronger model than the inbuilt Llama 8B (it hallucinates tool calls). Turn on Managed mode in Settings, or add a BYOK key.',
         });
         return;
       }
