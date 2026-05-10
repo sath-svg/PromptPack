@@ -1898,12 +1898,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const llamaCantBeTrustedHere =
         packName !== undefined ||      // pack run
         writeFileIntent !== null;       // explicit/implicit file-write intent
-      if (
+      // The user-selected provider keys actually plugged in. Used to
+      // tailor error messages so we don't suggest "add a provider key"
+      // to a managed-only user (which sounds like we're claiming they
+      // already have one), and so we don't suggest "turn on managed
+      // mode" when they already have it on.
+      const userHasOwnKeys = byokSet(available).size > 0;
+      // Redirect to the managed proxy when:
+      //   - the picked preset is the free server (Llama 8B, can't tool-call), OR
+      //   - no preset survived at all (powerful-tier ban with no own keys).
+      // ...AND managed mode is on + signed in. This keeps managed-only
+      // users on a working tool path for write-intent / pack prompts
+      // even when their selected tier bans the inbuilt server.
+      const managedRedirectAvailable =
+        settings.managedModeEnabled && authSession?.session_token;
+      const needsRedirect =
         llamaCantBeTrustedHere &&
-        preset?.provider === 'server' &&
-        settings.managedModeEnabled &&
-        authSession?.session_token
-      ) {
+        (preset?.provider === 'server' || preset === null);
+
+      if (needsRedirect && managedRedirectAvailable) {
         const managedModel = pickFromSelections(tier, settings.selectedManagedModels);
         preset = {
           provider: 'openrouter', // cosmetic; runtime URL is the managed proxy
@@ -1916,28 +1929,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
           alwaysReasons: managedModel.alwaysReasons,
         };
         useManagedProxyAgent = true;
-      } else if (
-        llamaCantBeTrustedHere &&
-        preset?.provider === 'server' &&
-        !settings.managedModeEnabled
-      ) {
-        // Write-intent / pack run, no BYOK, managed mode off → no
+      } else if (needsRedirect) {
+        // Managed mode off (or unauth) + no own provider keys → no
         // premium model available. Halting beats letting Llama produce
         // hallucinated tool calls (e.g. fake `pandoc` shell output).
-        set({
-          error: packName
-            ? 'Pack steps need a stronger model than the inbuilt one. Turn on Managed mode in Settings, or add your own provider key (Anthropic / OpenAI / Google / etc.) under Settings → Advanced.'
-            : 'Writing files needs a stronger model than the inbuilt one (it hallucinates tool calls). Turn on Managed mode in Settings, or add your own provider key under Settings → Advanced.',
-        });
+        // Tailor the message to the user's actual state so we don't
+        // suggest something they already have.
+        const wantedThing = packName
+          ? 'Pack steps need a stronger model than the inbuilt one.'
+          : 'Writing files needs a stronger model than the inbuilt one (it hallucinates tool calls).';
+        const fix = userHasOwnKeys
+          ? 'Sign in (Managed mode requires a session) or use one of your provider keys.'
+          : 'Turn on Managed mode in Settings.';
+        set({ error: `${wantedThing} ${fix}` });
         return;
       }
-      // If a powerful-tier prompt resolved to nothing tool-capable, surface
-      // a clear hint instead of silent fallback so the user knows BYOK is
-      // required for those queries.
+      // If a powerful-tier prompt resolved to nothing tool-capable AND
+      // managed redirect didn't catch it (managed off + no own key),
+      // surface a clear hint.
       if (!preset && SERVER_BANNED_TIERS.has(tier)) {
         set({
-          error:
-            "Powerful-tier requests need your own provider key (Anthropic / OpenAI / Google / DeepSeek / xAI) — add one under Settings → Advanced. Inbuilt model is fast/balanced only.",
+          error: managedRedirectAvailable
+            ? 'No tool-capable model available for this tier. Pick a model under Settings → AI Credits.'
+            : userHasOwnKeys
+              ? "Powerful-tier prompts need a provider that supports tools. Add an Anthropic / OpenAI / Google key under Settings → Advanced."
+              : 'Powerful-tier prompts need Managed mode on. Turn it on in Settings.',
         });
         return;
       }
