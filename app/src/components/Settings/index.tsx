@@ -469,7 +469,7 @@ export function SettingsPage() {
               <Key size={18} className="text-[var(--muted-foreground)]" />
               <h3 className="text-lg font-medium text-[var(--foreground)]">Advanced — Developer keys</h3>
             </div>
-            <span className="text-xs text-[var(--muted-foreground)]">BYOK · unmetered</span>
+            <span className="text-xs text-[var(--muted-foreground)]">Your own keys · unmetered</span>
           </button>
           {advancedSettingsExpanded && (
           <div className="mt-3">

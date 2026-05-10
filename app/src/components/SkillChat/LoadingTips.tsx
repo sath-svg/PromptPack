@@ -41,7 +41,7 @@ const TIPS: Array<{ feature: string; body: string }> = [
     body: 'Pick a saved pack and hit "Run Pack" to execute every prompt sequentially — perfect for multi-step research or content workflows.',
   },
   {
-    feature: 'BYOK + Managed',
+    feature: 'Your keys + Managed',
     body: 'Add your own Anthropic / OpenAI / Google keys for unlimited use, or stay on Managed mode for a single credit pool across all available models.',
   },
   {

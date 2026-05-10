@@ -1926,8 +1926,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // hallucinated tool calls (e.g. fake `pandoc` shell output).
         set({
           error: packName
-            ? 'Pack steps need a stronger model than the inbuilt one. Turn on Managed mode in Settings, or add a BYOK key (Anthropic / OpenAI / Google / etc.).'
-            : 'Writing files needs a stronger model than the inbuilt one (it hallucinates tool calls). Turn on Managed mode in Settings, or add a BYOK key.',
+            ? 'Pack steps need a stronger model than the inbuilt one. Turn on Managed mode in Settings, or add your own provider key (Anthropic / OpenAI / Google / etc.) under Settings → Advanced.'
+            : 'Writing files needs a stronger model than the inbuilt one (it hallucinates tool calls). Turn on Managed mode in Settings, or add your own provider key under Settings → Advanced.',
         });
         return;
       }
@@ -1937,7 +1937,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (!preset && SERVER_BANNED_TIERS.has(tier)) {
         set({
           error:
-            "Powerful-tier requests need a BYOK key (Anthropic / OpenAI / Google / DeepSeek / xAI). Inbuilt model is fast/balanced only.",
+            "Powerful-tier requests need your own provider key (Anthropic / OpenAI / Google / DeepSeek / xAI) — add one under Settings → Advanced. Inbuilt model is fast/balanced only.",
         });
         return;
       }

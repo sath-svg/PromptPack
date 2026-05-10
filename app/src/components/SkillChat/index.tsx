@@ -1097,7 +1097,7 @@ export function SkillChatPage() {
             <div className="p-4 rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/5 space-y-2">
               <p className="text-sm font-semibold text-[var(--foreground)]">Out of credits</p>
               <p className="text-sm text-[var(--muted-foreground)]">
-                Top up to keep using managed mode, or toggle BYOK in Settings to use your own provider key.
+                Top up to keep using managed mode, or add your own provider key under Settings → Advanced.
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <button
@@ -1454,7 +1454,7 @@ export function SkillChatPage() {
         <p className="mb-2">
           One chat. Every model. <span className="text-[var(--foreground)]">Skill Chat</span> auto-routes
           each message to the cheapest capable model — fast 8B for short questions, balanced for chat,
-          BYOK cloud for heavy work.
+          frontier models for heavy work.
         </p>
         <p className="mb-2">
           You don't need a dozen separate conversations. Save your tokens, save your money. Past

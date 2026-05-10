@@ -41,29 +41,40 @@ export function DiffPanel({ pendingEditId }: DiffPanelProps) {
             <AlertTriangle size={11} /> {warnCount}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-1.5">
           {edit.accepted === null ? (
             <>
               <button
                 onClick={() => acceptEdit(edit.id)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500 text-white text-[13px] font-semibold shadow-sm hover:bg-emerald-600 transition-colors"
               >
-                <Check size={11} /> Accept
+                <Check size={14} /> Accept
               </button>
               <button
                 onClick={() => rejectEdit(edit.id)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/15 text-red-500 hover:bg-red-500/25"
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md border border-red-500/40 text-red-500 text-[13px] font-medium hover:bg-red-500/10 transition-colors"
               >
-                <X size={11} /> Reject
+                <X size={14} /> Reject
               </button>
             </>
           ) : edit.accepted ? (
-            <span className="text-emerald-500 text-[10px] uppercase tracking-wider">accepted</span>
+            <span className="flex items-center gap-1 text-emerald-500 text-[11px] uppercase tracking-wider font-semibold">
+              <Check size={12} /> accepted
+            </span>
           ) : (
-            <span className="text-red-500 text-[10px] uppercase tracking-wider">rejected</span>
+            <span className="text-red-500 text-[11px] uppercase tracking-wider font-semibold">rejected</span>
           )}
         </div>
       </div>
+      {/* Loud reminder banner for staged edits — invisible buttons in
+          a header bar were the recurring complaint. This sits above
+          the diff so it's hard to miss. */}
+      {edit.accepted === null && (
+        <div className="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 text-[12px] text-amber-500 flex items-center gap-2">
+          <span className="font-semibold">Action needed:</span>
+          <span>Click <strong>Accept</strong> above to write this to disk, or <strong>Reject</strong> to drop it.</span>
+        </div>
+      )}
       <pre
         className="text-xs leading-[1.5] overflow-x-auto max-h-72 overflow-y-auto"
         style={{ fontFamily: 'var(--font-mono)' }}

@@ -304,7 +304,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   // multi-model option (openrouter), but the UI surfaces them as
   // "Skillset" / "Multi-model" so end users only see the abstractions.
   groq:       'Skillset Server',
-  openrouter: 'Multi-model (BYOK)',
+  openrouter: 'Multi-model',
   ollama:     'Ollama (local)',
 };
 
