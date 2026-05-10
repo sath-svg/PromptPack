@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
+// Security headers
 const securityHeaders = {
   "X-Frame-Options": "DENY",
   "X-Content-Type-Options": "nosniff",
@@ -17,10 +18,6 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
 const publicRoutes = [
   "/",
-  "/sign-in",
-  "/sign-up",
-  "/sso-callback",
-  "/forgot-password",
   "/pricing",
   "/privacy",
   "/downloads",
@@ -32,18 +29,19 @@ const publicRoutes = [
   "/manifest.json",
   "/sitemap.xml",
   "/robots.txt",
+  "/sign-in",
+  "/sign-up",
+  "/sign-out",
+  "/auth",
+  "/desktop-auth",
+  "/extension-auth",
+  "/mcp-auth",
 ];
 
 function isPublicRoute(pathname: string): boolean {
-  return (
-    publicRoutes.some(
-      (route) => pathname === route || pathname.startsWith(route + "/")
-    ) ||
-    pathname.startsWith("/api/webhooks/") ||
-    pathname.startsWith("/api/auth/") ||
-    pathname === "/api/health" ||
-    pathname === "/api/support"
-  );
+  return publicRoutes.some((route) =>
+    pathname === route || pathname.startsWith(route + "/")
+  ) || pathname.startsWith("/api/webhooks/") || pathname.startsWith("/api/auth/") || pathname === "/api/health" || pathname === "/api/support";
 }
 
 export async function middleware(request: NextRequest) {

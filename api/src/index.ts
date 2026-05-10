@@ -9,15 +9,7 @@
 
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
-import { handleLlmChat } from "./llm";
-import {
-  reserveCredits,
-  settleCredits,
-  releaseCredits,
-  reserveErrorResponse,
-  creditsHeaders,
-  CREDIT_USD_VALUE,
-} from "./credits";
+import { handleMcpRequest } from "./mcp";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -26,19 +18,19 @@ export interface Env {
   ALLOWED_ORIGINS: string;
   OLLAMA_URL: string;
   GROQ_API_KEY: string;
+  // Clerk (legacy, active until cutover)
   CLERK_ISSUER: string;
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
   OPENROUTER_API_KEY: string;
   SKILLSET_INTERNAL_KEY: string;
-  /**
-   * Shared HMAC secret used to verify HS256 desktop access tokens
-   * minted by Convex (`web/convex/jwt.ts`). Set via:
-   *   wrangler secret put JWT_SECRET
-   * Same value must be deployed to Convex via:
-   *   npx convex env set JWT_SECRET <hex>
-   */
   JWT_SECRET?: string;
+  // BetterAuth (new provider)
+  BETTER_AUTH_ISSUER: string;
+  BETTER_AUTH_JWKS_URL: string;
+  BETTER_AUTH_AUDIENCE: string;
+  // MCP tokens
+  MCP_TOKEN_SECRET: string;
 }
 
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
@@ -370,17 +362,46 @@ function encodeBase64Url(data: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-// --- Desktop access token (HS256) verify ------------------------------------
-//
-// Convex `web/convex/jwt.ts` mints these on /exchange-code + /refresh-token.
-// They carry { sub: clerkId, iss: "promptpack-desktop", iat, exp }. Verifying
-// here lets the worker bypass Clerk's JWKS hop on every managed-proxy call,
-// and lets desktop runs survive past Clerk's 60s session-token exp.
-async function verifyDesktopAccessToken(
-  token: string,
-  env: Env,
-): Promise<ClerkJwtPayload | null> {
-  if (!env.JWT_SECRET) return null;
+async function getHmacKey(secret: string): Promise<CryptoKey> {
+  const keyData = new TextEncoder().encode(secret);
+  return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+}
+
+async function mintMcpToken(userId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
+  // Works with both Clerk IDs and BetterAuth IDs
+  const now = Math.floor(Date.now() / 1000);
+  const expiresAt = now + 30 * 24 * 60 * 60; // 30 days
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = { sub: userId, iat: now, exp: expiresAt, type: "mcp" };
+  const enc = new TextEncoder();
+  const headerB64 = encodeBase64Url(enc.encode(JSON.stringify(header)));
+  const payloadB64 = encodeBase64Url(enc.encode(JSON.stringify(payload)));
+  const signingInput = `${headerB64}.${payloadB64}`;
+  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signingInput));
+  const sigB64 = encodeBase64Url(new Uint8Array(sig));
+  return { token: `${signingInput}.${sigB64}`, expiresAt };
+}
+
+async function verifyMcpToken(token: string, env: Env): Promise<{ sub?: string } | null> {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sigB64] = parts;
+  const header = parseJwtPart<{ alg?: string; typ?: string }>(headerB64);
+  if (!header || header.alg !== "HS256") return null;
+  const payload = parseJwtPart<{ sub?: string; exp?: number; type?: string }>(payloadB64);
+  if (!payload || payload.type !== "mcp") return null;
+  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
+  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
+  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = decodeBase64Url(sigB64);
+  const valid = await crypto.subtle.verify("HMAC", key, signature, signingInput);
+  if (!valid) return null;
+  return { sub: payload.sub };
+}
+
+async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPayload | null> {
+  // BetterAuth uses same RS256 format as Clerk
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
@@ -388,46 +409,52 @@ async function verifyDesktopAccessToken(
   const header = parseJwtPart<ClerkJwtHeader>(encodedHeader);
   const payload = parseJwtPart<ClerkJwtPayload>(encodedPayload);
   if (!header || !payload) return null;
-  if (header.alg !== "HS256") return null;
-  if (payload.iss !== "promptpack-desktop") return null;
+  if (header.alg !== "RS256" || !header.kid) return null;
+
   if (payload.exp && payload.exp * 1000 < Date.now()) return null;
   if (payload.nbf && payload.nbf * 1000 > Date.now()) return null;
+  if (env.BETTER_AUTH_ISSUER && payload.iss !== env.BETTER_AUTH_ISSUER) return null;
+  if (!isAudienceValid(payload, env.BETTER_AUTH_AUDIENCE || null)) return null;
+
+  const jwksUrl = env.BETTER_AUTH_JWKS_URL || (env.BETTER_AUTH_ISSUER ? `${env.BETTER_AUTH_ISSUER}/.well-known/jwks.json` : "");
+  if (!jwksUrl) return null;
+  const jwks = await getClerkJwks(jwksUrl); // Reuse JWKS fetching (generic RS256)
+  if (!jwks?.keys?.length) return null;
+
+  const jwk = jwks.keys.find((key) => key.kid === header.kid && key.kty === "RSA");
+  if (!jwk) return null;
 
   const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(env.JWT_SECRET),
-    { name: "HMAC", hash: "SHA-256" },
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["verify"],
   );
+
   const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
   const signature = decodeBase64Url(encodedSignature);
-  const verified = await crypto.subtle.verify("HMAC", key, signature, data);
+  const verified = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
   if (!verified) return null;
+
   return payload;
 }
 
-// Tries the short-lived RS256 Clerk JWT first (web flows), then the
-// long-lived HS256 desktop access token (Tauri). Either path returns a
-// minimal `ClerkJwtPayload` with `.sub` set to the user's Clerk id.
-async function verifyAuthToken(
-  token: string,
-  env: Env,
-): Promise<ClerkJwtPayload | null> {
-  // Peek at the header alg so we don't attempt an RSA verify on an
-  // HS256 payload (or vice versa). Saves a JWKS round-trip when the
-  // token is a desktop HS256.
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const header = parseJwtPart<ClerkJwtHeader>(parts[0]);
-  if (!header) return null;
-  if (header.alg === "HS256") {
-    return verifyDesktopAccessToken(token, env);
-  }
-  if (header.alg === "RS256") {
-    return verifyClerkJwt(token, env);
-  }
-  return null;
+async function verifyMcpOrClerkOrBetterAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Try Clerk RS256 first
+  const clerk = await verifyClerkJwt(token, env);
+  if (clerk) return clerk;
+  // Try BetterAuth RS256 second
+  const betterAuth = await verifyBetterAuthJwt(token, env);
+  if (betterAuth) return betterAuth;
+  // Fall back to MCP HS256 token
+  if (!env.MCP_TOKEN_SECRET) return null;
+  return verifyMcpToken(token, env);
+}
+
+async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Kept for backward compat, delegates to triple-auth version
+  return verifyMcpOrClerkOrBetterAuthJwt(token, env);
 }
 
 function getEnhanceMode(input: unknown): EnhanceMode | null {
@@ -476,7 +503,7 @@ function getRateLimitId(request: Request, userId: string | null): string {
 
 async function getCachedJson<T>(cacheKey: string): Promise<T | null> {
   const cache = caches.default;
-  const req = new Request(`https://cache.skillset.so/enhance/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.pmtpk.com/enhance/${cacheKey}`, { method: "GET" });
   const hit = await cache.match(req);
   if (!hit) return null;
   try {
@@ -488,7 +515,7 @@ async function getCachedJson<T>(cacheKey: string): Promise<T | null> {
 
 async function putCachedJson(cacheKey: string, payload: unknown, ttlSeconds: number): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://cache.skillset.so/enhance/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.pmtpk.com/enhance/${cacheKey}`, { method: "GET" });
   const res = new Response(JSON.stringify(payload), {
     headers: {
       "Content-Type": "application/json",
@@ -500,7 +527,7 @@ async function putCachedJson(cacheKey: string, payload: unknown, ttlSeconds: num
 
 async function getCachedClassify<T>(cacheKey: string): Promise<T | null> {
   const cache = caches.default;
-  const req = new Request(`https://cache.skillset.so/classify/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.pmtpk.com/classify/${cacheKey}`, { method: "GET" });
   const hit = await cache.match(req);
   if (!hit) return null;
   try {
@@ -512,7 +539,7 @@ async function getCachedClassify<T>(cacheKey: string): Promise<T | null> {
 
 async function putCachedClassify(cacheKey: string, payload: unknown, ttlSeconds: number): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://cache.skillset.so/classify/${cacheKey}`, { method: "GET" });
+  const req = new Request(`https://cache.pmtpk.com/classify/${cacheKey}`, { method: "GET" });
   const res = new Response(JSON.stringify(payload), {
     headers: {
       "Content-Type": "application/json",
@@ -524,7 +551,7 @@ async function putCachedClassify(cacheKey: string, payload: unknown, ttlSeconds:
 
 async function incrementRateCounter(key: string, ttlSeconds: number): Promise<number> {
   const cache = caches.default;
-  const req = new Request(`https://rate.skillset.so/enhance/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.pmtpk.com/enhance/${encodeURIComponent(key)}`, { method: "GET" });
   const hit = await cache.match(req);
   let count = 0;
   if (hit) {
@@ -548,7 +575,7 @@ async function incrementRateCounter(key: string, ttlSeconds: number): Promise<nu
 
 async function acquireInFlightLock(key: string, ttlSeconds: number): Promise<boolean> {
   const cache = caches.default;
-  const req = new Request(`https://rate.skillset.so/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.pmtpk.com/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
   const hit = await cache.match(req);
   if (hit) return false;
   const res = new Response(JSON.stringify({ locked: true, ts: Date.now() }), {
@@ -563,7 +590,7 @@ async function acquireInFlightLock(key: string, ttlSeconds: number): Promise<boo
 
 async function releaseInFlightLock(key: string): Promise<void> {
   const cache = caches.default;
-  const req = new Request(`https://rate.skillset.so/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
+  const req = new Request(`https://rate.pmtpk.com/enhance/inflight/${encodeURIComponent(key)}`, { method: "GET" });
   await cache.delete(req);
 }
 
@@ -710,145 +737,22 @@ export default {
     };
 
     try {
-      // Managed-mode LLM proxy (credit-metered OpenRouter)
-      // POST /api/llm/chat — primary route
-      // POST /api/llm/chat/completions — OpenAI-compat alias used by the
-      //   desktop agent loop so it can post to the managed proxy with
-      //   tools enabled. Same handler, identical body shape.
-      if (
-        (path === "/api/llm/chat" || path === "/api/llm/chat/completions") &&
-        method === "POST"
-      ) {
-        const response = await handleLlmChat(
-          request,
-          env,
-          (token) => verifyAuthToken(token, env),
-        );
-        return addCors(response);
-      }
-
-      // POST /api/llm/run/reserve — Phase 5 preflight.
-      //
-      // The orchestrator hits this once at run start with the estimated
-      // total credit envelope (e.g. `maxSubtasks * cheapPerCall * 3`).
-      // Worker checks the user's current balance vs. the estimate and
-      // either:
-      //   - 200 + { balance, headroom } if the run can plausibly fit
-      //   - 402 + insufficient_credits if the user already can't cover
-      //     even a fraction of the run
-      //
-      // No credits are actually held — per-call holds in
-      // `/api/llm/chat` still do the real reservation. This endpoint
-      // exists so the desktop UI can fail fast (and surface "Top up &
-      // resume" up front) before kicking off N parallel subtask
-      // requests that would otherwise all 402 mid-flight.
-      if (path === "/api/llm/run/reserve" && method === "POST") {
-        const auth = request.headers.get("Authorization");
-        const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-        const claims = token ? await verifyAuthToken(token, env) : null;
-        const clerkId = claims?.sub ?? null;
-        if (!clerkId) {
-          return addCors(
-            new Response(JSON.stringify({ error: "unauthorized" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
-        let estimatedCredits = 0;
-        try {
-          const body = (await request.json()) as { estimatedCredits?: number };
-          estimatedCredits = Math.max(1, Math.floor(body.estimatedCredits ?? 0));
-        } catch {
-          return addCors(
-            new Response(JSON.stringify({ error: "invalid_json" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            }),
-          );
-        }
-
-        try {
-          const balanceRes = await fetch(
-            `${env.CONVEX_URL}/api/extension/credit-balance`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ clerkId }),
-            },
-          );
-          if (!balanceRes.ok) {
-            return addCors(
-              new Response(
-                JSON.stringify({ error: "balance_lookup_failed" }),
-                {
-                  status: 502,
-                  headers: { "Content-Type": "application/json" },
-                },
-              ),
-            );
-          }
-          const balance = (await balanceRes.json()) as {
-            monthly?: number;
-            topup?: number;
-          };
-          const total = (balance.monthly ?? 0) + (balance.topup ?? 0);
-          if (total < estimatedCredits) {
-            return addCors(
-              new Response(
-                JSON.stringify({
-                  error: "insufficient_credits",
-                  code: "INSUFFICIENT_CREDITS",
-                  estimated: estimatedCredits,
-                  available: total,
-                }),
-                {
-                  status: 402,
-                  headers: { "Content-Type": "application/json" },
-                },
-              ),
-            );
-          }
-          return addCors(
-            new Response(
-              JSON.stringify({
-                ok: true,
-                estimated: estimatedCredits,
-                available: total,
-                headroom: total - estimatedCredits,
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              },
-            ),
-          );
-        } catch (err) {
-          return addCors(
-            new Response(
-              JSON.stringify({
-                error: "internal",
-                message: err instanceof Error ? err.message : String(err),
-              }),
-              {
-                status: 500,
-                headers: { "Content-Type": "application/json" },
-              },
-            ),
-          );
-        }
-      }
-
       // Groq-enhanced prompt endpoint
       // POST /api/enhance
       if (path === "/api/enhance" && method === "POST") {
-        // Credit-metered: 1 credit per call (cheap tier — Groq Llama).
-        // Per-route rate limits (daily/min/10min/hash/in-flight) replaced by
-        // single credit throttle. Pro users still get 70B model for UX.
-        let holdId: string | null = null;
+        const requestId = crypto.randomUUID();
+        const start = Date.now();
+        let cached = false;
+        let modelUsed = ENHANCE_FREE_MODEL;
+        let errorCode = "ok";
+        let isPro = false;
+        let inFlightKey: string | null = null;
+        let inFlightLocked = false;
+
         try {
           const groqApiKey = getGroqApiKey(env);
           if (!groqApiKey) {
+            errorCode = "missing_groq_key";
             return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
               status: 500,
               headers: { "Content-Type": "application/json" },
@@ -860,44 +764,122 @@ export default {
           const mode = getEnhanceMode(body?.mode);
 
           if (!text) {
+            errorCode = "missing_text";
             return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
-              status: 400, headers: { "Content-Type": "application/json" },
+              status: 400,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
+
           if (!mode) {
+            errorCode = "invalid_mode";
             return addCors(new Response(JSON.stringify({ error: "Invalid mode" }), {
-              status: 400, headers: { "Content-Type": "application/json" },
+              status: 400,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
+
           if (text.length > ENHANCE_MAX_INPUT_CHARS) {
+            errorCode = "input_too_long";
             return addCors(new Response(JSON.stringify({ error: "Prompt too long to enhance" }), {
-              status: 400, headers: { "Content-Type": "application/json" },
+              status: 400,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
 
-          const authHeader = request.headers.get("Authorization") || "";
-          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-          if (!token) {
+          // Get user ID from auth token (required for enhance)
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          if (!userId) {
+            errorCode = "unauthorized";
             return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
+              status: 401,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
-          const claims = await verifyAuthToken(token, env);
-          if (!claims?.sub) {
-            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
+
+          // Check billing status to determine limits and model
+          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+          isPro = billing.isPro;
+
+          const rateKey = `user:${userId}`;
+          const model = getModel(isPro);
+          modelUsed = model;
+
+          inFlightKey = `${rateKey}:inflight`;
+          inFlightLocked = await acquireInFlightLock(inFlightKey, ENHANCE_IN_FLIGHT_TTL_SECONDS);
+          if (!inFlightLocked) {
+            errorCode = "rate_limit_in_flight";
+            return addCors(new Response(JSON.stringify({
+              error: "Enhance already running. Please wait for it to finish.",
+              code: "IN_FLIGHT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
-          const clerkId = claims.sub;
 
-          // Pro users get 70B model; free get 8B. Both billed at 1 credit.
-          const billing = await checkUserBillingStatus(clerkId, env.CONVEX_URL);
-          const model = getModel(billing.isPro);
+          // === RATE LIMITING ===
 
-          // Cache lookup before reserving — cached hits are free.
+          // 1. Daily limit (Free: 10/day, Pro: 100/day)
+          const dayLimit = isPro ? ENHANCE_PRO_DAY_LIMIT : ENHANCE_FREE_DAY_LIMIT;
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            errorCode = "rate_limit_day";
+            return addCors(new Response(JSON.stringify({
+              error: isPro ? "Daily enhance limit reached (100/day)" : "Daily enhance limit reached (10/day). Upgrade to Pro for more.",
+              code: "DAILY_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }), true);
+          }
+
+          // 2. Rolling window: 2 requests/minute
+          const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+          if (minuteCount > ENHANCE_MINUTE_LIMIT) {
+            errorCode = "rate_limit_minute";
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a moment.",
+              code: "MINUTE_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }), true);
+          }
+
+          // 3. Rolling window: 10 requests/10 minutes
+          const tenMinCount = await incrementRateCounter(`${rateKey}:10min`, 10 * 60);
+          if (tenMinCount > ENHANCE_10MIN_LIMIT) {
+            errorCode = "rate_limit_10min";
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a few minutes.",
+              code: "TEN_MIN_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }), true);
+          }
+
+          // 4. Same-prompt spam guard (hash-based)
+          const promptHash = await sha256Hex(`${text}${mode}`);
+          const sameHashLimit = isPro ? ENHANCE_PRO_SAME_HASH_HOUR : ENHANCE_FREE_SAME_HASH_HOUR;
+          const sameHashCount = await incrementRateCounter(`${rateKey}:hash:${promptHash}`, 60 * 60);
+          if (sameHashCount > sameHashLimit) {
+            errorCode = "rate_limit_same_prompt";
+            return addCors(new Response(JSON.stringify({
+              error: "Same prompt enhanced too many times. Try a different prompt.",
+              code: "SAME_PROMPT_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }), true);
+          }
+
+          // === CACHE LOOKUP ===
           const cacheKey = await sha256Hex(`${text}${mode}${model}`);
           const cachedResult = await getCachedJson<{ enhanced: string; mode: EnhanceMode; model: string }>(cacheKey);
           if (cachedResult?.enhanced) {
+            cached = true;
             return addCors(new Response(JSON.stringify({
               enhanced: cachedResult.enhanced,
               mode,
@@ -908,35 +890,29 @@ export default {
             }), true);
           }
 
-          const FLAT_CREDITS = 1;
-          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${model}`);
-          if (!reserve.ok) return addCors(reserveErrorResponse(reserve), true);
-          holdId = reserve.data.holdId;
-
+          // === CALL GROQ ===
           const result = await callGroqChatCompletion({
             apiKey: groqApiKey,
             model,
             mode,
             text,
-            isPro: billing.isPro,
+            isPro,
           });
 
           if (!result.ok) {
-            await releaseCredits(env, holdId, `groq_${result.status}`);
-            holdId = null;
+            errorCode = `groq_${result.status}`;
             return addCors(new Response(JSON.stringify({ error: "Enhance failed. Please try again." }), {
-              status: 502, headers: { "Content-Type": "application/json" },
+              status: 502,
+              headers: { "Content-Type": "application/json" },
             }), true);
           }
 
+          // Cache the result
           await putCachedJson(cacheKey, {
             enhanced: result.content,
             mode,
             model,
           }, ENHANCE_CACHE_TTL_SECONDS);
-
-          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
-          holdId = null;
 
           return addCors(new Response(JSON.stringify({
             enhanced: result.content,
@@ -944,31 +920,32 @@ export default {
             model,
             cached: false,
           }), {
-            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
+            headers: { "Content-Type": "application/json" },
           }), true);
-        } catch (error) {
-          if (holdId) {
-            await releaseCredits(env, holdId, "exception");
+        } finally {
+          if (inFlightLocked && inFlightKey) {
+            try {
+              await releaseInFlightLock(inFlightKey);
+            } catch {
+              // Ignore lock release failures.
+            }
           }
-          console.error("/api/enhance error:", error);
-          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
-            status: 500, headers: { "Content-Type": "application/json" },
-          }), true);
+          const durationMs = Date.now() - start;
         }
       }
 
       // POST /api/evaluate - Evaluate prompt quality across all LLMs
       // Pro/Studio only feature
       if (path === "/api/evaluate" && method === "POST") {
-        // Credit-metered: 1 credit per call. Rule-based score with single Groq
-        // pass — no per-tier daily caps, credits are the throttle. Tier gate
-        // (was Pro/Studio only) removed: any signed-in user with credits.
-        let holdId: string | null = null;
+        let inFlightKey: string | null = null;
+        let inFlightLocked = false;
+
         try {
           const groqApiKey = getGroqApiKey(env);
           if (!groqApiKey) {
             return addCors(new Response(JSON.stringify({ error: "GROQ_API_KEY not configured" }), {
-              status: 500, headers: { "Content-Type": "application/json" },
+              status: 500,
+              headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -977,31 +954,94 @@ export default {
 
           if (!text) {
             return addCors(new Response(JSON.stringify({ error: "Missing text" }), {
-              status: 400, headers: { "Content-Type": "application/json" },
+              status: 400,
+              headers: { "Content-Type": "application/json" },
             }));
           }
+
           if (text.length > EVAL_MAX_INPUT_CHARS) {
             return addCors(new Response(JSON.stringify({ error: "Prompt too long to evaluate" }), {
-              status: 400, headers: { "Content-Type": "application/json" },
+              status: 400,
+              headers: { "Content-Type": "application/json" },
             }));
           }
 
-          const authHeader = request.headers.get("Authorization") || "";
-          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-          if (!token) {
+          // Get user ID from auth token (required)
+          const userId = getUserIdFromToken(request.headers.get("Authorization"));
+          if (!userId) {
             return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
+              status: 401,
+              headers: { "Content-Type": "application/json" },
             }));
           }
-          const claims = await verifyAuthToken(token, env);
-          if (!claims?.sub) {
-            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const clerkId = claims.sub;
 
-          // Cache lookup before reserving — cached hits are free.
+          // Check billing status - must be Pro or Studio
+          const billing = await checkUserBillingStatus(userId, env.CONVEX_URL);
+          if (!billing.isPro) {
+            return addCors(new Response(JSON.stringify({
+              error: "Upgrade to Pro to evaluate prompts",
+              code: "TIER_REQUIRED"
+            }), {
+              status: 403,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          const rateKey = `user:${userId}:eval`;
+
+          // In-flight lock
+          inFlightKey = `${rateKey}:inflight`;
+          inFlightLocked = await acquireInFlightLock(inFlightKey, EVAL_IN_FLIGHT_TTL_SECONDS);
+          if (!inFlightLocked) {
+            return addCors(new Response(JSON.stringify({
+              error: "Evaluation already running. Please wait for it to finish.",
+              code: "IN_FLIGHT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Daily limit based on tier
+          const dayLimit = billing.isStudio ? EVAL_STUDIO_DAY_LIMIT : EVAL_PRO_DAY_LIMIT;
+          const dayCount = await incrementRateCounter(`${rateKey}:day`, 24 * 60 * 60);
+          if (dayCount > dayLimit) {
+            return addCors(new Response(JSON.stringify({
+              error: billing.isStudio
+                ? "Daily evaluation limit reached (500/day)"
+                : "Daily evaluation limit reached (100/day). Upgrade to Studio for more.",
+              code: "DAILY_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rolling window: 5 requests/minute
+          const minuteCount = await incrementRateCounter(`${rateKey}:minute`, 60);
+          if (minuteCount > EVAL_MINUTE_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a moment.",
+              code: "MINUTE_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Rolling window: 20 requests/10 minutes
+          const tenMinCount = await incrementRateCounter(`${rateKey}:10min`, 10 * 60);
+          if (tenMinCount > EVAL_10MIN_LIMIT) {
+            return addCors(new Response(JSON.stringify({
+              error: "Too many requests. Please wait a few minutes.",
+              code: "TEN_MIN_LIMIT"
+            }), {
+              status: 429,
+              headers: { "Content-Type": "application/json" },
+            }));
+          }
+
+          // Cache lookup by prompt hash
           const promptHash = await sha256Hex(text);
           const cacheKey = `eval:${promptHash}`;
           const cachedResult = await getCachedJson<{
@@ -1019,11 +1059,6 @@ export default {
               headers: { "Content-Type": "application/json" },
             }));
           }
-
-          const FLAT_CREDITS = 1;
-          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${EVAL_MODEL}`);
-          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
-          holdId = reserve.data.holdId;
 
           // Build the evaluation system prompt (DeepEval G-Eval inspired)
           const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
@@ -1095,12 +1130,10 @@ Do NOT include any explanation or markdown formatting.`;
           });
 
           if (!groqResponse.ok) {
-            const errText = await groqResponse.text().catch(() => "");
-            await releaseCredits(env, holdId, `groq_error_${groqResponse.status}`);
-            holdId = null;
-            console.error("Groq evaluation error:", groqResponse.status, errText);
+            console.error("Groq evaluation error:", groqResponse.status, await groqResponse.text().catch(() => ""));
             return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
-              status: 502, headers: { "Content-Type": "application/json" },
+              status: 502,
+              headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -1128,11 +1161,10 @@ Do NOT include any explanation or markdown formatting.`;
               scores[llm] = Math.round(scores[llm]); // Ensure integers
             }
           } catch (parseError) {
-            await releaseCredits(env, holdId, "parse_failed");
-            holdId = null;
             console.error("Failed to parse evaluation scores:", content, parseError);
             return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
-              status: 502, headers: { "Content-Type": "application/json" },
+              status: 502,
+              headers: { "Content-Type": "application/json" },
             }));
           }
 
@@ -1150,7 +1182,7 @@ Do NOT include any explanation or markdown formatting.`;
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                clerkId,
+                clerkId: userId,
                 promptHash,
                 overallScore,
                 scores,
@@ -1161,25 +1193,23 @@ Do NOT include any explanation or markdown formatting.`;
             console.error("Failed to save evaluation to Convex:", saveError);
           }
 
-          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
-          holdId = null;
-
           return addCors(new Response(JSON.stringify({
             overallScore,
             scores,
             promptHash,
             cached: false,
           }), {
-            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
+            headers: { "Content-Type": "application/json" },
           }));
-        } catch (error) {
-          if (holdId) {
-            await releaseCredits(env, holdId, "exception");
+
+        } finally {
+          if (inFlightLocked && inFlightKey) {
+            try {
+              await releaseInFlightLock(inFlightKey);
+            } catch {
+              // Ignore lock release failures
+            }
           }
-          console.error("/api/evaluate error:", error);
-          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
-            status: 500, headers: { "Content-Type": "application/json" },
-          }));
         }
       }
 
@@ -1689,7 +1719,7 @@ How they want AI responses formatted. Constraints, formatting preferences.
       if (path === "/auth/status" && (method === "GET" || method === "POST")) {
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-        const payload = token ? await verifyAuthToken(token, env) : null;
+        const payload = token ? await verifyClerkJwt(token, env) : null;
         if (!payload?.sub) {
           return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
             status: 401,
@@ -1740,8 +1770,6 @@ How they want AI responses formatted. Constraints, formatting preferences.
             error?: string;
             message?: string;
             user?: { clerkId: string; email: string; plan: string };
-            accessToken?: string;
-            accessTokenExpiresAt?: number;
             refreshToken?: string;
             refreshTokenExpiresAt?: number;
           };
@@ -1756,12 +1784,11 @@ How they want AI responses formatted. Constraints, formatting preferences.
             }));
           }
 
-          // Forward the new access + refresh token pair from Convex.
+          // Return the new tokens
+          // Note: Client will need to get a fresh Clerk JWT separately or we can include one
           return addCors(new Response(JSON.stringify({
             success: true,
             user: refreshData.user,
-            accessToken: refreshData.accessToken,
-            accessTokenExpiresAt: refreshData.accessTokenExpiresAt,
             refreshToken: refreshData.refreshToken,
             refreshTokenExpiresAt: refreshData.refreshTokenExpiresAt,
             // expiresIn is for compatibility with existing frontend
@@ -2485,6 +2512,140 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }
       }
 
+      // === MCP (Model Context Protocol) endpoint ===
+      if (path === "/mcp" && method === "POST") {
+        const mcpResponse = await handleMcpRequest(
+          request,
+          env,
+          verifyMcpOrClerkJwt,
+          checkUserBillingStatus,
+        );
+        return addCors(mcpResponse);
+      }
+
+      // === Device auth for MCP CLI bridge ===
+
+      // Generate a device auth code for CLI login
+      if (path === "/auth/device-code" && method === "POST") {
+        const code = crypto.randomUUID().slice(0, 8);
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
+        const cacheRes = new Response(JSON.stringify({ status: "pending" }), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+        });
+        await cache.put(cacheReq, cacheRes);
+
+        return addCors(new Response(JSON.stringify({
+          code,
+          authUrl: `https://pmtpk.com/mcp-auth?code=${code}`,
+          expiresIn: 300,
+        }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Poll for device auth completion
+      if (path === "/auth/device-poll" && method === "GET") {
+        const code = url.searchParams.get("code");
+        if (!code) {
+          return addCors(new Response(JSON.stringify({ error: "Missing code" }), {
+            status: 400, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
+        const hit = await cache.match(cacheReq);
+        if (!hit) {
+          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
+            status: 404, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const data = await hit.json() as Record<string, unknown>;
+        return addCors(new Response(JSON.stringify(data), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Complete device auth (called by web app after user signs in)
+      if (path === "/auth/device-complete" && method === "POST") {
+        const body = await request.json().catch(() => null) as {
+          code?: string; clerkId?: string; refreshToken?: string;
+        } | null;
+        if (!body?.code || !body.clerkId || !body.refreshToken) {
+          return addCors(new Response(JSON.stringify({ error: "Missing code, clerkId, or refreshToken" }), {
+            status: 400, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const cache = caches.default;
+        const cacheReq = new Request(`https://cache.pmtpk.com/device/${body.code}`, { method: "GET" });
+        const hit = await cache.match(cacheReq);
+        if (!hit) {
+          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
+            status: 404, headers: { "Content-Type": "application/json" },
+          }));
+        }
+
+        // Mint a long-lived MCP token if secret is configured
+        let tokenToStore = body.refreshToken;
+        let expiresAt: number | undefined;
+        if (env.MCP_TOKEN_SECRET) {
+          // Verify the Clerk JWT to confirm identity
+          const clerkPayload = await verifyClerkJwt(body.refreshToken, env);
+          if (!clerkPayload || clerkPayload.sub !== body.clerkId) {
+            return addCors(new Response(JSON.stringify({ error: "Invalid Clerk token" }), {
+              status: 401, headers: { "Content-Type": "application/json" },
+            }));
+          }
+          const minted = await mintMcpToken(body.clerkId, env);
+          tokenToStore = minted.token;
+          expiresAt = minted.expiresAt;
+        }
+
+        // Update cache with completion data
+        const cacheRes = new Response(JSON.stringify({
+          status: "complete",
+          clerkId: body.clerkId,
+          refreshToken: tokenToStore,
+          ...(expiresAt ? { expiresAt } : {}),
+        }), {
+          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+        });
+        await cache.put(cacheReq, cacheRes);
+
+        return addCors(new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // Refresh an MCP token (exchange valid MCP token for a fresh 30-day token)
+      if (path === "/auth/mcp-refresh" && method === "POST") {
+        if (!env.MCP_TOKEN_SECRET) {
+          return addCors(new Response(JSON.stringify({ error: "MCP token refresh not configured" }), {
+            status: 501, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const authHeader = request.headers.get("Authorization");
+        if (!authHeader?.startsWith("Bearer ")) {
+          return addCors(new Response(JSON.stringify({ error: "Missing Bearer token" }), {
+            status: 401, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const oldToken = authHeader.slice(7);
+        const payload = await verifyMcpToken(oldToken, env);
+        if (!payload?.sub) {
+          return addCors(new Response(JSON.stringify({ error: "Invalid or expired MCP token" }), {
+            status: 401, headers: { "Content-Type": "application/json" },
+          }));
+        }
+        const minted = await mintMcpToken(payload.sub, env);
+        return addCors(new Response(JSON.stringify({
+          refreshToken: minted.token,
+          expiresAt: minted.expiresAt,
+        }), {
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
       // POST /api/similar-styles — find presets similar to a given style via Groq
       if (path === "/api/similar-styles" && method === "POST") {
         try {
@@ -2499,7 +2660,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           // Rate limit: 30 req/min per IP
           const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
           const rlKey = `similar-styles:${clientIp}`;
-          const rlCacheReq = new Request(`https://rate.skillset.so/similar-styles/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const rlCacheReq = new Request(`https://rate.pmtpk.com/similar-styles/${encodeURIComponent(clientIp)}`, { method: "GET" });
           const rlCache = caches.default;
           const rlHit = await rlCache.match(rlCacheReq);
           if (rlHit) {
@@ -2520,7 +2681,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
 
           // Check cache first (30-day TTL)
           const cacheKey = `similar:${presetId}`;
-          const cacheReq = new Request(`https://cache.skillset.so/similar-styles/${encodeURIComponent(presetId)}`, { method: "GET" });
+          const cacheReq = new Request(`https://cache.pmtpk.com/similar-styles/${encodeURIComponent(presetId)}`, { method: "GET" });
           const cached = await rlCache.match(cacheReq);
           if (cached) {
             return addCors(new Response(cached.body, {
@@ -2637,152 +2798,9 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }
       }
 
-      // POST /v1/chat/completions — openai-compat agent endpoint
-      // Forwards to Groq with the server-held GROQ_API_KEY. Auth via the
-      // user's Clerk JWT in `Authorization: Bearer <jwt>`. Tier-based
-      // daily caps enforced server-side as defense in depth on top of
-      // the desktop app's own counters.
-      if (path === "/v1/chat/completions" && method === "POST") {
-        // Credit-metered: 1 credit per call (cheap tier — locked to 8B Llama).
-        // Per-tier daily counters (free 3, pro 200, studio 400) replaced by
-        // single credit throttle. Tier UX (X-User-Tier header) preserved.
-        let holdId: string | null = null;
-        try {
-          const groqKey = getGroqApiKey(env);
-          if (!groqKey) {
-            return addCors(new Response(JSON.stringify({ error: { message: "Service not configured" } }), {
-              status: 503, headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          const authHeader = request.headers.get("Authorization") || "";
-          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-          if (!token) {
-            return addCors(new Response(JSON.stringify({ error: { message: "Sign in required" } }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const claims = await verifyAuthToken(token, env);
-          if (!claims?.sub) {
-            return addCors(new Response(JSON.stringify({ error: { message: "Invalid or expired session" } }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const clerkId = claims.sub;
-
-          const body = await request.json().catch(() => null) as {
-            model?: string;
-            messages?: { role: string; content: string }[];
-            tools?: unknown[];
-            max_tokens?: number;
-          } | null;
-          if (!body?.messages?.length) {
-            return addCors(new Response(JSON.stringify({ error: { message: "messages required" } }), {
-              status: 400, headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Pin server tier to 8B Llama. Free/Pro can't override; Studio
-          // is allowed to request 70B for balanced-tier work but we still
-          // hard-block it here to keep margins predictable until we add
-          // per-tier model gating in the proxy. Adjust later as needed.
-          const SERVER_MODEL_ALLOWLIST = new Set([
-            "llama-3.1-8b-instant",
-            // "llama-3.3-70b-versatile",  // enable after pricing review
-          ]);
-          const requestedModel = body.model || "llama-3.1-8b-instant";
-          const model = SERVER_MODEL_ALLOWLIST.has(requestedModel)
-            ? requestedModel
-            : "llama-3.1-8b-instant";
-
-          const FLAT_CREDITS = 1;
-          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, `groq:${model}`);
-          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
-          holdId = reserve.data.holdId;
-
-          const groqPayload: Record<string, unknown> = {
-            model,
-            max_tokens: body.max_tokens ?? 4096,
-            messages: body.messages,
-          };
-          if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
-            groqPayload.tools = body.tools;
-          }
-
-          let groqRes: Response;
-          try {
-            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${groqKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(groqPayload),
-            });
-          } catch (fetchErr) {
-            await releaseCredits(env, holdId, "groq_fetch_failed");
-            holdId = null;
-            console.error("Groq /v1 fetch error:", fetchErr);
-            return addCors(new Response(JSON.stringify({ error: { message: "Upstream unreachable" } }), {
-              status: 502, headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          if (!groqRes.ok) {
-            const errText = await groqRes.text().catch(() => "");
-            await releaseCredits(env, holdId, `groq_error_${groqRes.status}`);
-            holdId = null;
-            console.error("Groq /v1 error:", groqRes.status, errText);
-            // Pass through Groq's error body so the desktop app can show
-            // the real reason (model name typo, malformed tools array,
-            // unsupported field, etc.) instead of an opaque "Upstream
-            // error 400".
-            let parsed: unknown = null;
-            try {
-              parsed = JSON.parse(errText);
-            } catch {
-              parsed = { error: { message: errText || `Upstream error ${groqRes.status}` } };
-            }
-            return addCors(new Response(JSON.stringify(parsed), {
-              status: groqRes.status,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Pass through the openai-compat response unchanged so the
-          // client gets `choices[0].message.tool_calls` etc.
-          const upstream = await groqRes.text();
-          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
-          holdId = null;
-
-          // Tier still surfaced for client UX (model picker hints, etc.)
-          const billing = await checkUserBillingStatus(clerkId, env.CONVEX_URL);
-          const headers = creditsHeaders(settled, { "Content-Type": "application/json" });
-          headers.set("X-User-Tier", billing.tier);
-
-          return addCors(new Response(upstream, {
-            status: 200,
-            headers,
-          }));
-        } catch (error) {
-          if (holdId) {
-            await releaseCredits(env, holdId, "exception");
-          }
-          console.error("/v1/chat/completions error:", error);
-          return addCors(new Response(JSON.stringify({
-            error: { message: error instanceof Error ? error.message : "Internal error" },
-          }), {
-            status: 500, headers: { "Content-Type": "application/json" },
-          }));
-        }
-      }
-
       // POST /chat — PromptPack-hosted AI (Groq Llama 3.1 8B, free tier)
       // Body: { messages: [{role, content}][] }
       if (path === "/chat" && method === "POST") {
-        // Credit-metered: 1 credit per call (cheap tier — Groq Llama 8B).
-        // Unsigned users blocked: no JWT → 401. Credits are the single throttle.
-        let holdId: string | null = null;
         try {
           const groqKey = getGroqApiKey(env);
           if (!groqKey) {
@@ -2790,21 +2808,6 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               status: 503, headers: { "Content-Type": "application/json" },
             }));
           }
-
-          const authHeader = request.headers.get("Authorization") || "";
-          const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-          if (!token) {
-            return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const claims = await verifyAuthToken(token, env);
-          if (!claims?.sub) {
-            return addCors(new Response(JSON.stringify({ error: "Invalid or expired session" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const clerkId = claims.sub;
 
           const body = await request.json().catch(() => null) as {
             messages?: { role: string; content: string }[];
@@ -2816,35 +2819,35 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             }));
           }
 
-          const FLAT_CREDITS = 1;
-          const reserve = await reserveCredits(env, clerkId, FLAT_CREDITS, "groq:llama-3.1-8b-instant");
-          if (!reserve.ok) return addCors(reserveErrorResponse(reserve));
-          holdId = reserve.data.holdId;
+          // Rate limit: 20 req/min per IP
+          const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+          const rlReq = new Request(`https://rate.pmtpk.com/chat/${encodeURIComponent(clientIp)}`, { method: "GET" });
+          const cache = caches.default;
+          const rlHit = await cache.match(rlReq);
+          if (rlHit) {
+            const count = parseInt(await rlHit.text(), 10);
+            if (count >= 20) {
+              return addCors(new Response(JSON.stringify({ error: "Rate limit exceeded. Max 20 requests/minute." }), {
+                status: 429, headers: { "Content-Type": "application/json" },
+              }));
+            }
+            await cache.put(rlReq, new Response(String(count + 1), { headers: { "Cache-Control": "max-age=60" } }));
+          } else {
+            await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
+          }
 
           const model = "llama-3.1-8b-instant";
-          let groqRes: Response;
-          try {
-            groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${groqKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
-            });
-          } catch (fetchErr) {
-            await releaseCredits(env, holdId, "groq_fetch_failed");
-            holdId = null;
-            console.error("Groq chat fetch error:", fetchErr);
-            return addCors(new Response(JSON.stringify({ error: "Upstream unreachable" }), {
-              status: 502, headers: { "Content-Type": "application/json" },
-            }));
-          }
+          const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${groqKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
+          });
 
           if (!groqRes.ok) {
             const errText = await groqRes.text().catch(() => "");
-            await releaseCredits(env, holdId, `groq_error_${groqRes.status}`);
-            holdId = null;
             console.error("Groq chat error:", groqRes.status, errText);
             return addCors(new Response(JSON.stringify({ error: `Model error: ${groqRes.status}` }), {
               status: 502, headers: { "Content-Type": "application/json" },
@@ -2856,18 +2859,11 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           };
           const content = data?.choices?.[0]?.message?.content ?? "";
 
-          // Flat-charge FLAT_CREDITS (Groq billed via subscription, no per-call cost).
-          const settled = await settleCredits(env, holdId, FLAT_CREDITS * CREDIT_USD_VALUE, 0, 0);
-          holdId = null;
-
           return addCors(new Response(JSON.stringify({ content, model }), {
-            headers: creditsHeaders(settled, { "Content-Type": "application/json" }),
+            headers: { "Content-Type": "application/json" },
           }));
 
         } catch (error) {
-          if (holdId) {
-            await releaseCredits(env, holdId, "exception");
-          }
           console.error("chat error:", error);
           return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
             status: 500, headers: { "Content-Type": "application/json" },

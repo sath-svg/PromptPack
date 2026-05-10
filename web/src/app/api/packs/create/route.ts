@@ -1,4 +1,4 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       await convex.mutation(api.users.upsert, {
         clerkId: userId,
         email,
-        name: clerkUser?.firstName || undefined,
+        name: clerkUser?.fullName || undefined,
         imageUrl: clerkUser?.imageUrl || undefined,
         plan: "free",
       });

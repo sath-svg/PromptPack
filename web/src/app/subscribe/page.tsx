@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/lib/auth-server";
 import { redirect } from "next/navigation";
 import { ProCard } from "../pricing/pro-card";
 import { SkillsetShell } from "@/components/skillset-shell";

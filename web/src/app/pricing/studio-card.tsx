@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SignedIn, SignedOut, SignUpButton, useUser } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignUpButton, useUser } from "@/lib/auth-compat";
 import { useQuery } from "convex/react";
 import { ArrowRight } from "lucide-react";
 import { api } from "../../../convex/_generated/api";

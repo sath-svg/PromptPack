@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { useAuth, useUser, useClerk, SignIn } from "@clerk/nextjs";
-import { Layers3, Check } from "lucide-react";
-import { SkillsetShell } from "@/components/skillset-shell";
+import { useAuth, useUser, useClerk, SignIn } from "@/lib/auth-compat";
 
 /**
  * Desktop Auth page for Tauri desktop app OAuth flow
@@ -25,8 +23,11 @@ export default function DesktopAuthPage() {
   const [switchingAccount, setSwitchingAccount] = useState(false);
   const hasRedirected = useRef(false);
 
+  // When user signs in after switching accounts, reset switchingAccount
+  // so they see the confirmation screen with the new account
   useEffect(() => {
     if (isLoaded && isSignedIn && user && switchingAccount) {
+      // User has signed in with a new account, show confirmation screen
       setSwitchingAccount(false);
     }
   }, [isLoaded, isSignedIn, user, switchingAccount]);
@@ -55,13 +56,12 @@ export default function DesktopAuthPage() {
         return;
       }
 
-      const firstName = user.firstName || "";
-      const lastName = user.lastName || "";
-      const name = [firstName, lastName].filter(Boolean).join(" ") || user.username || "";
+      const name = user.fullName || "";
       const email = user.primaryEmailAddress?.emailAddress || "";
       const image = user.imageUrl || "";
 
       if (isDesktopSource) {
+        // Deep link back to Tauri app
         const params = new URLSearchParams({
           token,
           name,
@@ -71,6 +71,7 @@ export default function DesktopAuthPage() {
         });
         const appName = getAppName();
         window.location.href = `${appName}://auth?${params.toString()}`;
+        // Browser stays on this page after deep link fires — show success state
         setTimeout(() => {
           setProcessing(false);
           setLaunched(true);
@@ -95,14 +96,17 @@ export default function DesktopAuthPage() {
   const handleSwitchAccount = async () => {
     setProcessing(true);
     setSwitchingAccount(true);
+    // Reset redirect guards so the new account can trigger the deep link
     hasRedirected.current = false;
     setLaunched(false);
     try {
+      // Sign out but stay on this page
       const appName = getAppName();
       const redirectUrl = isDesktopSource
         ? `/desktop-auth?source=desktop&app=${encodeURIComponent(appName)}`
         : "/desktop-auth";
       await signOut({ redirectUrl });
+      // After sign out, reset processing so the SignIn form shows
       setProcessing(false);
     } catch (err) {
       console.error("Sign out error:", err);
@@ -111,185 +115,175 @@ export default function DesktopAuthPage() {
     }
   };
 
-  const SkillsetMark = (
-    <div className="grid h-14 w-14 place-items-center rounded-2xl border border-[#2563EB]/20 bg-[#2563EB]/15 text-[#7BA7FF]">
-      <Layers3 strokeWidth={1.75} className="h-6 w-6" />
-    </div>
-  );
-
   if (error) {
     return (
-      <SkillsetShell showNav={false}>
-        <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-red-500/30 bg-red-500/10 text-[20px] text-red-400">
-            ✕
-          </div>
-          <h1 className="mt-6 text-[20px] font-medium text-zinc-50">
-            Authentication error
-          </h1>
-          <p className="mt-2 max-w-[40ch] text-[14px] text-zinc-400">{error}</p>
-          <button
-            onClick={() => {
-              setError(null);
-              setProcessing(false);
-              hasRedirected.current = false;
-            }}
-            style={{ padding: "10px 22px" }}
-            className="mt-6 rounded-full bg-[#2563EB] text-[14px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all hover:bg-[#1d4ed8]"
-          >
-            Try Again
-          </button>
-        </section>
-      </SkillsetShell>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+        <div className="text-red-500 text-4xl mb-4">✕</div>
+        <h1 className="text-xl font-semibold text-foreground mb-2">Error</h1>
+        <p className="text-muted-foreground text-center mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            setProcessing(false);
+            hasRedirected.current = false;
+          }}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+        >
+          Try Again
+        </button>
+      </div>
     );
   }
 
+  // If signed in and NOT switching accounts, show confirmation screen
   if (isLoaded && isSignedIn && user && !switchingAccount) {
-    const displayName =
-      [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-      user.username ||
-      "User";
+    const displayName = user.fullName || "User";
     const firstName = displayName.split(" ")[0];
 
     return (
-      <SkillsetShell showNav={false}>
-        <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 py-12">
-          <div className="w-full max-w-sm">
-            <div className="mb-6 flex justify-center">{SkillsetMark}</div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+        <div className="w-full max-w-sm">
+          {/* Logo/Icon */}
+          <div className="flex justify-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+          </div>
 
-            <h1 className="mb-2 text-center text-[22px] font-medium tracking-[-0.015em] text-zinc-50">
-              Connect to Skillset
-            </h1>
-            <p className="mb-8 text-center text-[14px] text-zinc-400">
-              Sign in to sync your skills with the desktop app
-            </p>
+          <h1 className="text-xl font-semibold text-foreground text-center mb-2">
+            Connect to PromptPack
+          </h1>
+          <p className="text-sm text-muted-foreground text-center mb-8">
+            Sign in to sync your prompts with the desktop app
+          </p>
 
-            <div className="mb-8 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-4">
-              <div className="flex items-center gap-4">
-                {user.imageUrl ? (
-                  <img
-                    src={user.imageUrl}
-                    alt="Profile"
-                    className="h-14 w-14 rounded-full border-2 border-white/[0.06]"
-                  />
-                ) : (
-                  <div className="grid h-14 w-14 place-items-center rounded-full border-2 border-white/[0.06] bg-[#2563EB] text-[18px] font-semibold text-white">
-                    {displayName[0]?.toUpperCase()}
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-medium text-zinc-50">
-                    {displayName}
-                  </p>
-                  <p className="truncate text-[13px] text-zinc-400">
-                    {user.primaryEmailAddress?.emailAddress}
-                  </p>
+          {/* Current account card */}
+          <div className="p-4 rounded-xl bg-card border border-border mb-8">
+            <div className="flex items-center gap-4">
+              {user.imageUrl ? (
+                <img
+                  src={user.imageUrl}
+                  alt="Profile"
+                  className="w-14 h-14 rounded-full border-2 border-border"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xl font-semibold border-2 border-border">
+                  {displayName[0]?.toUpperCase()}
                 </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate text-base">{displayName}</p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {user.primaryEmailAddress?.emailAddress}
+                </p>
               </div>
             </div>
-
-            <button
-              onClick={handleContinue}
-              disabled={processing}
-              style={{ padding: "12px 22px" }}
-              className="w-full rounded-full bg-[#2563EB] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all hover:bg-[#1d4ed8] disabled:opacity-50"
-            >
-              {processing ? "Connecting…" : `Continue as ${firstName}`}
-            </button>
-
-            <div className="my-6 flex items-center gap-4">
-              <div className="h-px flex-1 bg-white/[0.06]" />
-              <span
-                className="text-[10.5px] uppercase tracking-[0.18em] text-zinc-500"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                or
-              </span>
-              <div className="h-px flex-1 bg-white/[0.06]" />
-            </div>
-
-            <button
-              onClick={handleSwitchAccount}
-              disabled={processing}
-              style={{ padding: "11px 22px" }}
-              className="w-full rounded-full border border-white/10 bg-white/[0.02] text-[14px] text-zinc-200 transition-all hover:border-white/20 hover:bg-white/[0.05] disabled:opacity-50"
-            >
-              Use a different account
-            </button>
           </div>
-        </section>
-      </SkillsetShell>
+
+          {/* Primary action button */}
+          <button
+            onClick={handleContinue}
+            disabled={processing}
+            className="w-full px-4 py-3.5 bg-primary text-primary-foreground rounded-xl hover:opacity-90 disabled:opacity-50 font-semibold text-base shadow-sm transition-all"
+          >
+            {processing ? "Connecting..." : `Continue as ${firstName}`}
+          </button>
+
+          {/* Divider */}
+          <div className="flex items-center gap-4 my-6">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wide">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          {/* Secondary action button */}
+          <button
+            onClick={handleSwitchAccount}
+            disabled={processing}
+            className="w-full px-4 py-3 text-muted-foreground hover:text-foreground border border-border rounded-xl hover:bg-accent hover:border-accent transition-all font-medium"
+          >
+            Use a different account
+          </button>
+        </div>
+      </div>
     );
   }
 
+  // If not signed in, show the Clerk sign-in component
+  // This takes priority even when switchingAccount is true (user clicked "different account")
   if (isLoaded && !isSignedIn && !processing) {
     return (
-      <SkillsetShell showNav={false}>
-        <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 py-12">
-          <div className="mb-6">{SkillsetMark}</div>
-          <h1 className="mb-2 text-center text-[22px] font-medium tracking-[-0.015em] text-zinc-50">
-            {switchingAccount ? "Switch account" : "Sign in to Skillset"}
-          </h1>
-          <p className="mb-8 text-center text-[14px] text-zinc-400">
-            {switchingAccount
-              ? "Sign in with a different account"
-              : "Connect your desktop app to sync skills"}
-          </p>
-          <SignIn
-            routing="hash"
-            forceRedirectUrl={
-              isDesktopSource
-                ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}`
-                : "/desktop-auth"
-            }
-            signUpForceRedirectUrl={
-              isDesktopSource
-                ? `/desktop-auth?source=desktop&app=${encodeURIComponent(getAppName())}`
-                : "/desktop-auth"
-            }
-          />
-        </section>
-      </SkillsetShell>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
+        {/* Logo/Icon */}
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+
+        <h1 className="text-xl font-semibold text-foreground mb-2">
+          {switchingAccount ? "Switch Account" : "Sign in to PromptPack"}
+        </h1>
+        <p className="text-muted-foreground text-sm mb-8">
+          {switchingAccount ? "Sign in with a different account" : "Connect your desktop app to sync prompts"}
+        </p>
+        <SignIn callbackURL={window.location.href} />
+      </div>
     );
   }
 
+  // Successfully launched desktop app — show close-tab message
   if (launched) {
     return (
-      <SkillsetShell showNav={false}>
-        <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-            <Check strokeWidth={2} className="h-6 w-6" />
-          </div>
-          <h1 className="mt-6 text-[20px] font-medium text-zinc-50">
-            Connected to Skillset
-          </h1>
-          <p className="mt-2 max-w-[44ch] text-[14px] text-zinc-400">
-            You&apos;re signed in. You can close this tab and return to the desktop app.
-          </p>
-          <button
-            onClick={() => window.close()}
-            style={{ padding: "8px 18px" }}
-            className="mt-6 rounded-full border border-white/10 bg-white/[0.02] text-[14px] text-zinc-200 transition-all hover:border-white/20 hover:bg-white/[0.05]"
-          >
-            Close tab
-          </button>
-        </section>
-      </SkillsetShell>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+        </div>
+        <h1 className="text-xl font-semibold text-foreground mb-2">
+          Connected to PromptPack
+        </h1>
+        <p className="text-muted-foreground text-sm text-center max-w-sm mb-6">
+          You&apos;re signed in. You can close this tab and return to the desktop app.
+        </p>
+        <button
+          onClick={() => window.close()}
+          className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-accent transition-all"
+        >
+          Close tab
+        </button>
+      </div>
     );
   }
 
+  // Show loading while processing
   return (
-    <SkillsetShell showNav={false}>
-      <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
-        <div className="mb-6 opacity-80">{SkillsetMark}</div>
-        <div className="mb-4 h-8 w-8 animate-spin rounded-full border-2 border-white/[0.08] border-t-[#2563EB]" />
-        <h1 className="text-[18px] font-medium text-zinc-50">
-          {switchingAccount ? "Connecting…" : "Loading…"}
-        </h1>
-        <p className="mt-1 text-[14px] text-zinc-400">
-          {switchingAccount ? "Setting up your desktop app" : "Please wait…"}
-        </p>
-      </section>
-    </SkillsetShell>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
+      {/* Logo/Icon */}
+      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary animate-pulse">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+
+      <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mb-4" />
+      <h1 className="text-lg font-semibold text-foreground mb-1">
+        {switchingAccount ? "Connecting..." : "Loading..."}
+      </h1>
+      <p className="text-muted-foreground text-sm">
+        {switchingAccount
+          ? "Setting up your desktop app"
+          : "Please wait..."}
+      </p>
+    </div>
   );
 }
