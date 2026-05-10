@@ -134,7 +134,9 @@ export function ToolBlock({ block, resultByToolUseId }: ToolBlockProps) {
       </button>
       {open && (
         <div className="px-3 pb-2 pt-1 border-t border-[var(--border)] space-y-2">
-          {block.name === 'edit_file' || block.name === 'write_file' ? (
+          {(block.name === 'edit_file' ||
+            block.name === 'write_file' ||
+            block.name === 'pdf_generate') ? (
             result?.kind === 'tool_result' && result.pendingEditId ? (
               <DiffPanel pendingEditId={result.pendingEditId} />
             ) : null
