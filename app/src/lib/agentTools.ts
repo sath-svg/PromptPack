@@ -168,6 +168,30 @@ export const AGENT_TOOLS: ToolSpec[] = [
     },
   },
   {
+    name: 'pdf_generate',
+    description:
+      'Write a basic A4 PDF from plain text or lightly-formatted markdown to a workspace-relative path. Pure-Rust generator: no HTML/CSS/images, no embedded fonts. Use `# Heading` and `## Subheading` markdown for structure; blank lines for paragraph breaks. Output path MUST end in `.pdf`. Pass `title` for the document metadata; defaults to "Document".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Workspace-relative output path. Must end in .pdf.',
+        },
+        content: {
+          type: 'string',
+          description:
+            'Body text. Plain or lightly-marked-up markdown (`#` / `##` headings, blank lines for paragraphs).',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional document title (PDF metadata + opener title).',
+        },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
     name: 'attachment_read',
     description:
       'Read the contents of a file the user attached to this run via the attachment bar. Pass the workspace-relative path shown in the attachment list. Use for PDFs / docs the user dropped in instead of asking the user to paste content.',
@@ -199,18 +223,35 @@ function makeId(): string {
  * negatives just leave the existing system-prompt nudge in place.
  */
 export function detectWriteFileIntent(text: string): string | null {
-  // Match common explicit save phrasings + a filename with extension.
-  // Order: longest / most specific patterns first.
-  const patterns: RegExp[] = [
+  // Pass 1: explicit filename + extension. Order: longest / most
+  // specific patterns first.
+  const namedPatterns: RegExp[] = [
     /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)\s+(?:as|to|into)\s+([\w./\\-]+\.\w{1,6})\b/i,
     /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)?\s*as\s+a\s+\w+\s+file\s+(?:named|called)\s+([\w./\\-]+\.\w{1,6})\b/i,
     /(?:save|write|output)\s+([\w./\\-]+\.\w{1,6})\b/i,
     /(?:save\s+(?:the\s+)?(?:corrected\s+)?(?:version\s+)?)?back\s+to\s+([\w./\\-]+\.\w{1,6})\b/i,
     /(?:produce\s+(?:a\s+)?(?:pdf\s+)?(?:report\s+)?saved\s+as)\s+([\w./\\-]+\.\w{1,6})\b/i,
   ];
-  for (const rx of patterns) {
+  for (const rx of namedPatterns) {
     const m = text.match(rx);
     if (m && m[1]) return m[1];
+  }
+  // Pass 2: implicit save intent without a filename. Triggered by phrases
+  // like "put it in the workspace", "save it locally", "create the file",
+  // "write a PDF". Returns a synthetic placeholder so the agent loop
+  // knows to switch to tool path; the model picks an actual filename
+  // based on content.
+  const implicitPatterns: RegExp[] = [
+    /\bput\s+(?:it|that|this|the\s+\w+(?:\s+\w+)?)\s+in\s+(?:the\s+)?workspace\b/i,
+    /\b(?:save|put|drop|store)\s+(?:it|that|this|the\s+\w+(?:\s+\w+)?)\s+(?:in|into|to)\s+(?:the\s+)?workspace\b/i,
+    /\b(?:create|make|generate|build)\s+(?:the|a|an)?\s*(?:file|document|report|pdf|markdown|md|html)\b/i,
+    /\bsave\s+(?:it|that|this)\s+(?:locally|to\s+disk)\b/i,
+    /\bwrite\s+(?:it|that|this)\s+(?:to\s+)?(?:disk|file|workspace)\b/i,
+    /\bwrite\s+.{0,40}\b(?:in|as|to)\s+(?:a\s+)?(?:pdf|markdown|md|html|file)\b/i,
+    /\b(?:export|output)\s+.{0,40}\bas\s+(?:a\s+)?(?:pdf|markdown|md|html)\b/i,
+  ];
+  for (const rx of implicitPatterns) {
+    if (rx.test(text)) return '__implicit__';
   }
   return null;
 }
@@ -466,6 +507,19 @@ export async function dispatchTool(
       const header = `${method} ${url} → ${res.status}${res.truncated ? ' [TRUNCATED]' : ''}`;
       return {
         output: `${header}\n${headerLines}\n\n${truncate(res.body, 12000)}`,
+      };
+    }
+
+    case 'pdf_generate': {
+      const path = String(input.path);
+      const content = String(input.content ?? '');
+      const title = input.title !== undefined ? String(input.title) : undefined;
+      const res = await invoke<{ path: string; bytes: number; pages: number }>(
+        'agent_pdf_generate',
+        { workspace: ctx.workspace, path, content, title },
+      );
+      return {
+        output: `Wrote PDF to ${res.path} (${res.pages} page${res.pages === 1 ? '' : 's'}, ${res.bytes} bytes). Open it from the workspace to view.`,
       };
     }
 

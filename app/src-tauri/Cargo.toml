@@ -51,3 +51,7 @@ url = "2"
 regex = "1"
 tokio-util = { version = "0.7", features = ["codec"] }
 futures-util = "0.3"
+# Phase 10 — pure-Rust PDF generator. No system deps (no Chrome). Used
+# by the agent's `pdf_generate` tool to write basic A4 text/markdown
+# reports. HTML/CSS rendering is intentionally out of scope.
+printpdf = "0.7"

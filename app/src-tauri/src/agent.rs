@@ -1096,3 +1096,171 @@ pub async fn agent_http(input: AgentHttpRequest) -> Result<AgentHttpResponse, St
     })
 }
 
+// ─── PDF generation (Phase 10) ─────────────────────────────────────────────
+//
+// `agent_pdf_generate` — write a basic A4 PDF from plain text or
+// lightly-formatted markdown to a workspace-relative path. Pure Rust
+// via `printpdf`; no Chrome / wkhtmltopdf dependency. Layout is
+// intentionally minimal (built-in Helvetica, fixed margins, simple
+// word wrap, `#`/`##` headings, blank-line paragraph breaks). For
+// rich HTML/CSS/images, ship the chrome-headless variant later.
+//
+// Output is binary so we DO NOT route through the DiffPanel
+// accept/reject gate (that's text-only). Tool result returns the file
+// path + byte count; user opens via OS default.
+
+#[derive(Debug, Serialize)]
+pub struct PdfGenerateResult {
+    pub path: String,
+    pub bytes: usize,
+    pub pages: usize,
+}
+
+#[tauri::command]
+pub async fn agent_pdf_generate(
+    workspace: String,
+    path: String,
+    content: String,
+    title: Option<String>,
+) -> Result<PdfGenerateResult, String> {
+    use printpdf::{BuiltinFont, Mm, PdfDocument};
+    use std::io::BufWriter;
+
+    let resolved = resolve_in_workspace(&workspace, &path)?;
+    if !resolved
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.eq_ignore_ascii_case("pdf"))
+        .unwrap_or(false)
+    {
+        return Err(format!(
+            "agent_pdf_generate: path must end in .pdf, got {}",
+            resolved.display()
+        ));
+    }
+
+    if let Some(parent) = resolved.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("mkdir {}: {}", parent.display(), e))?;
+    }
+
+    // A4 portrait = 210 × 297 mm. Margins ~20mm each side.
+    const PAGE_W_MM: f64 = 210.0;
+    const PAGE_H_MM: f64 = 297.0;
+    const MARGIN_X_MM: f64 = 20.0;
+    const MARGIN_TOP_MM: f64 = 25.0;
+    const MARGIN_BOTTOM_MM: f64 = 20.0;
+    const BODY_FONT_SIZE: f64 = 11.0;
+    const H1_FONT_SIZE: f64 = 18.0;
+    const H2_FONT_SIZE: f64 = 14.0;
+    const LINE_HEIGHT_BODY_MM: f64 = 5.5;
+    const LINE_HEIGHT_H1_MM: f64 = 9.0;
+    const LINE_HEIGHT_H2_MM: f64 = 7.5;
+    const PARA_GAP_MM: f64 = 3.0;
+
+    let doc_title = title.as_deref().unwrap_or("Document");
+    let (doc, page1, layer1) =
+        PdfDocument::new(doc_title, Mm(PAGE_W_MM), Mm(PAGE_H_MM), "Layer 1");
+    let body_font = doc
+        .add_builtin_font(BuiltinFont::Helvetica)
+        .map_err(|e| format!("font: {}", e))?;
+    let bold_font = doc
+        .add_builtin_font(BuiltinFont::HelveticaBold)
+        .map_err(|e| format!("font: {}", e))?;
+
+    let mut current_layer = doc.get_page(page1).get_layer(layer1);
+    let mut y = PAGE_H_MM - MARGIN_TOP_MM;
+    let mut pages = 1usize;
+
+    fn approx_char_width_mm(font_size_pt: f64) -> f64 {
+        // Helvetica ≈ 0.5 of em-square width on average. 1pt = 0.353mm.
+        font_size_pt * 0.5 * 0.353
+    }
+    let usable_width_mm = PAGE_W_MM - 2.0 * MARGIN_X_MM;
+
+    fn wrap_line(line: &str, max_chars: usize) -> Vec<String> {
+        if line.is_empty() {
+            return vec![String::new()];
+        }
+        let mut out: Vec<String> = Vec::new();
+        let mut buf = String::new();
+        for word in line.split_whitespace() {
+            if buf.is_empty() {
+                buf.push_str(word);
+                continue;
+            }
+            if buf.len() + 1 + word.len() <= max_chars {
+                buf.push(' ');
+                buf.push_str(word);
+            } else {
+                out.push(std::mem::take(&mut buf));
+                buf.push_str(word);
+            }
+        }
+        if !buf.is_empty() {
+            out.push(buf);
+        }
+        if out.is_empty() {
+            out.push(String::new());
+        }
+        out
+    }
+
+    let lines: Vec<&str> = content.split('\n').collect();
+    let mut i = 0usize;
+    while i < lines.len() {
+        let raw = lines[i];
+        let trimmed = raw.trim_end();
+        i += 1;
+
+        if trimmed.trim().is_empty() {
+            y -= PARA_GAP_MM;
+            continue;
+        }
+
+        let (text, font_size, line_height_mm, font) = if let Some(rest) =
+            trimmed.strip_prefix("# ")
+        {
+            (rest, H1_FONT_SIZE, LINE_HEIGHT_H1_MM, &bold_font)
+        } else if let Some(rest) = trimmed.strip_prefix("## ") {
+            (rest, H2_FONT_SIZE, LINE_HEIGHT_H2_MM, &bold_font)
+        } else {
+            (trimmed, BODY_FONT_SIZE, LINE_HEIGHT_BODY_MM, &body_font)
+        };
+
+        let max_chars =
+            (usable_width_mm / approx_char_width_mm(font_size)).floor() as usize;
+        let max_chars = max_chars.max(20);
+        let wrapped = wrap_line(text, max_chars);
+
+        for chunk in wrapped {
+            if y < MARGIN_BOTTOM_MM + line_height_mm {
+                let (new_page, new_layer) = doc.add_page(
+                    Mm(PAGE_W_MM),
+                    Mm(PAGE_H_MM),
+                    format!("Layer {}", pages + 1),
+                );
+                current_layer = doc.get_page(new_page).get_layer(new_layer);
+                y = PAGE_H_MM - MARGIN_TOP_MM;
+                pages += 1;
+            }
+            current_layer.use_text(chunk, font_size, Mm(MARGIN_X_MM), Mm(y), font);
+            y -= line_height_mm;
+        }
+    }
+
+    let file = std::fs::File::create(&resolved)
+        .map_err(|e| format!("create {}: {}", resolved.display(), e))?;
+    let mut writer = BufWriter::new(file);
+    doc.save(&mut writer).map_err(|e| format!("pdf save: {}", e))?;
+
+    let metadata = std::fs::metadata(&resolved)
+        .map_err(|e| format!("stat {}: {}", resolved.display(), e))?;
+    Ok(PdfGenerateResult {
+        path: path.clone(),
+        bytes: metadata.len() as usize,
+        pages,
+    })
+}
+

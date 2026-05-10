@@ -79,6 +79,8 @@ const ALLOWED_TOOLS_DEFAULT = [
   'web_fetch',
   'http',
   'attachment_read',
+  // Phase 10 — basic A4 PDF generation. Pure-Rust printpdf, no Chrome.
+  'pdf_generate',
 ];
 
 export interface PlannerDeps {

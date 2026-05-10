@@ -13,6 +13,7 @@ import {
   Globe,
   Network,
   Paperclip,
+  FileType,
 } from 'lucide-react';
 import type { MessageBlock } from '../../stores/chatStore';
 import { useAgentStore } from '../../stores/agentStore';
@@ -30,6 +31,7 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   web_fetch: Globe,
   http: Network,
   attachment_read: Paperclip,
+  pdf_generate: FileType,
 };
 
 interface ToolBlockProps {
@@ -175,6 +177,8 @@ function describeInput(name: string, input: Record<string, unknown>): string {
       return `${String(input.method ?? 'GET').toUpperCase()} ${String(input.url ?? '')}`;
     case 'attachment_read':
       return String(input.path ?? '');
+    case 'pdf_generate':
+      return `${input.path} (${(input.content as string | undefined)?.length ?? 0} chars)`;
     default:
       return JSON.stringify(input).slice(0, 80);
   }

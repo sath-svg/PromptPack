@@ -1603,17 +1603,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     let route: RouteClass = lrRoute.route;
     let fallbackUsed = false;
     let fallbackRoute: RouteClass | undefined;
-    // Phase 3 — LLM tiebreaker on low-confidence LR predictions. Only
-    // fires when signed in (server endpoint needs the JWT). Ambiguous
-    // prompts fall through to the cheap server Llama for ~150ms; high-
-    // confidence predictions skip the call entirely.
+    // Context-aware LLM tiebreaker. The on-device LR classifier is
+    // bag-of-words — it can't see "do that for AAPL too" referring to
+    // a previous TSLA fetch. We pass the last 4 conversation turns so
+    // Llama can resolve those references and route accordingly.
+    // FALLBACK_THRESHOLD raised to 0.75 so borderline `workflow`
+    // predictions (most expensive on a misroute) get the second
+    // opinion. Cached after first call per (history, prompt) pair.
     const authSessionEarly = useAuthStore.getState().session;
     if (
       lrRoute.confidence < FALLBACK_THRESHOLD &&
       authSessionEarly?.session_token
     ) {
+      const recentHistory = get()
+        .messages.slice(-4)
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content ?? '',
+        }))
+        .filter((h) => h.content.trim().length > 0);
       const fb = await llmRouteFallback(text, {
         jwt: authSessionEarly.session_token,
+        history: recentHistory,
       });
       if (fb && fb !== lrRoute.route) {
         fallbackUsed = true;
@@ -1691,14 +1702,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Pack prompts always bypass orchestration — pack steps are user-
     // curated single-task units.
     // Dispatch override: if the user explicitly asks to save a file
-    // ("output as plan.md", "save to report.json"), the prompt
-    // unambiguously needs file tools. Force agent path even when the LR
-    // route head guessed `chat` — managed proxy doesn't pipe tools, so
-    // routing there would leave the model with no way to write.
+    // ("output as plan.md", "save to report.json", "put it in
+    // workspace"), the prompt unambiguously needs file tools. Force
+    // the agent path even when:
+    //   - the LR route head guessed `chat` (managed-proxy plain has
+    //     no tools), AND
+    //   - the agent mode toggle is OFF (write-intent + workspace is
+    //     itself enough signal — keeps single-shot users from being
+    //     told "I can't create files" when a workspace is connected).
     const writeFileIntent = detectWriteFileIntent(text);
     const wantsAgent =
-      Boolean(agentMode && workspace) &&
-      (route === 'agent' || writeFileIntent !== null);
+      Boolean(workspace) &&
+      (
+        // Agent mode toggle on + LR says agent → traditional path.
+        (agentMode && route === 'agent') ||
+        // Any write-intent + workspace forces tools, regardless of
+        // toggle. Users frequently leave the toggle off but type
+        // file-modifying prompts.
+        writeFileIntent !== null
+      );
     // Cost-aware confidence floor for orchestrator routing.
     //
     // The LR route head outputs a soft probability across {chat, agent,
