@@ -236,19 +236,36 @@ export function detectWriteFileIntent(text: string): string | null {
     const m = text.match(rx);
     if (m && m[1]) return m[1];
   }
-  // Pass 2: implicit save intent without a filename. Triggered by phrases
-  // like "put it in the workspace", "save it locally", "create the file",
-  // "write a PDF". Returns a synthetic placeholder so the agent loop
-  // knows to switch to tool path; the model picks an actual filename
-  // based on content.
+  // Pass 2: implicit save intent without a filename. Triggered by
+  // common phrasings like "save to workspace", "write a pdf file",
+  // "create the report". Returns a synthetic placeholder so the
+  // caller knows to switch to the agent path; the model picks an
+  // actual filename + extension based on content.
+  //
+  // Looser than the earlier set — real users phrase saves with the
+  // verb at the start of a clause and a destination keyword anywhere
+  // after, e.g. "write a pdf file with content X and save to
+  // workspace". Earlier strict patterns required a noun like
+  // "it/that/this" between the verb and the target, which dropped
+  // those phrasings.
   const implicitPatterns: RegExp[] = [
+    // "save / put / drop / store … workspace" — anywhere in the same
+    // clause (≤ 80 chars between verb and target).
+    /\b(?:save|put|drop|store|persist)\b[^.\n]{0,80}\bworkspace\b/i,
+    // "write … to / in / into workspace".
+    /\bwrite\b[^.\n]{0,80}\b(?:to|in|into)\s+(?:the\s+)?workspace\b/i,
+    // "save / write … to disk" / "save locally".
+    /\b(?:save|write)\b[^.\n]{0,40}\b(?:to\s+disk|locally|on\s+disk)\b/i,
+    // "write a pdf file" / "create a markdown file" — with or without
+    // article. Catches the bare "create the file" / "make a document"
+    // case too.
+    /\b(?:write|create|make|generate|build|produce)\s+(?:the|a|an)?\s*(?:file|document|report|pdf|markdown|md|html|json|csv|txt|docx?)\b/i,
+    // "write … as / in pdf|markdown|md|html|file".
+    /\bwrite\b[^.\n]{0,80}\b(?:as|in|into)\s+(?:a\s+)?(?:pdf|markdown|md|html|file|json|csv|txt)\b/i,
+    // "export / output … as pdf|markdown|md|html".
+    /\b(?:export|output)\b[^.\n]{0,80}\bas\s+(?:a\s+)?(?:pdf|markdown|md|html|json|csv|txt)\b/i,
+    // "put it in workspace" — the original specific shape.
     /\bput\s+(?:it|that|this|the\s+\w+(?:\s+\w+)?)\s+in\s+(?:the\s+)?workspace\b/i,
-    /\b(?:save|put|drop|store)\s+(?:it|that|this|the\s+\w+(?:\s+\w+)?)\s+(?:in|into|to)\s+(?:the\s+)?workspace\b/i,
-    /\b(?:create|make|generate|build)\s+(?:the|a|an)?\s*(?:file|document|report|pdf|markdown|md|html)\b/i,
-    /\bsave\s+(?:it|that|this)\s+(?:locally|to\s+disk)\b/i,
-    /\bwrite\s+(?:it|that|this)\s+(?:to\s+)?(?:disk|file|workspace)\b/i,
-    /\bwrite\s+.{0,40}\b(?:in|as|to)\s+(?:a\s+)?(?:pdf|markdown|md|html|file)\b/i,
-    /\b(?:export|output)\s+.{0,40}\bas\s+(?:a\s+)?(?:pdf|markdown|md|html)\b/i,
   ];
   for (const rx of implicitPatterns) {
     if (rx.test(text)) return '__implicit__';
