@@ -50,6 +50,26 @@ export interface PendingEdit {
   before: string;
   after: string;
   accepted: boolean | null; // null = pending
+  /**
+   * `true` = the file on disk still has `before` content; the write
+   *          has NOT happened. `acceptEdit` will commit `after` to
+   *          disk, `rejectEdit` is a no-op (no revert needed).
+   * `false` = the file on disk already has `after` content (auto-accept
+   *           mode wrote eagerly). `rejectEdit` re-writes `before` to
+   *           revert.
+   *
+   * The "Accept edits: ask" workspace toggle drives this: ask mode
+   * stages true so the user's click is what triggers the actual
+   * filesystem write.
+   */
+  isStaged: boolean;
+  /**
+   * When set, this is a binary PDF stage. `acceptEdit` calls the Rust
+   * `agent_pdf_generate` handler with these args instead of plain
+   * `agent_write` (which can't produce binary content). `before` /
+   * `after` still hold the markdown source for the diff preview.
+   */
+  pdfPayload?: { content: string; title?: string };
   diagnostics?: LspDiagnostic[];
   createdAt: number;
 }
@@ -198,14 +218,46 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   acceptEdit: async (id) => {
     const edit = get().pendingEdits[id];
     if (!edit) return;
+    const ws = get().workspace;
+
+    // Staged edits — side effect hasn't happened yet. Commit now.
+    // Auto-accept mode (isStaged=false) already wrote eagerly at
+    // tool-call time, so this branch only fires for "Accept edits: ask"
+    // mode where the user's click is the trigger.
+    if (edit.isStaged && ws) {
+      try {
+        if (edit.pdfPayload) {
+          // Binary PDF — call the Rust handler with the saved args.
+          await invoke('agent_pdf_generate', {
+            workspace: ws,
+            path: edit.path,
+            content: edit.pdfPayload.content,
+            title: edit.pdfPayload.title,
+          });
+        } else {
+          await invoke('agent_write', {
+            workspace: ws,
+            path: edit.path,
+            content: edit.after,
+          });
+        }
+      } catch (e) {
+        // Surface the failure rather than silently flipping to accepted.
+        // Leaves the pending row visible so the user can retry / reject.
+        console.error('[agentStore] accept-time write failed:', e);
+        return;
+      }
+    }
+
     set((state) => ({
       pendingEdits: {
         ...state.pendingEdits,
-        [id]: { ...edit, accepted: true },
+        [id]: { ...edit, accepted: true, isStaged: false },
       },
     }));
-    // Push to LSP for diagnostics
-    const ws = get().workspace;
+
+    // LSP push runs for both modes — diagnostics only make sense once
+    // the file is actually on disk.
     if (ws) {
       try {
         await lspOpenFile(ws + '/' + edit.path, edit.path, edit.after);
@@ -221,17 +273,28 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     const edit = get().pendingEdits[id];
     if (!edit) return;
     const ws = get().workspace;
-    if (!ws) return;
-    // Restore previous content
-    try {
-      await invoke('agent_write', {
-        workspace: ws,
-        path: edit.path,
-        content: edit.before,
-      });
-    } catch {
-      // ignore
+
+    // Staged reject = no filesystem op needed. The write never
+    // happened; just flip the flag so the DiffPanel shows red.
+    if (!edit.isStaged && ws) {
+      // Auto-accept mode wrote eagerly — restore `before` to revert.
+      // For PDFs we can't faithfully restore (the original was
+      // binary). Best we can do is delete the file, but that's
+      // surprising to the user; leave the file in place and just
+      // mark rejected. Text edits get the proper revert.
+      if (!edit.pdfPayload) {
+        try {
+          await invoke('agent_write', {
+            workspace: ws,
+            path: edit.path,
+            content: edit.before,
+          });
+        } catch {
+          // ignore
+        }
+      }
     }
+
     set((state) => ({
       pendingEdits: {
         ...state.pendingEdits,

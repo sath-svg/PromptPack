@@ -312,37 +312,48 @@ export async function dispatchTool(
       } catch {
         // new file
       }
-      await invoke('agent_write', {
-        workspace: ctx.workspace,
-        path,
-        content,
-      });
+      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+      // Auto-accept mode writes eagerly so `acceptEdit` only has to
+      // push to the LSP. Ask mode stages — the user's click in the
+      // DiffPanel is what triggers the actual `agent_write`. This
+      // line is the difference between "did Accept actually do
+      // something?" yes vs. no.
+      if (autoAccept) {
+        await invoke('agent_write', {
+          workspace: ctx.workspace,
+          path,
+          content,
+        });
+      }
       const editId = makeId();
       useAgentStore.getState().addPendingEdit({
         id: editId,
         path,
         before,
         after: content,
+        isStaged: !autoAccept,
       });
-      // Push to LSP for diagnostics (probe first so UI can prompt install)
-      try {
-        const probe = await useAgentStore.getState().probeLspForFile(path);
-        if (probe && (probe.kind === 'ready' || probe.kind === 'npx')) {
-          await lspOpenFile(ctx.workspace, path, content);
-          const diags = await lspGetDiagnostics(path);
-          if (diags.length > 0) {
-            useAgentStore.getState().setEditDiagnostics(editId, diags);
+      // LSP probe / diagnostics only run when the file is actually on
+      // disk. Staged edits defer LSP work to `acceptEdit`.
+      if (autoAccept) {
+        try {
+          const probe = await useAgentStore.getState().probeLspForFile(path);
+          if (probe && (probe.kind === 'ready' || probe.kind === 'npx')) {
+            await lspOpenFile(ctx.workspace, path, content);
+            const diags = await lspGetDiagnostics(path);
+            if (diags.length > 0) {
+              useAgentStore.getState().setEditDiagnostics(editId, diags);
+            }
           }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
-      }
-      // Auto-accept short-circuits the user prompt for trusted refactors
-      if (useAgentStore.getState().autoAcceptEdits) {
         useAgentStore.getState().acceptEdit(editId).catch(() => {});
       }
       return {
-        output: `Staged write to ${path} (${content.length} bytes). Awaiting user accept/reject.`,
+        output: autoAccept
+          ? `Wrote ${path} (${content.length} bytes).`
+          : `Staged write to ${path} (${content.length} bytes). The user will accept/reject — file is NOT yet on disk.`,
         pendingEditId: editId,
       };
     }
@@ -352,36 +363,99 @@ export async function dispatchTool(
       const oldString = String(input.old_string);
       const newString = String(input.new_string);
       const replaceAll = Boolean(input.replace_all);
-      const res = await invoke<{ replaced: number; before: string; after: string }>(
-        'agent_edit',
-        {
-          input: {
-            workspace: ctx.workspace,
-            path,
-            old_string: oldString,
-            new_string: newString,
-            replace_all: replaceAll,
+      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+
+      // In ask mode we can't call `agent_edit` (Rust writes eagerly).
+      // Read current content, compute `after` client-side, stage. The
+      // accept handler will write `after` on click. In auto-accept
+      // mode, keep the existing path through `agent_edit` so we
+      // preserve its replace-count + error semantics.
+      if (autoAccept) {
+        const res = await invoke<{ replaced: number; before: string; after: string }>(
+          'agent_edit',
+          {
+            input: {
+              workspace: ctx.workspace,
+              path,
+              old_string: oldString,
+              new_string: newString,
+              replace_all: replaceAll,
+            },
           },
-        },
-      );
+        );
+        const editId = makeId();
+        useAgentStore.getState().addPendingEdit({
+          id: editId,
+          path,
+          before: res.before,
+          after: res.after,
+          isStaged: false,
+        });
+        try {
+          await lspOpenFile(ctx.workspace, path, res.after);
+          const diags = await lspGetDiagnostics(path);
+          if (diags.length > 0) {
+            useAgentStore.getState().setEditDiagnostics(editId, diags);
+          }
+        } catch {
+          // ignore
+        }
+        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+        return {
+          output: `Replaced ${res.replaced} occurrence(s) in ${path}.`,
+          pendingEditId: editId,
+        };
+      }
+
+      // Ask mode — preview only, no filesystem write yet.
+      let before = '';
+      try {
+        const cur = await invoke<{ content: string }>('agent_read', {
+          workspace: ctx.workspace,
+          path,
+        });
+        before = cur.content;
+      } catch {
+        return {
+          output: `ERROR: edit_file requires the file to exist; ${path} not found. Use write_file to create new files.`,
+        };
+      }
+      // Mirror Rust's match semantics: if old_string is empty, refuse.
+      if (oldString.length === 0) {
+        return {
+          output: `ERROR: edit_file old_string is empty.`,
+        };
+      }
+      let replaced = 0;
+      let after = before;
+      if (replaceAll) {
+        // Count then split-join — JS string.replaceAll exists but the
+        // count is needed for the user-facing message.
+        const parts = before.split(oldString);
+        replaced = parts.length - 1;
+        after = parts.join(newString);
+      } else {
+        const idx = before.indexOf(oldString);
+        if (idx >= 0) {
+          replaced = 1;
+          after = before.slice(0, idx) + newString + before.slice(idx + oldString.length);
+        }
+      }
+      if (replaced === 0) {
+        return {
+          output: `ERROR: edit_file old_string not found in ${path}. No changes staged.`,
+        };
+      }
       const editId = makeId();
       useAgentStore.getState().addPendingEdit({
         id: editId,
         path,
-        before: res.before,
-        after: res.after,
+        before,
+        after,
+        isStaged: true,
       });
-      try {
-        await lspOpenFile(ctx.workspace, path, res.after);
-        const diags = await lspGetDiagnostics(path);
-        if (diags.length > 0) {
-          useAgentStore.getState().setEditDiagnostics(editId, diags);
-        }
-      } catch {
-        // ignore
-      }
       return {
-        output: `Replaced ${res.replaced} occurrence(s) in ${path}. Awaiting user accept/reject.`,
+        output: `Staged ${replaced} replacement(s) in ${path}. The user will accept/reject — file is NOT yet modified.`,
         pendingEditId: editId,
       };
     }
@@ -527,12 +601,46 @@ export async function dispatchTool(
       const path = String(input.path);
       const content = String(input.content ?? '');
       const title = input.title !== undefined ? String(input.title) : undefined;
-      const res = await invoke<{ path: string; bytes: number; pages: number }>(
-        'agent_pdf_generate',
-        { workspace: ctx.workspace, path, content, title },
-      );
+      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+
+      if (autoAccept) {
+        const res = await invoke<{ path: string; bytes: number; pages: number }>(
+          'agent_pdf_generate',
+          { workspace: ctx.workspace, path, content, title },
+        );
+        // Surface a pending-edit row so the user has the same
+        // accept/reject UX as text edits. Auto-accept marks it
+        // immediately so the badge clears in one tick.
+        const editId = makeId();
+        useAgentStore.getState().addPendingEdit({
+          id: editId,
+          path,
+          before: '',
+          after: content,
+          isStaged: false,
+          pdfPayload: { content, title },
+        });
+        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+        return {
+          output: `Wrote PDF to ${res.path} (${res.pages} page${res.pages === 1 ? '' : 's'}, ${res.bytes} bytes).`,
+          pendingEditId: editId,
+        };
+      }
+
+      // Ask mode — stage. The Rust handler runs only after the user
+      // clicks Accept in the DiffPanel.
+      const editId = makeId();
+      useAgentStore.getState().addPendingEdit({
+        id: editId,
+        path,
+        before: '',
+        after: content,
+        isStaged: true,
+        pdfPayload: { content, title },
+      });
       return {
-        output: `Wrote PDF to ${res.path} (${res.pages} page${res.pages === 1 ? '' : 's'}, ${res.bytes} bytes). Open it from the workspace to view.`,
+        output: `Staged PDF generation for ${path} (${content.length} chars source). The user will accept/reject — file is NOT yet on disk.`,
+        pendingEditId: editId,
       };
     }
 
