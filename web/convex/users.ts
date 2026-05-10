@@ -64,12 +64,32 @@ export const upsert = mutation({
     imageUrl: v.optional(v.string()),
     plan: v.optional(v.union(v.literal("free"), v.literal("pro"), v.literal("studio"))),
     stripeCustomerId: v.optional(v.string()),
+    betterAuthId: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
-    const existing = await ctx.db
-      .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-      .first();
+  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId, betterAuthId }) => {
+    // Try betterAuthId first (post-migration users)
+    let existing = betterAuthId
+      ? await ctx.db
+          .query("users")
+          .withIndex("by_better_auth_id", (q) => q.eq("betterAuthId", betterAuthId))
+          .first()
+      : null;
+
+    // Fallback: try clerkId lookup
+    if (!existing) {
+      existing = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+        .first();
+    }
+
+    // Fallback: try email lookup (links existing user on first BetterAuth login)
+    if (!existing && email) {
+      const allUsers = await ctx.db.query("users").collect();
+      existing = allUsers.find(
+        (u) => u.email?.toLowerCase() === email.toLowerCase()
+      ) ?? null;
+    }
 
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -78,6 +98,7 @@ export const upsert = mutation({
         imageUrl,
         ...(plan && { plan }),
         ...(stripeCustomerId && { stripeCustomerId }),
+        ...(betterAuthId && { betterAuthId }),
       });
       return existing._id;
     }
@@ -89,6 +110,7 @@ export const upsert = mutation({
       imageUrl,
       plan: plan ?? "free",
       stripeCustomerId,
+      betterAuthId,
       createdAt: Date.now(),
     });
   },
@@ -172,9 +194,8 @@ export const upsertFromWebhook = internalMutation({
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
-    emailVerified: v.optional(v.boolean()),
   },
-  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId, emailVerified }) => {
+  handler: async (ctx, { clerkId, email, name, imageUrl, plan, stripeCustomerId }) => {
     const existing = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
@@ -187,7 +208,6 @@ export const upsertFromWebhook = internalMutation({
         imageUrl,
         plan,
         ...(stripeCustomerId && { stripeCustomerId }),
-        ...(emailVerified !== undefined && { emailVerified }),
       });
       return existing._id;
     }
@@ -199,7 +219,6 @@ export const upsertFromWebhook = internalMutation({
       imageUrl,
       plan,
       stripeCustomerId,
-      emailVerified,
       createdAt: Date.now(),
     });
   },
@@ -591,5 +610,165 @@ export const syncPlanFromClerk = mutation({
         newPlan: plan,
       };
     }
+  },
+});
+
+// Migration: Move user from Clerk to BetterAuth
+export const migrateClerkToBetterAuth = mutation({
+  args: {
+    clerkId: v.string(),
+    betterAuthId: v.string(),
+  },
+  handler: async (ctx, { clerkId, betterAuthId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User not found with clerkId: ${clerkId}`);
+    }
+
+    // Check if BetterAuth ID already exists (user already migrated)
+    if (user.betterAuthId) {
+      return {
+        success: false,
+        error: `User already migrated to BetterAuth (id: ${user.betterAuthId})`,
+      };
+    }
+
+    // Perform migration
+    await ctx.db.patch(user._id, {
+      betterAuthId,
+      migratedAt: Date.now(),
+    });
+
+    return {
+      success: true,
+      message: `User migrated from Clerk to BetterAuth`,
+      userId: user._id,
+      clerkId,
+      betterAuthId,
+      migratedAt: Date.now(),
+    };
+  },
+});
+
+// Migration: Set betterAuthId by email (fallback for users without matching clerkId)
+export const migrateBetterAuthByEmail = mutation({
+  args: {
+    email: v.string(),
+    betterAuthId: v.string(),
+  },
+  handler: async (ctx, { email, betterAuthId }) => {
+    const users = await ctx.db.query("users").collect();
+    const user = users.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!user) {
+      throw new Error(`User not found with email: ${email}`);
+    }
+
+    if (user.betterAuthId) {
+      return { success: false, error: `Already migrated (${user.betterAuthId})` };
+    }
+
+    await ctx.db.patch(user._id, {
+      betterAuthId,
+      migratedAt: Date.now(),
+    });
+
+    return { success: true, userId: user._id, email, betterAuthId };
+  },
+});
+
+// Force-update betterAuthId (overwrites even if already set)
+export const forceSetBetterAuthId = mutation({
+  args: {
+    clerkId: v.string(),
+    betterAuthId: v.string(),
+  },
+  handler: async (ctx, { clerkId, betterAuthId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error(`User not found with clerkId: ${clerkId}`);
+    }
+
+    await ctx.db.patch(user._id, {
+      betterAuthId,
+      migratedAt: Date.now(),
+    });
+
+    return { success: true, userId: user._id, oldBetterAuthId: user.betterAuthId, newBetterAuthId: betterAuthId };
+  },
+});
+
+// Force-update betterAuthId by email (for users without matching clerkId)
+export const forceSetBetterAuthIdByEmail = mutation({
+  args: {
+    email: v.string(),
+    betterAuthId: v.string(),
+  },
+  handler: async (ctx, { email, betterAuthId }) => {
+    const users = await ctx.db.query("users").collect();
+    const user = users.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!user) {
+      throw new Error(`User not found with email: ${email}`);
+    }
+
+    await ctx.db.patch(user._id, {
+      betterAuthId,
+      migratedAt: Date.now(),
+    });
+
+    return { success: true, userId: user._id, email, betterAuthId };
+  },
+});
+
+// Cleanup: remove duplicate user records created during migration
+// Duplicates have clerkId = betterAuthId (not user_* format) and no betterAuthId field
+export const cleanupMigrationDuplicates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const allUsers = await ctx.db.query("users").collect();
+    const duplicates = allUsers.filter(
+      (u) => u.clerkId && !u.clerkId.startsWith("user_") && !u.betterAuthId
+    );
+
+    let deleted = 0;
+    for (const dup of duplicates) {
+      // Only delete if a real record with betterAuthId exists for same email
+      const real = allUsers.find(
+        (u) =>
+          u._id !== dup._id &&
+          u.email === dup.email &&
+          (u.betterAuthId || u.clerkId?.startsWith("user_"))
+      );
+      if (real) {
+        await ctx.db.delete(dup._id);
+        deleted++;
+      }
+    }
+
+    return { duplicatesFound: duplicates.length, deleted };
+  },
+});
+
+// Get user by BetterAuth ID (for post-migration)
+export const getByBetterAuthId = query({
+  args: { betterAuthId: v.string() },
+  handler: async (ctx, { betterAuthId }) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("by_better_auth_id", (q) => q.eq("betterAuthId", betterAuthId))
+      .first();
   },
 });
