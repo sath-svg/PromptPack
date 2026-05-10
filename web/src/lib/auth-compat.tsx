@@ -26,6 +26,7 @@ interface AuthSession {
   } | null;
   session: {
     id: string;
+    token: string;
     expiresAt: Date;
   } | null;
   isPending: boolean;
@@ -65,7 +66,7 @@ export function useAuth() {
     isSignedIn: !!session,
     userId: user?.id ?? null,
     sessionId: session?.id ?? null,
-    getToken: async () => null, // BetterAuth uses cookies, not tokens
+    getToken: async () => session?.token ?? null, // BetterAuth session token
     signOut: () => authClient.signOut(),
   };
 }
@@ -149,12 +150,13 @@ export function SignUpButton({
   );
 }
 
-export function SignIn() {
+export function SignIn({ callbackURL }: { callbackURL?: string } = {}) {
   // Render BetterAuth sign-in form
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const redirectTo = callbackURL || "/dashboard";
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,16 +168,16 @@ export function SignIn() {
       setError(error.message || "Sign in failed");
       setLoading(false);
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = redirectTo;
     }
   };
 
   const handleGoogleSignIn = () => {
-    authClient.signIn.social({ provider: "google", callbackURL: "/dashboard" });
+    authClient.signIn.social({ provider: "google", callbackURL: redirectTo });
   };
 
   const handleFacebookSignIn = () => {
-    authClient.signIn.social({ provider: "facebook", callbackURL: "/dashboard" });
+    authClient.signIn.social({ provider: "facebook", callbackURL: redirectTo });
   };
 
   return (
@@ -256,12 +258,13 @@ export function SignIn() {
   );
 }
 
-export function SignUp() {
+export function SignUp({ callbackURL }: { callbackURL?: string } = {}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const redirectTo = callbackURL || "/dashboard";
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -277,16 +280,16 @@ export function SignUp() {
       setError(error.message || "Sign up failed");
       setLoading(false);
     } else {
-      window.location.href = "/dashboard";
+      window.location.href = redirectTo;
     }
   };
 
   const handleGoogleSignUp = () => {
-    authClient.signIn.social({ provider: "google", callbackURL: "/dashboard" });
+    authClient.signIn.social({ provider: "google", callbackURL: redirectTo });
   };
 
   const handleFacebookSignUp = () => {
-    authClient.signIn.social({ provider: "facebook", callbackURL: "/dashboard" });
+    authClient.signIn.social({ provider: "facebook", callbackURL: redirectTo });
   };
 
   return (

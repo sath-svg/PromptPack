@@ -63,8 +63,8 @@ function McpAuthContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code,
-          clerkId: user.id,
-          refreshToken: token, // Use the Clerk session token as the refresh token for now
+          clerkId: user.id, // betterAuthId (used as clerkId for backward compat)
+          refreshToken: token, // BetterAuth session token
         }),
       });
 
@@ -128,7 +128,7 @@ function McpAuthContent() {
         <p className="text-muted-foreground text-sm mb-8 text-center max-w-md">
           Sign in to connect your OpenClaw or AI assistant to PromptPack
         </p>
-        <SignIn />
+        <SignIn callbackURL={`/mcp-auth?code=${code}`} />
       </div>
     );
   }

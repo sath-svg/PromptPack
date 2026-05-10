@@ -225,7 +225,7 @@ export default function ExtensionAuthPage() {
         <p style={{ color: "var(--muted)", marginBottom: "1rem" }}>
           Sign in to connect your extension
         </p>
-        <SignIn />
+        <SignIn callbackURL={currentUrl.toString()} />
       </div>
     );
   }

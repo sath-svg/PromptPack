@@ -233,7 +233,7 @@ export default function DesktopAuthPage() {
         <p className="text-muted-foreground text-sm mb-8">
           {switchingAccount ? "Sign in with a different account" : "Connect your desktop app to sync prompts"}
         </p>
-        <SignIn />
+        <SignIn callbackURL={window.location.href} />
       </div>
     );
   }

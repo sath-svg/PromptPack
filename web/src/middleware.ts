@@ -31,6 +31,11 @@ const publicRoutes = [
   "/robots.txt",
   "/sign-in",
   "/sign-up",
+  "/sign-out",
+  "/auth",
+  "/desktop-auth",
+  "/extension-auth",
+  "/mcp-auth",
 ];
 
 function isPublicRoute(pathname: string): boolean {
