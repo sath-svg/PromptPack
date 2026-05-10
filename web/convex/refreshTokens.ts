@@ -11,11 +11,11 @@ const MAX_ACTIVE_TOKENS_PER_USER = 10; // Max concurrent sessions
  */
 export const create = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     ip: v.optional(v.string()),
     userAgent: v.optional(v.string()),
   },
-  handler: async (ctx, { clerkId, ip, userAgent }) => {
+  handler: async (ctx, { userId, ip, userAgent }) => {
     const now = Date.now();
 
     // Generate a new UUID token
@@ -24,7 +24,7 @@ export const create = mutation({
     // Clean up old revoked tokens for this user (keep DB clean)
     const oldTokens = await ctx.db
       .query("refreshTokens")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
       .collect();
 
     // Revoke and delete tokens that are expired or already revoked
@@ -37,7 +37,7 @@ export const create = mutation({
     // Check active token count (prevent too many sessions)
     const activeTokens = await ctx.db
       .query("refreshTokens")
-      .withIndex("by_clerk_id_active", (q) => q.eq("clerkId", clerkId).eq("isRevoked", false))
+      .withIndex("by_clerk_id_active", (q) => q.eq("clerkId", userId).eq("isRevoked", false))
       .collect();
 
     // If too many active tokens, revoke the oldest ones
@@ -51,7 +51,7 @@ export const create = mutation({
 
     // Create the new token
     await ctx.db.insert("refreshTokens", {
-      clerkId,
+      clerkId: userId,
       token,
       createdAt: now,
       expiresAt: now + REFRESH_TOKEN_EXPIRY_MS,
@@ -96,7 +96,7 @@ export const rotateToken = mutation({
     // Token already revoked
     if (tokenRecord.isRevoked) {
       // Possible token reuse attack - revoke ALL tokens for this user
-      console.warn(`[Security] Revoked token reuse detected for user ${tokenRecord.clerkId}`);
+      console.warn(`[Security] Revoked token reuse detected for userId ${tokenRecord.clerkId}`);
       const allUserTokens = await ctx.db
         .query("refreshTokens")
         .withIndex("by_clerk_id", (q) => q.eq("clerkId", tokenRecord.clerkId))
@@ -141,7 +141,7 @@ export const rotateToken = mutation({
 
     return {
       success: true,
-      clerkId: tokenRecord.clerkId,
+      userId: tokenRecord.clerkId,
       refreshToken: newToken,
       expiresAt: newExpiresAt,
       rotationCount: tokenRecord.rotationCount + 1,
@@ -176,12 +176,12 @@ export const revoke = mutation({
  */
 export const revokeAllForUser = mutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
   },
-  handler: async (ctx, { clerkId }) => {
+  handler: async (ctx, { userId }) => {
     const allTokens = await ctx.db
       .query("refreshTokens")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
       .collect();
 
     let revokedCount = 0;
@@ -201,13 +201,13 @@ export const revokeAllForUser = mutation({
  */
 export const getActiveSessionsForUser = query({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
   },
-  handler: async (ctx, { clerkId }) => {
+  handler: async (ctx, { userId }) => {
     const now = Date.now();
     const tokens = await ctx.db
       .query("refreshTokens")
-      .withIndex("by_clerk_id_active", (q) => q.eq("clerkId", clerkId).eq("isRevoked", false))
+      .withIndex("by_clerk_id_active", (q) => q.eq("clerkId", userId).eq("isRevoked", false))
       .collect();
 
     // Filter out expired tokens and return sanitized info
@@ -253,7 +253,7 @@ export const validate = query({
 
     return {
       valid: true,
-      clerkId: tokenRecord.clerkId,
+      userId: tokenRecord.clerkId,
       expiresAt: tokenRecord.expiresAt,
     };
   },

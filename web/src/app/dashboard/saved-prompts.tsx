@@ -28,7 +28,7 @@ type SavedPromptsProps = {
   userId: Id<"users">;
   hasPro?: boolean;
   isStudio?: boolean;
-  clerkId?: string;
+  authUserId?: string;
 };
 
 type DecodedPrompt = {
@@ -130,7 +130,7 @@ function applyHeaderOverrides(prompts: DecodedPrompt[], headers?: HeaderMap): De
   });
 }
 
-export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId }: SavedPromptsProps) {
+export function SavedPrompts({ userId, hasPro = false, isStudio = false, authUserId }: SavedPromptsProps) {
   const { getToken, isSignedIn } = useAuth();
   const savedPacks = useQuery(api.savedPacks.listByUser, { userId });
   const removePack = useMutation(api.savedPacks.remove);
@@ -160,7 +160,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
   // Evaluation trial state (for free users)
   const evalTrials = useQuery(
     api.users.getEvalTrials,
-    clerkId ? { clerkId } : "skip"
+    authUserId ? { userId: authUserId } : "skip"
   );
   const incrementTrialMutation = useMutation(api.users.incrementEvalTrial);
 
@@ -169,11 +169,11 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
     : 0;
 
   const handleTrialUsed = useCallback(async () => {
-    if (clerkId) {
+    if (authUserId) {
       trackEvent("eval-trial-used", { remaining: trialsRemaining - 1 });
-      await incrementTrialMutation({ clerkId });
+      await incrementTrialMutation({ userId: authUserId });
     }
-  }, [clerkId, incrementTrialMutation, trialsRemaining]);
+  }, [authUserId, incrementTrialMutation, trialsRemaining]);
 
   // Evaluation state
   const {
@@ -184,7 +184,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
     getEvaluation,
     loadEvaluations,
     evaluatePrompt,
-  } = useEvaluation(clerkId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
+  } = useEvaluation(authUserId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
   const [promptHashes, setPromptHashes] = useState<Record<number, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{
     evaluation: PromptEvaluation;
@@ -202,7 +202,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
         setPromptHashes(hashes);
 
         // Load existing evaluations from Convex for Pro/Studio users
-        if (clerkId && (hasPro || isStudio)) {
+        if (authUserId && (hasPro || isStudio)) {
           const hashValues = Object.values(hashes);
           if (hashValues.length > 0) {
             loadEvaluations(hashValues);
@@ -211,7 +211,7 @@ export function SavedPrompts({ userId, hasPro = false, isStudio = false, clerkId
       };
       calculateHashes();
     }
-  }, [decryptedPrompts, getPromptHash, clerkId, hasPro, isStudio, loadEvaluations]);
+  }, [decryptedPrompts, getPromptHash, authUserId, hasPro, isStudio, loadEvaluations]);
 
   const getAuthToken = useCallback(async (): Promise<string | null> => {
     if (!isSignedIn) return null;

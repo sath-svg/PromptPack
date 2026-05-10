@@ -55,11 +55,11 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId } = body as { clerkId: string };
+        const userId = (body as any).userId ?? (body as any).clerkId;
 
-        if (!clerkId) {
+        if (!userId) {
           return new Response(
-            JSON.stringify({ error: "Missing clerkId" }),
+            JSON.stringify({ error: "Missing userId" }),
             {
               status: 400,
               headers: { ...headers, "Content-Type": "application/json" },
@@ -68,8 +68,8 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user from Convex
-        const user = await ctx.runQuery(api.users.getByClerkId, {
-          clerkId,
+        const user = await ctx.runQuery(api.users.getByUserId, {
+          userId,
         });
 
         if (!user) {
@@ -146,11 +146,11 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId } = body as { clerkId: string };
+        const userId = (body as any).userId ?? (body as any).clerkId;
 
-        if (!clerkId) {
+        if (!userId) {
           return new Response(
-            JSON.stringify({ error: "Missing clerkId" }),
+            JSON.stringify({ error: "Missing userId" }),
             {
               status: 400,
               headers: { ...headers, "Content-Type": "application/json" },
@@ -159,8 +159,8 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user's created packs using the query
-        const userPacks = await ctx.runQuery(api.packs.listByClerkId, {
-          clerkId,
+        const userPacks = await ctx.runQuery(api.packs.listByUserId, {
+          userId,
         });
 
         // Return packs list with relevant info
@@ -590,15 +590,17 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, source, fileData, promptCount, headers: promptHeaders } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { source, fileData, promptCount, headers: promptHeaders } = body as {
+          userId?: string;
+          clerkId?: string;
           source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
           fileData: string; // base64 encoded .pmtpk
           promptCount: number;
           headers?: Record<string, string>;
         };
 
-        if (!clerkId || !source || !fileData || promptCount === undefined) {
+        if (!userId || !source || !fileData || promptCount === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -609,7 +611,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user from Convex
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -666,8 +668,8 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
         // Upsert savedPack metadata in Convex
         const fileSize = Math.ceil((fileData.length * 3) / 4);
-        const result = await ctx.runMutation(api.savedPacks.upsertByClerkId, {
-          clerkId,
+        const result = await ctx.runMutation(api.savedPacks.upsertByUserId, {
+          userId,
           source,
           r2Key,
           promptCount,
@@ -806,14 +808,16 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, title, fileData, promptCount } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { title, fileData, promptCount } = body as {
+          userId?: string;
+          clerkId?: string;
           title: string;
           fileData: string; // base64 encoded .pmtpk
           promptCount: number;
         };
 
-        if (!clerkId || !title || !fileData || promptCount === undefined) {
+        if (!userId || !title || !fileData || promptCount === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -824,7 +828,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user from Convex
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1145,8 +1149,10 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, promptHash, overallScore, scores } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { promptHash, overallScore, scores } = body as {
+          userId?: string;
+          clerkId?: string;
           promptHash: string;
           overallScore: number;
           scores: {
@@ -1160,7 +1166,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           };
         };
 
-        if (!clerkId || !promptHash || overallScore === undefined || !scores) {
+        if (!userId || !promptHash || overallScore === undefined || !scores) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -1195,7 +1201,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
         // Save evaluation to Convex
         const evaluationId = await ctx.runMutation(api.evaluations.upsert, {
-          userId: clerkId,
+          userId,
           promptHash,
           overallScore,
           scores,
@@ -1251,12 +1257,14 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, promptHashes } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { promptHashes } = body as {
+          userId?: string;
+          clerkId?: string;
           promptHashes: string[];
         };
 
-        if (!clerkId || !promptHashes || !Array.isArray(promptHashes)) {
+        if (!userId || !promptHashes || !Array.isArray(promptHashes)) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -1268,7 +1276,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
         // Get evaluations from Convex
         const evaluations = await ctx.runQuery(api.evaluations.listByUserHashes, {
-          userId: clerkId,
+          userId,
           promptHashes,
         });
 
@@ -1324,20 +1332,22 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, packId, enabled } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, enabled } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           enabled: boolean;
         };
 
-        if (!clerkId || !packId || enabled === undefined) {
+        if (!userId || !packId || enabled === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1417,21 +1427,23 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, packId, message, prompts } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, message, prompts } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           message?: string;
           prompts?: { text: string; header?: string }[];
         };
 
-        if (!clerkId || !packId) {
+        if (!userId || !packId) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1626,20 +1638,22 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, packId, versionNumber } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, versionNumber } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           versionNumber: number;
         };
 
-        if (!clerkId || !packId || versionNumber === undefined) {
+        if (!userId || !packId || versionNumber === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1750,20 +1764,22 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, packId, versionNumber } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, versionNumber } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           versionNumber: number;
         };
 
-        if (!clerkId || !packId || versionNumber === undefined) {
+        if (!userId || !packId || versionNumber === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1843,22 +1859,24 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
       const headers = corsHeaders(origin);
       try {
         const body = await request.json();
-        const { clerkId, packId, promptCreatedAt, text, header } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, promptCreatedAt, text, header } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           promptCreatedAt: number;
           text: string;
           header?: string;
         };
 
-        if (!clerkId || !packId || !promptCreatedAt || !text) {
+        if (!userId || !packId || !promptCreatedAt || !text) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -1988,21 +2006,23 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
       const headers = corsHeaders(origin);
       try {
         const body = await request.json();
-        const { clerkId, packId, promptCreatedAt, versionNumber } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { packId, promptCreatedAt, versionNumber } = body as {
+          userId?: string;
+          clerkId?: string;
           packId: string;
           promptCreatedAt: number;
           versionNumber: number;
         };
 
-        if (!clerkId || !packId || !promptCreatedAt || !versionNumber) {
+        if (!userId || !packId || !promptCreatedAt || !versionNumber) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
           );
         }
 
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),

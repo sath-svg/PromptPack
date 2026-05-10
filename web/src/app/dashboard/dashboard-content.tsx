@@ -46,7 +46,7 @@ export function DashboardContent() {
           trackLinkedInConversion(24381820);
         }
         await upsertUser({
-          clerkId: authUser.id,
+          userId: authUser.id,
           email: authUser.primaryEmailAddress?.emailAddress || "",
           name: authUser.fullName || undefined,
           imageUrl: authUser.imageUrl || undefined,
@@ -111,7 +111,7 @@ export function DashboardContent() {
 
   const handleCompleteOnboarding = async () => {
     if (authUser?.id) {
-      await completeOnboarding({ clerkId: authUser.id });
+      await completeOnboarding({ userId: authUser.id });
     }
   };
 
@@ -222,14 +222,14 @@ export function DashboardContent() {
       {/* Saved Prompts Section */}
       <div className="dashboard-section">
         {convexUser?._id && authUser?.id && (
-          <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={authUser.id} savedPromptsCount={savedPromptsCount} />
+          <PromptPacks userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} authUserId={authUser.id} savedPromptsCount={savedPromptsCount} />
         )}
       </div>
 
       {/* PromptControl Section (Pro+ only) */}
       {(hasPro || isStudio) && convexUser?._id && authUser?.id && (
         <div className="dashboard-section">
-          <PromptControl userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} clerkId={authUser.id} />
+          <PromptControl userId={convexUser._id} hasPro={hasPro} isStudio={isStudio} authUserId={authUser.id} />
         </div>
       )}
 
@@ -241,7 +241,7 @@ export function DashboardContent() {
             userId={convexUser._id}
             hasPro={hasPro}
             isStudio={isStudio}
-            clerkId={authUser.id}
+            authUserId={authUser.id}
           />
         )}
       </div>

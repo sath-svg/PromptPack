@@ -18,8 +18,8 @@ export async function GET() {
     const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
     // Fetch user from Convex to get their billing plan
-    const user = await convexClient.query(api.users.getByClerkId, {
-      clerkId: userId,
+    const user = await convexClient.query(api.users.getByUserId, {
+      userId,
     });
 
     if (!user) {

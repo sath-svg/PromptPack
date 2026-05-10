@@ -15,8 +15,8 @@ export function ProCard() {
   const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
   const { user } = useUser();
   const convexUser = useQuery(
-    api.users.getByClerkId,
-    user?.id ? { clerkId: user.id } : "skip"
+    api.users.getByUserId,
+    user?.id ? { userId: user.id } : "skip"
   );
   const proUserCount = useQuery(api.users.countProUsers) ?? 0;
 

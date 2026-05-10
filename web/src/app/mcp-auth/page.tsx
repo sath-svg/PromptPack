@@ -13,7 +13,7 @@ const API_BASE = "https://api.pmtpk.com";
  * 1. User runs `pmtpk login` in their terminal
  * 2. CLI generates a device code and opens this page: /mcp-auth?code=xxx
  * 3. User signs in via Clerk
- * 4. This page calls POST /auth/device-complete with { code, clerkId, refreshToken }
+ * 4. This page calls POST /auth/device-complete with { code, userId, refreshToken }
  * 5. CLI polls GET /auth/device-poll?code=xxx and receives the refresh token
  */
 function McpAuthContent() {
@@ -63,7 +63,7 @@ function McpAuthContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code,
-          clerkId: user.id, // betterAuthId (used as clerkId for backward compat)
+          userId: user.id,
           refreshToken: token, // BetterAuth session token
         }),
       });

@@ -41,7 +41,7 @@ type PromptPacksProps = {
   userId: Id<"users">;
   hasPro: boolean;
   isStudio: boolean;
-  clerkId: string;
+  authUserId: string;
   savedPromptsCount: number;
 };
 
@@ -252,10 +252,10 @@ async function encodePrompts(
   }
 }
 
-export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCount }: PromptPacksProps) {
+export function PromptPacks({ userId, hasPro, isStudio, authUserId, savedPromptsCount }: PromptPacksProps) {
   const { getToken, isSignedIn } = useAuth();
   const packs = useQuery(api.packs.listByAuthor, { authorId: userId });
-  const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { clerkId });
+  const gracePeriodInfo = useQuery(api.users.getGracePeriodInfo, { userId: authUserId });
   const deletePack = useMutation(api.packs.remove);
   const setPackHeader = useMutation(api.packs.setHeader);
   const updatePackIcon = useMutation(api.packs.updateIcon);
@@ -339,7 +339,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
   // Evaluation trial state (for free users)
   const evalTrials = useQuery(
     api.users.getEvalTrials,
-    clerkId ? { clerkId } : "skip"
+    authUserId ? { userId: authUserId } : "skip"
   );
   const incrementTrialMutation = useMutation(api.users.incrementEvalTrial);
 
@@ -348,11 +348,11 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     : 0;
 
   const handleTrialUsed = useCallback(async () => {
-    if (clerkId) {
+    if (authUserId) {
       trackEvent("eval-trial-used", { remaining: trialsRemaining - 1 });
-      await incrementTrialMutation({ clerkId });
+      await incrementTrialMutation({ userId: authUserId });
     }
-  }, [clerkId, incrementTrialMutation, trialsRemaining]);
+  }, [authUserId, incrementTrialMutation, trialsRemaining]);
 
   // Evaluation state
   const {
@@ -363,7 +363,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     getEvaluation,
     loadEvaluations,
     evaluatePrompt,
-  } = useEvaluation(clerkId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
+  } = useEvaluation(authUserId, hasPro || isStudio, trialsRemaining, handleTrialUsed);
   const [promptHashes, setPromptHashes] = useState<Record<number, string>>({});
   const [showEvaluationModal, setShowEvaluationModal] = useState<{
     evaluation: PromptEvaluation;
@@ -381,7 +381,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
         setPromptHashes(hashes);
 
         // Load existing evaluations from Convex for Pro/Studio users
-        if (clerkId && (hasPro || isStudio)) {
+        if (authUserId && (hasPro || isStudio)) {
           const hashValues = Object.values(hashes);
           if (hashValues.length > 0) {
             loadEvaluations(hashValues);
@@ -390,7 +390,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       };
       calculateHashes();
     }
-  }, [selectedPack?.prompts, getPromptHash, clerkId, hasPro, isStudio, loadEvaluations]);
+  }, [selectedPack?.prompts, getPromptHash, authUserId, hasPro, isStudio, loadEvaluations]);
 
   // Handle evaluate prompt
   const getAuthToken = useCallback(async (): Promise<string | null> => {
@@ -630,7 +630,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
     updatedPrompts[editingPromptIndex] = updatedPrompt;
 
     // PromptControl v2: save the OLD prompt text before applying edit
-    if (!autoSavingRef.current && clerkId) {
+    if (!autoSavingRef.current && authUserId) {
       const packMeta = webPacks.find((p) => p._id === previousPack.id);
       if (packMeta && (isStudio || packMeta.versionControlEnabled)) {
         autoSavingRef.current = true;
@@ -639,7 +639,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              clerkId,
+              userId: authUserId,
               packId: previousPack.id,
               promptCreatedAt: currentPrompt.createdAt,
               text: currentPrompt.text,
@@ -687,7 +687,7 @@ export function PromptPacks({ userId, hasPro, isStudio, clerkId, savedPromptsCou
       setError("Failed to sync prompt. Please try again.");
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPack, editingPromptIndex, promptDraft, cancelPromptEdit, showToast, updatePackViaAPI, setPackHeader, clerkId, isStudio]);
+  }, [selectedPack, editingPromptIndex, promptDraft, cancelPromptEdit, showToast, updatePackViaAPI, setPackHeader, authUserId, isStudio]);
 
   // All packs are now stored in R2 with metadata in Convex
   // No need to filter - just display all packs

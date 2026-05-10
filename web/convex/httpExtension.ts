@@ -27,15 +27,17 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, source, r2Key, promptCount, fileSize } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { source, r2Key, promptCount, fileSize } = body as {
+          userId?: string;
+          clerkId?: string;
           source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
           r2Key: string;
           promptCount: number;
           fileSize: number;
         };
 
-        if (!clerkId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
+        if (!userId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -45,8 +47,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        const result = await ctx.runMutation(api.savedPacks.upsertByClerkId, {
-          clerkId,
+        const result = await ctx.runMutation(api.savedPacks.upsertByUserId, {
+          userId,
           source,
           r2Key,
           promptCount,
@@ -139,8 +141,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user from Convex
-        let user = await ctx.runQuery(api.users.getByClerkId, {
-          clerkId: authData.userId,
+        let user = await ctx.runQuery(api.users.getByUserId, {
+          userId: authData.userId,
         });
 
         if (!user) {
@@ -156,15 +158,15 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
 
           // Create a user on the fly in dev when webhook hasn't populated Convex yet
           await ctx.runMutation(api.users.upsert, {
-            clerkId: authData.userId,
+            userId: authData.userId,
             email: authData.email,
             name: authData.name,
             imageUrl: authData.imageUrl,
             plan: "free",
           });
 
-          user = await ctx.runQuery(api.users.getByClerkId, {
-            clerkId: authData.userId,
+          user = await ctx.runQuery(api.users.getByUserId, {
+            userId: authData.userId,
           });
 
           if (!user) {
@@ -185,7 +187,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         const userAgent = request.headers.get("User-Agent") || undefined;
 
         const refreshTokenResult = await ctx.runMutation(api.refreshTokens.create, {
-          clerkId: user.clerkId,
+          userId: user.clerkId,
           ip,
           userAgent,
         });
@@ -195,7 +197,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           JSON.stringify({
             success: true,
             user: {
-              clerkId: user.clerkId,
+              userId: user.clerkId,
               email: user.email,
               name: user.name,
               plan: user.plan,
@@ -286,8 +288,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user info to return with the new tokens
-        const user = await ctx.runQuery(api.users.getByClerkId, {
-          clerkId: result.clerkId,
+        const user = await ctx.runQuery(api.users.getByUserId, {
+          userId: result.userId,
         });
 
         if (!user) {
@@ -307,7 +309,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           JSON.stringify({
             success: true,
             user: {
-              clerkId: user.clerkId,
+              userId: user.clerkId,
               email: user.email,
               name: user.name,
               plan: user.plan,
@@ -445,16 +447,16 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user info
-        const user = await ctx.runQuery(api.users.getByClerkId, {
-          clerkId: result.clerkId!,
+        const user = await ctx.runQuery(api.users.getByUserId, {
+          userId: result.userId!,
         });
 
         return new Response(
           JSON.stringify({
             valid: true,
-            clerkId: result.clerkId,
+            userId: result.userId,
             user: user ? {
-              clerkId: user.clerkId,
+              userId: user.clerkId,
               email: user.email,
               plan: user.plan,
             } : null,
@@ -504,8 +506,10 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, source, r2Key, promptCount, fileSize, headers: promptHeaders } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { source, r2Key, promptCount, fileSize, headers: promptHeaders } = body as {
+          userId?: string;
+          clerkId?: string;
           source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
           r2Key: string;
           promptCount: number;
@@ -513,7 +517,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           headers?: Record<string, string>; // Map of promptId -> header
         };
 
-        if (!clerkId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
+        if (!userId || !source || !r2Key || promptCount === undefined || fileSize === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -524,7 +528,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user to check their plan limits
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           return new Response(
             JSON.stringify({ error: "User not found" }),
@@ -563,8 +567,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Save the pack metadata (including headers if provided)
-        const result = await ctx.runMutation(api.savedPacks.upsertByClerkId, {
-          clerkId,
+        const result = await ctx.runMutation(api.savedPacks.upsertByUserId, {
+          userId,
           source,
           r2Key,
           promptCount,
@@ -618,13 +622,15 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId, source, addingCount } = body as {
-          clerkId: string;
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { source, addingCount } = body as {
+          userId?: string;
+          clerkId?: string;
           source: "chatgpt" | "claude" | "gemini" | "perplexity" | "grok" | "deepseek" | "kimi";
           addingCount: number;
         };
 
-        if (!clerkId || !source || addingCount === undefined) {
+        if (!userId || !source || addingCount === undefined) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -635,7 +641,7 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user to check their plan
-        const user = await ctx.runQuery(api.users.getByClerkId, { clerkId });
+        const user = await ctx.runQuery(api.users.getByUserId, { userId });
         if (!user) {
           // If user not found, assume free tier limit
           return new Response(
@@ -710,11 +716,11 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
 
       try {
         const body = await request.json();
-        const { clerkId } = body as { clerkId: string };
+        const userId = (body as any).userId ?? (body as any).clerkId;
 
-        if (!clerkId) {
+        if (!userId) {
           return new Response(
-            JSON.stringify({ error: "Missing clerkId" }),
+            JSON.stringify({ error: "Missing userId" }),
             {
               status: 400,
               headers: { ...headers, "Content-Type": "application/json" },
@@ -723,8 +729,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         }
 
         // Get user from Convex
-        const user = await ctx.runQuery(api.users.getByClerkId, {
-          clerkId,
+        const user = await ctx.runQuery(api.users.getByUserId, {
+          userId,
         });
 
         if (!user) {

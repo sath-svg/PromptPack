@@ -42,12 +42,12 @@ export const listByAuthor = query({
   },
 });
 
-// Get packs created by a user (by clerkId for desktop/extension)
-export const listByClerkId = query({
-  args: { clerkId: v.string() },
-  handler: async (ctx, { clerkId }) => {
-    // First find the user by clerkId
-    const user = await findUserByAnyId(ctx.db, clerkId);
+// Get packs created by a user (by userId for desktop/extension)
+export const listByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    // First find the user by userId
+    const user = await findUserByAnyId(ctx.db, userId);
 
     if (!user) {
       return [];

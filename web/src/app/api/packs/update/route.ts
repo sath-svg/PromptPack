@@ -54,8 +54,8 @@ export async function POST(request: Request) {
     }
 
     // Get user from Convex by Clerk ID to verify ownership
-    const convexUser = await convex.query(api.users.getByClerkId, {
-      clerkId: userId,
+    const convexUser = await convex.query(api.users.getByUserId, {
+      userId,
     });
 
     if (!convexUser || pack.authorId !== convexUser._id) {

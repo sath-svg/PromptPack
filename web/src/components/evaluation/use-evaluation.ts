@@ -38,7 +38,7 @@ async function sha256(text: string): Promise<string> {
  * @param onTrialUsed - Callback fired after a free user successfully uses a trial evaluation
  */
 export function useEvaluation(
-  clerkId: string | undefined,
+  userId: string | undefined,
   hasPro: boolean,
   trialsRemaining: number = 0,
   onTrialUsed?: () => void
@@ -69,7 +69,7 @@ export function useEvaluation(
    */
   const loadEvaluations = useCallback(
     async (promptHashes: string[]) => {
-      if (!clerkId || promptHashes.length === 0) return;
+      if (!userId || promptHashes.length === 0) return;
 
       try {
         const response = await fetch(
@@ -78,7 +78,7 @@ export function useEvaluation(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              clerkId,
+              userId,
               promptHashes,
             }),
           }
@@ -116,7 +116,7 @@ export function useEvaluation(
         console.error("Failed to load evaluations:", error);
       }
     },
-    [clerkId]
+    [userId]
   );
 
   /**

@@ -30,7 +30,7 @@ interface PromptControlProps {
   userId: Id<"users">;
   hasPro: boolean;
   isStudio: boolean;
-  clerkId: string;
+  authUserId: string;
 }
 
 interface PackPrompt {
@@ -39,7 +39,7 @@ interface PackPrompt {
   createdAt: number;
 }
 
-export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptControlProps) {
+export function PromptControl({ userId, hasPro, isStudio, authUserId }: PromptControlProps) {
   const userPacks = useQuery(api.packs.listByAuthor, { authorId: userId }) ?? [];
   const toggleVersionControl = useMutation(api.packs.toggleVersionControl);
 
@@ -145,7 +145,7 @@ export function PromptControl({ userId, hasPro, isStudio, clerkId }: PromptContr
       const res = await fetch("/api/packs/delete-prompt-version", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clerkId, packId: selectedPackId, promptCreatedAt, versionNumber }),
+        body: JSON.stringify({ userId: authUserId, packId: selectedPackId, promptCreatedAt, versionNumber }),
       });
       const data = await res.json();
       if (data.success) {

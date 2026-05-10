@@ -11,16 +11,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { clerkId, packId, promptCreatedAt, versionNumber } = body;
+    const { userId: bodyUserId, packId, promptCreatedAt, versionNumber } = body;
 
-    if (!clerkId || !packId || !promptCreatedAt || !versionNumber) {
+    if (!bodyUserId || !packId || !promptCreatedAt || !versionNumber) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const res = await fetch(`${CONVEX_URL}/api/desktop/delete-prompt-version`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ clerkId, packId, promptCreatedAt, versionNumber }),
+      body: JSON.stringify({ userId: bodyUserId, packId, promptCreatedAt, versionNumber }),
     });
 
     const data = await res.json();
