@@ -54,7 +54,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["promptpack"]
+        "schemes": ["skillset", "promptpack"]
       }
     }
   }

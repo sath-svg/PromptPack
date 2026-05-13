@@ -1,15 +1,15 @@
 [package]
-name = "promptpack"
+name = "skillset"
 version = "1.0.0"
-description = "PromptPack Desktop - Manage your AI prompts"
-authors = ["PromptPack"]
+description = "Skillset Desktop - Turn your prompts into reusable skills"
+authors = ["Skillset"]
 license = "MIT"
 repository = "https://github.com/sath-svg/PromptPack"
 edition = "2021"
 rust-version = "1.77.2"
 
 [lib]
-name = "promptpack_lib"
+name = "skillset_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

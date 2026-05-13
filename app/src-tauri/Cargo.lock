@@ -3772,49 +3772,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "promptpack"
-version = "1.0.0"
-dependencies = [
- "aes-gcm",
- "base64 0.22.1",
- "chrono",
- "const_format",
- "flate2",
- "futures-util",
- "globset",
- "jsonwebtoken",
- "log",
- "open",
- "pbkdf2",
- "printpdf",
- "rand 0.8.5",
- "regex",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tauri-plugin-clipboard-manager",
- "tauri-plugin-deep-link",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-log",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tauri-plugin-sql",
- "thiserror 1.0.69",
- "tokio",
- "tokio-util",
- "url",
- "urlencoding",
- "uuid",
- "walkdir",
-]
-
-[[package]]
 name = "ptr_meta"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4707,6 +4664,49 @@ name = "siphasher"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2aa850e253778c88a04c3d7323b043aeda9d3e30d5971937c1855769763678e"
+
+[[package]]
+name = "skillset"
+version = "1.0.0"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
+ "chrono",
+ "const_format",
+ "flate2",
+ "futures-util",
+ "globset",
+ "jsonwebtoken",
+ "log",
+ "open",
+ "pbkdf2",
+ "printpdf",
+ "rand 0.8.5",
+ "regex",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-clipboard-manager",
+ "tauri-plugin-deep-link",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-log",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-sql",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-util",
+ "url",
+ "urlencoding",
+ "uuid",
+ "walkdir",
+]
 
 [[package]]
 name = "slab"
