@@ -56,6 +56,14 @@
       "desktop": {
         "schemes": ["skillset", "promptpack"]
       }
+    },
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://skillset.so/updater/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUzMkVGMEJCRTM2OTM3ODMKUldTRE4ybmp1L0F1NDFaR25Dc21uZTJHS1Q2NTdyeldjQ2F3UG5SODl2SERKNjBWQjRreWNPbTIK"
     }
   }
 }

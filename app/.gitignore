@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Tauri updater signing keys — NEVER commit. Public goes in tauri.conf.json.
+# Private goes in TAURI_SIGNING_PRIVATE_KEY env (CI secret / local env).
+Red7777777#
+Red7777777#.pub
+*.tauri-key
+*.tauri-key.pub
