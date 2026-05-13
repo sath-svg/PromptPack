@@ -12,16 +12,16 @@ concurrency:
   group: build-macos-${{ github.ref }}
   cancel-in-progress: true
 
-# Two jobs run in parallel — each on a runner whose native arch matches the
-# target. macos-latest is Apple Silicon (aarch64); macos-13 is the last
-# x86_64 (Intel) image still offered. No cross-compile — both builds are
-# native, so cargo writes to target/release/ on either host. Both upload
-# their own artifact; download flow on /downloads expects both filenames.
+# Single universal build on macos-latest (Apple Silicon). Cargo builds both
+# x86_64 and aarch64 targets, Tauri's bundler runs lipo to produce a fat
+# binary, then wraps it in one .dmg that runs on both architectures. This
+# replaces the previous two-runner setup that depended on the deprecated
+# macos-13 Intel pool, which had long queue times.
 jobs:
-  build-aarch64:
-    name: macOS aarch64 (Apple Silicon)
+  build-universal:
+    name: macOS Universal (Apple Silicon + Intel)
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     env:
       USE_BUN: "1"
@@ -43,17 +43,17 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (both Apple targets)
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache cargo registry + git + target
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: app/src-tauri -> target
           cache-on-failure: true
-          key: aarch64
+          key: universal
 
       - name: Cache bun + node modules
         uses: actions/cache@v4
@@ -61,9 +61,9 @@ jobs:
           path: |
             ~/.bun/install/cache
             app/node_modules
-          key: ${{ runner.os }}-aarch64-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
+          key: ${{ runner.os }}-universal-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-aarch64-bun-
+            ${{ runner.os }}-universal-bun-
 
       - name: Install JS dependencies
         working-directory: app
@@ -75,115 +75,32 @@ jobs:
             npm ci
           fi
 
-      - name: Tauri build (Apple Silicon native)
+      - name: Tauri build (universal-apple-darwin)
         working-directory: app
         run: |
           set -euxo pipefail
+          # --target universal-apple-darwin tells Tauri to build x86_64 +
+          # aarch64 and lipo them. Output lands at:
+          #   src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
           if command -v bun >/dev/null 2>&1; then
-            bun run tauri build
+            bun run tauri build --target universal-apple-darwin
           else
-            npm run tauri build
+            npm run tauri build -- --target universal-apple-darwin
           fi
 
       - name: Collect artifact
         run: |
           set -e
           mkdir -p artifacts
-          for f in app/src-tauri/target/release/bundle/dmg/*.dmg; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-AppleSilicon.dmg"
+          for f in app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Universal.dmg"
           done
           ls -la artifacts/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: skillset-macos-aarch64-${{ github.sha }}
-          path: artifacts/
-          if-no-files-found: error
-          retention-days: 30
-
-  build-intel:
-    name: macOS x86_64 (Intel)
-    runs-on: macos-13
-    timeout-minutes: 45
-
-    env:
-      USE_BUN: "1"
-      TAURI_BUNDLE_TARGETS: "dmg,app"
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Setup Node.js (fallback)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-apple-darwin
-
-      - name: Cache cargo registry + git + target
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: app/src-tauri -> target
-          cache-on-failure: true
-          key: intel
-
-      - name: Cache bun + node modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            app/node_modules
-          key: ${{ runner.os }}-intel-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-intel-bun-
-
-      - name: Install JS dependencies
-        working-directory: app
-        run: |
-          set -euxo pipefail
-          if [ "$USE_BUN" = "1" ] && command -v bun >/dev/null 2>&1; then
-            bun install --frozen-lockfile
-          else
-            npm ci
-          fi
-
-      - name: Tauri build (Intel native)
-        working-directory: app
-        run: |
-          set -euxo pipefail
-          # No --target — macos-13 host IS x86_64, cargo writes to
-          # target/release/, Tauri bundler finds it there.
-          if command -v bun >/dev/null 2>&1; then
-            bun run tauri build
-          else
-            npm run tauri build
-          fi
-
-      - name: Collect artifact
-        run: |
-          set -e
-          mkdir -p artifacts
-          for f in app/src-tauri/target/release/bundle/dmg/*.dmg; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Intel.dmg"
-          done
-          ls -la artifacts/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: skillset-macos-intel-${{ github.sha }}
+          name: skillset-macos-universal-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
           retention-days: 30

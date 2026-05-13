@@ -1,50 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Download, ChevronDown, Cpu, Apple } from "lucide-react";
+import { useState } from "react";
+import { Download, Cpu, Apple } from "lucide-react";
 import { DownloadWarningDialog } from "@/components/download-warning-dialog";
 
-type Arch = "silicon" | "intel";
-
-// Filenames match the artifacts produced by .github/workflows/build-macos.yml
-// (see "Collect artifacts" step). Upload them under /downloads/ on the web host.
-// Universal target dropped — Tauri 2.11 doesn't translate universal-apple-darwin
-// to per-arch + lipo on this codebase; per-arch dmgs ship instead.
-const FILES: Record<Arch, { href: string; label: string; size: string }> = {
-  silicon: {
-    href: "/downloads/Skillset-AppleSilicon.dmg",
-    label: "Apple Silicon (M1 / M2 / M3 / M4)",
-    size: "~9 MB",
-  },
-  intel: {
-    href: "/downloads/Skillset-Intel.dmg",
-    label: "Intel (x86_64)",
-    size: "~9 MB",
-  },
+// Single universal binary — matches the artifact produced by
+// .github/workflows/build-macos.yml (build-universal job). Tauri builds
+// x86_64 + aarch64 and lipo's them into one fat dmg that runs on both
+// Apple Silicon and Intel Macs. Upload under /downloads/ on the web host.
+const FILE = {
+  href: "/downloads/Skillset-Universal.dmg",
+  label: "Universal (Apple Silicon + Intel)",
+  size: "~18 MB",
 };
 
-function detectMacArch(): Arch {
-  if (typeof navigator === "undefined") return "silicon";
-  const ua = navigator.userAgent;
-  if (/ARM|aarch64/i.test(ua)) return "silicon";
-  return "intel";
-}
-
 export function MacOSDownload({ version }: { version: string }) {
-  const [arch, setArch] = useState<Arch>("silicon");
-  const [autoDetected, setAutoDetected] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  useEffect(() => {
-    const isMac = /Mac/i.test(navigator.platform) || /Mac/i.test(navigator.userAgent);
-    if (isMac) {
-      setArch(detectMacArch());
-      setAutoDetected(true);
-    }
-  }, []);
-
-  const current = FILES[arch];
 
   const requestDownload = (url: string) => {
     setPendingUrl(url);
@@ -95,48 +67,21 @@ export function MacOSDownload({ version }: { version: string }) {
               </span>
             </div>
           </div>
-          {autoDetected && (
-            <span
-              className="rounded-full border border-[#2563EB]/30 bg-[#2563EB]/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-[#7BA7FF]"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-            >
-              detected
-            </span>
-          )}
         </div>
 
         <p className="mt-5 text-[13.5px] leading-[1.6] text-zinc-400">
-          Native Mac app with menu bar integration. Universal binary runs on both Apple Silicon and Intel.
+          Native Mac app with menu bar integration. One universal binary runs on both Apple Silicon and Intel — no need to pick.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => requestDownload(current.href)}
+            onClick={() => requestDownload(FILE.href)}
             className="group/btn inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-5 py-2.5 text-[13.5px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
           >
             <Download className="h-3.5 w-3.5 transition-transform group-hover/btn:translate-y-0.5" strokeWidth={2} />
             Download for Mac
           </button>
-
-          <div className="relative">
-            <select
-              value={arch}
-              onChange={(e) => setArch(e.target.value as Arch)}
-              className="appearance-none rounded-full border border-white/10 bg-white/[0.02] py-2.5 pl-4 pr-9 text-[12.5px] text-zinc-200 transition-all hover:border-white/20 hover:bg-white/[0.05] focus:border-[#2563EB]/50 focus:outline-none"
-              style={{
-                fontFamily: "var(--font-geist-mono), monospace",
-                colorScheme: "dark",
-              }}
-            >
-              <option value="silicon" className="bg-zinc-900 text-zinc-100">Apple Silicon</option>
-              <option value="intel" className="bg-zinc-900 text-zinc-100">Intel</option>
-            </select>
-            <ChevronDown
-              className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"
-              strokeWidth={2}
-            />
-          </div>
         </div>
 
         <div className="mt-auto pt-7">
@@ -147,11 +92,11 @@ export function MacOSDownload({ version }: { version: string }) {
             </span>
             <span className="text-zinc-700">&middot;</span>
             <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
-              {current.label}
+              {FILE.label}
             </span>
             <span className="text-zinc-700">&middot;</span>
             <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
-              {current.size}
+              {FILE.size}
             </span>
           </div>
         </div>
