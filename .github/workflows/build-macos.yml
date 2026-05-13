@@ -1,58 +1,155 @@
-name: Build macOS
+name: Build Skillset macOS
 
 on:
-  workflow_dispatch: # Manual trigger
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/build-macos.yml"
+  workflow_dispatch:
+    inputs:
+      build_target:
+        description: "Target to build"
+        type: choice
+        default: "universal"
+        options:
+          - universal
+          - aarch64
+          - x86_64
+          - all
+
+concurrency:
+  # Cancel in-flight builds for the same ref so a fresh push wins.
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-macos:
     runs-on: macos-latest
+    timeout-minutes: 45
+
+    env:
+      # Bun for the frontend (matches dev). Falls back to npm if bun fails.
+      USE_BUN: "1"
+      # Tauri release build (no dev-only debug symbols)
+      TAURI_BUNDLE_TARGETS: "dmg,app"
+      # Optional Apple signing creds — leave secrets unset for unsigned builds.
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js (fallback)
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - name: Install Rust
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Add Rust targets
+      - name: Cache cargo registry + git + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+          cache-on-failure: true
+
+      - name: Cache bun + node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            app/node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install JS dependencies (bun, fall back to npm)
+        working-directory: app
         run: |
-          rustup target add aarch64-apple-darwin
-          rustup target add x86_64-apple-darwin
+          set -euxo pipefail
+          if [ "$USE_BUN" = "1" ] && command -v bun >/dev/null 2>&1; then
+            bun install --frozen-lockfile
+          else
+            npm ci
+          fi
 
-      - name: Install dependencies
-        working-directory: app
-        run: npm ci
+      - name: Resolve build target
+        id: target
+        run: |
+          set -e
+          TARGET="${{ github.event.inputs.build_target }}"
+          if [ -z "$TARGET" ]; then TARGET="universal"; fi
+          echo "build_target=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Building target=$TARGET"
 
-      - name: Build Universal (Intel + Apple Silicon)
+      - name: Tauri build — universal
+        if: steps.target.outputs.build_target == 'universal' || steps.target.outputs.build_target == 'all'
         working-directory: app
-        run: npm run tauri build -- --target universal-apple-darwin
+        run: |
+          set -euxo pipefail
+          if command -v bun >/dev/null 2>&1; then
+            bun run tauri build -- --target universal-apple-darwin
+          else
+            npm run tauri build -- --target universal-apple-darwin
+          fi
 
-      - name: Build Apple Silicon
+      - name: Tauri build — Apple Silicon
+        if: steps.target.outputs.build_target == 'aarch64' || steps.target.outputs.build_target == 'all'
         working-directory: app
-        run: npm run tauri build -- --target aarch64-apple-darwin
+        run: |
+          set -euxo pipefail
+          if command -v bun >/dev/null 2>&1; then
+            bun run tauri build -- --target aarch64-apple-darwin
+          else
+            npm run tauri build -- --target aarch64-apple-darwin
+          fi
 
-      - name: Build Intel
+      - name: Tauri build — Intel
+        if: steps.target.outputs.build_target == 'x86_64' || steps.target.outputs.build_target == 'all'
         working-directory: app
-        run: npm run tauri build -- --target x86_64-apple-darwin
+        run: |
+          set -euxo pipefail
+          if command -v bun >/dev/null 2>&1; then
+            bun run tauri build -- --target x86_64-apple-darwin
+          else
+            npm run tauri build -- --target x86_64-apple-darwin
+          fi
 
       - name: Collect artifacts
         run: |
+          set -e
           mkdir -p artifacts
           # Universal
-          cp app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg artifacts/PromptPack-Universal.dmg || true
+          for f in app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Universal.dmg"
+          done
           # Apple Silicon
-          cp app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg artifacts/PromptPack-AppleSilicon.dmg || true
+          for f in app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-AppleSilicon.dmg"
+          done
           # Intel
-          cp app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg artifacts/PromptPack-Intel.dmg || true
+          for f in app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Intel.dmg"
+          done
+          ls -la artifacts/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-builds
+          name: skillset-macos-${{ github.sha }}
           path: artifacts/
+          if-no-files-found: error
           retention-days: 30
