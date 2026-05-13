@@ -11,7 +11,7 @@ import { DownloadWarningDialog } from "@/components/download-warning-dialog";
 const FILE = {
   href: "/downloads/Skillset-Universal.dmg",
   label: "Universal (Apple Silicon + Intel)",
-  size: "~18 MB",
+  size: "~27 MB",
 };
 
 export function MacOSDownload({ version }: { version: string }) {

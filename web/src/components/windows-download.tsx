@@ -13,13 +13,13 @@ const FILES: Record<Arch, { exe: string; msi: string; label: string; size: strin
     exe: "/downloads/Skillset-x64-setup.exe",
     msi: "/downloads/Skillset-x64.msi",
     label: "x64 (64-bit Intel / AMD)",
-    size: "~30 MB",
+    size: "~10 MB",
   },
   arm64: {
     exe: "/downloads/Skillset-arm64-setup.exe",
     msi: "/downloads/Skillset-arm64.msi",
     label: "ARM64 (Snapdragon X / Surface Pro 9 5G)",
-    size: "~30 MB",
+    size: "~9 MB",
   },
 };
 
