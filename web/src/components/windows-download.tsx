@@ -4,23 +4,20 @@ import { useEffect, useState } from "react";
 import { Download, ChevronDown, Cpu } from "lucide-react";
 import { DownloadWarningDialog } from "@/components/download-warning-dialog";
 
-type Arch = "x64" | "arm64" | "x86";
+type Arch = "x64" | "arm64";
 
+// Filenames match the artifacts produced by .github/workflows/build-windows.yml
+// (see "Collect artifacts" step). Upload them under /downloads/ on the web host.
 const FILES: Record<Arch, { exe: string; msi: string; label: string }> = {
   x64: {
-    exe: "/downloads/PromptPack_1.0.0_x64-setup.exe",
-    msi: "/downloads/PromptPack_1.0.0_x64_en-US.msi",
+    exe: "/downloads/Skillset-x64-setup.exe",
+    msi: "/downloads/Skillset-x64.msi",
     label: "x64 (64-bit Intel / AMD)",
   },
   arm64: {
-    exe: "/downloads/PromptPack_1.0.0_arm64-setup.exe",
-    msi: "/downloads/PromptPack_1.0.0_arm64_en-US.msi",
+    exe: "/downloads/Skillset-arm64-setup.exe",
+    msi: "/downloads/Skillset-arm64.msi",
     label: "ARM64 (Snapdragon X / Surface Pro 9 5G)",
-  },
-  x86: {
-    exe: "/downloads/PromptPack_1.0.0_x86-setup.exe",
-    msi: "/downloads/PromptPack_1.0.0_x86_en-US.msi",
-    label: "x86 (32-bit)",
   },
 };
 
@@ -45,7 +42,6 @@ export function WindowsDownload({ version }: { version: string }) {
         .getHighEntropyValues(["architecture", "bitness"])
         .then((v) => {
           if (v.architecture === "arm") setArch("arm64");
-          else if (v.bitness === "32") setArch("x86");
           else setArch("x64");
           setAutoDetected(true);
         })
@@ -54,8 +50,7 @@ export function WindowsDownload({ version }: { version: string }) {
     }
 
     if (/arm64|aarch64/i.test(ua)) setArch("arm64");
-    else if (/wow64|win64|x64|amd64/i.test(ua)) setArch("x64");
-    else setArch("x86");
+    else setArch("x64");
     setAutoDetected(true);
   }, []);
 
@@ -156,7 +151,6 @@ export function WindowsDownload({ version }: { version: string }) {
             >
               <option value="x64" className="bg-zinc-900 text-zinc-100">x64</option>
               <option value="arm64" className="bg-zinc-900 text-zinc-100">ARM64</option>
-              <option value="x86" className="bg-zinc-900 text-zinc-100">x86</option>
             </select>
             <ChevronDown
               className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"

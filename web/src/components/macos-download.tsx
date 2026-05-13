@@ -4,35 +4,34 @@ import { useEffect, useState } from "react";
 import { Download, ChevronDown, Cpu, Apple } from "lucide-react";
 import { DownloadWarningDialog } from "@/components/download-warning-dialog";
 
-type Arch = "universal" | "silicon" | "intel";
+type Arch = "silicon" | "intel";
 
+// Filenames match the artifacts produced by .github/workflows/build-macos.yml
+// (see "Collect artifacts" step). Upload them under /downloads/ on the web host.
+// Universal target dropped — Tauri 2.11 doesn't translate universal-apple-darwin
+// to per-arch + lipo on this codebase; per-arch dmgs ship instead.
 const FILES: Record<Arch, { href: string; label: string; size: string }> = {
-  universal: {
-    href: "/downloads/PromptPack-Universal.dmg",
-    label: "Universal (Apple Silicon + Intel)",
-    size: "~16 MB",
-  },
   silicon: {
-    href: "/downloads/PromptPack-AppleSilicon.dmg",
+    href: "/downloads/Skillset-AppleSilicon.dmg",
     label: "Apple Silicon (M1 / M2 / M3 / M4)",
     size: "~9 MB",
   },
   intel: {
-    href: "/downloads/PromptPack-Intel.dmg",
+    href: "/downloads/Skillset-Intel.dmg",
     label: "Intel (x86_64)",
     size: "~9 MB",
   },
 };
 
 function detectMacArch(): Arch {
-  if (typeof navigator === "undefined") return "universal";
+  if (typeof navigator === "undefined") return "silicon";
   const ua = navigator.userAgent;
   if (/ARM|aarch64/i.test(ua)) return "silicon";
-  return "universal";
+  return "intel";
 }
 
 export function MacOSDownload({ version }: { version: string }) {
-  const [arch, setArch] = useState<Arch>("universal");
+  const [arch, setArch] = useState<Arch>("silicon");
   const [autoDetected, setAutoDetected] = useState(false);
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -130,7 +129,6 @@ export function MacOSDownload({ version }: { version: string }) {
                 colorScheme: "dark",
               }}
             >
-              <option value="universal" className="bg-zinc-900 text-zinc-100">Universal</option>
               <option value="silicon" className="bg-zinc-900 text-zinc-100">Apple Silicon</option>
               <option value="intel" className="bg-zinc-900 text-zinc-100">Intel</option>
             </select>
