@@ -1,12 +1,6 @@
 "use client";
 
-// Force dynamic render — useSearchParams + user-specific checkout flow
-// don't benefit from static prerender (and prerender would need a Suspense
-// boundary, which adds complexity for zero SEO benefit on a logged-in page).
-export const dynamic = "force-dynamic";
-
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Check, CheckCircle2, XCircle } from "lucide-react";
 
@@ -41,12 +35,12 @@ export default function TopupPage() {
   const [loadingKey, setLoadingKey] = useState<PackKey | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<"success" | "cancel" | null>(null);
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const s = searchParams.get("status");
+    if (typeof window === "undefined") return;
+    const s = new URLSearchParams(window.location.search).get("status");
     if (s === "success" || s === "cancel") setStatus(s);
-  }, [searchParams]);
+  }, []);
 
   const buy = async (key: PackKey) => {
     if (loadingKey) return;
