@@ -50,30 +50,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isPending, setIsPending] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
     fetch("/api/auth/get-session", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => r.json())
       .then((json) => {
-        if (cancelled) return;
-        if (json && json.user && json.session) {
+        console.log("[auth-compat] fetched", { user: json?.user?.email, hasSession: !!json?.session });
+        if (json?.user && json?.session) {
           setData({
             user: { ...json.user, image: json.user.image ?? undefined },
             session: { ...json.session, expiresAt: new Date(json.session.expiresAt) },
           });
-        } else {
-          setData(null);
         }
         setIsPending(false);
       })
-      .catch(() => {
-        if (cancelled) return;
-        setData(null);
+      .catch((err) => {
+        console.error("[auth-compat] fetch error", err);
         setIsPending(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  console.log("[auth-compat] render", { hasData: !!data, isPending });
 
   return (
     <AuthContext.Provider
