@@ -117,7 +117,7 @@ export default async function ComparisonPage({ params }: Props) {
 
         <div className="flex flex-wrap gap-3">
           <Link
-            href="/sign-up"
+            href="/downloads"
             style={{ padding: "10px 22px" }}
             className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all hover:bg-[#1d4ed8]"
           >

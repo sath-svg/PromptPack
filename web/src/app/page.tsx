@@ -187,7 +187,7 @@ function Hero() {
 
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <Link
-              href="/sign-up"
+              href="/downloads"
               style={{ padding: "10px 22px" }}
               className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
             >
@@ -1135,7 +1135,7 @@ function PricingCallout() {
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
-                  href="/sign-up"
+                  href="/downloads"
                   className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-6 py-2.5 text-sm overflow-hidden font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
                 >
                   Start Free

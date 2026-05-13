@@ -55,7 +55,7 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
             Sign in
           </Link>
           <Link
-            href="/sign-up"
+            href="/downloads"
             style={{ padding: "8px 18px" }}
             className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
           >
