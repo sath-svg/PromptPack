@@ -41,6 +41,27 @@ function App() {
     }
   }, [session?.user_id]);
 
+  // Re-check tier when the window regains focus or becomes visible. Covers
+  // the common "upgraded to Pro in the browser, came back to the desktop
+  // app, still showing Free" case where the upgrade happened outside the
+  // app and there was no signal to invalidate the cached tier.
+  useEffect(() => {
+    if (!session?.user_id) return;
+
+    const onFocus = () => refreshTier();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshTier();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [session?.user_id, refreshTier]);
+
   // Cross-component navigation: in-app code dispatches CustomEvent
   // 'skillset:navigate' with detail = page id. Avoids prop-drilling
   // setCurrentPage to deeply nested components.
