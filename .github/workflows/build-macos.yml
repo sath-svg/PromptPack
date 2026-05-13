@@ -97,18 +97,22 @@ jobs:
           echo "build_target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "Building target=$TARGET"
 
-      - name: Tauri build — Apple Silicon
+      - name: Tauri build — Apple Silicon (native on aarch64 runner)
         if: steps.target.outputs.build_target == 'aarch64' || steps.target.outputs.build_target == 'both'
         working-directory: app
         run: |
           set -euxo pipefail
+          # macos-latest runner is now aarch64. Building for the host arch
+          # without --target keeps cargo's output at target/release/, which
+          # is where Tauri's bundler expects it. Passing --target=aarch64-apple-darwin
+          # on aarch64 host causes a path mismatch (cargo skips the triple subdir).
           if command -v bun >/dev/null 2>&1; then
-            bun run tauri build -- --target aarch64-apple-darwin
+            bun run tauri build
           else
-            npm run tauri build -- --target aarch64-apple-darwin
+            npm run tauri build
           fi
 
-      - name: Tauri build — Intel
+      - name: Tauri build — Intel (cross-compile)
         if: steps.target.outputs.build_target == 'x86_64' || steps.target.outputs.build_target == 'both'
         working-directory: app
         run: |
@@ -123,11 +127,11 @@ jobs:
         run: |
           set -e
           mkdir -p artifacts
-          # Apple Silicon
-          for f in app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg; do
+          # Apple Silicon (native build on aarch64 host → target/release/)
+          for f in app/src-tauri/target/release/bundle/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-AppleSilicon.dmg"
           done
-          # Intel
+          # Intel (cross-compile → target/x86_64-apple-darwin/release/)
           for f in app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-Intel.dmg"
           done
