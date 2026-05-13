@@ -32,14 +32,13 @@ jobs:
       USE_BUN: "1"
       # Tauri release build (no dev-only debug symbols)
       TAURI_BUNDLE_TARGETS: "dmg,app"
-      # Optional Apple signing creds — leave secrets unset for unsigned builds.
-      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      # Tauri updater signing — pubkey baked into binary, private key signs artifacts.
+      # Apple code-signing intentionally OFF — env vars not set so Tauri
+      # ships an unsigned build (Gatekeeper warns on first launch).
+      # To enable later: set APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
+      # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID in GH secrets,
+      # then re-add the env block below.
+      #
+      # Tauri updater signing (pubkey baked into binary, private key signs artifacts):
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 

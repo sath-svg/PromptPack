@@ -28,10 +28,12 @@ jobs:
 
     env:
       USE_BUN: "1"
-      # Optional Windows signing creds — leave secrets unset for unsigned builds.
-      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-      # Tauri updater signing — pubkey baked into binary, private key signs artifacts.
+      # Windows code-signing intentionally OFF — secrets unset so Tauri ships
+      # an unsigned MSI/EXE (SmartScreen warns on first launch).
+      # To enable later: set WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
+      # in GH secrets, then re-add the env block below.
+      #
+      # Tauri updater signing (pubkey baked into binary, private key signs artifacts):
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
