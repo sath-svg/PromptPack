@@ -160,7 +160,7 @@ function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2563EB] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
             </span>
-            <span>v0.1 — formerly PromptPack</span>
+            <span>v1.1 — formerly PromptPack</span>
           </div>
 
           <h1 className="text-[44px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 md:text-[64px] lg:text-[72px]">
@@ -265,7 +265,7 @@ function AppMockup() {
           >
             Skillset Desktop
           </span>
-          <span className="text-[11px] text-zinc-500">v0.1</span>
+          <span className="text-[11px] text-zinc-500">v1.1</span>
         </div>
 
         <div className="flex">

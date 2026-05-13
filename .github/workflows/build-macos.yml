@@ -12,18 +12,20 @@ concurrency:
   group: build-macos-${{ github.ref }}
   cancel-in-progress: true
 
+# Two jobs run in parallel — each on a runner whose native arch matches the
+# target. macos-latest is Apple Silicon (aarch64); macos-13 is the last
+# x86_64 (Intel) image still offered. No cross-compile — both builds are
+# native, so cargo writes to target/release/ on either host. Both upload
+# their own artifact; download flow on /downloads expects both filenames.
 jobs:
-  build-macos:
+  build-aarch64:
+    name: macOS aarch64 (Apple Silicon)
     runs-on: macos-latest
     timeout-minutes: 45
 
     env:
       USE_BUN: "1"
       TAURI_BUNDLE_TARGETS: "dmg,app"
-      # Apple code-signing intentionally OFF — set APPLE_* GH secrets and
-      # re-add the env block to ship a signed/notarized build.
-      #
-      # Tauri updater signing (pubkey baked into binary, private key signs artifacts):
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
@@ -51,6 +53,7 @@ jobs:
         with:
           workspaces: app/src-tauri -> target
           cache-on-failure: true
+          key: aarch64
 
       - name: Cache bun + node modules
         uses: actions/cache@v4
@@ -58,11 +61,11 @@ jobs:
           path: |
             ~/.bun/install/cache
             app/node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
+          key: ${{ runner.os }}-aarch64-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-bun-
+            ${{ runner.os }}-aarch64-bun-
 
-      - name: Install JS dependencies (bun, fall back to npm)
+      - name: Install JS dependencies
         working-directory: app
         run: |
           set -euxo pipefail
@@ -72,20 +75,17 @@ jobs:
             npm ci
           fi
 
-      - name: Tauri build — Apple Silicon (native on aarch64 runner)
+      - name: Tauri build (Apple Silicon native)
         working-directory: app
         run: |
           set -euxo pipefail
-          # macos-latest is aarch64. No --target flag → cargo writes to
-          # target/release/, which Tauri's bundler expects when --target
-          # is omitted.
           if command -v bun >/dev/null 2>&1; then
             bun run tauri build
           else
             npm run tauri build
           fi
 
-      - name: Collect artifacts
+      - name: Collect artifact
         run: |
           set -e
           mkdir -p artifacts
@@ -94,10 +94,96 @@ jobs:
           done
           ls -la artifacts/
 
-      - name: Upload artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: skillset-macos-${{ github.sha }}
+          name: skillset-macos-aarch64-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+  build-intel:
+    name: macOS x86_64 (Intel)
+    runs-on: macos-13
+    timeout-minutes: 45
+
+    env:
+      USE_BUN: "1"
+      TAURI_BUNDLE_TARGETS: "dmg,app"
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js (fallback)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache cargo registry + git + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri -> target
+          cache-on-failure: true
+          key: intel
+
+      - name: Cache bun + node modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            app/node_modules
+          key: ${{ runner.os }}-intel-bun-${{ hashFiles('app/bun.lockb', 'app/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-intel-bun-
+
+      - name: Install JS dependencies
+        working-directory: app
+        run: |
+          set -euxo pipefail
+          if [ "$USE_BUN" = "1" ] && command -v bun >/dev/null 2>&1; then
+            bun install --frozen-lockfile
+          else
+            npm ci
+          fi
+
+      - name: Tauri build (Intel native)
+        working-directory: app
+        run: |
+          set -euxo pipefail
+          # No --target — macos-13 host IS x86_64, cargo writes to
+          # target/release/, Tauri bundler finds it there.
+          if command -v bun >/dev/null 2>&1; then
+            bun run tauri build
+          else
+            npm run tauri build
+          fi
+
+      - name: Collect artifact
+        run: |
+          set -e
+          mkdir -p artifacts
+          for f in app/src-tauri/target/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Intel.dmg"
+          done
+          ls -la artifacts/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillset-macos-intel-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
           retention-days: 30
