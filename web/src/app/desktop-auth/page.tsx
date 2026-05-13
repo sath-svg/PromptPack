@@ -37,8 +37,8 @@ export default function DesktopAuthPage() {
     new URLSearchParams(window.location.search).get("source") === "desktop";
 
   const getAppName = () => {
-    if (typeof window === "undefined") return "promptpack";
-    return new URLSearchParams(window.location.search).get("app") || "promptpack";
+    if (typeof window === "undefined") return "skillset";
+    return new URLSearchParams(window.location.search).get("app") || "skillset";
   };
 
   const handleContinue = async () => {
@@ -145,13 +145,13 @@ export default function DesktopAuthPage() {
         <div className="w-full max-w-sm">
           {/* Logo/Icon */}
           <div className="flex justify-center mb-6">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
-              </svg>
-            </div>
+            <img
+              src="/img/skillset_logo.png"
+              alt="Skillset"
+              width={64}
+              height={64}
+              className="w-16 h-16 rounded-2xl object-cover"
+            />
           </div>
 
           <h1 className="text-xl font-semibold text-foreground text-center mb-2">
@@ -219,13 +219,13 @@ export default function DesktopAuthPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6">
         {/* Logo/Icon */}
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
-          </svg>
-        </div>
+        <img
+          src="/img/skillset_logo.png"
+          alt="Skillset"
+          width={64}
+          height={64}
+          className="w-16 h-16 rounded-2xl object-cover mb-6"
+        />
 
         <h1 className="text-xl font-semibold text-foreground mb-2">
           {switchingAccount ? "Switch Account" : "Sign in to Skillset"}
@@ -267,13 +267,14 @@ export default function DesktopAuthPage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
       {/* Logo/Icon */}
-      <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary animate-pulse">
-          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-          <path d="M2 17l10 5 10-5"/>
-          <path d="M2 12l10 5 10-5"/>
-        </svg>
-      </div>
+      <img
+        src="/img/skillset_logo.png"
+        alt="Skillset"
+        width={64}
+        height={64}
+        className="w-16 h-16 rounded-2xl object-cover mb-6 animate-pulse"
+      />
+
 
       <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin mb-4" />
       <h1 className="text-lg font-semibold text-foreground mb-1">

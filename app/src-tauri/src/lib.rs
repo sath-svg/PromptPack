@@ -64,9 +64,10 @@ pub fn run() {
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
 
-                // Register `promptpack://` URI scheme in OS so the browser
-                // hands off auth callback URLs to this app. Production
-                // installers do this via NSIS/MSI; dev runs need it explicit.
+                // Register `skillset://` (and legacy `promptpack://`) URI
+                // schemes in the OS so the browser hands off auth callback
+                // URLs to this app. Production installers do this via
+                // NSIS/MSI; dev runs need it explicit.
                 #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
                 {
                     let _ = app.deep_link().register_all();
@@ -76,7 +77,9 @@ pub fn run() {
                 app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();
                     for url in urls {
-                        if url.scheme() == "promptpack" && url.host_str() == Some("auth") {
+                        if (url.scheme() == "skillset" || url.scheme() == "promptpack")
+                            && url.host_str() == Some("auth")
+                        {
                             if let Some(query) = url.query() {
                                 let decode = |v: &str| -> String {
                                     let with_spaces = v.replace('+', " ");
