@@ -8,8 +8,8 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
-const EARLY_BIRD_LIMIT = 9;
-const EARLY_BIRD_PRICE = 1.99;
+export const EARLY_BIRD_LIMIT = 9;
+export const EARLY_BIRD_PRICE = 1.99;
 
 const FEATURES = [
   { t: "750 AI credits per month in Managed mode", hi: true },

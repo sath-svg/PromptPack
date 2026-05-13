@@ -2,9 +2,11 @@
 
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQuery } from "convex/react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { api } from "../../../convex/_generated/api";
 import { FreeCard } from "./free-card";
-import { ProCard } from "./pro-card";
+import { ProCard, EARLY_BIRD_LIMIT, EARLY_BIRD_PRICE } from "./pro-card";
 import { StudioCard } from "./studio-card";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
@@ -29,6 +31,10 @@ export default function PricingPage() {
   useEffect(() => {
     trackEvent("upgrade-page-viewed");
   }, []);
+
+  const proUserCount = useQuery(api.users.countProUsers);
+  const spotsLeft =
+    proUserCount === undefined ? null : Math.max(0, EARLY_BIRD_LIMIT - proUserCount);
 
   return (
     <div
@@ -77,19 +83,21 @@ export default function PricingPage() {
             Start free. Upgrade when your library outgrows it.
           </p>
 
-          <div
-            className="mt-7 inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/[0.08] text-[12px] text-orange-300"
-            style={{ fontFamily: "var(--font-geist-mono), monospace", padding: "5px 12px" }}
-          >
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500 opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
-            </span>
-            <span>
-              Only 8 spots left at{" "}
-              <span className="text-orange-400 font-medium">$1.99/mo</span>
-            </span>
-          </div>
+          {spotsLeft !== null && spotsLeft > 0 && (
+            <div
+              className="mt-7 inline-flex items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/[0.08] text-[12px] text-orange-300"
+              style={{ fontFamily: "var(--font-geist-mono), monospace", padding: "5px 12px" }}
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500 opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
+              </span>
+              <span>
+                Only {spotsLeft} {spotsLeft === 1 ? "spot" : "spots"} left at{" "}
+                <span className="text-orange-400 font-medium">${EARLY_BIRD_PRICE}/mo</span>
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Plan grid */}
