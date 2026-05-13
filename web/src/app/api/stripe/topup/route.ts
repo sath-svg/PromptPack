@@ -59,8 +59,8 @@ export async function POST(request: Request) {
       name: user?.fullName ?? undefined,
       priceId,
       credits: config.credits,
-      successUrl: `${origin}/dashboard?topup=success`,
-      cancelUrl: `${origin}/dashboard?topup=cancel`,
+      successUrl: `${origin}/topup?status=success`,
+      cancelUrl: `${origin}/topup?status=cancel`,
     });
 
     if (!session?.url) {
