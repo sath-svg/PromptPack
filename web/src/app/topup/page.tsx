@@ -188,7 +188,7 @@ export default function TopupPage() {
           <ul className="mt-3 grid gap-2 text-[13px] leading-[1.6] text-zinc-400 sm:grid-cols-2">
             <li>• Chat turns burn 1–18 credits depending on model + length.</li>
             <li>• Premium Models (Opus / GPT-5 Pro / o3 Pro) require Pro or Studio.</li>
-            <li>• Credits added immediately after checkout via Stripe webhook.</li>
+            <li>• Credits added immediately after checkout at Stripe.</li>
             <li>• Monthly subscription credits used first; top-up credits second.</li>
           </ul>
         </div>
