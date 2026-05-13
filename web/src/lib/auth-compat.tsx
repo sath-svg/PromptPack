@@ -53,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetch("/api/auth/get-session", { credentials: "include" })
       .then((r) => r.json())
       .then((json) => {
-        console.log("[auth-compat] fetched", { user: json?.user?.email, hasSession: !!json?.session });
         if (json?.user && json?.session) {
           setData({
             user: { ...json.user, image: json.user.image ?? undefined },
@@ -62,13 +61,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setIsPending(false);
       })
-      .catch((err) => {
-        console.error("[auth-compat] fetch error", err);
+      .catch(() => {
         setIsPending(false);
       });
   }, []);
-
-  console.log("[auth-compat] render", { hasData: !!data, isPending });
 
   return (
     <AuthContext.Provider
@@ -130,16 +126,14 @@ export function useClerk() {
 // ---- Components (replaces SignedIn, SignedOut, SignIn, SignUp, etc.) ----
 
 export function SignedIn({ children }: { children: ReactNode }) {
-  const ctx = useContext(AuthContext);
-  console.log("[SignedIn] ctx:", { hasSession: !!ctx.session, isPending: ctx.isPending });
-  if (ctx.isPending || !ctx.session) return null;
+  const { session, isPending } = useContext(AuthContext);
+  if (isPending || !session) return null;
   return <>{children}</>;
 }
 
 export function SignedOut({ children }: { children: ReactNode }) {
-  const ctx = useContext(AuthContext);
-  console.log("[SignedOut] ctx:", { hasSession: !!ctx.session, isPending: ctx.isPending });
-  if (ctx.isPending || ctx.session) return null;
+  const { session, isPending } = useContext(AuthContext);
+  if (isPending || session) return null;
   return <>{children}</>;
 }
 
