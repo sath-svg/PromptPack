@@ -21,6 +21,10 @@ export function PWARegister() {
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {
+        // Force an update check on every page load so stale SW versions
+        // (notably the old PromptPack SW that intercepted OAuth callbacks
+        // and broke Set-Cookie) get replaced as soon as users reload.
+        registration.update().catch(() => {});
         console.log("SW registered:", registration.scope);
       })
       .catch((error) => {
