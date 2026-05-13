@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { SignedIn, SignedOut, UserButton } from "@/lib/auth-compat";
 
 type NavLink = { label: string; href: string };
 
@@ -48,20 +51,37 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
         </nav>
 
         <div className="flex items-center justify-end gap-3">
-          <Link
-            href="/sign-in"
-            className="hidden text-[15px] text-zinc-400 transition-colors hover:text-zinc-50 md:inline"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/downloads"
-            style={{ padding: "8px 18px" }}
-            className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
-          >
-            Start Free
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
-          </Link>
+          <SignedOut>
+            <Link
+              href="/sign-in"
+              className="hidden text-[15px] text-zinc-400 transition-colors hover:text-zinc-50 md:inline"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/downloads"
+              style={{ padding: "8px 18px" }}
+              className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
+            >
+              Start Free
+              <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
+            </Link>
+          </SignedOut>
+          <SignedIn>
+            <Link
+              href="/downloads"
+              className="hidden text-[15px] text-zinc-400 transition-colors hover:text-zinc-50 md:inline"
+            >
+              Download
+            </Link>
+            <Link
+              href="/topup"
+              className="hidden text-[15px] text-zinc-400 transition-colors hover:text-zinc-50 md:inline"
+            >
+              Top up
+            </Link>
+            <UserButton afterSignOutUrl="/" />
+          </SignedIn>
         </div>
       </div>
     </header>
