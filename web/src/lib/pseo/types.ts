@@ -69,9 +69,9 @@ export interface RolePage {
 
 export interface ComparisonPoint {
   feature: string;
-  promptpack: string;
+  skillset: string;
   competitor: string;
-  winner: "promptpack" | "competitor" | "tie";
+  winner: "skillset" | "competitor" | "tie";
 }
 
 export interface ComparisonPage {

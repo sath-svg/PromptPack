@@ -36,12 +36,12 @@ export function ComparisonTable({ points, competitorName }: ComparisonTableProps
                 {point.feature}
               </td>
               <td
-                className={`px-5 py-3.5 ${point.winner === "promptpack" ? "text-emerald-400" : "text-zinc-300"}`}
+                className={`px-5 py-3.5 ${point.winner === "skillset" ? "text-emerald-400" : "text-zinc-300"}`}
               >
-                {point.winner === "promptpack" && (
+                {point.winner === "skillset" && (
                   <Check className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2.5} />
                 )}
-                {point.promptpack}
+                {point.skillset}
               </td>
               <td
                 className={`px-5 py-3.5 ${point.winner === "competitor" ? "text-emerald-400" : "text-zinc-400"}`}

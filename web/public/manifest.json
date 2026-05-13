@@ -1,12 +1,12 @@
 {
-  "name": "PromptPack",
-  "short_name": "PromptPack",
-  "description": "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries, create PromptPacks, and discover community prompts.",
+  "name": "Skillset",
+  "short_name": "Skillset",
+  "description": "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#6366f1",
+  "background_color": "#0a0a0c",
+  "theme_color": "#2563EB",
   "icons": [
     {
       "src": "/img/icon-192.png",

@@ -12,51 +12,51 @@ export const comparisonPages: ComparisonPage[] = [
     comparisonPoints: [
       {
         feature: "Model coverage",
-        promptpack:
+        skillset:
           "Auto-routes across Claude, GPT-5, Gemini, Grok, DeepSeek, Llama. One credit pool, per-task tier selection (Fast/Mid/Frontier).",
         competitor: "Claude family only (Sonnet, Opus, Haiku).",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Multi-step workflows",
-        promptpack:
+        skillset:
           "Skill Flow orchestrator decomposes a goal into subtasks, runs them sequentially, persists generated files between steps, and references prior outputs explicitly.",
         competitor: "Single-shot agent loop. Multi-step work happens inside one run, no formal chain artifact.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Prompt packs",
-        promptpack:
+        skillset:
           "Build reusable .skill packs with `{variable}` placeholders. Run a pack end-to-end with each step inheriting the previous step's output. Share via marketplace or file.",
         competitor: "Custom slash commands + skills (markdown files). No managed sequential pack runner.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Workspace integration",
-        promptpack:
+        skillset:
           "Native Tauri desktop app. Connect a folder, agent reads/writes files, drops a Skillset.md skill into `.skillset/` automatically. Diff-review on every edit.",
         competitor: "Terminal-first + desktop. Reads/writes files via tools. Comparable workspace agent.",
         winner: "tie",
       },
       {
         feature: "Skill Preset (art style mimicry)",
-        promptpack:
+        skillset:
           "Upload reference images → Vision LLM extracts hex palette, line weight, signature elements → generates 5-prompt skillset (image/video/character/setting/mood) → DALL-E 3 previews.",
         competitor: "No image-style extraction or image generation.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Pricing",
-        promptpack:
+        skillset:
           "Significantly cheaper than Anthropic's pricing for the same model usage, with predictable monthly caps. Free tier + paid plans with built-in spending limits so you don't get surprise bills.",
         competitor: "Anthropic API pricing + Claude Pro / Max subscriptions for the desktop app.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Open ecosystem",
-        promptpack: "Vendor-neutral. Switch providers without changing prompts or packs.",
+        skillset: "Vendor-neutral. Switch providers without changing prompts or packs.",
         competitor: "Anthropic ecosystem. Best Claude experience; not designed for non-Claude models.",
-        winner: "promptpack",
+        winner: "skillset",
       },
     ],
     verdict:
@@ -79,58 +79,58 @@ export const comparisonPages: ComparisonPage[] = [
     comparisonPoints: [
       {
         feature: "Model coverage",
-        promptpack:
+        skillset:
           "Auto-routes across GPT-5, Claude, Gemini, Grok, DeepSeek, Llama. Per-task model picked by classifier; you stay in one app.",
         competitor: "GPT family only. No native access to Claude/Gemini/etc.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Multi-step workflows",
-        promptpack:
+        skillset:
           "Skill Flow chains a pack's prompts sequentially. Each step inherits prior step's text + generated files + variables. Designed for reusable multi-prompt tasks.",
         competitor:
           "Custom GPTs + memory + Projects help with context, but multi-step prompt chaining is manual (you run each turn yourself).",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Workspace agent",
-        promptpack:
+        skillset:
           "Connect a local folder → agent reads, edits, runs code with diff review. Auto-drops Skillset.md skill spec into workspace.",
         competitor:
           "No local workspace. Code Interpreter runs in a sandboxed cloud environment; files don't persist to your machine.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Image generation (style mimicry)",
-        promptpack:
+        skillset:
           "Skill Preset extracts an artist's style (palette, line weight, signature quirks) from reference images and generates 5 reusable prompts (image/video/character/setting/mood). DALL-E 3 used under the hood when configured.",
         competitor:
           "DALL-E 3 + GPT Image-1 directly available in chat. No structured style-extraction or reusable prompt set.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Prompt portability",
-        promptpack:
+        skillset:
           "Encrypted .skill files you can share, version-control, or sell on the marketplace. Your prompts, your files.",
         competitor:
           "GPTs live on chatgpt.com. No export to a portable file format.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Privacy & ownership",
-        promptpack:
+        skillset:
           "Prompts can stay local (Free tier) or sync encrypted to your account. BYOK keeps requests off Skillset entirely.",
         competitor:
           "All conversations + GPTs stored on OpenAI infrastructure. Trained-on-by-default unless toggled off.",
-        winner: "promptpack",
+        winner: "skillset",
       },
       {
         feature: "Pricing",
-        promptpack:
+        skillset:
           "Significantly cheaper than OpenAI's plans for the same model usage, with predictable monthly caps. Pay-per-use without flat seat fees, and built-in spending limits so you don't get surprise bills.",
         competitor:
           "Free, Plus $20/mo, Pro $200/mo, Team $30/seat. Per-seat, not per-task.",
-        winner: "promptpack",
+        winner: "skillset",
       },
     ],
     verdict:

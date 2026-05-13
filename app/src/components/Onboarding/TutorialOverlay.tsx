@@ -10,31 +10,51 @@ interface TutorialStep {
 const STEPS: TutorialStep[] = [
   {
     target: null,
-    title: 'Welcome to Skillset Desktop',
-    description: "Here's a quick tour of the key features to get you started.",
+    title: 'Welcome to Skillset',
+    description:
+      "Save your prompts as portable skills, then run them across ChatGPT, Claude, Gemini — any AI tool. Quick tour to get you oriented.",
   },
   {
     target: '[data-tutorial="sign-in"]',
-    title: 'Sign In',
+    title: 'Sign in to sync',
     description:
-      'Sign in to sync prompts across devices and access cloud features.',
+      'Sign in to sync skills across devices, unlock the marketplace, and license your own skill packs.',
+  },
+  {
+    target: '[data-tutorial="skill-chat"]',
+    title: 'Skill Chat — one chat, every model',
+    description:
+      "Chat with every model from a single place. Skill Router auto-picks the cheapest capable model per turn (Haiku for routine, Sonnet for reasoning, Gemini for vision) so your bill doesn't balloon.",
   },
   {
     target: '[data-tutorial="draft"]',
-    title: 'Draft Prompts',
+    title: 'Draft & enhance prompts',
     description:
-      'Draft and enhance prompts here. Each draft auto-saves as you type.',
+      'Draft prompts with auto-save. Use the enhancer to upgrade weak prompts. Save the final version into a Skillset for reuse.',
   },
   {
-    target: '[data-tutorial="saved-packs"]',
-    title: 'Saved from Extension',
+    target: '[data-tutorial="skill-preset"]',
+    title: 'Skill Preset — lock & license your style',
     description:
-      'Prompts saved from the Chrome extension sync here automatically.',
+      'Upload reference images. Vision LLM extracts your palette, line weight, and signature. Lock it into an encrypted preset — license it on the marketplace and earn royalties on every sale.',
+  },
+  {
+    target: '[data-tutorial="your-skillsets"]',
+    title: 'Your Skillsets',
+    description:
+      'Bundle prompts into reusable skill packs with {variable} placeholders. Chain them as Skill Flows — output of step 1 feeds step 2. Run the whole sequence on demand.',
+  },
+  {
+    target: '[data-tutorial="skill-control"]',
+    title: 'Skill Control — version your skills',
+    description:
+      'Pro+ only. Every edit is versioned. Diff, branch, and roll back any skill like Git for prompts.',
   },
   {
     target: '[data-tutorial="import"]',
-    title: 'Import Packs',
-    description: 'Import .pmtpk pack files shared by others.',
+    title: 'Import skill packs',
+    description:
+      'Import .pmtpk packs shared by others, or pull skills straight from the Chrome extension as you save them from ChatGPT, Claude, and Gemini.',
     finalAction: 'Got it',
   },
 ];

@@ -47,7 +47,7 @@ export default async function ComparisonPage({ params }: Props) {
     publisher: { "@type": "Organization", name: "Skillset" },
   };
 
-  const ppWins = page.comparisonPoints.filter((p) => p.winner === "promptpack").length;
+  const ppWins = page.comparisonPoints.filter((p) => p.winner === "skillset").length;
   const compWins = page.comparisonPoints.filter((p) => p.winner === "competitor").length;
   const ties = page.comparisonPoints.filter((p) => p.winner === "tie").length;
 

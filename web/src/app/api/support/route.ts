@@ -34,7 +34,7 @@ export async function POST(request: Request) {
 
     // Send email via Resend
     const { data, error } = await resend.emails.send({
-      from: "PromptPack Support <onboarding@resend.dev>",
+      from: "Skillset <onboarding@resend.dev>",
       to: SUPPORT_EMAIL,
       replyTo: email,
       subject: `[Support] ${subject || "New Request"} - from ${email}`,
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
           </div>
           <hr style="border: none; border-top: 1px solid #eee; margin: 16px 0;" />
           <p style="color: #999; font-size: 12px;">
-            Sent from PromptPack Support Widget at ${new Date().toISOString()}
+            Sent from Skillset Support Widget at ${new Date().toISOString()}
           </p>
         </div>
       `,

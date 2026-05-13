@@ -98,6 +98,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
             }`}
             title={isCollapsed ? 'Chat' : undefined}
+            data-tutorial="skill-chat"
           >
             <MessageSquare size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
@@ -128,6 +129,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
             }`}
             title={isCollapsed ? 'Skill Preset' : undefined}
+            data-tutorial="skill-preset"
           >
             <Palette size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
@@ -146,6 +148,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
             }`}
             title={isCollapsed ? 'Your Skillsets' : undefined}
+            data-tutorial="your-skillsets"
           >
             <Package size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
@@ -206,6 +209,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
               }`}
               title={isCollapsed ? 'Skill Control' : undefined}
+              data-tutorial="skill-control"
             >
               <History size={18} className="flex-shrink-0" />
               <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>

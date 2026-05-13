@@ -46,6 +46,19 @@ function isPublicRoute(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const host = request.headers.get("host") || "";
+
+  // Permanent move from the old PromptPack domain to Skillset. Only the
+  // apex + www variants are redirected — api.pmtpk.com still serves the
+  // Cloudflare Worker that desktop app, popup extension, and MCP server
+  // hit, and admin.pmtpk.com is the Coolify dashboard. Both are
+  // intentionally left intact and never reach this middleware anyway
+  // (different origins / Next.js never sees them).
+  if (host === "pmtpk.com" || host === "www.pmtpk.com") {
+    const url = new URL(request.url);
+    const redirectUrl = `https://skillset.so${url.pathname}${url.search}`;
+    return addSecurityHeaders(NextResponse.redirect(redirectUrl, 301));
+  }
+
   if (host.startsWith("www.")) {
     const url = new URL(request.url);
     const protocol = url.protocol;

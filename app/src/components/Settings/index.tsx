@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, Code2, FolderOpen, Download } from 'lucide-react';
+import { getVersion } from '@tauri-apps/api/app';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
@@ -29,6 +30,11 @@ export function SettingsPage() {
     skipDownloadDialog, setSkipDownloadDialog,
   } = useSettingsStore();
   const { session } = useAuthStore();
+  const [appVersion, setAppVersion] = useState('');
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => setAppVersion(''));
+  }, []);
 
   // Fetch credit balance for managed mode display
   useEffect(() => {
@@ -619,7 +625,7 @@ export function SettingsPage() {
             About
           </h3>
           <p className="text-sm text-[var(--muted-foreground)]">
-            Skillset Desktop v0.1.0
+            Skillset Desktop{appVersion ? ` v${appVersion}` : ''}
           </p>
           <p className="text-sm text-[var(--muted-foreground)] mt-1">
             2025 Skillset. All rights reserved.
