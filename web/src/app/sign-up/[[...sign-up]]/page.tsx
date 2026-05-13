@@ -1,6 +1,16 @@
 import { SignUp } from "@/lib/auth-compat";
 
-export default function SignUpPage() {
+// Next 15: searchParams is async — must await before reading.
+// Supports `?callback=/path` for redirects originating from CTAs that
+// want to send the user somewhere specific post-auth.
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callback?: string }>;
+}) {
+  const params = await searchParams;
+  const callback = typeof params.callback === "string" ? params.callback : undefined;
+
   return (
     <div
       style={{
@@ -10,7 +20,7 @@ export default function SignUpPage() {
         minHeight: "60vh",
       }}
     >
-      <SignUp />
+      <SignUp callbackURL={callback} />
     </div>
   );
 }

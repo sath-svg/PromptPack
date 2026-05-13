@@ -259,7 +259,7 @@ function buildWelcomeEmailHtml(): string {
             <tr>
               <td align="center" style="padding:0 16px 24px;">
                 <p class="email-muted" style="margin:0;font-size:14px;color:${themeLight.muted};">
-                  <a href="https://skillset.so/dashboard" style="color:${themeLight.primary};text-decoration:underline;">Open Dashboard</a> · <a href="https://skillset.so/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
+                  <a href="https://skillset.so/downloads" style="color:${themeLight.primary};text-decoration:underline;">Download Skillset</a> · <a href="https://skillset.so/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
                 </p>
               </td>
             </tr>

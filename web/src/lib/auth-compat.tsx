@@ -156,7 +156,7 @@ export function SignIn({ callbackURL }: { callbackURL?: string } = {}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const redirectTo = callbackURL || "/dashboard";
+  const redirectTo = callbackURL || "/";
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,7 +264,7 @@ export function SignUp({ callbackURL }: { callbackURL?: string } = {}) {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const redirectTo = callbackURL || "/dashboard";
+  const redirectTo = callbackURL || "/";
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
