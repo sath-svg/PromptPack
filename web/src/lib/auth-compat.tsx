@@ -130,14 +130,16 @@ export function useClerk() {
 // ---- Components (replaces SignedIn, SignedOut, SignIn, SignUp, etc.) ----
 
 export function SignedIn({ children }: { children: ReactNode }) {
-  const { session, isPending } = useContext(AuthContext);
-  if (isPending || !session) return null;
+  const ctx = useContext(AuthContext);
+  console.log("[SignedIn] ctx:", { hasSession: !!ctx.session, isPending: ctx.isPending });
+  if (ctx.isPending || !ctx.session) return null;
   return <>{children}</>;
 }
 
 export function SignedOut({ children }: { children: ReactNode }) {
-  const { session, isPending } = useContext(AuthContext);
-  if (isPending || session) return null;
+  const ctx = useContext(AuthContext);
+  console.log("[SignedOut] ctx:", { hasSession: !!ctx.session, isPending: ctx.isPending });
+  if (ctx.isPending || ctx.session) return null;
   return <>{children}</>;
 }
 
