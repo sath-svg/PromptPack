@@ -15,6 +15,19 @@ export const auth = betterAuth({
     // return null on callback and BetterAuth bounces users to
     // /?error=please_restart_the_process.
     storeStateStrategy: "cookie",
+    accountLinking: {
+      enabled: true,
+      // Existing Clerk-migrated users have emailVerified=false (Clerk's flag
+      // didn't carry over), so BetterAuth's default
+      // requireLocalEmailVerified=true blocks linking a new Google account to
+      // their existing row and aborts sign-in with "account not linked".
+      // Trusting Google (which always returns email_verified=true for its own
+      // accounts) plus disabling the local check lets the migrated row absorb
+      // a fresh google `account` link on first social sign-in.
+      trustedProviders: ["google", "facebook"],
+      allowDifferentEmails: false,
+      requireLocalEmailVerified: false,
+    },
   },
   plugins: [
     dash(),
