@@ -41,12 +41,44 @@ const AuthContext = createContext<AuthSession>({
 // ---- Provider (replaces ClerkProvider) ----
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { data, isPending } = authClient.useSession();
+  // Skip authClient.useSession() — its nanostore-based atom never repopulated
+  // after the BetterAuth migration, so SignedIn/SignedOut always read null and
+  // the navbar stayed on "Sign in" even with a valid session_token cookie.
+  // A direct fetch of /api/auth/get-session works (verified server-side) and
+  // is what the rest of the app already shapes itself around.
+  const [data, setData] = useState<{ user: AuthSession["user"]; session: AuthSession["session"] } | null>(null);
+  const [isPending, setIsPending] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/get-session", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (cancelled) return;
+        if (json && json.user && json.session) {
+          setData({
+            user: { ...json.user, image: json.user.image ?? undefined },
+            session: { ...json.session, expiresAt: new Date(json.session.expiresAt) },
+          });
+        } else {
+          setData(null);
+        }
+        setIsPending(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setData(null);
+        setIsPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <AuthContext.Provider
       value={{
-        user: data?.user ? { ...data.user, image: data.user.image ?? undefined } : null,
+        user: data?.user ?? null,
         session: data?.session ?? null,
         isPending,
       }}
