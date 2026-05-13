@@ -4,6 +4,7 @@ import { ArrowRight, Boxes } from "lucide-react";
 import { SkillsetShell } from "@/components/skillset-shell";
 import { MacOSDownload } from "@/components/macos-download";
 import { WindowsDownload } from "@/components/windows-download";
+import { SignedOut } from "@/lib/auth-compat";
 
 const APP_VERSION = "1.1.0";
 
@@ -18,7 +19,9 @@ export default function DownloadsPage() {
     <SkillsetShell showHalo haloPosition="50% 0%">
       <DownloadsHero />
       <DesktopSection />
-      <DownloadsFooterCta />
+      <SignedOut>
+        <DownloadsFooterCta />
+      </SignedOut>
     </SkillsetShell>
   );
 }
