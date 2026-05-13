@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react';
+import { Send, Trash2, Package, X, Loader2, AlertCircle, Play, SkipForward, ExternalLink, Info, Sparkles, Settings as SettingsIcon, Brain, ThumbsUp, ThumbsDown, RefreshCw, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-shell';
 import { useChatStore } from '../../stores/chatStore';
 import { useSyncStore } from '../../stores/syncStore';
@@ -25,6 +25,7 @@ import { RunTracePanel } from './RunTrace/RunTracePanel';
 import { extractPackContext } from '../../lib/packExtractor';
 import { refreshCreditBalance } from '../../lib/creditSync';
 import { predictRouteWithConfidence } from '../../lib/classifierModel';
+import { detectWriteFileIntent } from '../../lib/agentTools';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -77,12 +78,12 @@ function OrchestratorPlaceholder() {
   }
 
   return (
-    <div className="flex items-start gap-3 py-0.5">
+    <div className="flex items-start gap-3 py-0.5 w-full">
       <Loader2
         size={14}
         className="animate-spin text-amber-500 mt-1 flex-shrink-0"
       />
-      <div className="space-y-1 min-w-0">
+      <div className="space-y-1.5 min-w-0 flex-1">
         {routeLabel && (
           <p className="text-[11px] font-mono text-amber-500/90">
             {routeLabel}
@@ -96,6 +97,9 @@ function OrchestratorPlaceholder() {
             ? 'Open the Run Trace panel for live model picks, reasoning effort, and per-step output.'
             : 'Open the Progress panel to see step-by-step status.'}
         </p>
+        {/* Rotating tips — keeps the empty bubble useful while Skill
+            Flow grinds through a multi-step pack. */}
+        <LoadingTips />
       </div>
     </div>
   );
@@ -106,6 +110,47 @@ const EFFORT_CHIP_COLORS: Record<'low' | 'medium' | 'high', string> = {
   medium: 'text-orange-500 bg-orange-500/10',
   high: 'text-red-500 bg-red-500/10',
 };
+
+/**
+ * Single tier node in the empty-state routing graph. Renders an icon
+ * disc + label + sublabel + model hint. `active` adds primary glow.
+ */
+interface TierNodeProps {
+  label: string;
+  sublabel: string;
+  color: 'emerald' | 'primary' | 'amber';
+  modelHint: string;
+  active?: boolean;
+}
+
+function TierNode({ label, sublabel, color, modelHint, active }: TierNodeProps) {
+  const ringColors: Record<TierNodeProps['color'], string> = {
+    emerald: 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30',
+    primary: 'bg-[var(--primary)]/15 text-[var(--primary)] ring-[var(--primary)]/40',
+    amber: 'bg-amber-500/15 text-amber-400 ring-amber-500/30',
+  };
+
+  return (
+    <div className="relative z-10 flex flex-col items-center gap-1 min-w-0">
+      <div
+        className={`w-8 h-8 rounded-full ring-1 ring-inset flex items-center justify-center bg-[var(--card)] ${
+          ringColors[color]
+        } ${active ? 'shadow-[0_0_18px_-4px_currentColor] animate-pulse' : ''}`}
+      >
+        <span className="text-[9px] font-bold uppercase tracking-tight" style={{ fontFamily: 'var(--font-mono)' }}>
+          {label.slice(0, 2)}
+        </span>
+      </div>
+      <div className="text-center">
+        <p className="text-[10px] font-medium text-[var(--foreground)] leading-tight">{label}</p>
+        <p className="text-[8px] text-[var(--muted-foreground)] uppercase tracking-[0.14em] leading-tight"
+          style={{ fontFamily: 'var(--font-mono)' }}>
+          {sublabel}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 const HEADER_STATUS_COLORS = {
   running: 'text-blue-500 bg-blue-500/10',
@@ -153,8 +198,13 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
   );
 }
 
+// Tweak this to scale the empty-state Skill Flow Router card (1 = default).
+// Uses CSS `zoom` so layout box shrinks too — kills scrollbar when card is
+// taller than the available chat area.
+const EMPTY_STATE_SCALE = 0.87;
+
 export function SkillChatPage() {
-  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, voteOnMessage } = useChatStore();
+  const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, setAgentMode, voteOnMessage } = useChatStore();
   const retryFromAssistant = useChatStore((s) => s.retryFromAssistant);
   const pendingRouteLabel = useChatStore((s) => s.pendingRouteLabel);
   const messageQueue = useChatStore((s) => s.messageQueue);
@@ -170,6 +220,14 @@ export function SkillChatPage() {
     developerMode,
   } = useSettingsStore();
   const isManagedActive = managedModeEnabled && Boolean(session);
+  // Skill Flow is now the master switch — keep agentMode in lockstep on
+  // mount + whenever the toggle flips externally (e.g. settings page).
+  // chatStore reads `settings.orchestratorEnabled` directly for routing,
+  // so this mirror is purely cosmetic (UI conditionals that still read
+  // agentMode). Safe to drop once those reads migrate to orchestrator.
+  useEffect(() => {
+    if (agentMode !== orchestratorEnabled) setAgentMode(orchestratorEnabled);
+  }, [orchestratorEnabled, agentMode, setAgentMode]);
   // Reactive subscription so the Trace button shows/hides as runs come and go.
   const currentRun = useRunStore((s) => s.run);
   const [showRunTrace, setShowRunTrace] = useState(false);
@@ -231,6 +289,15 @@ export function SkillChatPage() {
   // running it single-shot. Cleared when the user picks an action.
   const [skillflowGatePrompt, setSkillflowGatePrompt] = useState<string | null>(null);
 
+  // Pending-edit IDs that survived a Set Run with accepted === null.
+  // Populated in the runPack finally and rendered as an "N edits
+  // awaiting review" banner above the chat input so they aren't
+  // silently abandoned. Auto-accept (the default for Set Runs) keeps
+  // this empty in the common case; the banner only fires when the
+  // user opted into ask-mode mid-run or pdf_generate stages a
+  // fallback that wasn't auto-accepted.
+  const [sweepEditIds, setSweepEditIds] = useState<string[]>([]);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -267,22 +334,27 @@ export function SkillChatPage() {
     ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
   }, [input]);
 
-  // Pack progress mirror — the orchestrator drives execution; this
-  // effect just syncs `packProgress` to the live runStore subtask
-  // counts so the existing `Running 2/3` chip in the header keeps
-  // working without any orchestration changes.
+  // Pack progress mirror — sync only `current` from runStore subtask
+  // counts. `total` was set at startPackRun (= filled.length, i.e. the
+  // pack's full prompt count) and must NOT be overwritten — runStore's
+  // subtasks array grows incrementally as the orchestrator upserts each
+  // subtask, so using its length as total would render "1/2" / "2/3"
+  // mid-run for a 3-prompt pack. Pin total; let current rise.
   const runSubtasks = useRunStore((s) => s.subtasks);
   useEffect(() => {
     if (!isRunningPack) return;
     const done = runSubtasks.filter((s) => s.status === 'done').length;
-    const total = runSubtasks.length;
-    if (total > 0) setPackProgress({ current: done, total });
+    setPackProgress((prev) => ({ current: done, total: prev.total }));
   }, [isRunningPack, runSubtasks]);
 
-  const allPacks = [
-    ...cloudPacks.map((p) => ({ ...p, type: 'cloud' as const, title: p.source })),
-    ...userPacks.map((p) => ({ ...p, type: 'user' as const })),
-  ];
+  // Pack picker shows ONLY user-authored packs. `cloudPacks` ("saved-from-X"
+  // buckets the extension fills with prompts the user captured while using
+  // ChatGPT / Claude / Gemini / etc.) are flat prompt dumps, not curated
+  // skill workflows — running them as Set Runs produces gibberish because
+  // each "prompt" was just a single captured chat message. They remain
+  // available elsewhere (Saved Packs view, Cloud Prompts view) but are
+  // hidden from the Skill Chat picker + .skillset/ sync.
+  const allPacks = userPacks.map((p) => ({ ...p, type: 'user' as const }));
 
   const selectedPack = allPacks.find((p) => p.id === selectedPackId);
 
@@ -373,6 +445,15 @@ export function SkillChatPage() {
     ).finally(() => {
       setIsRunningPack(false);
       setPackProgress({ current: 0, total: 0 });
+      // End-of-run pending-edits sweep. If any staged edits survived the
+      // run with accepted === null (user manually disabled auto-accept,
+      // a tool errored mid-flow, etc.), surface them as an Accept-all /
+      // Reject-all banner instead of leaving them in the void.
+      const pending = useAgentStore.getState().pendingEdits;
+      const unresolved = Object.values(pending)
+        .filter((e) => e.accepted === null)
+        .map((e) => e.id);
+      setSweepEditIds(unresolved);
     });
   };
 
@@ -418,11 +499,12 @@ export function SkillChatPage() {
     const text = input.trim();
     if (!text) return;
 
-    // SkillFlow gate. The LR route head sees this prompt as a
-    // multi-step `workflow` but the user has SkillFlow disabled. Pause
-    // here, surface a modal asking them to enable it (or run single-
-    // shot anyway). Pack runs and active in-flight queues bypass the
-    // gate — those have explicit user intent already.
+    // SkillFlow gate. The LR route head OR write-intent detector flags
+    // a prompt that needs agent/orchestrator capabilities but the user
+    // has SkillFlow disabled. Pause here, surface a modal asking them
+    // to enable it (or run single-shot anyway). Pack runs and active
+    // in-flight queues bypass the gate — those have explicit user
+    // intent already.
     const packPromptsExist = getPackPrompts().length > 0;
     const settings = useSettingsStore.getState();
     if (
@@ -433,11 +515,22 @@ export function SkillChatPage() {
       !orchestratorEnabled
     ) {
       const lr = predictRouteWithConfidence(text);
+      const writeIntent = detectWriteFileIntent(text);
+      const workspaceMounted = Boolean(useAgentStore.getState().workspace);
       // Match chatStore's WORKFLOW_CONFIDENCE_FLOOR — if we wouldn't
       // auto-route to SkillFlow even with the toggle on, don't bug
       // the user about turning it on either. Saves the modal from
       // firing on borderline predictions like comparison prompts.
-      if (lr.route === 'workflow' && lr.confidence >= 0.7) {
+      const needsWorkflow = lr.route === 'workflow' && lr.confidence >= 0.7;
+      // Agent route → single-agent tool loop. Workspace must be mounted
+      // for the model to actually act on something; without it the
+      // tools can't bind to a target dir and the gate is pointless.
+      const needsAgent = lr.route === 'agent' && workspaceMounted;
+      // Explicit "save as report.pdf" / "write to workspace" — same as
+      // chatStore's tier-bump trigger. Always force the gate so the
+      // user can opt into tools.
+      const needsTools = writeIntent !== null && workspaceMounted;
+      if (needsWorkflow || needsAgent || needsTools) {
         setSkillflowGatePrompt(text);
         return;
       }
@@ -578,7 +671,7 @@ export function SkillChatPage() {
           ) : (
             <div />
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1.5">
             {isManagedActive && (
               <>
                 {/* Change model → routes to Settings page where the
@@ -592,6 +685,22 @@ export function SkillChatPage() {
                   <SettingsIcon size={12} />
                   Change model
                 </button>
+                {/* Credit info tooltip → explains SkillFlow loan system */}
+                <div className="relative group">
+                  <button
+                    type="button"
+                    className="flex items-center justify-center w-7 h-7 rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors cursor-help"
+                    aria-label="Credit info"
+                  >
+                    <Info size={12} />
+                  </button>
+                  <div className="absolute left-0 top-full mt-2 w-72 p-3 rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-lg text-xs text-[var(--foreground)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                    <p className="font-semibold mb-1.5 text-[var(--foreground)]">Notice your credits falling fast?</p>
+                    <p className="text-[var(--muted-foreground)] leading-relaxed">
+                      For Skill Flow, we take a loan to send to the agents. Any unused credits will be returned.
+                    </p>
+                  </div>
+                </div>
                 {/* Balance pill → opens dashboard top-up */}
                 <button
                   type="button"
@@ -629,24 +738,43 @@ export function SkillChatPage() {
               </>
             )}
             {isRunningPack && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  Running {packProgress.current}/{packProgress.total}
+              // Single compact pill while a Set Run is in flight. The old
+              // layout exposed three separate chips ("Running N/M", a
+              // redundant "Skill Flow" badge, and a "Cancel" button) that
+              // overflowed the header into the pack sidebar at three-column
+              // widths. Collapsed into one amber pill with the Cancel as a
+              // trailing icon; tooltip carries the Skill Flow context.
+              <div
+                className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                title="Set runs always use Skill Flow — pack prompts are the predefined chain with shared memory between steps."
+              >
+                <Brain size={11} />
+                <span style={{ fontFamily: 'var(--font-mono)' }}>
+                  {packProgress.current}/{packProgress.total}
                 </span>
                 <button
                   onClick={cancelPackRun}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-red-500 hover:bg-red-500/10 transition-colors"
+                  className="flex items-center justify-center w-4 h-4 rounded-full text-red-500 hover:bg-red-500/15 transition-colors"
+                  title="Cancel Set Run"
+                  aria-label="Cancel Set Run"
                 >
-                  <X size={12} /> Cancel
+                  <X size={11} />
                 </button>
               </div>
             )}
-            {isManagedActive && (
+            {/* Skill Flow toggle is meaningless while a pack run is active
+                — packs always use Skill Flow regardless of the toggle.
+                Suppress it to recover header width for the trace toggle. */}
+            {isManagedActive && !isRunningPack && (
               <button
                 type="button"
                 onClick={() => {
                   const next = !orchestratorEnabled;
                   setOrchestratorEnabled(next);
+                  // Skill Flow now drives agent capabilities too. Mirror
+                  // the toggle into agentMode so workspace prompts get
+                  // tools when Skill Flow is on, single-shot when off.
+                  setAgentMode(next);
                   if (!next) setShowRunTrace(false);
                 }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors ${
@@ -655,30 +783,43 @@ export function SkillChatPage() {
                     : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)]'
                 }`}
                 title={
-                  'SkillFlow: when on, multi-step prompts auto-engage a planner that ' +
+                  'Skill Flow: when on, multi-step CHAT messages auto-engage a planner that ' +
                   'decomposes your goal into subtasks and routes each to a different ' +
                   'managed model. Trivial / single-task prompts always go single-shot ' +
-                  'regardless. Turn off to force every message through single-shot.'
+                  'regardless. Turn off to force every typed message through single-shot.\n\n' +
+                  'Note: "Run Set" on a saved pack ALWAYS uses Skill Flow ' +
+                  '(pack prompts are the predefined chain — shared memory across steps). ' +
+                  'This toggle does not affect pack runs.'
                 }
               >
                 <Brain size={14} />
-                SkillFlow {orchestratorEnabled ? 'on' : 'off'}
+                Skill Flow
               </button>
             )}
             {orchestratorEnabled && (currentRun || showRunTrace) && (
               <button
                 type="button"
                 onClick={() => setShowRunTrace((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)] transition-colors"
                 title={
                   developerMode
                     ? showRunTrace ? 'Hide Run Trace' : 'Show Run Trace'
                     : showRunTrace ? 'Hide Progress' : 'Show Progress'
                 }
+                aria-label={
+                  developerMode
+                    ? showRunTrace ? 'Hide Run Trace' : 'Show Run Trace'
+                    : showRunTrace ? 'Hide Progress' : 'Show Progress'
+                }
               >
-                {developerMode
-                  ? showRunTrace ? 'Hide trace' : 'Show trace'
-                  : showRunTrace ? 'Hide progress' : 'Show progress'}
+                {showRunTrace ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+                {/* Label hides at narrow widths (three-column layout) so
+                    the icon alone communicates the action. */}
+                <span className="hidden xl:inline">
+                  {developerMode
+                    ? showRunTrace ? 'Hide trace' : 'Show trace'
+                    : showRunTrace ? 'Hide progress' : 'Show progress'}
+                </span>
               </button>
             )}
             {messages.length > 0 && !isRunningPack && (
@@ -700,57 +841,124 @@ export function SkillChatPage() {
             topmost bubble — visible whenever the first prompt of a
             session sits alone (e.g. a sign-in error blocks the
             assistant reply). */}
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-10 min-h-0">
+        <div className={`flex-1 space-y-4 pr-1 min-h-0 ${messages.length === 0 ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-10'}`}>
           {messages.length === 0 && !packVarForm && !variablePrompt && (
             <div className="flex h-full items-center justify-center py-12">
-              <div className="relative w-full max-w-[520px]">
+              <div
+                className="relative w-full max-w-[520px]"
+                style={{ zoom: EMPTY_STATE_SCALE }}
+              >
                 <div
                   aria-hidden
                   className="pointer-events-none absolute -inset-6 rounded-3xl border border-[var(--border)]"
                 />
                 <div
-                  className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)]"
+                  className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden"
                   style={{
                     boxShadow:
                       '0 30px 80px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04)',
                   }}
                 >
-                  <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+                  {/* Header strip — minimal status bar */}
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Brain size={13} className="text-[var(--primary)]" />
+                      <span
+                        className="text-[10px] uppercase tracking-[0.18em] text-[var(--foreground)] font-medium"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        Skill Router
+                      </span>
+                    </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-                    </div>
-                    <span
-                      className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      ~/skillset
-                    </span>
-                    <span className="text-[10px] text-[var(--muted-foreground)]">ready</span>
-                  </div>
-                  <div
-                    className="space-y-3 p-6 text-[13px] leading-[1.7]"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    <div className="flex gap-3">
-                      <span className="text-[#2563EB]">$</span>
-                      <span className="text-[var(--foreground)]">
-                        new <span className="text-[#7BA7FF]">conversation</span>
-                      </span>
-                    </div>
-                    <div className="text-[var(--muted-foreground)]">
-                      ↳ type a message, pick a pack, or run all prompts in sequence
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="text-[#2563EB]">$</span>
-                      <span className="text-[var(--foreground)]">
-                        router <span className="text-[#7BA7FF]">--auto</span>
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-400/90">
                       <span className="status-ping" />
-                      <span>routing live · waiting for input</span>
+                      <span
+                        className="text-[10px] uppercase tracking-[0.14em] text-emerald-400/90"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        Live
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Routing graph — 3 tier nodes with flowing dots */}
+                  <div className="px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 relative max-w-[360px] mx-auto">
+                      {/* Animated dot trail along the connecting line.
+                          Bar inset on both sides so it floats between Fast
+                          and stops before Frontier — feels less crowded.
+                          Dot's `left` keyframe traverses this narrower span. */}
+                      <div className="absolute top-[58%] left-[15%] right-[28%] -translate-y-1/2 h-px overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
+                        <div
+                          className="absolute inset-y-0 w-8 bg-gradient-to-r from-transparent via-[var(--primary)] to-transparent animate-[routerDot_3s_linear_infinite]"
+                        />
+                      </div>
+
+                      <TierNode
+                        label="Fast"
+                        sublabel="lookups"
+                        color="emerald"
+                        modelHint="Haiku · Llama"
+                      />
+                      <TierNode
+                        label="Mid"
+                        sublabel="reasoning"
+                        color="primary"
+                        active
+                        modelHint="Sonnet · GPT-5"
+                      />
+                      <TierNode
+                        label="Frontier"
+                        sublabel="hard tasks"
+                        color="amber"
+                        modelHint="Opus · GPT-5 Pro"
+                      />
+                    </div>
+
+                    {/* Status line */}
+                    <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-center text-[10px]">
+                      <span
+                        className="uppercase tracking-[0.14em] text-[var(--muted-foreground)]"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        waiting for input
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Helpful prompts row */}
+                  <div className="border-t border-[var(--border)] px-6 py-3.5">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-2.5 font-medium"
+                      style={{ fontFamily: 'var(--font-mono)' }}>
+                      Try
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Summarize this PDF',
+                        'Build a landing page',
+                        'Run my saved pack',
+                        'Refactor src/utils.ts',
+                      ].map((tip) => (
+                        <button
+                          key={tip}
+                          type="button"
+                          onClick={() => {
+                            setInput(tip);
+                            // Focus textarea + place cursor at end so user can edit
+                            requestAnimationFrame(() => {
+                              const ta = textareaRef.current;
+                              if (ta) {
+                                ta.focus();
+                                ta.setSelectionRange(tip.length, tip.length);
+                              }
+                            });
+                          }}
+                          className="px-2 py-1 rounded-md text-[11px] text-[var(--muted-foreground)] bg-[var(--background)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] hover:bg-[var(--primary)]/5 transition-colors cursor-pointer"
+                        >
+                          {tip}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -992,7 +1200,7 @@ export function SkillChatPage() {
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500"
                             title={
-                              'SkillFlow is on, but Skillset auto-routed this turn to a single-shot ' +
+                              'Skill Flow is on, but Skillset auto-routed this turn to a single-shot ' +
                               'call to save credits. The orchestrator only engages when the route ' +
                               'classifier reports a multi-step workflow with high confidence ' +
                               '(≥ 70%). Single-shot Sonnet/Haiku handles compare / explain / ' +
@@ -1147,7 +1355,7 @@ export function SkillChatPage() {
           <div className="mt-4 border border-[var(--primary)]/40 rounded-xl bg-[var(--card)] p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-[var(--foreground)]">Fill variables to run pack</p>
+                <p className="text-sm font-semibold text-[var(--foreground)]">Fill variables to run set</p>
                 <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                   {packVarForm.prompts.length} prompts will run in sequence
                 </p>
@@ -1340,6 +1548,37 @@ export function SkillChatPage() {
                 </div>
               )}
               {workspace && agentMode && <AttachmentBar />}
+              {sweepEditIds.length > 0 && (
+                <div className="mb-2 flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs">
+                  <span className="text-amber-600 dark:text-amber-400">
+                    {sweepEditIds.length} edit{sweepEditIds.length === 1 ? '' : 's'} awaiting review from the last Set Run.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        const ids = [...sweepEditIds];
+                        const store = useAgentStore.getState();
+                        void Promise.all(ids.map((id) => store.acceptEdit(id)))
+                          .finally(() => setSweepEditIds([]));
+                      }}
+                      className="px-2 py-1 rounded-md bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                    >
+                      Accept all
+                    </button>
+                    <button
+                      onClick={() => {
+                        const ids = [...sweepEditIds];
+                        const store = useAgentStore.getState();
+                        void Promise.all(ids.map((id) => store.rejectEdit(id)))
+                          .finally(() => setSweepEditIds([]));
+                      }}
+                      className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/40 text-red-700 dark:text-red-400 hover:bg-red-500/30 transition-colors"
+                    >
+                      Reject all
+                    </button>
+                  </div>
+                </div>
+              )}
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -1395,16 +1634,17 @@ export function SkillChatPage() {
       {/* Pack prompts sidebar */}
       {selectedPack && packPrompts.length > 0 && (
         <div className="w-64 flex-shrink-0 flex flex-col gap-2">
-          {/* Run Pack button */}
+          {/* Run Set button — always uses Skill Flow (sequential w/ shared memory) */}
           <button
             onClick={handleRunPack}
             disabled={isLoading || isRunningPack}
+            title="Runs all prompts sequentially. Each step inherits prior outputs (Skill Flow) — applies even when the chat-level Skill Flow toggle is off."
             className="group flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] text-[13px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] hover:bg-[#1d4ed8] disabled:opacity-40 transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] active:translate-y-[1px]"
           >
             {isRunningPack ? (
               <><Loader2 size={14} className="animate-spin" /> Running {packProgress.current}/{packProgress.total}</>
             ) : (
-              <><Play size={14} /> Run Pack ({packPrompts.length} prompts)</>
+              <><Play size={14} /> Run Set ({packPrompts.length} prompts)</>
             )}
           </button>
 
@@ -1452,19 +1692,18 @@ export function SkillChatPage() {
         onClose={() => setShowWhyOneChat(false)}
       >
         <p className="mb-2">
-          One chat. Every model. <span className="text-[var(--foreground)]">Skill Chat</span> auto-routes
-          each message to the cheapest capable model — fast 8B for short questions, balanced for chat,
-          frontier models for heavy work.
+          One chat, every model. <span className="text-[var(--foreground)]">Skill Chat</span> picks
+          the cheapest model that can actually answer — fast tier for lookups, mid tier for normal
+          back-and-forth, frontier when the question is hard.
         </p>
         <p className="mb-2">
-          You don't need a dozen separate conversations. Save your tokens, save your money. Past
-          context is truncated automatically so old turns don't snowball costs.
+          No more tab-juggling between providers. Old turns roll out of context automatically, so a
+          long thread doesn't get more expensive every reply.
         </p>
         <p className="mb-2">
-          Repeating yourself? Hit the bookmark icon on any message and{' '}
-          <span className="text-[var(--foreground)]">save it as a Skill</span>. Skills replay
-          instantly with new variables — your workflow becomes a one-click prompt instead of a
-          conversation you have to remember.
+          Catch yourself retyping a prompt? Bookmark it and{' '}
+          <span className="text-[var(--foreground)]">save it as a Skill</span>. Skills run with one
+          click and accept variables, so the workflow lives outside the chat — not buried in it.
         </p>
       </InfoModal>
 
@@ -1493,7 +1732,7 @@ export function SkillChatPage() {
               </h3>
             </div>
             <p className="text-sm text-[var(--muted-foreground)] leading-relaxed">
-              SkillFlow can break this prompt into subtasks, run independent
+              Skill Flow can break this prompt into subtasks, run independent
               ones in parallel, and route each to the right model. It's off
               right now — turn it on, or run as a single-shot anyway.
             </p>
@@ -1508,6 +1747,7 @@ export function SkillChatPage() {
                   const text = skillflowGatePrompt;
                   if (!text) return;
                   setOrchestratorEnabled(true);
+                  setAgentMode(true);
                   setShowRunTrace(true);
                   setSkillflowGatePrompt(null);
                   setInput('');
@@ -1521,7 +1761,7 @@ export function SkillChatPage() {
                 className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-amber-500/15 text-amber-500 text-sm hover:bg-amber-500/25 transition-colors"
               >
                 <Brain size={13} />
-                Turn on SkillFlow & run
+                Turn on Skill Flow & run
               </button>
               <button
                 onClick={() => {

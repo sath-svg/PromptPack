@@ -13,13 +13,86 @@
 import { tauriFetch } from '../tauriFetch';
 import { managedProxyReasoning } from '../reasoningParams';
 import { syncCreditsFromHeaders } from '../creditSync';
+import { friendlyApiError, safeParseErrorBody } from '../apiErrors';
 import { buildSubtaskPrompt, recordSubtaskDone, recordSubtaskFailed, recordSubtaskStart } from './memory';
 import { decide, type RouterDecision } from './router';
 import { evaluateConfidence } from './confidence';
 import type { PlannerOutput, PlannerSubtask, TaskState } from './types';
 import type { ManagedTier } from '../managed-models';
+import type { ModelTier } from '../classifier';
+import { useAgentStore } from '../../stores/agentStore';
 
-const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
+const DEP_EDIT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * Block the calling subtask until every PendingEdit produced by its
+ * declared dependencies has either been accepted or rejected. Keyed
+ * by `sourceSubtaskId` so independent subtasks (no `depends_on`) never
+ * wait — DAG fan-out is preserved.
+ *
+ * Event-driven via Zustand `subscribe` (not a polling sleep) so the
+ * barrier releases on the same tick the user clicks Accept/Reject in
+ * the DiffPanel. A long timeout guards against UI hangs — proceed
+ * anyway after 5 minutes rather than wedge the run forever.
+ *
+ * With auto-accept ON for Set Runs (the default — see
+ * chatStore.runOrchestratorMessage), this barrier almost never blocks:
+ * edits flip to `accepted = true` synchronously during dispatch. The
+ * barrier matters for the user who manually disabled auto-accept
+ * mid-run, or for any future tool variant that stages without an
+ * eager `acceptEdit` call.
+ */
+async function waitForDepEditsResolved(
+  depSubtaskIds: string[],
+  signal?: AbortSignal,
+): Promise<void> {
+  if (depSubtaskIds.length === 0) return;
+  const isResolved = (): boolean => {
+    const edits = useAgentStore.getState().pendingEdits;
+    return Object.values(edits)
+      .filter(
+        (e) => e.sourceSubtaskId && depSubtaskIds.includes(e.sourceSubtaskId),
+      )
+      .every((e) => e.accepted !== null);
+  };
+  if (isResolved()) return;
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      settled = true;
+      clearTimeout(timer);
+      unsub();
+      signal?.removeEventListener('abort', onAbort);
+    };
+    const onAbort = () => {
+      if (settled) return;
+      cleanup();
+      reject(new DOMException('aborted', 'AbortError'));
+    };
+    if (signal?.aborted) {
+      reject(new DOMException('aborted', 'AbortError'));
+      return;
+    }
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      cleanup();
+      console.warn(
+        '[executor] dep-edit barrier timed out after 5 min; proceeding with possibly-stale state',
+      );
+      resolve();
+    }, DEP_EDIT_WAIT_TIMEOUT_MS);
+    const unsub = useAgentStore.subscribe((s, prev) => {
+      if (s.pendingEdits === prev.pendingEdits) return;
+      if (!isResolved()) return;
+      if (settled) return;
+      cleanup();
+      resolve();
+    });
+  });
+}
+
+const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
 
 export interface SubtaskRunInput {
   subtask: PlannerSubtask;
@@ -47,6 +120,13 @@ export interface ExecutorDeps {
   jwt: string;
   selections: Record<ManagedTier, string>;
   signal?: AbortSignal;
+  /**
+   * Hard ceiling on the routed tier for every subtask in this run.
+   * Forwarded to `router.decide()`. Set Runs (predefinedPlan) use
+   * `balanced` to prevent the LR classifier from escalating curated
+   * pack prompts to frontier-tier models in multi-round tool loops.
+   */
+  tierCap?: ModelTier;
   /**
    * Override the per-subtask call. When omitted, executor falls back to
    * the managed proxy. chatStore's `runOrchestratorMessage` injects a
@@ -88,11 +168,49 @@ export interface ExecutorDeps {
 }
 
 /**
+ * Max parallel SkillFlow flows per orchestrator run. Caps fan-out so a
+ * 20-subtask plan doesn't slam OpenRouter with 20 simultaneous calls
+ * (which spikes the worker bill, the user's credit balance, and provider
+ * rate limits all at once). Linear plans are unaffected — they
+ * naturally serialise via `depends_on`.
+ */
+const SKILLFLOW_FLOW_CAP = 5;
+
+/**
+ * Lightweight async semaphore. Acquire blocks if `slots` is exhausted;
+ * `release` either hands the slot to the next waiter or returns it to
+ * the pool. Used to cap concurrent runOne() executions per SkillFlow run.
+ */
+class FlowSemaphore {
+  private slots: number;
+  private waiters: Array<() => void> = [];
+  constructor(cap: number) {
+    this.slots = cap;
+  }
+  async acquire(): Promise<void> {
+    if (this.slots > 0) {
+      this.slots--;
+      return;
+    }
+    return new Promise<void>((resolve) => this.waiters.push(resolve));
+  }
+  release(): void {
+    const next = this.waiters.shift();
+    if (next) {
+      // Hand slot directly to waiter — keeps slots count consistent
+      next();
+    } else {
+      this.slots++;
+    }
+  }
+}
+
+/**
  * DAG-parallel subtask execution. Each subtask is wrapped in a promise
  * that awaits its declared dependencies before running. Independent
- * subtasks fire concurrently. Linear plans (pack runs with chained
- * `depends_on: ['t<i-1>']`) naturally sequence themselves because each
- * promise blocks on the previous.
+ * subtasks fire concurrently up to SKILLFLOW_FLOW_CAP at a time.
+ * Linear plans (pack runs with chained `depends_on: ['t<i-1>']`)
+ * naturally sequence themselves because each promise blocks on the previous.
  *
  * Failure mode: when a subtask throws, dependents detect the failed
  * status on their dep and mark themselves "skipped: dependency failed"
@@ -105,6 +223,7 @@ export async function execute(
   deps: ExecutorDeps,
 ): Promise<void> {
   const promises = new Map<string, Promise<void>>();
+  const flowSemaphore = new FlowSemaphore(SKILLFLOW_FLOW_CAP);
 
   for (const subtask of plan.subtasks) {
     promises.set(
@@ -125,6 +244,16 @@ export async function execute(
 
         if (deps.signal?.aborted) {
           throw new DOMException('aborted', 'AbortError');
+        }
+
+        // Wait for any pending edits produced by declared deps to be
+        // accepted or rejected. Auto-accept (Set Run default) makes this
+        // a synchronous no-op; ask mode would otherwise let this subtask
+        // read pre-accept file content and produce hallucinated work on
+        // top of stale state. Independent subtasks (`depends_on: []`)
+        // skip the wait entirely so DAG fan-out is preserved.
+        if (subtask.depends_on.length > 0) {
+          await waitForDepEditsResolved(subtask.depends_on, deps.signal);
         }
 
         // Phase 5 — resume support. If the prior run already completed
@@ -155,7 +284,17 @@ export async function execute(
           throw new Error(`skipped: dependency failed`);
         }
 
-        let decision = decide(subtask, { selections: deps.selections });
+        let decision = decide(subtask, {
+          selections: deps.selections,
+          tierCap: deps.tierCap,
+        });
+
+        // SkillFlow flow cap — block until an open flow slot is free.
+        // Holding the "started" UX signal until we actually have the
+        // slot keeps the run trace honest (no "started" subtasks
+        // sitting idle waiting their turn).
+        await flowSemaphore.acquire();
+        try {
         recordSubtaskStart(state, subtask.id, subtask);
         await deps.onSubtaskStart?.(subtask.id, decision);
 
@@ -206,6 +345,9 @@ export async function execute(
           deps.runAbort?.(msg);
           throw err;
         }
+        } finally {
+          flowSemaphore.release();
+        }
       })(),
     );
   }
@@ -254,6 +396,9 @@ async function runOne(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${deps.jwt}`,
+      // Orchestrator subtasks fan out in parallel — exempt from /api/llm/chat
+      // per-user concurrent cap that gates direct user chat.
+      'X-From-Orchestrator': 'true',
     },
     body: JSON.stringify({
       model: decision.managed.id,
@@ -263,16 +408,9 @@ async function runOne(
     signal: deps.signal,
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      throw new Error(
-        'session expired — sign in again to continue the workflow',
-      );
-    }
-    if (res.status === 402) {
-      throw new Error('insufficient credits — top up to continue');
-    }
-    throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
+    const err = await safeParseErrorBody(res);
+    console.error('[skillflow-executor]', res.status, err);
+    throw new Error(friendlyApiError(res.status, err, 'subtask'));
   }
   syncCreditsFromHeaders(res);
   const data = (await res.json()) as {

@@ -16,7 +16,7 @@
 import { tauriFetch } from '../tauriFetch';
 import type { PlannerOutput, TaskState } from './types';
 
-const SERVER_OPENAI_COMPAT_URL = 'https://api.pmtpk.com/v1/chat/completions';
+const SERVER_OPENAI_COMPAT_URL = 'https://api.skillset.so/v1/chat/completions';
 const SERVER_SYNTH_MODEL = 'llama-3.1-8b-instant';
 
 export async function merge(

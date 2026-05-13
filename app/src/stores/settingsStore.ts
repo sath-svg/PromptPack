@@ -80,9 +80,14 @@ interface SettingsState extends AppSettings {
   /** Running totals — see TokenUsageTotals doc. */
   tokenUsage: TokenUsageTotals;
 
+  // Default download folder for skillset/image exports.
+  // When set + skipDownloadDialog=true, downloads skip the folder picker
+  // and write directly to this path. Empty string = always show picker.
+  defaultDownloadFolder: string;
+  skipDownloadDialog: boolean;
+
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
-  setGlobalHotkey: (hotkey: string) => void;
   setStorageLocation: (path: string) => void;
   setSyncEnabled: (enabled: boolean) => void;
   setSession: (session: UserSession | null) => void;
@@ -104,6 +109,8 @@ interface SettingsState extends AppSettings {
   /** Add a single managed-proxy call's token usage to the running totals. */
   recordTokenUsage: (delta: { input?: number; output?: number; reasoning?: number; total?: number }) => void;
   resetTokenUsage: () => void;
+  setDefaultDownloadFolder: (path: string) => void;
+  setSkipDownloadDialog: (skip: boolean) => void;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
@@ -128,7 +135,6 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       // Default settings
       theme: 'system',
-      globalHotkey: 'CommandOrControl+Shift+P',
       storageLocation: '',
       syncEnabled: false,
       session: null,
@@ -151,12 +157,13 @@ export const useSettingsStore = create<SettingsState>()(
       selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
       tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
+      defaultDownloadFolder: '',
+      skipDownloadDialog: false,
 
       setTheme: (theme) => {
         applyTheme(theme);
         set({ theme });
       },
-      setGlobalHotkey: (hotkey) => set({ globalHotkey: hotkey }),
       setStorageLocation: (path) => set({ storageLocation: path }),
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
       setApiKey: (provider, key) =>
@@ -207,6 +214,8 @@ export const useSettingsStore = create<SettingsState>()(
       resetTokenUsage: () => set({
         tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
       }),
+      setDefaultDownloadFolder: (path) => set({ defaultDownloadFolder: path }),
+      setSkipDownloadDialog: (skip) => set({ skipDownloadDialog: skip }),
       logout: () =>
         set({
           session: null,

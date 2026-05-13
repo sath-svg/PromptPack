@@ -10,6 +10,11 @@ export default defineSchema({
     name: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
+    // Plan variant — distinguishes legacy $9 Pro subscribers from new $15 Pro.
+    // Undefined = full-price tier (default for all non-legacy users).
+    // "legacy_pro" = grandfathered $9 Pro: reduced credit allowance, eligible
+    // for one-time upgrade flow to the new $15 Pro variant.
+    planVariant: v.optional(v.union(v.literal("pro"), v.literal("legacy_pro"))),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     createdAt: v.number(),
@@ -27,6 +32,13 @@ export default defineSchema({
     monthlyCreditsResetAt: v.optional(v.number()),
     lastStripeInvoiceId: v.optional(v.string()),
     managedModeEnabled: v.optional(v.boolean()),
+    // Per-day burn cap for free users on signup-grant pool.
+    // Bucket = "YYYY-MM-DD" UTC. Resets when bucket flips.
+    dailyBurnBucket: v.optional(v.string()),
+    dailyBurnCredits: v.optional(v.number()),
+    // Settlement-shortfall counter — flags repeat over-burn accounts.
+    shortfallCount: v.optional(v.number()),
+    lastShortfallAt: v.optional(v.number()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_better_auth_id", ["betterAuthId"])
@@ -87,6 +99,86 @@ export default defineSchema({
     .index("by_author", ["authorId"])
     .index("by_public", ["isPublic"])
     .index("by_category", ["category", "isPublic"]),
+
+  // User-created skillsets (metadata only - files stored in R2)
+  userSkillsets: defineTable({
+    authorId: v.id("users"),
+    title: v.string(),
+    description: v.optional(v.string()),
+    icon: v.optional(v.string()), // Emoji icon (e.g., "🎨", "🖌️")
+    // Reference images for the skillset
+    referenceImages: v.optional(v.array(v.object({
+      id: v.string(),
+      url: v.string(), // R2 path or base64 data URL
+      uploadedAt: v.number(),
+    }))),
+    // Extracted style characteristics (from Claude Vision analysis v2 — research-backed framework)
+    // Replaces flat fields with rich structured data: line work, palette w/ hex codes,
+    // shading technique, texture, composition, signature elements (the keys to mimicry).
+    styleCharacteristics: v.optional(v.object({
+      lineWork: v.object({
+        thickness: v.string(),       // "1-2pt clean uniform"
+        edges: v.string(),
+        consistency: v.string(),
+      }),
+      colorPalette: v.object({
+        hexCodes: v.array(v.string()), // ["#FFB6C1", "#E6E6FA", ...]
+        count: v.number(),
+        temperature: v.string(),
+        dominant: v.string(),
+        accents: v.array(v.string()),
+      }),
+      shading: v.object({
+        technique: v.string(),
+        lightDirection: v.string(),
+        intensity: v.string(),
+      }),
+      texture: v.object({
+        medium: v.string(),
+        scale: v.string(),
+        density: v.string(),
+      }),
+      composition: v.object({
+        framing: v.string(),
+        perspective: v.string(),
+      }),
+      signatureElements: v.array(v.string()), // unique recurring quirks
+      fullStyleDescription: v.string(),
+      extractedAt: v.number(),
+    })),
+    // Skillset = SET of style-locked prompts for different gen surfaces.
+    // Each has {subject} placeholder + own negative prompt.
+    // Default 5 from Claude analysis (image/video/character/setting/mood)
+    // + any custom prompts artist adds.
+    prompts: v.optional(v.array(v.object({
+      id: v.string(),         // "image" | "video" | "character" | "setting" | "mood" | custom-{n}
+      label: v.string(),
+      purpose: v.string(),
+      icon: v.string(),       // emoji
+      template: v.string(),   // "{subject}, drawn in chibi style with..."
+      negativePrompt: v.string(),
+    }))),
+    // Preview generations (3 images per batch)
+    previewGenerations: v.optional(v.array(v.object({
+      id: v.string(),
+      imageUrls: v.array(v.string()), // 3 base64 URLs
+      generatedAt: v.number(),
+      prompt: v.optional(v.string()),
+      satisfied: v.boolean(),
+    }))),
+    // Artist verified ownership
+    isVerified: v.boolean(),
+    // R2 object key where the final .skill file is stored
+    r2Key: v.optional(v.string()),
+    // Public marketplace settings
+    price: v.number(), // Cents, 0 = free
+    isPublic: v.boolean(),
+    downloads: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_author", ["authorId"])
+    .index("by_public", ["isPublic"]),
 
   // PromptControl: version snapshots for user packs (up to 10 per pack)
   packVersions: defineTable({
@@ -155,22 +247,71 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_user_source", ["userId", "source"]),
 
-  // Prompt evaluation scores (Pro/Studio only feature)
+  // Prompt evaluation scores (Pro/Studio only feature) — v2 tier-based shape.
+  // Deploy note: before `npx convex deploy`, run `evaluations:wipeAll` (or
+  // truncate via dashboard) so the schema validator does not reject v1
+  // rows from the previous 7-brand format.
   promptEvaluations: defineTable({
-    userId: v.string(), // Clerk ID of the user
+    userId: v.string(), // Auth provider ID of the user
     promptHash: v.string(), // SHA-256 hash of prompt text
-    overallScore: v.number(), // 0-100 average of all LLM scores
-    scores: v.object({
-      chatgpt: v.number(),
-      claude: v.number(),
-      gemini: v.number(),
-      perplexity: v.number(),
-      grok: v.number(),
-      deepseek: v.number(),
-      kimi: v.number(),
+    schemaVersion: v.literal(2),
+    tiers: v.object({
+      cheap: v.object({
+        tier: v.literal("cheap"),
+        score: v.number(),
+        selectedModelId: v.string(),
+        selectedModelLabel: v.string(),
+      }),
+      mid: v.object({
+        tier: v.literal("mid"),
+        score: v.number(),
+        selectedModelId: v.string(),
+        selectedModelLabel: v.string(),
+      }),
+      frontier: v.object({
+        tier: v.literal("frontier"),
+        score: v.number(),
+        selectedModelId: v.string(),
+        selectedModelLabel: v.string(),
+      }),
     }),
+    recommendedTier: v.union(v.literal("cheap"), v.literal("mid"), v.literal("frontier")),
+    recommendedModelId: v.string(),
+    recommendedModelLabel: v.string(),
+    recommendedEffort: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.null(),
+    ),
+    bestTierModels: v.array(
+      v.object({
+        modelId: v.string(),
+        label: v.string(),
+        score: v.number(),
+      }),
+    ),
+    byok: v.optional(
+      v.array(
+        v.object({
+          provider: v.union(
+            v.literal("anthropic"),
+            v.literal("openai"),
+            v.literal("gemini"),
+            v.literal("grok"),
+            v.literal("deepseek"),
+            v.literal("perplexity"),
+            v.literal("kimi"),
+          ),
+          modelId: v.string(),
+          modelLabel: v.string(),
+          tier: v.union(v.literal("cheap"), v.literal("mid"), v.literal("frontier")),
+          score: v.number(),
+        }),
+      ),
+    ),
+    rationale: v.optional(v.string()),
     evaluatedAt: v.number(),
-    version: v.string(), // Evaluation algorithm version (e.g., "1.0")
   })
     .index("by_user_hash", ["userId", "promptHash"])
     .index("by_hash", ["promptHash"]),

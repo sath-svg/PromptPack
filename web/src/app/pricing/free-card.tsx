@@ -6,14 +6,17 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
 const FEATURES = [
-  "50 AI credits at signup",
-  "5 saved prompts",
-  "10 prompt enhances per day",
-  "50 AI headers per day",
-  "Desktop app",
-  "MCP server (50 calls/day)",
-  "ChatGPT, Claude & Gemini support",
-  "Local storage + Cloud sync",
+  { t: "Skillset desktop app", hi: false },
+  { t: "100 trial credits (one-time signup grant)", hi: true },
+  { t: "Managed mode cap: 30 credits / day", hi: false },
+  { t: "1 cloud skillset (.skill) of 5 skills", hi: true },
+  { t: "Skill Chat", hi: true },
+  { t: "Skill Router", hi: true },
+  { t: "3 Skill Enhances / day", hi: false },
+  { t: "15 AI Headers / day", hi: false },
+  { t: "3 Prompt Scores / day", hi: false },
+  { t: "Quick + Balanced models only - No Opus or GPT-5 Pro in managed mode", hi: false },
+  { t: "No Bring Your Own Key (managed mode only)", hi: false },
 ];
 
 export function FreeCard() {
@@ -59,9 +62,13 @@ export function FreeCard() {
 
       <ul className="mt-2 flex flex-1 flex-col gap-3 border-t border-white/[0.06] pt-6 text-[14px] leading-[1.5] text-zinc-300">
         {FEATURES.map((f) => (
-          <li key={f} className="flex items-start gap-3">
-            <span className="mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-500" />
-            <span>{f}</span>
+          <li key={f.t} className="flex items-start gap-3">
+            <span
+              className={`mt-1.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+                f.hi ? "bg-[#2563EB]" : "bg-zinc-500"
+              }`}
+            />
+            <span className={f.hi ? "text-zinc-100" : "text-zinc-300"}>{f.t}</span>
           </li>
         ))}
       </ul>

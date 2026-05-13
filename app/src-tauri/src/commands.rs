@@ -15,9 +15,8 @@ use tauri::{AppHandle, Manager, State};
 /// Web app URL for OAuth redirects
 /// - DEV: http://localhost:3000 (local Next.js dev server)
 /// - PROD: https://skillset.so
-// TODO: switch back to https://skillset.so once that domain is live.
-// const WEB_APP_URL: &str = "https://skillset.so";
-const WEB_APP_URL: &str = "https://pmtpk.com";
+const WEB_APP_URL: &str = "https://skillset.so";
+// const WEB_APP_URL: &str = "https://pmtpk.com"; // rollback only
 
 /// Desktop auth page URL - where the OAuth popup opens for sign-in
 const DESKTOP_AUTH_URL: &str = const_format::concatcp!(WEB_APP_URL, "/desktop-auth");

@@ -110,6 +110,12 @@ async function verifyJwt(
 
 // Credit reserve/settle/release helpers moved to ./credits.ts (shared with
 // /api/enhance, /api/evaluate, /chat, /v1/chat/completions).
+//
+// Note: there is no per-user concurrent-request cap on /api/llm/chat.
+// Direct chat is naturally serial (UX sends one message, awaits response).
+// SkillFlow subtask parallelism is bounded client-side at 5 flows per run
+// in app/src/lib/orchestrator/executor.ts. The X-From-Orchestrator header
+// is still consumed below for the free-plan SkillFlow gate.
 
 /**
  * Managed-mode LLM proxy: routes chat requests through OpenRouter and meters
@@ -132,8 +138,12 @@ export async function handleLlmChat(
     return jsonResponse({ error: "internal_key_not_configured" }, 500);
   }
 
-  const clerkId = await verifyJwt(request, env, verifyJwtFn);
-  if (!clerkId) return jsonResponse({ error: "unauthorized" }, 401);
+  const userId = await verifyJwt(request, env, verifyJwtFn);
+  if (!userId) return jsonResponse({ error: "unauthorized" }, 401);
+
+  // Orchestrator subtasks (planner + executor + chat agent fallbacks) run
+  // in parallel by design — exempt them from the concurrent cap.
+  const fromOrchestrator = request.headers.get("X-From-Orchestrator") === "true";
 
   let body: ChatRequestBody;
   try {
@@ -160,13 +170,28 @@ export async function handleLlmChat(
 
   const model = getManagedModel(modelId)!;
 
+  return await handleLlmChatInner(request, env, body, model, modelId, userId, fromOrchestrator);
+}
+
+async function handleLlmChatInner(
+  request: Request,
+  env: LlmEnv,
+  body: ChatRequestBody,
+  model: NonNullable<ReturnType<typeof getManagedModel>>,
+  modelId: string,
+  userId: string,
+  fromOrchestrator: boolean,
+): Promise<Response> {
+
   // Token-based reservation. Uses the model's actual OpenRouter pricing
   // (`usdPer1MInput` + `usdPer1MOutput`) plus the requested `max_tokens`
   // cap to compute a tight credit hold. Reasoning effort scales the
   // output term (1× / 1.3× / 2× / 4× for null / low / medium / high)
   // to cover thinking-token spend. Settle uses the real `usage.cost`
   // returned by OpenRouter, so any over-estimate refunds automatically.
-  const inputTokens = estimateTokens(body.messages);
+  // body.messages is non-empty here; outer handleLlmChat already returned
+  // 400 for missing/empty messages before delegating to this inner fn.
+  const inputTokens = estimateTokens(body.messages!);
   const reasoningEffort = body.reasoning?.effort;
   const estimatedCredits = estimateCreditsForCall({
     model,
@@ -175,9 +200,9 @@ export async function handleLlmChat(
     effort: reasoningEffort ?? null,
   });
 
-  const reserve = await reserveCredits(env, clerkId, estimatedCredits, modelId);
+  const reserve = await reserveCredits(env, userId, estimatedCredits, modelId, model.tier, fromOrchestrator);
   console.log("[llm-chat] reserve:", JSON.stringify({
-    clerkId,
+    userId,
     estimatedCredits,
     modelId,
     tier: model.tier,

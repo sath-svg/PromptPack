@@ -7,12 +7,13 @@ import { SkillsetPageHeader } from "@/components/skillset-page-header";
 export const metadata: Metadata = {
   title: "Skillset Comparisons - How We Stack Up | Skillset",
   description:
-    "See how Skillset compares to other prompt management tools like AIPRM, PromptPerfect, and FlowGPT. Feature-by-feature comparisons.",
+    "See how Skillset compares to Claude Code and ChatGPT. Multi-model routing, Skill Flow workflow chains, browser-integrated prompt packs, and workspace agent — feature-by-feature.",
   keywords: [
     "Skillset alternatives",
-    "prompt tool comparison",
-    "AIPRM alternative",
-    "PromptPerfect alternative",
+    "Claude Code alternative",
+    "ChatGPT alternative",
+    "multi-model AI agent",
+    "AI prompt workflow tool",
   ],
   alternates: { canonical: "https://skillset.so/compare" },
 };

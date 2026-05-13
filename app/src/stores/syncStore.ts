@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PromptSource, UserTier, PackVersion, PromptVersion } from '../types';
-import { CONVEX_URL, WORKERS_API_URL, getPromptLimit } from '../lib/constants';
+import { CONVEX_URL, WORKERS_API_URL, getPromptLimit, getPromptsPerPackLimit } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 import { useAuthStore } from './authStore';
+import { syncWorkflowToWorkspace, clearWorkflowPointer } from '../lib/workspaceWorkflowSync';
+import { useAgentStore } from './agentStore';
 
 // Cloud saved pack from Convex (extension-saved prompts)
 export interface CloudPack {
@@ -80,9 +82,9 @@ interface SyncState {
   error: string | null;
 
   // Actions
-  fetchCloudPacks: (clerkId: string) => Promise<void>;
-  fetchUserPacks: (clerkId: string) => Promise<void>;
-  fetchAllPacks: (clerkId: string) => Promise<void>;
+  fetchCloudPacks: (userId: string) => Promise<void>;
+  fetchUserPacks: (userId: string) => Promise<void>;
+  fetchAllPacks: (userId: string) => Promise<void>;
   fetchPackPrompts: (pack: CloudPack, password?: string) => Promise<LoadedPack | null>;
   fetchUserPackPrompts: (pack: UserPack, password?: string) => Promise<LoadedUserPack | null>;
 
@@ -106,27 +108,27 @@ interface SyncState {
   deleteSavedPack: (packId: string) => Promise<boolean>;
 
   // Create new pack
-  createUserPack: (clerkId: string, title: string, prompts: CloudPrompt[]) => Promise<UserPack | null>;
+  createUserPack: (userId: string, title: string, prompts: CloudPrompt[]) => Promise<UserPack | null>;
 
   // Create new savedPack (for a specific source)
-  createSavedPack: (clerkId: string, source: string, prompts: CloudPrompt[]) => Promise<CloudPack | null>;
+  createSavedPack: (userId: string, source: string, prompts: CloudPrompt[]) => Promise<CloudPack | null>;
 
   // Sync local prompts to cloud savedPacks
-  syncLocalPromptsToCloud: (clerkId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => Promise<{ synced: string[]; failed: string[] }>;
+  syncLocalPromptsToCloud: (userId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => Promise<{ synced: string[]; failed: string[] }>;
 
   // PromptControl (version control) actions - legacy pack-level
   packVersions: Record<string, PackVersion[]>;
   fetchPackVersions: (packId: string) => Promise<PackVersion[]>;
-  savePackVersion: (clerkId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => Promise<boolean>;
-  restorePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
-  deletePackVersion: (clerkId: string, packId: string, versionNumber: number) => Promise<boolean>;
-  toggleVersionControl: (clerkId: string, packId: string, enabled: boolean) => Promise<boolean>;
+  savePackVersion: (userId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => Promise<boolean>;
+  restorePackVersion: (userId: string, packId: string, versionNumber: number) => Promise<boolean>;
+  deletePackVersion: (userId: string, packId: string, versionNumber: number) => Promise<boolean>;
+  toggleVersionControl: (userId: string, packId: string, enabled: boolean) => Promise<boolean>;
 
   // PromptControl v2: per-prompt versioning
   promptVersions: Record<string, PromptVersion[]>; // keyed by packId
   fetchPromptVersions: (packId: string) => Promise<PromptVersion[]>;
-  savePromptVersion: (clerkId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => Promise<boolean>;
-  deletePromptVersion: (clerkId: string, packId: string, promptCreatedAt: number, versionNumber: number) => Promise<boolean>;
+  savePromptVersion: (userId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => Promise<boolean>;
+  deletePromptVersion: (userId: string, packId: string, promptCreatedAt: number, versionNumber: number) => Promise<boolean>;
 
   // UI actions
   setSelectedPackId: (packId: string | null) => void;
@@ -207,6 +209,35 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   );
 }
 
+/**
+ * Normalize a payload's prompts array into CloudPrompt shape.
+ * Handles two formats:
+ *   1) Pack payload — prompts already are CloudPrompt {text, header, ...}
+ *   2) Skillset payload (.skill type=skillset) — prompts are SkillPrompt
+ *      {id, label, purpose, icon, template, negativePrompt}
+ *      → mapped: text=template, header=`${icon} ${label}` (+ purpose appended)
+ *
+ * Without this normalization, getPromptKey() crashes on undefined `text`.
+ */
+function normalizeImportedPrompts(data: any): CloudPrompt[] {
+  if (!data.prompts || !Array.isArray(data.prompts)) {
+    throw new Error('Invalid pack format');
+  }
+
+  const isSkillset = data.type === 'skillset' || data.prompts.some((p: any) => typeof p.template === 'string' && typeof p.text !== 'string');
+
+  if (isSkillset) {
+    return data.prompts.map((p: any, idx: number) => ({
+      text: p.template ?? p.text ?? '',
+      header: `${p.icon ? p.icon + ' ' : ''}${p.label ?? 'Prompt'}${p.purpose ? ' — ' + p.purpose : ''}`,
+      url: '',
+      createdAt: Date.now() + idx,
+    })) as CloudPrompt[];
+  }
+
+  return data.prompts as CloudPrompt[];
+}
+
 // Decode obfuscated .pmtpk file
 async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   if (bytes.length < HEADER_SIZE) {
@@ -221,11 +252,7 @@ async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   const jsonString = decoder.decode(jsonBytes);
   const data = JSON.parse(jsonString);
 
-  if (data.prompts && Array.isArray(data.prompts)) {
-    return data.prompts;
-  }
-
-  throw new Error('Invalid pack format');
+  return normalizeImportedPrompts(data);
 }
 
 // Decrypt encrypted .pmtpk file
@@ -254,11 +281,7 @@ async function decryptPmtpk(bytes: Uint8Array, password: string): Promise<CloudP
     const jsonString = decoder.decode(decompressed);
     const data = JSON.parse(jsonString);
 
-    if (data.prompts && Array.isArray(data.prompts)) {
-      return data.prompts;
-    }
-
-    throw new Error('Invalid pack format');
+    return normalizeImportedPrompts(data);
   } catch (e) {
     if (e instanceof Error && e.message === 'Invalid pack format') throw e;
     throw new Error('Wrong password');
@@ -266,8 +289,10 @@ async function decryptPmtpk(bytes: Uint8Array, password: string): Promise<CloudP
 }
 
 // Generate prompt key (matches web dashboard logic)
+// Defensive: fall back to '' if text missing (legacy/corrupt data).
 function getPromptKey(prompt: CloudPrompt): string {
-  const hash = Math.abs(prompt.text.split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
+  const text = prompt.text ?? '';
+  const hash = Math.abs(text.split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0)).toString(36);
   return `${prompt.createdAt}:${hash}`;
 }
 
@@ -515,7 +540,7 @@ export const useSyncStore = create<SyncState>()(
       lastSyncAt: null,
       error: null,
 
-      fetchCloudPacks: async (clerkId: string) => {
+      fetchCloudPacks: async (userId: string) => {
         set({ isLoading: true, error: null });
 
         try {
@@ -524,7 +549,7 @@ export const useSyncStore = create<SyncState>()(
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ clerkId }),
+            body: JSON.stringify({ userId }),
           });
 
           if (!response.ok) {
@@ -551,7 +576,7 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      fetchUserPacks: async (clerkId: string) => {
+      fetchUserPacks: async (userId: string) => {
         set({ isLoading: true, error: null });
 
         try {
@@ -560,7 +585,7 @@ export const useSyncStore = create<SyncState>()(
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ clerkId }),
+            body: JSON.stringify({ userId }),
           });
 
           if (!response.ok) {
@@ -587,7 +612,7 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      fetchAllPacks: async (clerkId: string) => {
+      fetchAllPacks: async (userId: string) => {
         // Don't clear loaded caches - we need them for two-way merge
         set({ isLoading: true, error: null });
 
@@ -597,12 +622,12 @@ export const useSyncStore = create<SyncState>()(
             tauriFetch(`${CONVEX_URL}/api/desktop/saved-packs`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clerkId }),
+              body: JSON.stringify({ userId }),
             }),
             tauriFetch(`${CONVEX_URL}/api/desktop/user-packs`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ clerkId }),
+              body: JSON.stringify({ userId }),
             }),
           ]);
 
@@ -738,6 +763,12 @@ export const useSyncStore = create<SyncState>()(
             }).catch((err) => console.error('Failed to upload merged saved pack:', err));
           }
 
+          // Auto-sync Skill Flow workflow MD to workspace when this pack
+          // is the active selection. See fetchUserPackPrompts for context.
+          if (get().selectedPackId === pack.id) {
+            void syncSelectedPackToWorkspace(pack.id, get);
+          }
+
           return loadedPack;
         } catch (error) {
           set((state) => ({
@@ -839,6 +870,15 @@ export const useSyncStore = create<SyncState>()(
                 promptCount: merged.length,
               }),
             }).catch((err) => console.error('Failed to upload merged pack:', err));
+          }
+
+          // If this pack is currently selected AND workspace is connected,
+          // sync its Skill Flow workflow MD to the workspace now that
+          // prompts are loaded. setSelectedPackId fires before fetch
+          // completes, so the initial sync would have skipped due to empty
+          // prompts — this second pass writes the file once data is ready.
+          if (get().selectedPackId === pack.id) {
+            void syncSelectedPackToWorkspace(pack.id, get);
           }
 
           return loadedPack;
@@ -1272,6 +1312,13 @@ export const useSyncStore = create<SyncState>()(
           return false;
         }
 
+        // Per-set cap (Free: 5 prompts per skillset)
+        const perPackLimit = getPromptsPerPackLimit(tier);
+        if (loaded.prompts.length >= perPackLimit) {
+          set({ error: `This skillset is full (${perPackLimit} prompts max on ${tier} plan). Upgrade or create another skillset.` });
+          return false;
+        }
+
         const createdAt = Date.now();
         const newPromptIndex = loaded.prompts.length;
 
@@ -1570,6 +1617,13 @@ export const useSyncStore = create<SyncState>()(
           return false;
         }
 
+        // Per-set cap (Free: 5 prompts per skillset)
+        const perPackLimit = getPromptsPerPackLimit(tier);
+        if (loaded.prompts.length >= perPackLimit) {
+          set({ error: `This skillset is full (${perPackLimit} prompts max on ${tier} plan). Upgrade or create another skillset.` });
+          return false;
+        }
+
         const createdAt = Date.now();
         const newPromptIndex = loaded.prompts.length;
 
@@ -1793,7 +1847,7 @@ export const useSyncStore = create<SyncState>()(
       },
 
       // Create a new userPack with prompts
-      createUserPack: async (clerkId: string, title: string, prompts: CloudPrompt[]) => {
+      createUserPack: async (userId: string, title: string, prompts: CloudPrompt[]) => {
         set({ isLoading: true, error: null });
 
         try {
@@ -1806,7 +1860,7 @@ export const useSyncStore = create<SyncState>()(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              clerkId,
+              userId,
               title,
               fileData,
               promptCount: prompts.length,
@@ -1852,7 +1906,7 @@ export const useSyncStore = create<SyncState>()(
       },
 
       // Create a new savedPack for a specific source
-      createSavedPack: async (clerkId: string, source: string, prompts: CloudPrompt[]) => {
+      createSavedPack: async (userId: string, source: string, prompts: CloudPrompt[]) => {
         set({ isLoading: true, error: null });
 
         // Step 1: Create pack with prompts immediately (optimistic), then generate headers in background
@@ -1932,7 +1986,7 @@ export const useSyncStore = create<SyncState>()(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              clerkId,
+              userId,
               source,
               fileData,
               promptCount: promptsWithHeaders.length,
@@ -1986,7 +2040,7 @@ export const useSyncStore = create<SyncState>()(
       },
 
       // Sync local prompts (from promptStore) to cloud savedPacks
-      syncLocalPromptsToCloud: async (clerkId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => {
+      syncLocalPromptsToCloud: async (userId: string, prompts: { text: string; header?: string; source: string; createdAt: number }[]) => {
         set({ isLoading: true, error: null });
 
         const synced: string[] = [];
@@ -2028,7 +2082,7 @@ export const useSyncStore = create<SyncState>()(
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  clerkId,
+                  userId,
                   source,
                   fileData,
                   promptCount: cloudPrompts.length,
@@ -2121,12 +2175,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      savePackVersion: async (clerkId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => {
+      savePackVersion: async (userId: string, packId: string, message?: string, prompts?: { text: string; header?: string }[]) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/save-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, message, prompts }),
+            body: JSON.stringify({ userId, packId, message, prompts }),
           });
           const data = await response.json();
           if (data.success) {
@@ -2144,7 +2198,7 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      restorePackVersion: async (clerkId: string, packId: string, versionNumber: number) => {
+      restorePackVersion: async (userId: string, packId: string, versionNumber: number) => {
         const { isSaving } = get();
         if (isSaving[packId]) return false;
 
@@ -2154,7 +2208,7 @@ export const useSyncStore = create<SyncState>()(
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/restore-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, versionNumber }),
+            body: JSON.stringify({ userId, packId, versionNumber }),
           });
           const data = await response.json();
 
@@ -2186,12 +2240,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      deletePackVersion: async (clerkId: string, packId: string, versionNumber: number) => {
+      deletePackVersion: async (userId: string, packId: string, versionNumber: number) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, versionNumber }),
+            body: JSON.stringify({ userId, packId, versionNumber }),
           });
           const data = await response.json();
           if (data.success) {
@@ -2213,12 +2267,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      toggleVersionControl: async (clerkId: string, packId: string, enabled: boolean) => {
+      toggleVersionControl: async (userId: string, packId: string, enabled: boolean) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/toggle-version-control`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, enabled }),
+            body: JSON.stringify({ userId, packId, enabled }),
           });
           const data = await response.json();
           if (data.success) {
@@ -2261,12 +2315,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      savePromptVersion: async (clerkId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => {
+      savePromptVersion: async (userId: string, packId: string, promptCreatedAt: number, text: string, header?: string) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/save-prompt-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, promptCreatedAt, text, header }),
+            body: JSON.stringify({ userId, packId, promptCreatedAt, text, header }),
           });
           const data = await response.json();
           if (data.success) {
@@ -2284,12 +2338,12 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      deletePromptVersion: async (clerkId: string, packId: string, promptCreatedAt: number, versionNumber: number) => {
+      deletePromptVersion: async (userId: string, packId: string, promptCreatedAt: number, versionNumber: number) => {
         try {
           const response = await tauriFetch(`${CONVEX_URL}/api/desktop/delete-prompt-version`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clerkId, packId, promptCreatedAt, versionNumber }),
+            body: JSON.stringify({ userId, packId, promptCreatedAt, versionNumber }),
           });
           const data = await response.json();
           if (data.success) {
@@ -2306,8 +2360,14 @@ export const useSyncStore = create<SyncState>()(
         }
       },
 
-      // UI action to set selected pack
-      setSelectedPackId: (packId: string | null) => set({ selectedPackId: packId }),
+      // UI action to set selected pack. Also auto-syncs the pack's Skill
+      // Flow workflow markdown into the connected workspace (if any) so
+      // in-workspace agents can pick it up as a skill.
+      setSelectedPackId: (packId: string | null) => {
+        set({ selectedPackId: packId });
+        // Fire-and-forget workspace sync — non-blocking
+        void syncSelectedPackToWorkspace(packId, get);
+      },
 
       clearError: () => set({ error: null }),
 
@@ -2331,3 +2391,56 @@ export const useSyncStore = create<SyncState>()(
     }
   )
 );
+
+/**
+ * Helper: when a pack is selected (or cleared), sync its workflow markdown
+ * to the connected workspace. Called from setSelectedPackId and from
+ * agentStore.setWorkspace. Pulls workspace from agentStore + prompt data
+ * from current syncStore state.
+ *
+ * Non-blocking — errors are swallowed (logged in workspaceWorkflowSync).
+ */
+export async function syncSelectedPackToWorkspace(
+  packId: string | null,
+  getState: () => SyncState
+): Promise<void> {
+  const workspace = useAgentStore.getState().workspace;
+  if (!workspace) return;
+
+  // Pack deselected — write inactive pointer
+  if (!packId) {
+    await clearWorkflowPointer(workspace);
+    return;
+  }
+
+  const state = getState();
+
+  // Prefer user pack, fall back to cloud pack
+  const userPack = state.userPacks.find((p) => p.id === packId);
+  const cloudPack = state.cloudPacks.find((p) => p.id === packId);
+
+  let packTitle: string | null = null;
+  let prompts: Array<{ text: string; header?: string }> = [];
+
+  if (userPack) {
+    packTitle = userPack.title;
+    const loaded = state.loadedUserPacks[packId];
+    if (loaded?.prompts) {
+      prompts = loaded.prompts.map((p) => ({ text: p.text, header: p.header }));
+    }
+  } else if (cloudPack) {
+    packTitle = cloudPack.title ?? cloudPack.source;
+    const loaded = state.loadedPacks[packId];
+    if (loaded?.prompts) {
+      prompts = loaded.prompts.map((p) => ({ text: p.text, header: p.header }));
+    }
+  }
+
+  if (!packTitle || prompts.length === 0) {
+    // Pack metadata present but prompts not loaded yet — skip silently.
+    // Will resync when prompts arrive (caller can re-trigger).
+    return;
+  }
+
+  await syncWorkflowToWorkspace(workspace, packTitle, prompts);
+}

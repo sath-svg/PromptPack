@@ -26,11 +26,15 @@ export type ReserveOutcome =
   | { ok: true; data: ReserveResponse }
   | { ok: false; status: number; body: unknown };
 
+export type ReserveTier = "cheap" | "mid" | "frontier";
+
 export async function reserveCredits(
   env: CreditEnv,
-  clerkId: string,
+  userId: string,
   estimatedCredits: number,
   modelId: string,
+  tier?: ReserveTier,
+  fromOrchestrator?: boolean,
 ): Promise<ReserveOutcome> {
   const res = await fetch(`${env.CONVEX_URL}/api/internal/credits/reserve`, {
     method: "POST",
@@ -38,21 +42,27 @@ export async function reserveCredits(
       "Content-Type": "application/json",
       "x-skillset-internal": env.SKILLSET_INTERNAL_KEY,
     },
-    body: JSON.stringify({ clerkId, estimatedCredits, modelId }),
+    body: JSON.stringify({ userId, estimatedCredits, modelId, tier, fromOrchestrator }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // Convex's `credits.ts` mutation throws `Error("INSUFFICIENT_CREDITS")`
-    // when the user is out of budget, which surfaces here as an HTTP 500
-    // with the message embedded in the body. Reclassify as 402 so
-    // `reserveErrorResponse` returns the friendly "insufficient_credits"
-    // shape instead of a confusing internal-error blob to the desktop.
+    // Convex's `credits.ts` mutation surfaces gating errors as HTTP 500 with
+    // the message embedded in the body. Reclassify to friendlier status codes
+    // so the desktop client can show the right UI prompt.
     const messageBlob = JSON.stringify(body);
-    if (
-      res.status === 500 &&
-      /INSUFFICIENT_CREDITS/i.test(messageBlob)
-    ) {
-      return { ok: false, status: 402, body };
+    if (res.status === 500) {
+      if (/INSUFFICIENT_CREDITS/i.test(messageBlob)) {
+        return { ok: false, status: 402, body };
+      }
+      if (/FRONTIER_NOT_ALLOWED/i.test(messageBlob)) {
+        return { ok: false, status: 403, body };
+      }
+      if (/SKILLFLOW_REQUIRES_PAID/i.test(messageBlob)) {
+        return { ok: false, status: 403, body };
+      }
+      if (/DAILY_FREE_LIMIT_REACHED/i.test(messageBlob)) {
+        return { ok: false, status: 429, body };
+      }
     }
     return { ok: false, status: res.status, body };
   }
@@ -110,6 +120,37 @@ export function reserveErrorResponse(outcome: { status: number; body: unknown })
     return new Response(
       JSON.stringify({ error: "insufficient_credits", code: "INSUFFICIENT_CREDITS" }),
       { status: 402, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (outcome.status === 403) {
+    const blob = JSON.stringify(outcome.body ?? {});
+    if (/SKILLFLOW_REQUIRES_PAID/i.test(blob)) {
+      return new Response(
+        JSON.stringify({
+          error: "skillflow_requires_paid",
+          code: "SKILLFLOW_REQUIRES_PAID",
+          message: "SkillFlow (multi-step AI workflows) requires a Pro or Studio subscription.",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        error: "frontier_not_allowed",
+        code: "FRONTIER_NOT_ALLOWED",
+        message: "Premium Models require a Pro or Studio subscription. Upgrade to use Opus, GPT-5 Pro, or o3-Pro.",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+  if (outcome.status === 429) {
+    return new Response(
+      JSON.stringify({
+        error: "daily_free_limit_reached",
+        code: "DAILY_FREE_LIMIT_REACHED",
+        message: "Daily free-trial credit limit reached. Resets at midnight UTC, or upgrade for full monthly allowance.",
+      }),
+      { status: 429, headers: { "Content-Type": "application/json" } },
     );
   }
   if (outcome.status === 404) {

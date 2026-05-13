@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   History,
   MessageSquare,
+  Palette,
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -33,37 +34,56 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
         isCollapsed ? 'w-16' : 'w-64'
       }`}
     >
-      {/* Logo */}
+      {/* Logo + collapse toggle.
+          Collapsed: ONE element — the logo doubles as the expand
+          button. Avoids the prior bug where a separate logo image +
+          chevron button both rendered inside the narrow w-16 column
+          and crammed on top of each other.
+          Expanded: logo (decorative) + title + Beta chip on the left,
+          chevron collapse button on the right. */}
       <div className="px-3 border-b border-[var(--sidebar-border)] flex items-center justify-between min-h-[57px]">
-        {!isCollapsed && (
-          <div className="flex items-center gap-2 overflow-hidden transition-all duration-300">
+        {isCollapsed ? (
+          <button
+            onClick={onToggleCollapse}
+            className="mx-auto p-0.5 rounded-md hover:ring-2 hover:ring-[var(--primary)]/30 transition-all duration-200"
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+          >
             <img
               src={logoIcon}
               alt="Skillset"
               className="w-7 h-7 flex-shrink-0 rounded-md object-cover"
             />
-            <h1 className="text-[15px] font-medium tracking-tight whitespace-nowrap text-[var(--foreground)]">
-              Skillset
-            </h1>
-            <span
-              className="ml-1 rounded-full border border-[var(--border)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]"
-              style={{ fontFamily: 'var(--font-mono)' }}
+          </button>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 overflow-hidden transition-all duration-300">
+              <img
+                src={logoIcon}
+                alt="Skillset"
+                className="w-7 h-7 flex-shrink-0 rounded-md object-cover"
+              />
+              <h1 className="text-[15px] font-medium tracking-tight whitespace-nowrap text-[var(--foreground)]">
+                Skillset
+              </h1>
+              <span
+                className="ml-1 rounded-full border border-[var(--border)] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Beta
+              </span>
+            </div>
+            <button
+              onClick={onToggleCollapse}
+              className="p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-all duration-300 flex-shrink-0 ml-2"
+              title="Collapse sidebar"
             >
-              Beta
-            </span>
-          </div>
+              <div className="transition-transform duration-300 rotate-0">
+                <PanelLeftClose size={18} />
+              </div>
+            </button>
+          </>
         )}
-        <button
-          onClick={onToggleCollapse}
-          className={`p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-all duration-300 flex-shrink-0 ${
-            isCollapsed ? 'mx-auto' : 'ml-2'
-          }`}
-          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          <div className={`transition-transform duration-300 ${isCollapsed ? 'rotate-180' : 'rotate-0'}`}>
-            <PanelLeftClose size={18} />
-          </div>
-        </button>
       </div>
 
       {/* Navigation */}
@@ -101,6 +121,21 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
           </button>
 
           <button
+            onClick={() => onNavigate('skill-preset')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentPage === 'skill-preset'
+                ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
+                : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+            }`}
+            title={isCollapsed ? 'Skill Preset' : undefined}
+          >
+            <Palette size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Skill Preset
+            </span>
+          </button>
+
+          <button
             onClick={() => {
               setSelectedPackId(null);
               onNavigate('user-packs');
@@ -128,7 +163,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               {userPacksExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-              Your Packs
+              Your Sets
             </button>
 
             {userPacksExpanded && (
@@ -170,11 +205,11 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                   ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
                   : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
               }`}
-              title={isCollapsed ? 'SkillControl' : undefined}
+              title={isCollapsed ? 'Skill Control' : undefined}
             >
               <History size={18} className="flex-shrink-0" />
               <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-                SkillControl
+                Skill Control
               </span>
             </button>
           </div>

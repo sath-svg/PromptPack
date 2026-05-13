@@ -18,6 +18,7 @@ import {
 import type { MessageBlock } from '../../stores/chatStore';
 import { useAgentStore } from '../../stores/agentStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { TOOL_FRIENDLY_LABELS } from '../../lib/toolLabels';
 import { DiffPanel } from './DiffPanel';
 
 const TOOL_ICONS: Record<string, typeof Wrench> = {
@@ -33,26 +34,6 @@ const TOOL_ICONS: Record<string, typeof Wrench> = {
   http: Network,
   attachment_read: Paperclip,
   pdf_generate: FileType,
-};
-
-// Plain-English tool labels for non-developer users. Keyed off the
-// internal tool name; falls back to the raw name when no friendly
-// rendering exists. Developer mode still shows the raw name for
-// users who want the wire-level signal.
-const TOOL_FRIENDLY_LABELS: Record<string, string> = {
-  read_file: 'File reader',
-  write_file: 'File writer',
-  edit_file: 'File editor',
-  list_dir: 'Folder lister',
-  glob: 'File search',
-  grep: 'Text search',
-  bash: 'Shell command',
-  lsp_diagnostics: 'Code diagnostics',
-  web_fetch: 'Web fetcher',
-  http: 'HTTP request',
-  attachment_read: 'Attachment reader',
-  pdf_generate: 'PDF generator',
-  check_template_vars: 'Template check',
 };
 
 interface ToolBlockProps {

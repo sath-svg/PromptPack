@@ -25,12 +25,12 @@ const TIPS: Array<{ feature: string; body: string }> = [
     body: 'Iterate on a long prompt in the Draft tab before saving. Free workspace, no clutter, full editor.',
   },
   {
-    feature: 'SkillFlow',
+    feature: 'Skill Flow',
     body: 'Toggle the Brain icon to let multi-step goals auto-decompose into subtasks. Each subtask gets routed to whichever managed model fits — fast tier for lookups, balanced for prose, powerful for the hard parts.',
   },
   {
     feature: 'Run Trace',
-    body: 'When SkillFlow engages, the right panel shows the live plan, per-subtask model + reasoning effort, and shared task memory.',
+    body: 'When Skill Flow engages, the right panel shows the live plan, per-subtask model + reasoning effort, and shared task memory.',
   },
   {
     feature: 'Variable templates',
@@ -38,7 +38,7 @@ const TIPS: Array<{ feature: string; body: string }> = [
   },
   {
     feature: 'Pack runner',
-    body: 'Pick a saved pack and hit "Run Pack" to execute every prompt sequentially — perfect for multi-step research or content workflows.',
+    body: 'Pick a saved pack and hit "Run Set" to execute every prompt sequentially with Skill Flow — each step inherits prior step\'s output. Perfect for multi-step research or content workflows.',
   },
   {
     feature: 'Your keys + Managed',

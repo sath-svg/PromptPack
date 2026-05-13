@@ -25,6 +25,20 @@ export interface RouterDecision {
 export interface RouterDeps {
   /** User's per-tier model selection (settings.selectedManagedModels). */
   selections: Record<ManagedTier, string>;
+  /**
+   * Hard ceiling on the routed tier. When set, the final tier is
+   * `min(decidedTier, tierCap)` — even if the LR classifier or planner
+   * hint asked for `powerful`, the router will not exceed the cap.
+   *
+   * Used by Set Runs (predefinedPlan packs) to cap at `balanced`. Pack
+   * step instructions look complex to the LR classifier ("senior equity
+   * analyst, pull a fundamentals snapshot for …") so it routes to the
+   * frontier tier (GPT-5 Pro, Opus); on a 5-round tool loop that's
+   * ~$0.50–$1.00 per step. The pack author already picked the prompt;
+   * letting the LR head escalate to frontier on top of multi-round tool
+   * loops burns credits without proportional quality gain.
+   */
+  tierCap?: ModelTier;
 }
 
 const TIER_ORDER: ModelTier[] = ['fast', 'balanced', 'powerful'];
@@ -46,6 +60,10 @@ function tierMax(a: ModelTier, b: ModelTier): ModelTier {
   return TIER_ORDER.indexOf(a) >= TIER_ORDER.indexOf(b) ? a : b;
 }
 
+function tierMin(a: ModelTier, b: ModelTier): ModelTier {
+  return TIER_ORDER.indexOf(a) <= TIER_ORDER.indexOf(b) ? a : b;
+}
+
 function effortMax(a: EffortLevel | null, b: EffortLevel | null): EffortLevel | null {
   if (!a) return b;
   if (!b) return a;
@@ -61,7 +79,10 @@ function effortMax(a: EffortLevel | null, b: EffortLevel | null): EffortLevel | 
 export function decide(subtask: PlannerSubtask, deps: RouterDeps): RouterDecision {
   const lr = classifyPrompt(subtask.instruction);
 
-  const baseTier = tierMax(lr.tier, COMPLEXITY_TO_TIER[subtask.complexity_hint]);
+  let baseTier = tierMax(lr.tier, COMPLEXITY_TO_TIER[subtask.complexity_hint]);
+  if (deps.tierCap) {
+    baseTier = tierMin(baseTier, deps.tierCap);
+  }
   const effortFromHint = subtask.reasoning_hint
     ? REASONING_HINT_TO_EFFORT[subtask.reasoning_hint]
     : null;

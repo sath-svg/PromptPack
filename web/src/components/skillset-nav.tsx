@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 
 type NavLink = { label: string; href: string };
@@ -16,13 +15,14 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
       <div className="mx-auto grid max-w-[1400px] grid-cols-3 items-center px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
-          <Image
+          {/* Plain <img> — Next Image optimizer was racing on the 2048x2048
+              source PNG, intermittently showing as broken in the sticky header. */}
+          <img
             src="/img/skillset_logo.png"
             alt="Skillset"
             width={28}
             height={28}
             className="h-7 w-7 rounded-md object-cover"
-            priority
           />
           <span className="text-[15px] font-medium tracking-tight text-zinc-50">
             Skillset

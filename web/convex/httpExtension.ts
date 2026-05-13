@@ -331,8 +331,11 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         // Mint a fresh HS256 access token alongside the rotated refresh
         // token. Client replaces both in keychain + memory and resumes
         // its in-flight call. No Clerk hop required.
+        // `result.clerkId` doesn't exist on the rotate-token return shape;
+        // the Clerk user id is on the `user` row we already fetched above
+        // (same field used at line 343 for the response body).
         const accessTokenResult = await mintDesktopAccessToken(
-          result.clerkId,
+          user.clerkId,
           getJwtSecret(),
         );
 
@@ -831,7 +834,9 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
             headers: { ...headers, "Content-Type": "application/json" },
           });
         }
-        const balance = await ctx.runQuery(api.credits.getBalance, { clerkId });
+        // `api.credits.getBalance` takes `{ userId }` (the Clerk subject id);
+        // local body field is named `clerkId` for legacy reasons — pass through.
+        const balance = await ctx.runQuery(api.credits.getBalance, { userId: clerkId });
         if (!balance) {
           return new Response(JSON.stringify({ error: "User not found" }), {
             status: 404,

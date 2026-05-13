@@ -142,6 +142,16 @@ export interface TaskState {
   facts: Fact[];
   artifacts: Artifact[];
   open_questions: string[];
+  /**
+   * Verbatim contents of the workspace's `skillset.md` (when present)
+   * captured at Set Run kickoff. Plumbed through the executor into every
+   * subtask's *system prompt* as a "# Project Skill (MUST FOLLOW)" block,
+   * giving the rules directive weight that the rolling summary's
+   * "# CONTEXT SO FAR" framing can't carry — especially for cheap-tier
+   * models. Persisted alongside the rest of TaskState; older blobs
+   * deserialize with the field undefined.
+   */
+  projectInstructions?: string;
 }
 
 export function emptyTaskState(goal: string): TaskState {

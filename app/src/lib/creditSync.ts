@@ -49,12 +49,12 @@ export function syncCreditsFromHeaders(res: Response | { headers: Headers }): vo
  *
  * Returns `true` on success so the caller can flash a brief check icon.
  */
-export async function refreshCreditBalance(clerkId: string): Promise<boolean> {
+export async function refreshCreditBalance(userId: string): Promise<boolean> {
   try {
     const res = await tauriFetch(`${CONVEX_URL}/api/extension/credit-balance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clerkId }),
+      body: JSON.stringify({ userId }),
     });
     if (!res.ok) return false;
     const data = (await res.json()) as {

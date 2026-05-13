@@ -1,7 +1,10 @@
 import { create } from 'zustand';
 import { WORKERS_API_URL, CONVEX_URL } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
-import type { PromptEvaluation, EvaluationScores } from '../types';
+import { classifyPrompt, type EffortLevel } from '../lib/classifier';
+import { useSettingsStore } from './settingsStore';
+import { classifierTierToManagedTier, type EvalByokProvider } from '../lib/managed-models';
+import type { PromptEvaluation } from '../types';
 
 // Helper to compute SHA-256 hash of prompt text
 async function sha256(text: string): Promise<string> {
@@ -9,27 +12,36 @@ async function sha256(text: string): Promise<string> {
   const data = encoder.encode(text);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Providers eligible to participate in the evaluation BYOK section.
+const BYOK_PROVIDERS: readonly EvalByokProvider[] = [
+  'anthropic',
+  'openai',
+  'gemini',
+  'grok',
+  'deepseek',
+  'perplexity',
+  'kimi',
+];
+
+function currentByokProviders(): EvalByokProvider[] {
+  const apiKeys = useSettingsStore.getState().apiKeys;
+  return BYOK_PROVIDERS.filter((p) => typeof apiKeys[p] === 'string' && apiKeys[p]!.length > 0);
 }
 
 interface EvaluationState {
-  // Cache of evaluations by promptHash
   evaluations: Record<string, PromptEvaluation>;
-  // Currently evaluating prompt hash
   loadingHash: string | null;
-  // Error message
   error: string | null;
 
-  // Actions
   evaluatePrompt: (
     promptText: string,
-    sessionToken: string
+    sessionToken: string,
   ) => Promise<PromptEvaluation | null>;
 
-  loadEvaluations: (
-    clerkId: string,
-    promptHashes: string[]
-  ) => Promise<void>;
+  loadEvaluations: (userId: string, promptHashes: string[]) => Promise<void>;
 
   getEvaluation: (promptHash: string) => PromptEvaluation | undefined;
 
@@ -40,6 +52,10 @@ interface EvaluationState {
   clearCache: () => void;
 }
 
+interface WorkerEvaluateResponse extends PromptEvaluation {
+  cached?: boolean;
+}
+
 export const useEvaluationStore = create<EvaluationState>((set, get) => ({
   evaluations: {},
   loadingHash: null,
@@ -48,26 +64,30 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
   evaluatePrompt: async (promptText, sessionToken) => {
     const promptHash = await sha256(promptText);
 
-    // Check if already cached
     const cached = get().evaluations[promptHash];
-    if (cached) {
-      return cached;
-    }
+    if (cached) return cached;
 
     set({ loadingHash: promptHash, error: null });
 
     try {
-      // Build auth token from session token
-      const authToken = sessionToken;
+      const { tier: classifierTierRaw, effort: classifierEffort } = classifyPrompt(promptText);
+      const classifierTier = classifierTierToManagedTier(classifierTierRaw);
 
-      // Call the evaluation endpoint
+      const settings = useSettingsStore.getState();
+
       const response = await tauriFetch(`${WORKERS_API_URL}/api/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
+          Authorization: `Bearer ${sessionToken}`,
         },
-        body: JSON.stringify({ text: promptText }),
+        body: JSON.stringify({
+          text: promptText,
+          selectedManagedModels: settings.selectedManagedModels,
+          classifierTier,
+          classifierEffort: classifierEffort as EffortLevel | null,
+          byokProviders: currentByokProviders(),
+        }),
       });
 
       if (!response.ok) {
@@ -75,18 +95,20 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
         throw new Error(data.error || `Evaluation failed (${response.status})`);
       }
 
-      const result = await response.json() as {
-        overallScore: number;
-        scores: EvaluationScores;
-        promptHash: string;
-        cached?: boolean;
-      };
+      const result = (await response.json()) as WorkerEvaluateResponse;
 
       const evaluation: PromptEvaluation = {
         promptHash: result.promptHash || promptHash,
-        overallScore: result.overallScore,
-        scores: result.scores,
-        evaluatedAt: Date.now(),
+        schemaVersion: 2,
+        tiers: result.tiers,
+        recommendedTier: result.recommendedTier,
+        recommendedModelId: result.recommendedModelId,
+        recommendedModelLabel: result.recommendedModelLabel,
+        recommendedEffort: result.recommendedEffort,
+        bestTierModels: result.bestTierModels,
+        byok: result.byok,
+        rationale: result.rationale,
+        evaluatedAt: result.evaluatedAt ?? Date.now(),
       };
 
       set((state) => ({
@@ -97,66 +119,59 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
       return evaluation;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Evaluation failed';
-      set({
-        loadingHash: null,
-        error: message,
-      });
+      set({ loadingHash: null, error: message });
       return null;
     }
   },
 
-  loadEvaluations: async (clerkId, promptHashes) => {
+  loadEvaluations: async (userId, promptHashes) => {
     if (promptHashes.length === 0) return;
 
     try {
       const response = await tauriFetch(`${CONVEX_URL}/api/desktop/get-evaluations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clerkId,
-          promptHashes,
-        }),
+        body: JSON.stringify({ userId, promptHashes }),
       });
 
-      if (response.ok) {
-        const data = await response.json() as {
-          success: boolean;
-          evaluations: Record<string, {
-            overallScore: number;
-            scores: EvaluationScores;
-            evaluatedAt: number;
-          }>;
-        };
+      if (!response.ok) return;
 
-        if (data.success && data.evaluations) {
-          const evaluationsMap: Record<string, PromptEvaluation> = {};
-          for (const [hash, eval_] of Object.entries(data.evaluations)) {
-            if (eval_) {
-              evaluationsMap[hash] = {
-                promptHash: hash,
-                overallScore: eval_.overallScore,
-                scores: eval_.scores,
-                evaluatedAt: eval_.evaluatedAt,
-              };
-            }
-          }
-          set((state) => ({
-            evaluations: { ...state.evaluations, ...evaluationsMap },
-          }));
+      const data = (await response.json()) as {
+        success: boolean;
+        evaluations: Record<string, (PromptEvaluation & { _id?: string; _creationTime?: number }) | null>;
+      };
+
+      if (!data.success || !data.evaluations) return;
+
+      const evaluationsMap: Record<string, PromptEvaluation> = {};
+      for (const [hash, row] of Object.entries(data.evaluations)) {
+        if (row && row.schemaVersion === 2 && row.tiers && row.recommendedTier) {
+          evaluationsMap[hash] = {
+            promptHash: hash,
+            schemaVersion: 2,
+            tiers: row.tiers,
+            recommendedTier: row.recommendedTier,
+            recommendedModelId: row.recommendedModelId,
+            recommendedModelLabel: row.recommendedModelLabel,
+            recommendedEffort: row.recommendedEffort,
+            bestTierModels: row.bestTierModels,
+            byok: row.byok,
+            rationale: row.rationale,
+            evaluatedAt: row.evaluatedAt,
+          };
         }
       }
+      set((state) => ({
+        evaluations: { ...state.evaluations, ...evaluationsMap },
+      }));
     } catch (error) {
       console.error('Failed to load evaluations:', error);
     }
   },
 
-  getEvaluation: (promptHash) => {
-    return get().evaluations[promptHash];
-  },
+  getEvaluation: (promptHash) => get().evaluations[promptHash],
 
-  getPromptHash: async (promptText) => {
-    return sha256(promptText);
-  },
+  getPromptHash: async (promptText) => sha256(promptText),
 
   clearError: () => set({ error: null }),
 

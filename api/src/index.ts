@@ -4,13 +4,23 @@
  * Handles:
  * - R2 file uploads for .pmtpk files
  * - Auth token validation
- * - CORS for extension requests
+ * - CORS for web + Tauri requests
  */
 
 // Configuration is set in wrangler.toml
 import { getGroqApiKey } from "./config";
-import { handleMcpRequest } from "./mcp";
 import { handleLlmChat } from "./llm";
+import { handleStyleAnalysis } from "./styleanalysis";
+import { handleImageGen } from "./imagegen";
+import { handleStyleRefine } from "./stylerefine";
+import {
+  modelsByTier,
+  recommendedForTier,
+  getManagedModel,
+  byokModelForTier,
+  type ManagedTier,
+  type ByokProvider,
+} from "./managed-models";
 
 export interface Env {
   BUCKET: R2Bucket;
@@ -24,6 +34,7 @@ export interface Env {
   CLERK_JWKS_URL: string;
   CLERK_AUDIENCE: string;
   OPENROUTER_API_KEY: string;
+  OPENAI_API_KEY?: string; // Optional. Enables DALL-E 3 image gen direct (better quality than Gemini fallback).
   SKILLSET_INTERNAL_KEY: string;
   JWT_SECRET?: string;
   // BetterAuth (new provider)
@@ -31,7 +42,6 @@ export interface Env {
   BETTER_AUTH_JWKS_URL: string;
   BETTER_AUTH_AUDIENCE: string;
   // MCP tokens
-  MCP_TOKEN_SECRET: string;
 }
 
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
@@ -43,15 +53,15 @@ const ENHANCE_FREE_MODEL = "llama-3.1-8b-instant";
 const ENHANCE_MAX_INPUT_CHARS = 6000;
 
 // Rate limits - daily
-const ENHANCE_FREE_DAY_LIMIT = 10;      // Free (logged in): 10/day
+const ENHANCE_FREE_DAY_LIMIT = 3;       // Free (logged in): 3/day (trial-only; upgrade for real usage)
 const ENHANCE_PRO_DAY_LIMIT = 100;      // Pro: 100/day
 
 // Web tool limits (anonymous + authenticated, for /api/web/* endpoints)
 const WEB_ENHANCE_ANON_DAY = 1;         // Anonymous: 1/day
-const WEB_ENHANCE_FREE_DAY = 10;        // Free logged in: 10/day
+const WEB_ENHANCE_FREE_DAY = 3;         // Free logged in: 3/day (trial-only)
 const WEB_ENHANCE_PRO_DAY = 100;        // Pro: 100/day
 const WEB_EVALUATE_ANON_DAY = 1;        // Anonymous: 1/day
-const WEB_EVALUATE_FREE_DAY = 5;        // Free logged in: 5/day
+const WEB_EVALUATE_FREE_DAY = 3;        // Free logged in: 3/day
 const WEB_EVALUATE_PRO_DAY = 50;        // Pro: 50/day
 const WEB_MIGRATE_ANON_DAY = 1;         // Anonymous: 1/day
 const WEB_MIGRATE_FREE_DAY = 1;         // Free logged in: 1/day (migration is one-time use)
@@ -87,7 +97,7 @@ const ENHANCE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const CLASSIFY_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 // Rate limits for /classify endpoint
-const CLASSIFY_FREE_DAY_LIMIT = 50;      // Free: 50/day
+const CLASSIFY_FREE_DAY_LIMIT = 15;      // Free: 15/day (trial-only; upgrade for real usage)
 const CLASSIFY_PRO_DAY_LIMIT = 500;      // Pro: 500/day
 const CLASSIFY_MINUTE_LIMIT = 10;        // 10 requests/minute
 const CLASSIFY_10MIN_LIMIT = 50;         // 50 requests/10 minutes
@@ -104,39 +114,64 @@ const EVAL_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day cache
 const EVAL_MAX_INPUT_CHARS = 6000;       // Same as enhance
 const EVAL_MODEL = "llama-3.3-70b-versatile"; // Use pro model for quality
 
-// LLM characteristics for evaluation criteria
-const LLM_CHARACTERISTICS: Record<string, string> = {
-  chatgpt: "General-purpose assistant, strong at explanations, creative writing, conversation, and code",
-  claude: "Strong reasoning, nuanced analysis, safety-conscious, excellent for long-form content",
-  gemini: "Multimodal understanding, factual knowledge, Google ecosystem integration",
-  perplexity: "Research-focused, citation-based, real-time information retrieval",
-  grok: "Real-time data awareness, direct responses, current events knowledge",
-  deepseek: "Code generation specialist, technical documentation, debugging tasks",
-  kimi: "Chinese language excellence, long context handling, document analysis",
+// Tier descriptions for the evaluator's system prompt. Mirrors how chat
+// already routes — see app/src/lib/classifier.ts.
+const TIER_DESCRIPTIONS: Record<ManagedTier, string> = {
+  cheap: "Small/fast models (~$0.30/M): everyday Q&A, summaries, simple rewrites, single-file code edits.",
+  mid: "Balanced reasoning (~$3/M): multi-step analysis, refactors, longer writing, careful reasoning.",
+  frontier: "Top reasoning (~$15/M): research-grade analysis, novel-length writing, multi-file architecture, hard math/proofs.",
 };
+
+const VALID_BYOK_PROVIDERS: readonly ByokProvider[] = [
+  "anthropic",
+  "openai",
+  "gemini",
+  "grok",
+  "deepseek",
+  "perplexity",
+  "kimi",
+];
+
+// Models per tier inside the recommended-tier rank list. Models matching
+// the user's `selectedManagedModels[tier]` are always included; otherwise
+// we send the full managed allowlist for that tier to Groq.
+function modelsCatalogForPrompt(tier: ManagedTier): string {
+  return modelsByTier(tier)
+    .map((m) => `${m.id} (${m.label})`)
+    .join(", ");
+}
+
+function clampScore(n: unknown): number {
+  if (typeof n !== "number" || Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function isManagedTier(v: unknown): v is ManagedTier {
+  return v === "cheap" || v === "mid" || v === "frontier";
+}
+
+function isClassifierTier(v: unknown): v is ManagedTier {
+  // Client sends "cheap"|"mid"|"frontier" directly (already mapped from
+  // classifierTierToManagedTier on the client). Treat unknown as null.
+  return isManagedTier(v);
+}
+
+function isClassifierEffort(v: unknown): v is "low" | "medium" | "high" | null {
+  return v === null || v === "low" || v === "medium" || v === "high";
+}
 
 type OriginRule = { suffix: string; scheme?: string };
 
 function parseAllowedOrigins(env: Env): {
   exact: Set<string>;
   suffixes: OriginRule[];
-  allowChromeExtensionAny: boolean;
 } {
   const raw = env.ALLOWED_ORIGINS || "";
   const entries = raw.split(",").map((entry) => entry.trim()).filter(Boolean);
   const exact = new Set<string>();
   const suffixes: OriginRule[] = [];
-  let allowChromeExtensionAny = false;
 
   for (const entry of entries) {
-    if (entry === "chrome-extension://*") {
-      allowChromeExtensionAny = true;
-      continue;
-    }
-    if (entry.startsWith("chrome-extension://")) {
-      exact.add(entry);
-      continue;
-    }
     if (entry.startsWith("http://*.")) {
       suffixes.push({ scheme: "http", suffix: entry.slice("http://*.".length) });
       continue;
@@ -156,7 +191,7 @@ function parseAllowedOrigins(env: Env): {
     }
   }
 
-  return { exact, suffixes, allowChromeExtensionAny };
+  return { exact, suffixes };
 }
 
 function isOriginAllowed(origin: string, env: Env): boolean {
@@ -165,22 +200,17 @@ function isOriginAllowed(origin: string, env: Env): boolean {
   if (origin === "null") return true;
   if (!origin) return false;
 
-  // Allow browser extensions and Tauri desktop app origins
-  // Chrome extension: chrome-extension://
-  // Firefox extension: moz-extension://
-  // Safari extension: safari-web-extension:// (macOS 11+)
-  // Tauri desktop app: tauri://, http://tauri.localhost, https://tauri.localhost
-  // Tauri v2 dev server: http://localhost:1420
-  // Local dev: http://localhost:*, http://127.0.0.1:*
+  // Allow Tauri desktop app + local dev origins:
+  //   tauri://, http://tauri.localhost, https://tauri.localhost
+  //   Tauri v2 dev server: http://localhost:1420
+  //   Local dev: http://localhost:*, http://127.0.0.1:*
   if (
     origin.startsWith("tauri://") ||
     origin.startsWith("http://tauri.localhost") ||
     origin.startsWith("https://tauri.localhost") ||
     origin.startsWith("http://localhost:") ||
     origin.startsWith("http://localhost") ||
-    origin.startsWith("http://127.0.0.1:") ||
-    origin.startsWith("moz-extension://") ||
-    origin.startsWith("safari-web-extension://")
+    origin.startsWith("http://127.0.0.1:")
   ) {
     return true;
   }
@@ -196,10 +226,6 @@ function isOriginAllowed(origin: string, env: Env): boolean {
   if (rules.exact.has(origin)) return true;
 
   const scheme = url.protocol.replace(":", "");
-  if (scheme === "chrome-extension" && rules.allowChromeExtensionAny) {
-    return true;
-  }
-
   const host = url.hostname;
   for (const rule of rules.suffixes) {
     if (rule.scheme && rule.scheme !== scheme) continue;
@@ -219,7 +245,7 @@ function buildCorsHeaders(origin: string, methods: string): HeadersInit {
   };
 }
 
-// CORS headers for extension and web requests
+// CORS headers for web + Tauri requests
 function corsHeaders(request: Request, env: Env): HeadersInit {
   const origin = request.headers.get("Origin") || "";
   if (!isOriginAllowed(origin, env)) return {};
@@ -355,50 +381,11 @@ async function verifyClerkJwt(token: string, env: Env): Promise<ClerkJwtPayload 
   return payload;
 }
 
-// --- MCP long-lived token helpers (HS256) ---
-
-function encodeBase64Url(data: Uint8Array): string {
-  let binary = "";
-  for (const byte of data) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+// --- HMAC key helper (used by desktop access token + any future HS256 needs) ---
 
 async function getHmacKey(secret: string): Promise<CryptoKey> {
   const keyData = new TextEncoder().encode(secret);
   return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
-}
-
-async function mintMcpToken(userId: string, env: Env): Promise<{ token: string; expiresAt: number }> {
-  // Works with both Clerk IDs and BetterAuth IDs
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = now + 30 * 24 * 60 * 60; // 30 days
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload = { sub: userId, iat: now, exp: expiresAt, type: "mcp" };
-  const enc = new TextEncoder();
-  const headerB64 = encodeBase64Url(enc.encode(JSON.stringify(header)));
-  const payloadB64 = encodeBase64Url(enc.encode(JSON.stringify(payload)));
-  const signingInput = `${headerB64}.${payloadB64}`;
-  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signingInput));
-  const sigB64 = encodeBase64Url(new Uint8Array(sig));
-  return { token: `${signingInput}.${sigB64}`, expiresAt };
-}
-
-async function verifyMcpToken(token: string, env: Env): Promise<{ sub?: string } | null> {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [headerB64, payloadB64, sigB64] = parts;
-  const header = parseJwtPart<{ alg?: string; typ?: string }>(headerB64);
-  if (!header || header.alg !== "HS256") return null;
-  const payload = parseJwtPart<{ sub?: string; exp?: number; type?: string }>(payloadB64);
-  if (!payload || payload.type !== "mcp") return null;
-  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
-  const key = await getHmacKey(env.MCP_TOKEN_SECRET);
-  const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
-  const signature = decodeBase64Url(sigB64);
-  const valid = await crypto.subtle.verify("HMAC", key, signature, signingInput);
-  if (!valid) return null;
-  return { sub: payload.sub };
 }
 
 async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPayload | null> {
@@ -459,24 +446,18 @@ async function verifyDesktopAccessToken(token: string, env: Env): Promise<{ sub?
   return { sub: payload.sub };
 }
 
-async function verifyMcpOrClerkOrBetterAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
-  // Try desktop HS256 access token first (most common for desktop app)
+async function verifyAnyAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
+  // Tries every supported auth scheme in order of frequency:
+  //  1. Desktop HS256 access token (Tauri app)
+  //  2. Clerk RS256 (legacy web users)
+  //  3. BetterAuth RS256 (current web users)
   const desktop = await verifyDesktopAccessToken(token, env);
   if (desktop) return desktop;
-  // Try Clerk RS256
   const clerk = await verifyClerkJwt(token, env);
   if (clerk) return clerk;
-  // Try BetterAuth RS256
   const betterAuth = await verifyBetterAuthJwt(token, env);
   if (betterAuth) return betterAuth;
-  // Fall back to MCP HS256 token
-  if (!env.MCP_TOKEN_SECRET) return null;
-  return verifyMcpToken(token, env);
-}
-
-async function verifyMcpOrClerkJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
-  // Kept for backward compat, delegates to triple-auth version
-  return verifyMcpOrClerkOrBetterAuthJwt(token, env);
+  return null;
 }
 
 function getEnhanceMode(input: unknown): EnhanceMode | null {
@@ -764,7 +745,7 @@ export default {
         const res = await handleLlmChat(
           request,
           env as any,
-          (token) => verifyMcpOrClerkOrBetterAuthJwt(token, env),
+          (token) => verifyAnyAuthJwt(token, env),
         );
         return addCors(res);
       }
@@ -981,7 +962,13 @@ export default {
             }));
           }
 
-          const body = await request.json().catch(() => null) as { text?: string } | null;
+          const body = (await request.json().catch(() => null)) as {
+            text?: string;
+            selectedManagedModels?: Partial<Record<ManagedTier, string>>;
+            classifierTier?: unknown;
+            classifierEffort?: unknown;
+            byokProviders?: unknown;
+          } | null;
           const text = body?.text?.trim();
 
           if (!text) {
@@ -1073,142 +1060,276 @@ export default {
             }));
           }
 
-          // Cache lookup by prompt hash
-          const promptHash = await sha256Hex(text);
-          const cacheKey = `eval:${promptHash}`;
-          const cachedResult = await getCachedJson<{
-            overallScore: number;
-            scores: Record<string, number>;
-          }>(cacheKey);
-
-          if (cachedResult?.overallScore !== undefined) {
-            return addCors(new Response(JSON.stringify({
-              overallScore: cachedResult.overallScore,
-              scores: cachedResult.scores,
-              promptHash,
-              cached: true,
-            }), {
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          // Build the evaluation system prompt (DeepEval G-Eval inspired)
-          const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
-
-## EVALUATION CRITERIA (based on G-Eval methodology)
-
-Score each dimension 0-100, then calculate weighted LLM scores:
-
-### Core Metrics:
-1. **Clarity** (weight: 25%) - Is the prompt unambiguous with clear intent?
-   - 90-100: Crystal clear, single interpretation possible
-   - 70-89: Clear with minor ambiguities
-   - 40-69: Some confusion about intent
-   - 0-39: Vague or contradictory
-
-2. **Specificity** (weight: 25%) - Does it provide sufficient context and constraints?
-   - 90-100: All necessary context, clear boundaries
-   - 70-89: Good context, few gaps
-   - 40-69: Missing important details
-   - 0-39: Too vague to produce quality output
-
-3. **Task Alignment** (weight: 20%) - How well does the task match each LLM's strengths?
-   - Score varies per LLM based on their capabilities
-
-4. **Response Predictability** (weight: 15%) - Can the LLM consistently produce quality output?
-   - 90-100: Highly predictable, well-structured request
-   - 70-89: Generally predictable
-   - 40-69: May produce inconsistent results
-   - 0-39: Unpredictable outputs likely
-
-5. **Completeness** (weight: 15%) - Does it include format, length, tone guidance?
-   - 90-100: Full output specification
-   - 70-89: Partial guidance
-   - 40-69: Minimal guidance
-   - 0-39: No output expectations
-
-## LLM-SPECIFIC TASK ALIGNMENT SCORING:
-
-- **ChatGPT**: ${LLM_CHARACTERISTICS.chatgpt} (+15 for matching tasks)
-- **Claude**: ${LLM_CHARACTERISTICS.claude} (+15 for matching tasks)
-- **Gemini**: ${LLM_CHARACTERISTICS.gemini} (+15 for matching tasks)
-- **Perplexity**: ${LLM_CHARACTERISTICS.perplexity} (+15 for matching tasks)
-- **Grok**: ${LLM_CHARACTERISTICS.grok} (+15 for matching tasks)
-- **DeepSeek**: ${LLM_CHARACTERISTICS.deepseek} (+15 for matching tasks)
-- **Kimi**: ${LLM_CHARACTERISTICS.kimi} (+15 for matching tasks)
-
-## OUTPUT FORMAT:
-Return ONLY valid JSON with integer scores 0-100:
-{"chatgpt":85,"claude":90,"gemini":75,"perplexity":82,"grok":70,"deepseek":68,"kimi":72}
-
-Do NOT include any explanation or markdown formatting.`;
-
-          // Call Groq API
-          const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${groqApiKey}`,
-            },
-            body: JSON.stringify({
-              model: EVAL_MODEL,
-              messages: [
-                { role: "system", content: evalSystemPrompt },
-                { role: "user", content: `Evaluate this prompt:\n\n${text}` },
-              ],
-              temperature: 0.15, // Low temperature for consistent scoring
-              max_tokens: 150,
-            }),
-          });
-
-          if (!groqResponse.ok) {
-            console.error("Groq evaluation error:", groqResponse.status, await groqResponse.text().catch(() => ""));
-            return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          const groqData = await groqResponse.json() as {
-            choices?: Array<{ message?: { content?: string } }>;
+          // Resolve selected managed models per tier (fallback to
+          // recommended-for-tier when client sends an invalid id or omits
+          // the tier entirely).
+          const rawSelections = body?.selectedManagedModels ?? {};
+          const resolveTierModel = (tier: ManagedTier) => {
+            const sentId = rawSelections[tier];
+            const m = sentId ? getManagedModel(sentId) : undefined;
+            if (m && m.tier === tier) return m;
+            return recommendedForTier(tier);
           };
-          const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+          const tierSelections: Record<ManagedTier, { id: string; label: string }> = {
+            cheap: { id: resolveTierModel("cheap").id, label: resolveTierModel("cheap").label },
+            mid: { id: resolveTierModel("mid").id, label: resolveTierModel("mid").label },
+            frontier: { id: resolveTierModel("frontier").id, label: resolveTierModel("frontier").label },
+          };
 
-          // Parse the JSON scores
-          let scores: Record<string, number>;
-          try {
-            // Try to extract JSON from the response (handle if wrapped in markdown)
-            const jsonMatch = content.match(/\{[^}]+\}/);
-            if (!jsonMatch) {
-              throw new Error("No JSON found in response");
-            }
-            scores = JSON.parse(jsonMatch[0]);
+          const classifierTier = isClassifierTier(body?.classifierTier) ? body!.classifierTier : null;
+          const classifierEffort = isClassifierEffort(body?.classifierEffort) ? body!.classifierEffort : null;
 
-            // Validate all expected LLMs are present
-            const expectedLLMs = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
-            for (const llm of expectedLLMs) {
-              if (typeof scores[llm] !== "number" || scores[llm] < 0 || scores[llm] > 100) {
-                throw new Error(`Invalid or missing score for ${llm}`);
-              }
-              scores[llm] = Math.round(scores[llm]); // Ensure integers
+          const rawByok = Array.isArray(body?.byokProviders) ? body!.byokProviders : [];
+          const byokProviders: ByokProvider[] = [];
+          for (const p of rawByok) {
+            if (typeof p === "string" && VALID_BYOK_PROVIDERS.includes(p as ByokProvider)) {
+              if (!byokProviders.includes(p as ByokProvider)) byokProviders.push(p as ByokProvider);
             }
-          } catch (parseError) {
-            console.error("Failed to parse evaluation scores:", content, parseError);
-            return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
-              status: 502,
-              headers: { "Content-Type": "application/json" },
-            }));
           }
 
-          // Calculate overall score (average of all LLM scores)
-          const overallScore = Math.round(
-            Object.values(scores).reduce((a, b) => a + b, 0) / 7
-          );
+          // Cache lookup by prompt hash (v2 namespace — old `eval:` keys
+          // are inert and expire naturally).
+          const promptHash = await sha256Hex(text);
+          const cacheKey = `eval:v2:${promptHash}`;
+          type CachedV2 = {
+            tiers: Record<ManagedTier, number>;
+            bestTier: ManagedTier;
+            modelsInBestTier: Record<string, number>;
+            rationale?: string;
+          };
+          const cachedResult = await getCachedJson<CachedV2>(cacheKey);
 
-          // Cache the result
-          await putCachedJson(cacheKey, { overallScore, scores }, EVAL_CACHE_TTL_SECONDS);
+          let groqTiers: Record<ManagedTier, number>;
+          let groqBestTier: ManagedTier;
+          let groqModelsInBestTier: Record<string, number>;
+          let rationale: string | undefined;
+          let cached = false;
 
-          // Save to Convex
+          if (cachedResult && isManagedTier(cachedResult.bestTier) && cachedResult.tiers) {
+            groqTiers = cachedResult.tiers;
+            groqBestTier = cachedResult.bestTier;
+            groqModelsInBestTier = cachedResult.modelsInBestTier ?? {};
+            rationale = cachedResult.rationale;
+            cached = true;
+          } else {
+            const evalSystemPrompt = `You are an expert prompt-routing evaluator. Score how three model tiers handle the user's prompt, then rank the candidate models inside the recommended tier.
+
+Tiers:
+- Cheap: ${TIER_DESCRIPTIONS.cheap}
+- Mid: ${TIER_DESCRIPTIONS.mid}
+- Frontier: ${TIER_DESCRIPTIONS.frontier}
+
+Scoring rules (0-100):
+- 0-30: tier struggles or fails.
+- 40-65: tier is OK but suboptimal.
+- 70-100: tier handles the prompt well.
+- Penalize overkill: a trivial prompt should score ~95 on Cheap and 88-92 on Frontier (still high, but lower — cost/latency doesn't pay).
+- Penalize underkill: a complex prompt should score 35-55 on Cheap.
+
+Recommended tier defaults to the LR classifier's pick unless your tier scores show another tier at least 10 points higher.
+
+You must also rank the candidate models inside the recommended tier on the same 0-100 scale, accounting for each model's strengths (reasoning, code, writing, multimodal, recency of data).
+
+Return ONLY valid JSON, no markdown:
+{
+  "tiers": { "cheap": <int>, "mid": <int>, "frontier": <int> },
+  "bestTier": "cheap"|"mid"|"frontier",
+  "modelsInBestTier": { "<modelId>": <int>, ... },
+  "rationale": "<one-line explanation, <=80 chars>"
+}`;
+
+            const userMessage = [
+              `LR classifier prediction: tier=${classifierTier ?? "unknown"}, effort=${classifierEffort ?? "none"}`,
+              "",
+              "Candidate models in each tier:",
+              `- Cheap: ${modelsCatalogForPrompt("cheap")}`,
+              `- Mid: ${modelsCatalogForPrompt("mid")}`,
+              `- Frontier: ${modelsCatalogForPrompt("frontier")}`,
+              "",
+              "Prompt:",
+              text,
+            ].join("\n");
+
+            const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${groqApiKey}`,
+              },
+              body: JSON.stringify({
+                model: EVAL_MODEL,
+                messages: [
+                  { role: "system", content: evalSystemPrompt },
+                  { role: "user", content: userMessage },
+                ],
+                temperature: 0.15,
+                max_tokens: 400,
+              }),
+            });
+
+            if (!groqResponse.ok) {
+              console.error("Groq evaluation error:", groqResponse.status, await groqResponse.text().catch(() => ""));
+              return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
+                status: 502,
+                headers: { "Content-Type": "application/json" },
+              }));
+            }
+
+            const groqData = (await groqResponse.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+
+            try {
+              // Greedy outer-brace match to allow nested objects.
+              const jsonMatch = content.match(/\{[\s\S]*\}/);
+              if (!jsonMatch) throw new Error("No JSON found in response");
+              const parsed = JSON.parse(jsonMatch[0]) as {
+                tiers?: Record<string, number>;
+                bestTier?: unknown;
+                modelsInBestTier?: Record<string, number>;
+                rationale?: unknown;
+              };
+
+              if (!parsed.tiers || typeof parsed.tiers !== "object") throw new Error("Missing tiers");
+              groqTiers = {
+                cheap: clampScore(parsed.tiers.cheap),
+                mid: clampScore(parsed.tiers.mid),
+                frontier: clampScore(parsed.tiers.frontier),
+              };
+
+              const llmPickedTier = isManagedTier(parsed.bestTier) ? parsed.bestTier : null;
+              if (classifierTier && llmPickedTier && llmPickedTier !== classifierTier) {
+                const lead = groqTiers[llmPickedTier] - groqTiers[classifierTier];
+                groqBestTier = lead >= 10 ? llmPickedTier : classifierTier;
+              } else {
+                groqBestTier = llmPickedTier ?? classifierTier ?? (
+                  // argmax fallback
+                  groqTiers.frontier >= groqTiers.mid && groqTiers.frontier >= groqTiers.cheap
+                    ? "frontier"
+                    : groqTiers.mid >= groqTiers.cheap
+                      ? "mid"
+                      : "cheap"
+                );
+              }
+
+              const candidateIds = new Set(modelsByTier(groqBestTier).map((m) => m.id));
+              const rawModelScores = parsed.modelsInBestTier ?? {};
+              groqModelsInBestTier = {};
+              for (const id of Object.keys(rawModelScores)) {
+                if (candidateIds.has(id)) {
+                  groqModelsInBestTier[id] = clampScore(rawModelScores[id]);
+                }
+              }
+              // Backfill any candidate missing a score with the tier's overall score.
+              for (const id of candidateIds) {
+                if (!(id in groqModelsInBestTier)) {
+                  groqModelsInBestTier[id] = groqTiers[groqBestTier];
+                }
+              }
+
+              if (typeof parsed.rationale === "string") {
+                rationale = parsed.rationale.slice(0, 80);
+              }
+            } catch (parseError) {
+              console.error("Failed to parse evaluation scores:", content, parseError);
+              return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
+                status: 502,
+                headers: { "Content-Type": "application/json" },
+              }));
+            }
+
+            await putCachedJson(
+              cacheKey,
+              { tiers: groqTiers, bestTier: groqBestTier, modelsInBestTier: groqModelsInBestTier, rationale },
+              EVAL_CACHE_TTL_SECONDS,
+            );
+          }
+
+          // Build per-tier rows from selected models + Groq scores.
+          const tiersOut = {
+            cheap: {
+              tier: "cheap" as const,
+              score: groqTiers.cheap,
+              selectedModelId: tierSelections.cheap.id,
+              selectedModelLabel: tierSelections.cheap.label,
+            },
+            mid: {
+              tier: "mid" as const,
+              score: groqTiers.mid,
+              selectedModelId: tierSelections.mid.id,
+              selectedModelLabel: tierSelections.mid.label,
+            },
+            frontier: {
+              tier: "frontier" as const,
+              score: groqTiers.frontier,
+              selectedModelId: tierSelections.frontier.id,
+              selectedModelLabel: tierSelections.frontier.label,
+            },
+          };
+
+          // Rank models inside the recommended tier; argmax = recommendedModel.
+          const bestTierCatalog = modelsByTier(groqBestTier);
+          const bestTierModels = bestTierCatalog
+            .map((m) => ({
+              modelId: m.id,
+              label: m.label,
+              score: groqModelsInBestTier[m.id] ?? groqTiers[groqBestTier],
+            }))
+            .sort((a, b) => b.score - a.score);
+          const recommendedModel = bestTierModels[0] ?? {
+            modelId: tierSelections[groqBestTier].id,
+            label: tierSelections[groqBestTier].label,
+            score: groqTiers[groqBestTier],
+          };
+
+          // Effort: classifier's pick, clamped to recommendedModel's
+          // reasoning support. Worker doesn't carry model-level reasoning
+          // flags (those live in the desktop catalog), so we apply a
+          // simple rule: cheap tier => no effort; non-reasoning model
+          // ids => no effort; otherwise pass through.
+          //
+          // The client is the only consumer that re-clamps against the
+          // full ManagedModel record before display, so the worker's
+          // value is advisory.
+          let recommendedEffort: "low" | "medium" | "high" | null = classifierEffort;
+          if (groqBestTier === "cheap") recommendedEffort = null;
+
+          // BYOK rows: pin each configured provider to its canonical
+          // model in the recommended tier. Skip providers without a
+          // model at that tier.
+          const byokRows = byokProviders
+            .map((provider) => {
+              const m = byokModelForTier(provider, groqBestTier);
+              if (!m) return null;
+              return {
+                provider,
+                modelId: m.modelId,
+                modelLabel: m.label,
+                tier: groqBestTier,
+                score: groqTiers[groqBestTier],
+              };
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null);
+
+          const evaluatedAt = Date.now();
+
+          const responseBody = {
+            promptHash,
+            schemaVersion: 2 as const,
+            tiers: tiersOut,
+            recommendedTier: groqBestTier,
+            recommendedModelId: recommendedModel.modelId,
+            recommendedModelLabel: recommendedModel.label,
+            recommendedEffort,
+            bestTierModels,
+            byok: byokRows.length > 0 ? byokRows : undefined,
+            rationale,
+            evaluatedAt,
+            cached,
+          };
+
+          // Save to Convex (v2 shape). Failure is non-fatal.
           try {
             await fetch(`${env.CONVEX_URL}/api/desktop/save-evaluation`, {
               method: "POST",
@@ -1216,21 +1337,23 @@ Do NOT include any explanation or markdown formatting.`;
               body: JSON.stringify({
                 userId,
                 promptHash,
-                overallScore,
-                scores,
+                schemaVersion: 2,
+                tiers: tiersOut,
+                recommendedTier: groqBestTier,
+                recommendedModelId: recommendedModel.modelId,
+                recommendedModelLabel: recommendedModel.label,
+                recommendedEffort,
+                bestTierModels,
+                byok: byokRows,
+                rationale,
+                evaluatedAt,
               }),
             });
           } catch (saveError) {
-            // Log but don't fail - evaluation is still valid
             console.error("Failed to save evaluation to Convex:", saveError);
           }
 
-          return addCors(new Response(JSON.stringify({
-            overallScore,
-            scores,
-            promptHash,
-            cached: false,
-          }), {
+          return addCors(new Response(JSON.stringify(responseBody), {
             headers: { "Content-Type": "application/json" },
           }));
 
@@ -1419,110 +1542,178 @@ Do NOT include any explanation or markdown formatting.`;
             }), { status: 429, headers: { "Content-Type": "application/json" } }));
           }
 
-          // Cache lookup
+          // Cache lookup (v2 namespace)
           const promptHash = await sha256Hex(text);
-          const cacheKey = `eval:web:${promptHash}`;
-          const cachedResult = await getCachedJson<{
-            overallScore: number;
-            scores: Record<string, number>;
-          }>(cacheKey);
-
-          if (cachedResult?.overallScore !== undefined) {
-            return addCors(new Response(JSON.stringify({
-              overallScore: cachedResult.overallScore,
-              scores: cachedResult.scores,
-              promptHash,
-              cached: true,
-              remaining: Math.max(0, dayLimit - dayCount),
-            }), { headers: { "Content-Type": "application/json" } }));
-          }
-
-          // Build evaluation prompt (same as the Pro endpoint)
-          const evalSystemPrompt = `You are an expert prompt quality evaluator using research-backed evaluation criteria.
-
-## EVALUATION CRITERIA (based on G-Eval methodology)
-
-Score each dimension 0-100, then calculate weighted LLM scores:
-
-### Core Metrics:
-1. **Clarity** (weight: 25%) - Is the prompt unambiguous with clear intent?
-2. **Specificity** (weight: 25%) - Does it provide sufficient context and constraints?
-3. **Task Alignment** (weight: 20%) - How well does the task match each LLM's strengths?
-4. **Response Predictability** (weight: 15%) - Can the LLM consistently produce quality output?
-5. **Completeness** (weight: 15%) - Does it include format, length, tone guidance?
-
-## LLM-SPECIFIC TASK ALIGNMENT SCORING:
-- **ChatGPT**: ${LLM_CHARACTERISTICS.chatgpt}
-- **Claude**: ${LLM_CHARACTERISTICS.claude}
-- **Gemini**: ${LLM_CHARACTERISTICS.gemini}
-- **Perplexity**: ${LLM_CHARACTERISTICS.perplexity}
-- **Grok**: ${LLM_CHARACTERISTICS.grok}
-- **DeepSeek**: ${LLM_CHARACTERISTICS.deepseek}
-- **Kimi**: ${LLM_CHARACTERISTICS.kimi}
-
-## OUTPUT FORMAT:
-Return ONLY valid JSON with integer scores 0-100:
-{"chatgpt":85,"claude":90,"gemini":75,"perplexity":82,"grok":70,"deepseek":68,"kimi":72}
-
-Do NOT include any explanation or markdown formatting.`;
-
-          const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${groqApiKey}`,
-            },
-            body: JSON.stringify({
-              model: EVAL_MODEL,
-              messages: [
-                { role: "system", content: evalSystemPrompt },
-                { role: "user", content: `Evaluate this prompt:\n\n${text}` },
-              ],
-              temperature: 0.15,
-              max_tokens: 150,
-            }),
-          });
-
-          if (!groqResponse.ok) {
-            return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
-              status: 502, headers: { "Content-Type": "application/json" },
-            }));
-          }
-
-          const groqData = await groqResponse.json() as {
-            choices?: Array<{ message?: { content?: string } }>;
+          const cacheKey = `eval:web:v2:${promptHash}`;
+          type WebCacheV2 = {
+            tiers: Record<ManagedTier, number>;
+            bestTier: ManagedTier;
+            modelsInBestTier: Record<string, number>;
+            rationale?: string;
           };
-          const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+          const cachedResult = await getCachedJson<WebCacheV2>(cacheKey);
 
-          let scores: Record<string, number>;
-          try {
-            const jsonMatch = content.match(/\{[^}]+\}/);
-            if (!jsonMatch) throw new Error("No JSON found");
-            scores = JSON.parse(jsonMatch[0]);
-            const expectedLLMs = ["chatgpt", "claude", "gemini", "perplexity", "grok", "deepseek", "kimi"];
-            for (const llm of expectedLLMs) {
-              if (typeof scores[llm] !== "number" || scores[llm] < 0 || scores[llm] > 100) {
-                throw new Error(`Invalid score for ${llm}`);
-              }
-              scores[llm] = Math.round(scores[llm]);
+          let webTiers: Record<ManagedTier, number>;
+          let webBestTier: ManagedTier;
+          let webModelsInBestTier: Record<string, number>;
+          let webRationale: string | undefined;
+          let webCached = false;
+
+          if (cachedResult && isManagedTier(cachedResult.bestTier) && cachedResult.tiers) {
+            webTiers = cachedResult.tiers;
+            webBestTier = cachedResult.bestTier;
+            webModelsInBestTier = cachedResult.modelsInBestTier ?? {};
+            webRationale = cachedResult.rationale;
+            webCached = true;
+          } else {
+            const evalSystemPrompt = `You are an expert prompt-routing evaluator. Score how three model tiers handle the user's prompt, then rank the candidate models inside the recommended tier.
+
+Tiers:
+- Cheap: ${TIER_DESCRIPTIONS.cheap}
+- Mid: ${TIER_DESCRIPTIONS.mid}
+- Frontier: ${TIER_DESCRIPTIONS.frontier}
+
+Scoring rules (0-100):
+- 0-30: tier struggles or fails.
+- 40-65: tier is OK but suboptimal.
+- 70-100: tier handles the prompt well.
+- Penalize overkill on trivial prompts.
+- Penalize underkill on complex prompts.
+
+Return ONLY valid JSON, no markdown:
+{
+  "tiers": { "cheap": <int>, "mid": <int>, "frontier": <int> },
+  "bestTier": "cheap"|"mid"|"frontier",
+  "modelsInBestTier": { "<modelId>": <int>, ... },
+  "rationale": "<one-line explanation, <=80 chars>"
+}`;
+
+            const userMessage = [
+              "Candidate models in each tier:",
+              `- Cheap: ${modelsCatalogForPrompt("cheap")}`,
+              `- Mid: ${modelsCatalogForPrompt("mid")}`,
+              `- Frontier: ${modelsCatalogForPrompt("frontier")}`,
+              "",
+              "Prompt:",
+              text,
+            ].join("\n");
+
+            const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${groqApiKey}`,
+              },
+              body: JSON.stringify({
+                model: EVAL_MODEL,
+                messages: [
+                  { role: "system", content: evalSystemPrompt },
+                  { role: "user", content: userMessage },
+                ],
+                temperature: 0.15,
+                max_tokens: 400,
+              }),
+            });
+
+            if (!groqResponse.ok) {
+              return addCors(new Response(JSON.stringify({ error: "Evaluation failed. Please try again." }), {
+                status: 502, headers: { "Content-Type": "application/json" },
+              }));
             }
-          } catch {
-            return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
-              status: 502, headers: { "Content-Type": "application/json" },
-            }));
+
+            const groqData = (await groqResponse.json()) as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const content = groqData.choices?.[0]?.message?.content?.trim() || "";
+
+            try {
+              const jsonMatch = content.match(/\{[\s\S]*\}/);
+              if (!jsonMatch) throw new Error("No JSON found");
+              const parsed = JSON.parse(jsonMatch[0]) as {
+                tiers?: Record<string, number>;
+                bestTier?: unknown;
+                modelsInBestTier?: Record<string, number>;
+                rationale?: unknown;
+              };
+              if (!parsed.tiers || typeof parsed.tiers !== "object") throw new Error("Missing tiers");
+              webTiers = {
+                cheap: clampScore(parsed.tiers.cheap),
+                mid: clampScore(parsed.tiers.mid),
+                frontier: clampScore(parsed.tiers.frontier),
+              };
+              webBestTier = isManagedTier(parsed.bestTier)
+                ? parsed.bestTier
+                : webTiers.frontier >= webTiers.mid && webTiers.frontier >= webTiers.cheap
+                  ? "frontier"
+                  : webTiers.mid >= webTiers.cheap
+                    ? "mid"
+                    : "cheap";
+
+              const candidateIds = new Set(modelsByTier(webBestTier).map((m) => m.id));
+              const rawModelScores = parsed.modelsInBestTier ?? {};
+              webModelsInBestTier = {};
+              for (const id of Object.keys(rawModelScores)) {
+                if (candidateIds.has(id)) {
+                  webModelsInBestTier[id] = clampScore(rawModelScores[id]);
+                }
+              }
+              for (const id of candidateIds) {
+                if (!(id in webModelsInBestTier)) {
+                  webModelsInBestTier[id] = webTiers[webBestTier];
+                }
+              }
+              if (typeof parsed.rationale === "string") {
+                webRationale = parsed.rationale.slice(0, 80);
+              }
+            } catch {
+              return addCors(new Response(JSON.stringify({ error: "Failed to parse evaluation. Please try again." }), {
+                status: 502, headers: { "Content-Type": "application/json" },
+              }));
+            }
+
+            await putCachedJson(
+              cacheKey,
+              { tiers: webTiers, bestTier: webBestTier, modelsInBestTier: webModelsInBestTier, rationale: webRationale },
+              EVAL_CACHE_TTL_SECONDS,
+            );
           }
 
-          const overallScore = Math.round(
-            Object.values(scores).reduce((a, b) => a + b, 0) / 7
-          );
-
-          await putCachedJson(cacheKey, { overallScore, scores }, EVAL_CACHE_TTL_SECONDS);
+          // Web tool has no settings store — pick the recommended model
+          // in each tier and the highest scorer within the best tier.
+          const webTierSelections: Record<ManagedTier, { id: string; label: string }> = {
+            cheap: { id: recommendedForTier("cheap").id, label: recommendedForTier("cheap").label },
+            mid: { id: recommendedForTier("mid").id, label: recommendedForTier("mid").label },
+            frontier: { id: recommendedForTier("frontier").id, label: recommendedForTier("frontier").label },
+          };
+          const webBestTierModels = modelsByTier(webBestTier)
+            .map((m) => ({
+              modelId: m.id,
+              label: m.label,
+              score: webModelsInBestTier[m.id] ?? webTiers[webBestTier],
+            }))
+            .sort((a, b) => b.score - a.score);
+          const webRecommendedModel = webBestTierModels[0] ?? {
+            modelId: webTierSelections[webBestTier].id,
+            label: webTierSelections[webBestTier].label,
+            score: webTiers[webBestTier],
+          };
 
           return addCors(new Response(JSON.stringify({
-            overallScore,
-            scores,
             promptHash,
-            cached: false,
+            schemaVersion: 2,
+            tiers: {
+              cheap: { tier: "cheap", score: webTiers.cheap, selectedModelId: webTierSelections.cheap.id, selectedModelLabel: webTierSelections.cheap.label },
+              mid: { tier: "mid", score: webTiers.mid, selectedModelId: webTierSelections.mid.id, selectedModelLabel: webTierSelections.mid.label },
+              frontier: { tier: "frontier", score: webTiers.frontier, selectedModelId: webTierSelections.frontier.id, selectedModelLabel: webTierSelections.frontier.label },
+            },
+            recommendedTier: webBestTier,
+            recommendedModelId: webRecommendedModel.modelId,
+            recommendedModelLabel: webRecommendedModel.label,
+            recommendedEffort: webBestTier === "cheap" ? null : "medium",
+            bestTierModels: webBestTierModels,
+            rationale: webRationale,
+            evaluatedAt: Date.now(),
+            cached: webCached,
             remaining: Math.max(0, dayLimit - dayCount),
           }), { headers: { "Content-Type": "application/json" } }));
         } catch {
@@ -2410,9 +2601,12 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             }));
           }
 
+          // Prefer Groq Llama 3.1 8B (fast, free-tier). Fall back to
+          // Ollama if Groq not configured.
+          const groqKey = getGroqApiKey(env);
           const ollamaUrl = env.OLLAMA_URL;
-          if (!ollamaUrl) {
-            return addCors(new Response(JSON.stringify({ error: "Ollama server not configured" }), {
+          if (!groqKey && !ollamaUrl) {
+            return addCors(new Response(JSON.stringify({ error: "No classifier configured (Groq or Ollama)" }), {
               status: 500,
               headers: { "Content-Type": "application/json" },
             }));
@@ -2481,21 +2675,57 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
 
 Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or less.`;
 
-          const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "llama3.2",
-              prompt: `${systemPrompt}\n\nPrompt to classify:\n${promptSnippet}`,
-              stream: false,
-              options: {
-                temperature: 0.3,
-                num_predict: 10,
-              }
-            }),
-          });
+          // Try Groq first (Llama 3.1 8B Instant — fast + free tier)
+          let rawHeader: string | null = null;
 
-          if (!ollamaResponse.ok) {
+          if (groqKey) {
+            const groqResp = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${groqKey}`,
+              },
+              body: JSON.stringify({
+                model: "llama-3.1-8b-instant",
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: `Prompt to classify:\n${promptSnippet}` },
+                ],
+                max_tokens: 20,
+                temperature: 0.3,
+              }),
+            });
+
+            if (groqResp.ok) {
+              const groqData = (await groqResp.json()) as any;
+              rawHeader = groqData?.choices?.[0]?.message?.content ?? null;
+            } else {
+              console.error("[classify-website] Groq failed:", await groqResp.text());
+            }
+          }
+
+          // Fall back to Ollama if Groq missing/failed
+          if (!rawHeader && ollamaUrl) {
+            const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "llama3.2",
+                prompt: `${systemPrompt}\n\nPrompt to classify:\n${promptSnippet}`,
+                stream: false,
+                options: {
+                  temperature: 0.3,
+                  num_predict: 10,
+                }
+              }),
+            });
+            if (ollamaResponse.ok) {
+              const ollamaData = (await ollamaResponse.json()) as { response: string };
+              rawHeader = ollamaData.response;
+            }
+          }
+
+          if (!rawHeader) {
             return addCors(new Response(JSON.stringify({
               error: "Classification failed",
             }), {
@@ -2504,9 +2734,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             }));
           }
 
-          const ollamaData = await ollamaResponse.json() as { response: string };
-
-          let header = ollamaData.response
+          let header = rawHeader
             .replace(/^["']|["']$/g, '')
             .trim();
 
@@ -2542,141 +2770,6 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             await releaseInFlightLock(inFlightKey);
           }
         }
-      }
-
-      // === MCP (Model Context Protocol) endpoint ===
-      if (path === "/mcp" && method === "POST") {
-        const mcpResponse = await handleMcpRequest(
-          request,
-          env,
-          verifyMcpOrClerkJwt,
-          checkUserBillingStatus,
-        );
-        return addCors(mcpResponse);
-      }
-
-      // === Device auth for MCP CLI bridge ===
-
-      // Generate a device auth code for CLI login
-      if (path === "/auth/device-code" && method === "POST") {
-        const code = crypto.randomUUID().slice(0, 8);
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
-        const cacheRes = new Response(JSON.stringify({ status: "pending" }), {
-          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        });
-        await cache.put(cacheReq, cacheRes);
-
-        return addCors(new Response(JSON.stringify({
-          code,
-          authUrl: `https://pmtpk.com/mcp-auth?code=${code}`,
-          expiresIn: 300,
-        }), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Poll for device auth completion
-      if (path === "/auth/device-poll" && method === "GET") {
-        const code = url.searchParams.get("code");
-        if (!code) {
-          return addCors(new Response(JSON.stringify({ error: "Missing code" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${code}`, { method: "GET" });
-        const hit = await cache.match(cacheReq);
-        if (!hit) {
-          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
-            status: 404, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const data = await hit.json() as Record<string, unknown>;
-        return addCors(new Response(JSON.stringify(data), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Complete device auth (called by web app after user signs in)
-      if (path === "/auth/device-complete" && method === "POST") {
-        const body = await request.json().catch(() => null) as {
-          code?: string; userId?: string; clerkId?: string; refreshToken?: string;
-        } | null;
-        const userId = body?.userId ?? body?.clerkId;
-        if (!body?.code || !userId || !body.refreshToken) {
-          return addCors(new Response(JSON.stringify({ error: "Missing code, userId, or refreshToken" }), {
-            status: 400, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const cache = caches.default;
-        const cacheReq = new Request(`https://cache.pmtpk.com/device/${body.code}`, { method: "GET" });
-        const hit = await cache.match(cacheReq);
-        if (!hit) {
-          return addCors(new Response(JSON.stringify({ error: "Code expired or invalid" }), {
-            status: 404, headers: { "Content-Type": "application/json" },
-          }));
-        }
-
-        // Mint a long-lived MCP token if secret is configured
-        let tokenToStore = body.refreshToken;
-        let expiresAt: number | undefined;
-        if (env.MCP_TOKEN_SECRET) {
-          // Verify the Clerk JWT to confirm identity
-          const clerkPayload = await verifyClerkJwt(body.refreshToken, env);
-          if (!clerkPayload || clerkPayload.sub !== userId) {
-            return addCors(new Response(JSON.stringify({ error: "Invalid Clerk token" }), {
-              status: 401, headers: { "Content-Type": "application/json" },
-            }));
-          }
-          const minted = await mintMcpToken(userId, env);
-          tokenToStore = minted.token;
-          expiresAt = minted.expiresAt;
-        }
-
-        // Update cache with completion data
-        const cacheRes = new Response(JSON.stringify({
-          status: "complete",
-          userId,
-          refreshToken: tokenToStore,
-          ...(expiresAt ? { expiresAt } : {}),
-        }), {
-          headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
-        });
-        await cache.put(cacheReq, cacheRes);
-
-        return addCors(new Response(JSON.stringify({ success: true }), {
-          headers: { "Content-Type": "application/json" },
-        }));
-      }
-
-      // Refresh an MCP token (exchange valid MCP token for a fresh 30-day token)
-      if (path === "/auth/mcp-refresh" && method === "POST") {
-        if (!env.MCP_TOKEN_SECRET) {
-          return addCors(new Response(JSON.stringify({ error: "MCP token refresh not configured" }), {
-            status: 501, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const authHeader = request.headers.get("Authorization");
-        if (!authHeader?.startsWith("Bearer ")) {
-          return addCors(new Response(JSON.stringify({ error: "Missing Bearer token" }), {
-            status: 401, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const oldToken = authHeader.slice(7);
-        const payload = await verifyMcpToken(oldToken, env);
-        if (!payload?.sub) {
-          return addCors(new Response(JSON.stringify({ error: "Invalid or expired MCP token" }), {
-            status: 401, headers: { "Content-Type": "application/json" },
-          }));
-        }
-        const minted = await mintMcpToken(payload.sub, env);
-        return addCors(new Response(JSON.stringify({
-          refreshToken: minted.token,
-          expiresAt: minted.expiresAt,
-        }), {
-          headers: { "Content-Type": "application/json" },
-        }));
       }
 
       // POST /api/similar-styles — find presets similar to a given style via Groq
@@ -2904,6 +2997,42 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
         }
       }
 
+      // POST /style-analysis — Claude Vision analyzes artist's style from images
+      if (path === "/style-analysis" && method === "POST") {
+        try {
+          return await handleStyleAnalysis(request, env);
+        } catch (error) {
+          console.error("style-analysis error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // POST /generate-images — DALL-E 3 generates images with artist's style
+      if (path === "/generate-images" && method === "POST") {
+        try {
+          return await handleImageGen(request, env);
+        } catch (error) {
+          console.error("generate-images error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
+      // POST /style-refine — Update style chars + prompts based on artist feedback
+      if (path === "/style-refine" && method === "POST") {
+        try {
+          return await handleStyleRefine(request, env);
+        } catch (error) {
+          console.error("style-refine error:", error);
+          return addCors(new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          }));
+        }
+      }
+
       // POST /v1/chat/completions — OpenAI-compatible alias around the
       // free-tier Groq Llama 3.1 8B model. Used by:
       //   - orchestrator's planner.ts (JSON-mode plan emission)
@@ -2929,7 +3058,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
           // verifier surface so desktop, web, and MCP clients all work.
           const auth = request.headers.get("Authorization");
           const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-          const claims = token ? await verifyMcpOrClerkOrBetterAuthJwt(token, env) : null;
+          const claims = token ? await verifyAnyAuthJwt(token, env) : null;
           if (!claims?.sub) {
             return addCors(new Response(JSON.stringify({ error: "unauthorized" }), {
               status: 401, headers: { "Content-Type": "application/json" },

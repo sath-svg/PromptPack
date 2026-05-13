@@ -50,7 +50,7 @@ export const MANAGED_MODELS: ReadonlyArray<ManagedModel> = [
   { id: 'anthropic/claude-opus-4-6',         label: 'Claude Opus 4.6',   tier: 'frontier', usdPer1MInput: 15.00, usdPer1MOutput: 75.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], expensive: true },
 ];
 
-/** Per-credit cost basis. 1 credit = $0.005 of upstream OpenRouter spend. */
+/** Per-credit cost basis (internal). */
 export const CREDIT_USD_VALUE = 0.005;
 
 /** Reasoning-effort multiplier on output token reservation. */
@@ -86,8 +86,7 @@ export function estimateCreditsForCall(args: {
 }
 
 /**
- * Pretty per-1K-token cost in **credits** (not USD). One credit = $0.005,
- * so $5/M input → 1 credit/K input. Rounds to one decimal so the UI
+ * Pretty per-1K-token cost in **credits** (not USD). Rounds to one decimal so the UI
  * stays readable on both cheap and frontier rows.
  *
  * Example: GPT-5 ($5 in / $15 out per M) → "1 cr/K in · 3 cr/K out".
@@ -101,9 +100,9 @@ export function formatCreditRate(model: ManagedModel): string {
 }
 
 export const MANAGED_TIER_LABELS: Record<ManagedTier, string> = {
-  cheap: 'Cheap',
-  mid: 'Mid',
-  frontier: 'Frontier',
+  cheap: 'Fast',
+  mid: 'Balanced',
+  frontier: 'Powerful',
 };
 
 export const MANAGED_TIER_COLORS: Record<ManagedTier, string> = {
@@ -153,4 +152,74 @@ export const DEFAULT_MANAGED_SELECTIONS: Record<ManagedTier, string> = {
   cheap: recommendedForTier('cheap').id,
   mid: recommendedForTier('mid').id,
   frontier: recommendedForTier('frontier').id,
+};
+
+// ── BYOK provider → canonical (tier → model) map ──────────────────────
+// Used by the prompt evaluator to surface a row for each BYOK provider
+// the user has configured. Picks the provider's canonical model in the
+// requested tier; providers without a model in a given tier return null.
+//
+// Mirrored in api/src/managed-models.ts — keep both lists in sync.
+export type EvalByokProvider =
+  | 'anthropic'
+  | 'openai'
+  | 'gemini'
+  | 'grok'
+  | 'deepseek'
+  | 'perplexity'
+  | 'kimi';
+
+export const BYOK_PROVIDER_TIER_MAP: Record<
+  EvalByokProvider,
+  Partial<Record<ManagedTier, { modelId: string; label: string }>>
+> = {
+  anthropic: {
+    cheap: { modelId: 'claude-haiku-4-5', label: 'Claude Haiku' },
+    mid: { modelId: 'claude-sonnet-4-6', label: 'Claude Sonnet' },
+    frontier: { modelId: 'claude-opus-4-6', label: 'Claude Opus' },
+  },
+  openai: {
+    cheap: { modelId: 'gpt-5-mini', label: 'GPT-5 Mini' },
+    mid: { modelId: 'gpt-5', label: 'GPT-5' },
+    frontier: { modelId: 'gpt-5-pro', label: 'GPT-5 Pro' },
+  },
+  gemini: {
+    cheap: { modelId: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    mid: { modelId: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+  },
+  grok: {
+    mid: { modelId: 'grok-3', label: 'Grok 3' },
+  },
+  deepseek: {
+    cheap: { modelId: 'deepseek-chat', label: 'DeepSeek V3' },
+    mid: { modelId: 'deepseek-reasoner', label: 'DeepSeek R1' },
+  },
+  perplexity: {
+    cheap: { modelId: 'sonar', label: 'Sonar' },
+    mid: { modelId: 'sonar-pro', label: 'Sonar Pro' },
+    frontier: { modelId: 'sonar-reasoning-pro', label: 'Sonar Reasoning' },
+  },
+  kimi: {
+    cheap: { modelId: 'moonshot-v1-8k', label: 'Kimi 8K' },
+    mid: { modelId: 'moonshot-v1-32k', label: 'Kimi 32K' },
+    frontier: { modelId: 'moonshot-v1-128k', label: 'Kimi 128K' },
+  },
+};
+
+export function byokModelForTier(
+  provider: EvalByokProvider,
+  tier: ManagedTier,
+): { modelId: string; label: string } | null {
+  return BYOK_PROVIDER_TIER_MAP[provider]?.[tier] ?? null;
+}
+
+/** Pretty per-provider label used in the BYOK section of the eval modal. */
+export const BYOK_PROVIDER_LABELS: Record<EvalByokProvider, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  gemini: 'Google',
+  grok: 'xAI',
+  deepseek: 'DeepSeek',
+  perplexity: 'Perplexity',
+  kimi: 'Moonshot',
 };

@@ -44,7 +44,7 @@ async function hmacSha256(secret: string, data: string): Promise<Uint8Array> {
 }
 
 export interface DesktopAccessTokenClaims {
-  sub: string;          // clerkId
+  sub: string;          // userId
   iss: "promptpack-desktop";
   iat: number;
   exp: number;
@@ -52,18 +52,18 @@ export interface DesktopAccessTokenClaims {
 
 /**
  * Mint an HS256 JWT scoped to the desktop client.
- * @param clerkId  user's Clerk id (becomes `sub`)
+ * @param userId  user's ID (becomes `sub`)
  * @param secret   shared HMAC secret (Convex env `JWT_SECRET`)
  * @param ttlSec   lifetime in seconds (default 3600 = 1h)
  */
 export async function mintDesktopAccessToken(
-  clerkId: string,
+  userId: string,
   secret: string,
-  ttlSec = 3600,
+  ttlSec = 7 * 24 * 3600,
 ): Promise<{ token: string; expiresAt: number }> {
   const now = Math.floor(Date.now() / 1000);
   const payload: DesktopAccessTokenClaims = {
-    sub: clerkId,
+    sub: userId,
     iss: "promptpack-desktop",
     iat: now,
     exp: now + ttlSec,

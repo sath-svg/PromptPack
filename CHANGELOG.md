@@ -9,12 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Comprehensive documentation (README.md, CONTRIBUTING.md, CHANGELOG.md)
-- Production-ready configuration for pmtpk.com
+- Production-ready configuration for skillset.so
 - 67 unit tests for extension functionality
 
 ### Changed
 - Migrated from npm to Bun for package management
-- Updated all production URLs to pmtpk.com (in dev branch)
+- Updated all production URLs to skillset.so (in dev branch)
 
 ### Fixed
 - Production configuration status in TODO-PRODUCTION.md
@@ -158,7 +158,7 @@ To report security issues, please email: sathvik.work@gmail.com
 
 ## Links
 
-- [Website](https://pmtpk.com)
+- [Website](https://skillset.so)
 - [Documentation](./DOCUMENTATION.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Production Checklist](./TODO-PRODUCTION.md)

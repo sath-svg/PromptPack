@@ -43,8 +43,11 @@ export function getPackLimitMessage(tier: UserTier, currentCount: number): strin
   }
 
   if (currentCount >= limit) {
+    if (tier === 'free') {
+      return `You've reached the Free plan limit of ${limit} custom pack. Upgrade to Pro for up to 7 custom packs.`;
+    }
     if (tier === 'pro') {
-      return `You've reached the Pro plan limit of ${limit} custom packs. Upgrade to Studio for up to 14 custom packs.`;
+      return `You've reached the Pro plan limit of ${limit} custom packs. Upgrade to Studio for up to 17 custom packs.`;
     }
     return `You've reached the limit of ${limit} custom packs for your plan.`;
   }

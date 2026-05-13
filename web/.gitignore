@@ -11,6 +11,9 @@ coverage
 out/
 build
 
+# OpenNext (retired AWS Lambda adapter; do not check in build artifacts)
+.open-next/
+
 # Production
 dist
 

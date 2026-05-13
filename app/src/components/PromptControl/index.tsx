@@ -44,7 +44,7 @@ export function SkillControlPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const tier = session?.tier || 'free';
-  const clerkId = session?.user_id || '';
+  const authUserId = session?.user_id || '';
   const isStudio = tier === 'studio';
   const isPro = tier === 'pro';
   const versionControlLimit = isStudio ? STUDIO_VERSION_CONTROL_LIMIT : isPro ? PRO_VERSION_CONTROL_LIMIT : 0;
@@ -75,9 +75,9 @@ export function SkillControlPage() {
       return;
     }
     clearError();
-    const ok = await toggleVersionControl(clerkId, pack.id, enabled);
+    const ok = await toggleVersionControl(authUserId, pack.id, enabled);
     if (ok) {
-      setToast(`SkillControl enabled for "${pack.title}"`);
+      setToast(`Skill Control enabled for "${pack.title}"`);
     }
   };
 
@@ -86,14 +86,14 @@ export function SkillControlPage() {
     const pack = userPacks.find((p) => p.id === confirmDisable);
     if (!pack) return;
     clearError();
-    const ok = await toggleVersionControl(clerkId, pack.id, false);
+    const ok = await toggleVersionControl(authUserId, pack.id, false);
     if (ok) {
       // Clear local prompt versions for this pack
       useSyncStore.setState((state) => {
         const { [pack.id]: _, ...rest } = state.promptVersions;
         return { promptVersions: rest };
       });
-      setToast(`SkillControl disabled for "${pack.title}"`);
+      setToast(`Skill Control disabled for "${pack.title}"`);
     }
     setConfirmDisable(null);
   };
@@ -101,7 +101,7 @@ export function SkillControlPage() {
   const handleDeleteVersion = async (promptCreatedAt: number, versionNumber: number) => {
     if (!selectedPack) return;
     clearError();
-    const ok = await deletePromptVersion(clerkId, selectedPack.id, promptCreatedAt, versionNumber);
+    const ok = await deletePromptVersion(authUserId, selectedPack.id, promptCreatedAt, versionNumber);
     if (ok) {
       setToast(`Deleted v${versionNumber}`);
       setConfirmDelete(null);
@@ -127,7 +127,7 @@ export function SkillControlPage() {
   if (tier === 'free') {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">SkillControl</h1>
+        <h1 className="text-2xl font-bold mb-4">Skill Control</h1>
         <p className="text-[var(--muted-foreground)]">
           Version control for your prompts. Upgrade to Pro to get started.
         </p>
@@ -352,7 +352,7 @@ export function SkillControlPage() {
   const disableDialog = confirmDisable ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 max-w-sm mx-4 shadow-xl">
-        <h3 className="text-lg font-semibold mb-2">Disable SkillControl?</h3>
+        <h3 className="text-lg font-semibold mb-2">Disable Skill Control?</h3>
         <p className="text-sm text-[var(--muted-foreground)] mb-4">
           All saved versions for this pack will be permanently deleted. This cannot be undone.
         </p>
@@ -383,7 +383,7 @@ export function SkillControlPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <History size={24} />
-          SkillControl
+          Skill Control
         </h1>
         <p className="text-sm text-[var(--muted-foreground)] mt-1">
           Version control for your prompts. Each prompt can store up to {MAX_VERSIONS_PER_PACK} versions.

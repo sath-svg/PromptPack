@@ -225,12 +225,27 @@ function makeId(): string {
 export function detectWriteFileIntent(text: string): string | null {
   // Pass 1: explicit filename + extension. Order: longest / most
   // specific patterns first.
+  //
+  // The filename group is preceded by an optional quote/backtick class
+  // (`["'`\\\`]?`) so prompts that wrap the filename in markdown
+  // backticks — e.g. `Save the file as \`nvda_fundamentals.md\`` — still
+  // match. Without that, the regex's `\s+` before the capture stops at
+  // the backtick and the whole match fails, leaving the agent loop
+  // without a forced `tool_choice: write_file`. This silently broke
+  // multi-step Set Runs whose curated prompts used markdown formatting.
+  const Q = `["'\`]?`; // optional surrounding quote/backtick
+  const FN = `${Q}([\\w./\\\\-]+\\.\\w{1,6})${Q}`;
   const namedPatterns: RegExp[] = [
-    /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)\s+(?:as|to|into)\s+([\w./\\-]+\.\w{1,6})\b/i,
-    /(?:output|save|write)\s+(?:it|the\s+\w+(?:\s+\w+)?)?\s*as\s+a\s+\w+\s+file\s+(?:named|called)\s+([\w./\\-]+\.\w{1,6})\b/i,
-    /(?:save|write|output)\s+([\w./\\-]+\.\w{1,6})\b/i,
-    /(?:save\s+(?:the\s+)?(?:corrected\s+)?(?:version\s+)?)?back\s+to\s+([\w./\\-]+\.\w{1,6})\b/i,
-    /(?:produce\s+(?:a\s+)?(?:pdf\s+)?(?:report\s+)?saved\s+as)\s+([\w./\\-]+\.\w{1,6})\b/i,
+    new RegExp(`(?:output|save|write)\\s+(?:it|the\\s+\\w+(?:\\s+\\w+)?)\\s+(?:as|to|into)\\s+${FN}\\b`, 'i'),
+    new RegExp(`(?:output|save|write)\\s+(?:it|the\\s+\\w+(?:\\s+\\w+)?)?\\s*as\\s+a\\s+\\w+\\s+file\\s+(?:named|called)\\s+${FN}\\b`, 'i'),
+    // Bare "save as <fn>" / "save to <fn>" / "write to <fn>" — no
+    // intervening noun. Curated pack prompts commonly end in this
+    // shape (e.g. `Save as \`nvda_action.md\``) so without this the
+    // forced write-file guardrail never fires for Set Run steps.
+    new RegExp(`(?:save|write|output)\\s+(?:as|to|into)\\s+${FN}\\b`, 'i'),
+    new RegExp(`(?:save|write|output)\\s+${FN}\\b`, 'i'),
+    new RegExp(`(?:save\\s+(?:the\\s+)?(?:corrected\\s+)?(?:version\\s+)?)?back\\s+to\\s+${FN}\\b`, 'i'),
+    new RegExp(`(?:produce\\s+(?:a\\s+)?(?:pdf\\s+)?(?:report\\s+)?saved\\s+as)\\s+${FN}\\b`, 'i'),
   ];
   for (const rx of namedPatterns) {
     const m = text.match(rx);
@@ -275,6 +290,13 @@ export function detectWriteFileIntent(text: string): string | null {
 
 interface ToolContext {
   workspace: string;
+  /**
+   * When set, every PendingEdit staged from this dispatch is tagged
+   * with this id so the orchestrator executor's per-dep barrier can
+   * wait specifically on edits produced by declared dependencies.
+   * Undefined for ad-hoc agent turns outside a Set Run.
+   */
+  subtaskId?: string;
 }
 
 export interface ToolDispatchResult {
@@ -287,14 +309,173 @@ function truncate(s: string, max: number): string {
   return s.slice(0, max) + `\n…[truncated ${s.length - max} chars]`;
 }
 
+/**
+ * Defensive path normalizer applied at the tool-dispatch boundary.
+ *
+ * Models in pack chain steps occasionally prefix paths with the
+ * subtask id they saw in `# DEPENDENCY OUTPUTS` headings — e.g.
+ * `t1/nvda_fundamentals.md` instead of the bare filename. Those land
+ * as `<workspace>/t1/nvda_...md` on disk, which the next step's
+ * `read_file` can't locate.
+ *
+ * Mirrors the rules `toolIntent.normalizePath` applies — but at the
+ * actual side-effect boundary so even raw model output gets cleaned
+ * up. Strips:
+ *   - `tN/` / `stepN/` / `subtaskN/` prefix (subtask-id confusion)
+ *   - wrapping backticks / quotes
+ *   - leading `./` or `/` (workspace-relative only)
+ */
+function normalizeToolPath(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  let p = raw.trim();
+  if (!p) return '';
+  // Strip wrapping backticks / quotes the model may have echoed.
+  p = p.replace(/^[`"']+|[`"']+$/g, '');
+  // Strip Windows extended-path prefix `\\?\` if present.
+  p = p.replace(/^\\\\\?\\/, '');
+  // Strip Windows drive letter prefix `C:\` / `D:/` etc. and replace
+  // with bare relative path. Rust handler rejects absolute paths
+  // outside the workspace — and a model emitting `C:\...\file.md`
+  // almost certainly meant the workspace-relative filename anyway.
+  p = p.replace(/^[A-Za-z]:[\\/]+/, '');
+  // Strip leading slash(es) so absolute POSIX-style paths
+  // (`/nvda_action.md`) become workspace-relative.
+  p = p.replace(/^[\\/]+/, '');
+  // Strip subtask-id directory confusion: `## t1` heading in dep
+  // outputs treated as path prefix.
+  p = p.replace(/^(?:t|step|subtask)\d+[\\/]/i, '');
+  // Strip leading `./`.
+  p = p.replace(/^\.[\\/]+/, '');
+  // Refuse path-traversal segments — those would write outside the
+  // workspace root. Empty string here signals dispatchTool to fail
+  // with a clear error instead of escaping to the parent dir.
+  if (/(^|[\\/])\.\.([\\/]|$)/.test(p)) return '';
+  return p;
+}
+
+/**
+ * Best-effort first-arg label for the audit-log preview. Capped short
+ * so the Run Trace panel's narrow column doesn't wrap the friendly
+ * tool name onto two lines next to a long URL. Full value is still in
+ * `preview` (tooltip on hover).
+ */
+function pickToolArg(name: string, input: Record<string, unknown>): string | undefined {
+  const candidates: Record<string, string[]> = {
+    read_file: ['path'],
+    write_file: ['path'],
+    edit_file: ['path'],
+    pdf_generate: ['path'],
+    list_dir: ['path'],
+    glob: ['pattern'],
+    grep: ['pattern'],
+    bash: ['command'],
+    lsp_diagnostics: ['path'],
+    check_template_vars: ['text'],
+    web_fetch: ['url'],
+  };
+  const MAX = 40;
+  for (const key of candidates[name] ?? []) {
+    const v = input[key];
+    if (typeof v !== 'string' || !v.trim()) continue;
+    if (v.length <= MAX) return v;
+    // URLs: keep host + ellipsis on the path so the domain stays
+    // visible. Everything else: head-truncate with trailing ellipsis.
+    if (name === 'web_fetch' || /^https?:\/\//.test(v)) {
+      try {
+        const u = new URL(v);
+        const tail = u.pathname + u.search;
+        const room = MAX - u.host.length - 3; // 3 = "://" overhead approximate
+        const truncTail = tail.length > room ? tail.slice(0, Math.max(0, room)) + '…' : tail;
+        return `${u.host}${truncTail}`;
+      } catch {
+        // fall through to generic truncate
+      }
+    }
+    return v.slice(0, MAX - 1) + '…';
+  }
+  return undefined;
+}
+
 export async function dispatchTool(
+  ctx: ToolContext,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<ToolDispatchResult> {
+  // Record every tool call against the live orchestrator run so the
+  // user can see what the model actually invoked vs. claimed in its
+  // text output. No-op when ctx.subtaskId is undefined (single-shot
+  // chat path — chat already shows ToolBlocks inline).
+  const auditStart = Date.now();
+  const recordAudit = (ok: boolean, preview?: string) => {
+    if (!ctx.subtaskId) return;
+    // Lazy import to avoid a circular dep between agentTools (used at
+    // module top) and runStore (which imports orchestrator types).
+    import('../stores/runStore')
+      .then(({ useRunStore }) => {
+        useRunStore.getState().appendSubtaskToolCall(ctx.subtaskId!, {
+          name,
+          arg: pickToolArg(name, input),
+          ok,
+          preview: preview?.slice(0, 120),
+          ts: auditStart,
+        });
+      })
+      .catch(() => {
+        /* recording is best-effort; never break a tool call on audit failure */
+      });
+  };
+
+  try {
+    const result = await dispatchToolInner(ctx, name, input);
+    const errored = /^ERROR\b|^error:/i.test(result.output);
+    recordAudit(!errored, result.output);
+    // Successful file-writing tool? Record the artifact on the shared
+    // TaskState so the MemorySnapshot panel's "artifacts" counter
+    // actually reflects reality (was hardcoded 0 before — the slot
+    // existed but no code wrote into it).
+    if (!errored && ctx.subtaskId) {
+      const writePaths: { kind: 'file' | 'pdf'; path?: string } | null =
+        name === 'write_file' || name === 'edit_file'
+          ? { kind: 'file', path: typeof input.path === 'string' ? input.path : undefined }
+          : name === 'pdf_generate'
+            ? { kind: 'pdf', path: typeof input.path === 'string' ? input.path : undefined }
+            : null;
+      if (writePaths?.path) {
+        const { path, kind } = writePaths;
+        const subtaskId = ctx.subtaskId;
+        import('../stores/runStore')
+          .then(({ useRunStore }) => {
+            void useRunStore.getState().patchTaskState((s) => {
+              // De-dup by (path, subtaskId) — repeat edit_file calls on
+              // the same file in one subtask shouldn't grow the list.
+              const exists = s.artifacts.some(
+                (a) => a.path === path && a.subtaskId === subtaskId,
+              );
+              if (!exists) {
+                s.artifacts.push({ kind, path, subtaskId });
+              }
+            });
+          })
+          .catch(() => {
+            /* best-effort */
+          });
+      }
+    }
+    return result;
+  } catch (err) {
+    recordAudit(false, err instanceof Error ? err.message : String(err));
+    throw err;
+  }
+}
+
+async function dispatchToolInner(
   ctx: ToolContext,
   name: string,
   input: Record<string, unknown>,
 ): Promise<ToolDispatchResult> {
   switch (name) {
     case 'read_file': {
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const res = await invoke<{ content: string; line_count: number }>('agent_read', {
         workspace: ctx.workspace,
         path,
@@ -303,8 +484,22 @@ export async function dispatchTool(
     }
 
     case 'write_file': {
-      const path = String(input.path);
+      const rawPath = typeof input.path === 'string' ? input.path : '';
+      const path = normalizeToolPath(input.path);
       const content = String(input.content);
+      // Refuse paths that escape the workspace, contain `..`
+      // traversals, or arrive empty after normalization. Without this
+      // guard the Rust handler returns "access denied" with no actionable
+      // detail in the agent's tool result — model has no idea what went
+      // wrong and the user sees a red X in Run Trace with no fix.
+      if (!path) {
+        return {
+          output:
+            `ERROR: write_file received an invalid path (${JSON.stringify(rawPath)}). ` +
+            `Paths must be workspace-relative (no leading slash, no drive letter, no \`..\` traversal). ` +
+            `Re-issue write_file with just the filename, e.g. \`nvda_action.md\`.`,
+        };
+      }
       // Hard guard — write_file produces a plain-text file with the
       // requested extension. PDFs need a binary header (`%PDF-1.x`)
       // that this tool can't produce. Force the model to call
@@ -349,6 +544,7 @@ export async function dispatchTool(
         before,
         after: content,
         isStaged: !autoAccept,
+        sourceSubtaskId: ctx.subtaskId,
       });
       // LSP probe / diagnostics only run when the file is actually on
       // disk. Staged edits defer LSP work to `acceptEdit`.
@@ -376,7 +572,7 @@ export async function dispatchTool(
     }
 
     case 'edit_file': {
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const oldString = String(input.old_string);
       const newString = String(input.new_string);
       const replaceAll = Boolean(input.replace_all);
@@ -407,6 +603,7 @@ export async function dispatchTool(
           before: res.before,
           after: res.after,
           isStaged: false,
+          sourceSubtaskId: ctx.subtaskId,
         });
         try {
           await lspOpenFile(ctx.workspace, path, res.after);
@@ -470,6 +667,7 @@ export async function dispatchTool(
         before,
         after,
         isStaged: true,
+        sourceSubtaskId: ctx.subtaskId,
       });
       return {
         output: `Staged ${replaced} replacement(s) in ${path}. The user will accept/reject — file is NOT yet modified.`,
@@ -478,7 +676,7 @@ export async function dispatchTool(
     }
 
     case 'list_dir': {
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const entries = await invoke<Array<{ name: string; path: string; is_dir: boolean }>>(
         'agent_list',
         { workspace: ctx.workspace, path },
@@ -544,7 +742,7 @@ export async function dispatchTool(
     }
 
     case 'lsp_diagnostics': {
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const probe = await useAgentStore.getState().probeLspForFile(path);
       if (!probe) return { output: 'No LSP configured for this file type.' };
       if (probe.kind === 'installable') {
@@ -580,6 +778,20 @@ export async function dispatchTool(
 
     case 'web_fetch': {
       const url = String(input.url);
+      // In-run cache check — Set Runs commonly hit the same URL 2-3×
+      // across chained steps (step 1 grabs yahoo finance, step 2 grabs
+      // the same page again for price action). Each repeat fetch is
+      // ~4K input tokens on the next round; cache hit is free.
+      const cacheKey = `GET ${url}`;
+      try {
+        const { useRunStore } = await import('../stores/runStore');
+        const cached = useRunStore.getState().getCachedFetch(cacheKey);
+        if (cached) {
+          return { output: `[cache] ${cached}` };
+        }
+      } catch {
+        /* runStore not available — fall through to live fetch */
+      }
       const res = await invoke<{
         status: number;
         url: string;
@@ -588,7 +800,16 @@ export async function dispatchTool(
         truncated: boolean;
       }>('agent_web_fetch', { url });
       const header = `${res.status} ${res.url}${res.content_type ? ` (${res.content_type})` : ''}${res.truncated ? ' [TRUNCATED]' : ''}`;
-      return { output: `${header}\n\n${truncate(res.body, 12000)}` };
+      const output = `${header}\n\n${truncate(res.body, 12000)}`;
+      if (res.status >= 200 && res.status < 300) {
+        try {
+          const { useRunStore } = await import('../stores/runStore');
+          useRunStore.getState().setCachedFetch(cacheKey, output);
+        } catch {
+          /* best-effort cache populate */
+        }
+      }
+      return { output };
     }
 
     case 'http': {
@@ -596,6 +817,21 @@ export async function dispatchTool(
       const url = String(input.url);
       const headersIn = (input.headers as Record<string, string> | undefined) ?? undefined;
       const bodyIn = input.body !== undefined ? String(input.body) : undefined;
+      // Cache idempotent GET/HEAD/OPTIONS only. POST/PUT/PATCH/DELETE
+      // have side effects — never cache.
+      const isCacheable = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+      const cacheKey = isCacheable ? `${method} ${url}` : null;
+      if (cacheKey) {
+        try {
+          const { useRunStore } = await import('../stores/runStore');
+          const cached = useRunStore.getState().getCachedFetch(cacheKey);
+          if (cached) {
+            return { output: `[cache] ${cached}` };
+          }
+        } catch {
+          /* fall through */
+        }
+      }
       const res = await invoke<{
         status: number;
         headers: Record<string, string>;
@@ -609,13 +845,20 @@ export async function dispatchTool(
         .map(([k, v]) => `${k}: ${v}`)
         .join('\n');
       const header = `${method} ${url} → ${res.status}${res.truncated ? ' [TRUNCATED]' : ''}`;
-      return {
-        output: `${header}\n${headerLines}\n\n${truncate(res.body, 12000)}`,
-      };
+      const output = `${header}\n${headerLines}\n\n${truncate(res.body, 12000)}`;
+      if (cacheKey && res.status >= 200 && res.status < 300) {
+        try {
+          const { useRunStore } = await import('../stores/runStore');
+          useRunStore.getState().setCachedFetch(cacheKey, output);
+        } catch {
+          /* best-effort */
+        }
+      }
+      return { output };
     }
 
     case 'pdf_generate': {
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const content = String(input.content ?? '');
       const title = input.title !== undefined ? String(input.title) : undefined;
       const autoAccept = useAgentStore.getState().autoAcceptEdits;
@@ -636,6 +879,7 @@ export async function dispatchTool(
           after: content,
           isStaged: false,
           pdfPayload: { content, title },
+          sourceSubtaskId: ctx.subtaskId,
         });
         useAgentStore.getState().acceptEdit(editId).catch(() => {});
         return {
@@ -654,6 +898,7 @@ export async function dispatchTool(
         after: content,
         isStaged: true,
         pdfPayload: { content, title },
+        sourceSubtaskId: ctx.subtaskId,
       });
       return {
         output: `Staged PDF generation for ${path} (${content.length} chars source). The user will accept/reject — file is NOT yet on disk.`,
@@ -667,7 +912,7 @@ export async function dispatchTool(
       // serves the same bytes. We still tag the tool separately so the
       // model knows what surface to call when it needs a user-supplied
       // doc rather than a file it wrote earlier in the run.
-      const path = String(input.path);
+      const path = normalizeToolPath(input.path);
       const known = useAgentStore.getState().attachments;
       if (known.length > 0 && !known.includes(path)) {
         const list = known.map((p) => `- ${p}`).join('\n');
@@ -719,7 +964,7 @@ If a required input is missing, say "I couldn't access \`<path>\`. Please confir
 
 # Other rules
 
-- The workspace contains a \`SKILLSET.md\` file with project-specific rules. Read it on first use of a session and follow anything in its "Project rules" section.
+- The workspace may contain a \`skillset.md\` file with project rules. When present, its contents are supplied to you above under "# Project Skill (MUST FOLLOW)" — follow them verbatim. Do not try to read the file via tools; the rules are already in your context.
 - Skill packs use \`{variable}\` placeholders. If a prompt looks templated, run \`check_template_vars\` first. If unfilled variables come back, STOP and ask the user — never invent values.
 - Prefer \`edit_file\` over \`write_file\` for partial changes; \`write_file\` overwrites everything.
 - All file edits are staged — the user accepts or rejects each one. After editing, briefly tell the user what you changed and why.

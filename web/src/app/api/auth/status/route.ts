@@ -2,19 +2,17 @@ import { auth, currentUser } from "@/lib/auth-server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  // Add CORS headers for extension
+  // CORS for landing page + Tauri desktop app (browser extensions retired)
   const origin = request.headers.get("origin");
   const allowedOrigins = [
+    "https://skillset.so",
+    "https://www.skillset.so",
     "https://pmtpk.com",
+    "https://www.pmtpk.com",
   ];
 
-  // Allow chrome-extension:// origins for browser extensions
-  const isExtension = origin?.startsWith("chrome-extension://") ||
-                      origin?.startsWith("moz-extension://") ||
-                      origin?.startsWith("safari-web-extension://");
-
   const corsHeaders = {
-    "Access-Control-Allow-Origin": isExtension || allowedOrigins.includes(origin || "")
+    "Access-Control-Allow-Origin": allowedOrigins.includes(origin || "")
       ? origin || "*"
       : allowedOrigins[0],
     "Access-Control-Allow-Credentials": "true",
@@ -60,14 +58,18 @@ export async function GET(request: Request) {
 // Handle preflight requests
 export async function OPTIONS(request: Request) {
   const origin = request.headers.get("origin");
-  const isExtension = origin?.startsWith("chrome-extension://") ||
-                      origin?.startsWith("moz-extension://") ||
-                      origin?.startsWith("safari-web-extension://");
-
+  const allowedOrigins = [
+    "https://skillset.so",
+    "https://www.skillset.so",
+    "https://pmtpk.com",
+    "https://www.pmtpk.com",
+  ];
   return new NextResponse(null, {
     status: 200,
     headers: {
-      "Access-Control-Allow-Origin": isExtension ? origin || "*" : "https://pmtpk.com",
+      "Access-Control-Allow-Origin": allowedOrigins.includes(origin || "")
+        ? origin || "*"
+        : allowedOrigins[0],
       "Access-Control-Allow-Credentials": "true",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",

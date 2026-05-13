@@ -168,3 +168,23 @@ body::before {
 @keyframes status-ping {
   75%, 100% { transform: scale(2.2); opacity: 0; }
 }
+
+/* Animated dot trail along the empty-state Skill Flow Router graph.
+   Animates `left` (container-relative) instead of `translateX` (element-relative)
+   so the streak crosses the entire bar regardless of container width. */
+@keyframes routerDot {
+  0%   { left: -2rem; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { left: calc(100% + 2rem); opacity: 0; }
+}
+
+/* Brief highlight applied to a section jumped-to from the global search bar. */
+@keyframes searchFlash {
+  0%   { box-shadow: 0 0 0 0 var(--primary); }
+  30%  { box-shadow: 0 0 0 3px var(--primary); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.search-flash {
+  animation: searchFlash 1.4s ease-out;
+}

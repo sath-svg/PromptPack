@@ -11,6 +11,7 @@ import type { PromptSource } from '../../types';
 import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
 import { generateWorkflow, getSkillDirName } from '../../lib/workflowExporter';
 import { TemplateInputDialog } from '../TemplateInputDialog';
+import { PromptEditModal } from '../Common/PromptEditModal';
 
 export function SavedPacksPage() {
   const { session } = useAuthStore();
@@ -479,7 +480,6 @@ export function SavedPacksPage() {
             {filteredPrompts.map((prompt) => {
               // Find the original index in the loaded prompts array for editing
               const index = loaded.prompts.findIndex(p => p === prompt);
-              const isEditingThisPrompt = editingPrompt?.packId === selectedPack.id && editingPrompt?.index === index;
               const isEditingThisHeader = editingHeader?.packId === selectedPack.id && editingHeader?.index === index;
               const isGenerating = isGeneratingHeader(selectedPack.id, index);
 
@@ -543,40 +543,10 @@ export function SavedPacksPage() {
                   </div>
 
                   {/* Prompt text section */}
-                  {isEditingThisPrompt ? (
-                    <div className="mt-2 flex-1">
-                      <textarea
-                        value={promptDraft}
-                        onChange={(e) => setPromptDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditPrompt();
-                          if (e.key === 'Escape') cancelEditPrompt();
-                        }}
-                        rows={4}
-                        className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] resize-none"
-                        autoFocus
-                      />
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          onClick={saveEditPrompt}
-                          className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90"
-                        >
-                          <Save size={12} />
-                          Save
-                        </button>
-                        <button onClick={cancelEditPrompt} className="px-3 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                          Cancel
-                        </button>
-                        <span className="text-xs text-[var(--muted-foreground)]">Ctrl+Enter to save</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap line-clamp-3 flex-1">{prompt.text}</p>
-                  )}
+                  <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap line-clamp-3 flex-1">{prompt.text}</p>
 
                   {/* Actions */}
-                  {!isEditingThisPrompt && (
-                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
                       <span className="text-xs text-[var(--muted-foreground)]">{formatDate(prompt.createdAt)}</span>
                       <div className="flex items-center gap-1">
                         <button
@@ -629,7 +599,6 @@ export function SavedPacksPage() {
                         )}
                       </div>
                     </div>
-                  )}
                 </div>
               );
             })}
@@ -710,6 +679,20 @@ export function SavedPacksPage() {
             onClose={() => setShowTemplateDialog(false)}
           />
         )}
+
+        {/* Prompt edit modal */}
+        <PromptEditModal
+          open={editingPrompt !== null}
+          title={(() => {
+            if (!editingPrompt) return undefined;
+            const loaded = loadedPacks[selectedPack.id];
+            return loaded?.prompts[editingPrompt.index]?.header || undefined;
+          })()}
+          value={promptDraft}
+          onChange={setPromptDraft}
+          onSave={saveEditPrompt}
+          onCancel={cancelEditPrompt}
+        />
       </div>
     );
   }

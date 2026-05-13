@@ -12,10 +12,11 @@
 
 import { tauriFetch } from '../tauriFetch';
 import { syncCreditsFromHeaders } from '../creditSync';
+import { friendlyApiError, safeParseErrorBody } from '../apiErrors';
 import type { PlannerHints, PlannerOutput, PlannerSubtask } from './types';
 
-const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
-const SERVER_OPENAI_COMPAT_URL = 'https://api.pmtpk.com/v1/chat/completions';
+const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
+const SERVER_OPENAI_COMPAT_URL = 'https://api.skillset.so/v1/chat/completions';
 const SERVER_PLANNER_MODEL = 'llama-3.1-8b-instant';
 const DEFAULT_PLANNER_MODEL_ID = 'anthropic/claude-haiku-4-5';
 
@@ -225,6 +226,9 @@ async function callPlannerLLM(
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${jwt}`,
+      // Planner is the orchestrator's first call — exempt from /api/llm/chat
+      // per-user concurrent cap so direct chat doesn't starve it.
+      'X-From-Orchestrator': 'true',
     },
     body: JSON.stringify({
       model: modelId,
@@ -236,28 +240,11 @@ async function callPlannerLLM(
     signal,
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    if (res.status === 401) {
-      throw new PlannerError(
-        'transport',
-        'session expired — sign in again to use the workflow runner',
-      );
-    }
-    if (res.status === 402) {
-      throw new PlannerError(
-        'transport',
-        'insufficient credits — top up to run this workflow',
-      );
-    }
-    if (res.status === 429) {
-      throw new PlannerError(
-        'transport',
-        `rate-limited on ${source} planner — retrying via fallback if available`,
-      );
-    }
+    const err = await safeParseErrorBody(res);
+    console.error('[skillflow-planner]', source, res.status, err);
     throw new PlannerError(
       'transport',
-      `Planner LLM error ${res.status} (${source}): ${JSON.stringify(err)}`,
+      friendlyApiError(res.status, err, 'planner'),
     );
   }
   syncCreditsFromHeaders(res);

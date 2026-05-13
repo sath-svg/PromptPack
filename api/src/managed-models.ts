@@ -90,6 +90,63 @@ export function autoPickFromAllowlist(
   return recommendedForTier(tier);
 }
 
+// ── BYOK provider → canonical (tier → model) map ──────────────────────
+// Used by /api/evaluate to surface a row for each BYOK provider the user
+// has configured. Picks the provider's canonical model in the requested
+// tier. Providers without a model in a given tier return null.
+export type ByokProvider =
+  | "anthropic"
+  | "openai"
+  | "gemini"
+  | "grok"
+  | "deepseek"
+  | "perplexity"
+  | "kimi";
+
+export const BYOK_PROVIDER_TIER_MAP: Record<
+  ByokProvider,
+  Partial<Record<ManagedTier, { modelId: string; label: string }>>
+> = {
+  anthropic: {
+    cheap: { modelId: "claude-haiku-4-5", label: "Claude Haiku" },
+    mid: { modelId: "claude-sonnet-4-6", label: "Claude Sonnet" },
+    frontier: { modelId: "claude-opus-4-6", label: "Claude Opus" },
+  },
+  openai: {
+    cheap: { modelId: "gpt-5-mini", label: "GPT-5 Mini" },
+    mid: { modelId: "gpt-5", label: "GPT-5" },
+    frontier: { modelId: "gpt-5-pro", label: "GPT-5 Pro" },
+  },
+  gemini: {
+    cheap: { modelId: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+    mid: { modelId: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  },
+  grok: {
+    mid: { modelId: "grok-3", label: "Grok 3" },
+  },
+  deepseek: {
+    cheap: { modelId: "deepseek-chat", label: "DeepSeek V3" },
+    mid: { modelId: "deepseek-reasoner", label: "DeepSeek R1" },
+  },
+  perplexity: {
+    cheap: { modelId: "sonar", label: "Sonar" },
+    mid: { modelId: "sonar-pro", label: "Sonar Pro" },
+    frontier: { modelId: "sonar-reasoning-pro", label: "Sonar Reasoning" },
+  },
+  kimi: {
+    cheap: { modelId: "moonshot-v1-8k", label: "Kimi 8K" },
+    mid: { modelId: "moonshot-v1-32k", label: "Kimi 32K" },
+    frontier: { modelId: "moonshot-v1-128k", label: "Kimi 128K" },
+  },
+};
+
+export function byokModelForTier(
+  provider: ByokProvider,
+  tier: ManagedTier,
+): { modelId: string; label: string } | null {
+  return BYOK_PROVIDER_TIER_MAP[provider]?.[tier] ?? null;
+}
+
 /**
  * Per-credit cost basis. 1 credit = $0.005 of upstream OpenRouter spend.
  * Multiply credits by this to get the dollar amount the worker is reserving.
@@ -120,6 +177,17 @@ export function reasoningOutputMultiplier(
  * Estimate the credit reserve for a single managed-model call. Token
  * counts come from `estimateTokens` over the request body in `llm.ts`.
  */
+// Safety multiplier on the raw estimate per tier. Frontier models bill at
+// 8-15x cheap rates and tend to overshoot output caps with extended
+// reasoning, so we hold extra credits up-front. Settle refunds the diff
+// from OpenRouter's authoritative `usage.cost`, so users only see the
+// buffer if their balance is borderline.
+const TIER_RESERVE_BUFFER: Record<ManagedTier, number> = {
+  cheap: 1.0,
+  mid: 1.1,
+  frontier: 1.25,
+};
+
 export function estimateCreditsForCall(args: {
   model: ManagedModel;
   inputTokens: number;
@@ -134,5 +202,6 @@ export function estimateCreditsForCall(args: {
     (args.inputTokens / 1_000_000) * args.model.usdPer1MInput +
     (outputCap / 1_000_000) * args.model.usdPer1MOutput * reasoningMult;
 
-  return Math.max(1, Math.ceil(usd / CREDIT_USD_VALUE));
+  const buffered = usd * TIER_RESERVE_BUFFER[args.model.tier];
+  return Math.max(1, Math.ceil(buffered / CREDIT_USD_VALUE));
 }

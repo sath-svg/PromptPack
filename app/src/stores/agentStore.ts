@@ -72,6 +72,14 @@ export interface PendingEdit {
   pdfPayload?: { content: string; title?: string };
   diagnostics?: LspDiagnostic[];
   createdAt: number;
+  /**
+   * Orchestrator subtask that produced this edit. Set when the edit is
+   * staged from inside a Set Run; undefined for ad-hoc single-shot
+   * agent turns. Used by the executor's per-dep barrier to wait only
+   * on edits produced by declared dependencies — preserves DAG
+   * fan-out for genuinely independent subtasks.
+   */
+  sourceSubtaskId?: string;
 }
 
 export interface ToolCallRecord {
@@ -110,6 +118,17 @@ interface AgentState {
   // workspace bar. Reset to false on workspace change.
   autoAcceptEdits: boolean;
 
+  /**
+   * True while a Set Run (pack run) is executing through the orchestrator.
+   * Lets the WorkspaceBar disable the auto-accept toggle and render a
+   * dedicated runtime badge so the user sees "auto-accept active for this
+   * Set Run" without us mutating their stored preference. chatStore's
+   * `runOrchestratorMessage` flips this on at run kickoff (when
+   * `predefinedPlan` is set) and back off in its `finally` — same scope
+   * as the auto-accept restore.
+   */
+  setRunActive: boolean;
+
   initWorkspace: () => void;
   pickWorkspace: () => Promise<string | null>;
   setWorkspace: (path: string) => void;
@@ -131,6 +150,7 @@ interface AgentState {
   removeAttachment: (path: string) => void;
   clearAttachments: () => void;
   setAutoAcceptEdits: (on: boolean) => void;
+  setSetRunActive: (on: boolean) => void;
 
   reset: () => void;
 }
@@ -143,6 +163,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   lspStatus: {},
   attachments: [],
   autoAcceptEdits: false,
+  setRunActive: false,
 
   initWorkspace: () => {
     const stored = localStorage.getItem(WORKSPACE_KEY);
@@ -159,18 +180,54 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   setWorkspace: (path) => {
+    // Workspace-switch cleanup — when the user picks a NEW folder while
+    // a different one is already mounted, remove the old folder's
+    // Skillset-managed artifacts (`.skillset/`, `Skillset-Flow.md`,
+    // legacy `SKILLSET.md`) so we never leave stale skill files behind
+    // on a folder the user no longer considers "their workspace".
+    // Skipped on first mount (no prior path) and on no-op same-path
+    // re-set.
+    const prior = get().workspace;
+    if (prior && prior !== path) {
+      void import('../lib/workspaceWorkflowSync')
+        .then(({ removeWorkflowArtifacts }) => removeWorkflowArtifacts(prior))
+        .catch(() => {});
+    }
+
     localStorage.setItem(WORKSPACE_KEY, path);
     set({ workspace: path });
-    // Drop SKILLSET.md into the workspace so the agent has stable
+    // Drop skillset.md into the workspace so the agent has stable
     // instructions to read on every session. Idempotent — won't
-    // overwrite an existing file.
+    // overwrite an existing file. Filename is lowercase to match the
+    // pack-run loader (chatStore.runPack) and the agent's system prompt.
     invoke('agent_init_workspace_doc', { workspace: path }).catch(() => {});
+
+    // Also sync the currently-selected pack's Skill Flow workflow to the
+    // workspace (if a pack is selected). Dynamic import to avoid circular
+    // dep with syncStore (which imports useAgentStore).
+    void import('./syncStore').then(({ useSyncStore, syncSelectedPackToWorkspace }) => {
+      const selectedPackId = useSyncStore.getState().selectedPackId;
+      if (selectedPackId) {
+        void syncSelectedPackToWorkspace(selectedPackId, useSyncStore.getState);
+      }
+    }).catch(() => {});
   },
 
   clearWorkspace: () => {
+    // Capture path BEFORE clearing state — needed for cleanup
+    const oldWorkspace = get().workspace;
+
     localStorage.removeItem(WORKSPACE_KEY);
     set({ workspace: null, attachments: [], autoAcceptEdits: false });
     lspShutdownAll().catch(() => {});
+
+    // Remove .skillset/ + Skillset-Flow.md from the workspace. Dynamic
+    // import to avoid circular dep at module init.
+    if (oldWorkspace) {
+      void import('../lib/workspaceWorkflowSync')
+        .then(({ removeWorkflowArtifacts }) => removeWorkflowArtifacts(oldWorkspace))
+        .catch(() => {});
+    }
   },
 
   addToolCall: (call) => {
@@ -401,6 +458,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   clearAttachments: () => set({ attachments: [] }),
 
   setAutoAcceptEdits: (on) => set({ autoAcceptEdits: on }),
+
+  setSetRunActive: (on) => set({ setRunActive: on }),
 
   reset: () => {
     set({

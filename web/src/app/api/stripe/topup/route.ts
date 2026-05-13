@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       request.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     const session = await convexClient.action(api.stripe.createTopupCheckout, {
-      clerkId: userId,
+      userId,
       email,
       name: user?.fullName ?? user?.firstName ?? undefined,
       priceId,

@@ -45,21 +45,22 @@ export function registerInternalRoutes(http: ReturnType<typeof httpRouter>) {
     handler: httpAction(async (ctx, request) => {
       if (!verifySecret(request)) return unauthorized();
 
-      let body: { clerkId?: string; estimatedCredits?: number; modelId?: string };
+      let body: { userId?: string; clerkId?: string; estimatedCredits?: number; modelId?: string };
       try {
         body = (await request.json()) as typeof body;
       } catch {
         return badRequest("invalid_json");
       }
 
-      const { clerkId, estimatedCredits, modelId } = body;
-      if (!clerkId || typeof estimatedCredits !== "number" || !modelId) {
+      const userId = body.userId ?? body.clerkId;
+      const { estimatedCredits, modelId } = body;
+      if (!userId || typeof estimatedCredits !== "number" || !modelId) {
         return badRequest("missing_fields");
       }
 
       try {
         const result = await ctx.runMutation(internal.credits.reserveCredits, {
-          clerkId,
+          userId,
           estimatedCredits,
           modelId,
         });
@@ -153,16 +154,17 @@ export function registerInternalRoutes(http: ReturnType<typeof httpRouter>) {
     handler: httpAction(async (ctx, request) => {
       if (!verifySecret(request)) return unauthorized();
 
-      let body: { clerkId?: string };
+      let body: { userId?: string; clerkId?: string };
       try {
         body = (await request.json()) as typeof body;
       } catch {
         return badRequest("invalid_json");
       }
-      if (!body.clerkId) return badRequest("missing_fields");
+      const userId = body.userId ?? body.clerkId;
+      if (!userId) return badRequest("missing_fields");
 
       const balance = await ctx.runQuery(internal.credits.getBalanceInternal, {
-        clerkId: body.clerkId,
+        userId,
       });
       return ok(balance ?? { error: "user_not_found" });
     }),

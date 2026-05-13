@@ -21,7 +21,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header onNavigate={onNavigate} />
         <main className="flex-1 overflow-auto bg-[var(--background)] p-6">
           {children}
         </main>

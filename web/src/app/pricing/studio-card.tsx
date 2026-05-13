@@ -9,17 +9,18 @@ import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
 const FEATURES = [
-  { t: "2,750 AI credits / month", hi: true },
-  { t: "Everything in Pro", hi: false },
-  { t: "200 saved prompts", hi: true },
-  { t: "500 prompt enhances per day", hi: true },
-  { t: "2000 AI headers per day", hi: true },
-  { t: "Desktop app", hi: false },
-  { t: "MCP server (2000 calls/day)", hi: false },
-  { t: "PromptControl (all packs)", hi: true },
-  { t: "API key (soon)", hi: true },
-  { t: "Priority beta features", hi: true },
-  { t: "Priority support", hi: true },
+  { t: "2,750 AI credits / month — managed mode", hi: true },
+  { t: "Rolls over up to 5,500 credits", hi: false },
+  { t: "Everything in Pro", hi: true },
+  { t: "200 saved prompts · 17 cloud skillsets (.skill)", hi: true },
+  { t: "Skill Control — versioning (all packs)", hi: true },
+  { t: "Skill Eval — unlimited regression testing across models", hi: true },
+  { t: "500 Skill Enhances / day", hi: false },
+  { t: "500 Skill Eval runs / day", hi: false },
+  { t: "2,000 AI Headers / day", hi: false },
+  { t: "500 Prompt Scores / day", hi: false },
+  { t: "BYOK - Bring your Own Key", hi: true },
+  { t: "Priority support + first-class access to new features", hi: false },
 ];
 
 export function StudioCard() {

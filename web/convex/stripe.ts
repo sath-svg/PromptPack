@@ -60,7 +60,7 @@ export const createSubscriptionCheckout = action({
 
 export const createTopupCheckout = action({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     email: v.string(),
     name: v.optional(v.string()),
     priceId: v.string(),
@@ -74,7 +74,7 @@ export const createTopupCheckout = action({
   }),
   handler: async (ctx, args) => {
     const customer = await stripeClient.getOrCreateCustomer(ctx, {
-      userId: args.clerkId,
+      userId: args.userId,
       email: args.email,
       name: args.name,
     });
@@ -89,7 +89,7 @@ export const createTopupCheckout = action({
       success_url: args.successUrl,
       cancel_url: args.cancelUrl,
       metadata: {
-        userId: args.clerkId,
+        userId: args.userId,
         credits: String(args.credits),
         type: "topup",
       },

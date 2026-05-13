@@ -11,12 +11,12 @@ import { useSyncStore } from './syncStore';
 import { useSettingsStore } from './settingsStore';
 
 // Helper to fetch user's billing tier from the backend
-async function fetchUserTier(clerkId: string): Promise<string> {
+async function fetchUserTier(userId: string): Promise<string> {
   try {
     const response = await tauriFetch(`${CONVEX_URL}/api/extension/billing-status`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ clerkId }),
+      body: JSON.stringify({ userId }),
     });
 
     if (response.ok) {
@@ -93,7 +93,7 @@ interface AuthState {
   getValidAccessToken: () => Promise<string | null>;
 }
 
-const REFRESH_API_URL = 'https://api.pmtpk.com/auth/refresh';
+const REFRESH_API_URL = 'https://api.skillset.so/auth/refresh';
 const CONVEX_EXCHANGE_URL = `${CONVEX_URL}/api/extension/exchange-code`;
 // Refresh when access token is within this many seconds of expiry.
 // Worker mints HS256 with 3600s lifetime; 60s slack stays well clear of

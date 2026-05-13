@@ -1,5 +1,59 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation, DatabaseReader } from "./_generated/server";
+import {
+  action,
+  mutation,
+  query,
+  internalMutation,
+  internalQuery,
+  internalAction,
+  DatabaseReader,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
+import Stripe from "stripe";
+
+// Disposable / throwaway email domains — blocked on signup to reduce
+// multi-account abuse of the free 100cr signup grant. This is a starter
+// list of the most common ones; production should pull the full
+// disposable-email-domains list (~5000 entries) and refresh weekly.
+const DISPOSABLE_EMAIL_DOMAINS = new Set<string>([
+  "mailinator.com",
+  "tempmail.com",
+  "tempmail.net",
+  "tempmail.org",
+  "10minutemail.com",
+  "guerrillamail.com",
+  "guerrillamail.net",
+  "guerrillamail.org",
+  "yopmail.com",
+  "throwawaymail.com",
+  "trashmail.com",
+  "trashmail.net",
+  "getairmail.com",
+  "maildrop.cc",
+  "fakeinbox.com",
+  "dispostable.com",
+  "mintemail.com",
+  "spamgourmet.com",
+  "sharklasers.com",
+  "grr.la",
+  "tempr.email",
+  "discard.email",
+  "emlhub.com",
+  "mohmal.com",
+  "tmpmail.org",
+  "burnermail.io",
+  "moakt.com",
+  "mailnesia.com",
+  "spam4.me",
+  "byom.de",
+]);
+
+function isDisposableEmail(email: string): boolean {
+  const at = email.lastIndexOf("@");
+  if (at < 0) return false;
+  const domain = email.slice(at + 1).toLowerCase().trim();
+  return DISPOSABLE_EMAIL_DOMAINS.has(domain);
+}
 
 // Shared user lookup: tries betterAuthId index first, then clerkId index.
 // All queries/mutations that accept a "userId" arg should use this so
@@ -110,6 +164,12 @@ export const upsert = mutation({
       return existing._id;
     }
 
+    // Block disposable-email signups for new users only; existing accounts
+    // (already in DB) are grandfathered above via the existing-record path.
+    if (isDisposableEmail(email)) {
+      throw new Error("DISPOSABLE_EMAIL_NOT_ALLOWED");
+    }
+
     return await ctx.db.insert("users", {
       clerkId: userId,
       email,
@@ -192,8 +252,9 @@ export const upsertFromWebhook = internalMutation({
     imageUrl: v.optional(v.string()),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     stripeCustomerId: v.optional(v.string()),
+    emailVerified: v.optional(v.boolean()),
   },
-  handler: async (ctx, { userId, email, name, imageUrl, plan, stripeCustomerId }) => {
+  handler: async (ctx, { userId, email, name, imageUrl, plan, stripeCustomerId, emailVerified }) => {
     const existing = await findUserByAnyId(ctx.db, userId);
 
     if (existing) {
@@ -203,6 +264,7 @@ export const upsertFromWebhook = internalMutation({
         imageUrl,
         plan,
         ...(stripeCustomerId && { stripeCustomerId }),
+        ...(emailVerified !== undefined && { emailVerified }),
       });
       return existing._id;
     }
@@ -214,6 +276,7 @@ export const upsertFromWebhook = internalMutation({
       imageUrl,
       plan,
       stripeCustomerId,
+      emailVerified,
       createdAt: Date.now(),
     });
   },
@@ -283,6 +346,9 @@ export const updatePlanFromStripeEvent = internalMutation({
   args: {
     userId: v.string(),
     plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
+    // Pro plan variant — "legacy_pro" for grandfathered $9 subscribers,
+    // undefined/"pro" for the standard $15 tier. Studio has no variants yet.
+    planVariant: v.optional(v.union(v.literal("pro"), v.literal("legacy_pro"))),
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
     subscriptionCancelledAt: v.optional(v.number()),
@@ -290,6 +356,7 @@ export const updatePlanFromStripeEvent = internalMutation({
   handler: async (ctx, {
     userId,
     plan,
+    planVariant,
     stripeCustomerId,
     stripeSubscriptionId,
     subscriptionCancelledAt,
@@ -299,8 +366,17 @@ export const updatePlanFromStripeEvent = internalMutation({
     if (!user) return;
 
     const oldPlan = user.plan;
+    // Downgrade to free clears planVariant; pro/studio sets it from arg
+    // (undefined preserves prior state on routine subscription updates).
+    const variantPatch =
+      plan === "free"
+        ? { planVariant: undefined }
+        : planVariant !== undefined
+          ? { planVariant }
+          : {};
     const nextPatch = {
       plan,
+      ...variantPatch,
       ...(stripeCustomerId && { stripeCustomerId }),
       ...(stripeSubscriptionId && { stripeSubscriptionId }),
     };
@@ -734,5 +810,264 @@ export const getByBetterAuthId = query({
       .query("users")
       .withIndex("by_better_auth_id", (q) => q.eq("betterAuthId", betterAuthId))
       .first();
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * Backfill — assign planVariant to existing Pro subscribers
+ *
+ * Run once after deploy via the Convex dashboard:
+ *   npx convex run users:backfillPlanVariant '{"dryRun": true}'
+ * Then re-run with dryRun=false to apply.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+// List candidate users: plan="pro" with no planVariant set yet, that have a
+// stripeSubscriptionId we can look up. Skips already-classified users.
+export const listProUsersNeedingVariant = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("users"),
+      clerkId: v.string(),
+      email: v.string(),
+      stripeSubscriptionId: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const all = await ctx.db.query("users").collect();
+    return all
+      .filter((u) => u.plan === "pro" && u.planVariant === undefined && u.stripeSubscriptionId)
+      .map((u) => ({
+        _id: u._id,
+        clerkId: u.clerkId,
+        email: u.email,
+        stripeSubscriptionId: u.stripeSubscriptionId,
+      }));
+  },
+});
+
+// Patch a single user's planVariant. Called by the backfill action below.
+export const patchPlanVariant = internalMutation({
+  args: {
+    userId: v.id("users"),
+    planVariant: v.union(v.literal("pro"), v.literal("legacy_pro")),
+  },
+  returns: v.null(),
+  handler: async (ctx, { userId, planVariant }) => {
+    await ctx.db.patch(userId, { planVariant });
+    return null;
+  },
+});
+
+// One-shot backfill. Walks all Pro users without planVariant, fetches each
+// subscription from Stripe to read the active Price ID, and patches the
+// user record. dryRun=true logs intended patches without applying.
+//
+// Explicit handler return type breaks the self-referential type cycle that
+// Convex's internalAction inference triggers when a handler calls a query
+// declared in the same file.
+type BackfillResult = {
+  scanned: number;
+  patched: number;
+  legacy: number;
+  current: number;
+  skipped: number;
+  errors: number;
+};
+
+type BackfillCandidate = {
+  _id: import("./_generated/dataModel").Id<"users">;
+  clerkId: string;
+  email: string;
+  stripeSubscriptionId?: string;
+};
+
+export const backfillPlanVariant = internalAction({
+  args: {
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    patched: v.number(),
+    legacy: v.number(),
+    current: v.number(),
+    skipped: v.number(),
+    errors: v.number(),
+  }),
+  handler: async (ctx, { dryRun = true }): Promise<BackfillResult> => {
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    const legacyPriceId = process.env.STRIPE_PRO_LEGACY_PRICE_ID;
+    const monthlyPriceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+    const annualPriceId = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
+
+    if (!stripeKey || !legacyPriceId) {
+      throw new Error(
+        "Missing env vars: STRIPE_SECRET_KEY and STRIPE_PRO_LEGACY_PRICE_ID required for backfill.",
+      );
+    }
+
+    const stripe = new Stripe(stripeKey);
+    const candidates: BackfillCandidate[] = await ctx.runQuery(
+      internal.users.listProUsersNeedingVariant,
+      {},
+    );
+
+    let patched = 0;
+    let legacy = 0;
+    let current = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const candidate of candidates) {
+      if (!candidate.stripeSubscriptionId) {
+        skipped += 1;
+        continue;
+      }
+      try {
+        const sub = await stripe.subscriptions.retrieve(candidate.stripeSubscriptionId);
+        const items = sub.items?.data ?? [];
+        let onLegacy = false;
+        let onCurrent = false;
+        for (const item of items) {
+          const priceId = item.price?.id;
+          if (priceId === legacyPriceId) onLegacy = true;
+          else if (priceId === monthlyPriceId || priceId === annualPriceId) onCurrent = true;
+        }
+
+        let variant: "pro" | "legacy_pro" | null = null;
+        if (onLegacy && !onCurrent) variant = "legacy_pro";
+        else if (onCurrent) variant = "pro";
+
+        if (variant === null) {
+          console.log(
+            `[backfill] SKIP ${candidate.email} — subscription on unrecognised Price IDs`,
+          );
+          skipped += 1;
+          continue;
+        }
+
+        if (variant === "legacy_pro") legacy += 1;
+        else current += 1;
+
+        if (dryRun) {
+          console.log(`[backfill] DRY-RUN would patch ${candidate.email} → ${variant}`);
+        } else {
+          await ctx.runMutation(internal.users.patchPlanVariant, {
+            userId: candidate._id,
+            planVariant: variant,
+          });
+          patched += 1;
+        }
+      } catch (err) {
+        errors += 1;
+        console.error(
+          `[backfill] ERROR ${candidate.email} (sub=${candidate.stripeSubscriptionId}):`,
+          err instanceof Error ? err.message : String(err),
+        );
+      }
+    }
+
+    console.log(
+      `[backfill] done — scanned=${candidates.length} legacy=${legacy} current=${current} ` +
+        `patched=${patched} skipped=${skipped} errors=${errors} dryRun=${dryRun}`,
+    );
+
+    return {
+      scanned: candidates.length,
+      patched,
+      legacy,
+      current,
+      skipped,
+      errors,
+    };
+  },
+});
+
+/**
+ * Public-action wrapper around `listLegacyProEmails` — gated by the shared
+ * SKILLSET_INTERNAL_KEY so an external Node script (web/scripts/send-pro-price-change-email.ts)
+ * can fetch the recipient list via ConvexHttpClient without exposing emails publicly.
+ */
+type LegacyProRecipient = { email: string; name?: string };
+
+export const listLegacyProEmailsForBlast = action({
+  args: { internalKey: v.string() },
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, { internalKey }): Promise<LegacyProRecipient[]> => {
+    const expected = process.env.SKILLSET_INTERNAL_KEY;
+    if (!expected) throw new Error("SKILLSET_INTERNAL_KEY not configured");
+    if (internalKey !== expected) throw new Error("Unauthorized");
+    const result: LegacyProRecipient[] = await ctx.runQuery(
+      internal.users.listLegacyProEmails,
+      {},
+    );
+    return result;
+  },
+});
+
+/**
+ * List the emails of all current legacy_pro subscribers. Consumed by the
+ * one-time price-change email blast (web/scripts/send-pro-price-change-email.ts).
+ * Returns email + name (best-effort) so the email script can personalise.
+ */
+export const listLegacyProEmails = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const legacy = await ctx.db
+      .query("users")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("plan"), "pro"),
+          q.eq(q.field("planVariant"), "legacy_pro"),
+        ),
+      )
+      .collect();
+    return legacy
+      .filter((u) => u.email && u.email.includes("@"))
+      .map((u) => ({ email: u.email, name: u.name }));
+  },
+});
+
+/**
+ * Emergency rollback for `backfillPlanVariant`. Clears `planVariant` on every
+ * Pro user (sets it back to undefined). Use only if a backfill run mis-classified
+ * users — webhook handler will re-set planVariant correctly on next subscription
+ * event, and the next backfill run can be retried with corrected env vars.
+ *
+ * Usage:
+ *   npx convex run users:revertBackfillPlanVariant
+ *
+ * Does NOT touch Studio users (they have no variant). Logs how many were cleared.
+ */
+export const revertBackfillPlanVariant = internalMutation({
+  args: {},
+  returns: v.object({ cleared: v.number() }),
+  handler: async (ctx) => {
+    const proUsers = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("plan"), "pro"))
+      .collect();
+
+    let cleared = 0;
+    for (const user of proUsers) {
+      if (user.planVariant !== undefined) {
+        await ctx.db.patch(user._id, { planVariant: undefined });
+        cleared += 1;
+      }
+    }
+
+    console.log(`[revert-backfill] cleared planVariant on ${cleared} Pro users`);
+    return { cleared };
   },
 });

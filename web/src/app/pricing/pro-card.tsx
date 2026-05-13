@@ -12,17 +12,20 @@ const EARLY_BIRD_LIMIT = 9;
 const EARLY_BIRD_PRICE = 1.99;
 
 const FEATURES = [
-  { t: "750 AI credits / month", hi: true },
-  { t: "40 saved prompts", hi: true },
-  { t: "100 prompt enhances per day", hi: true },
-  { t: "500 AI headers per day", hi: true },
-  { t: "Desktop app", hi: false },
-  { t: "MCP server (500 calls/day)", hi: false },
-  { t: "ChatGPT, Claude & Gemini support", hi: false },
-  { t: "Local storage + Cloud sync", hi: false },
-  { t: "Perplexity, Grok, DeepSeek, Kimi support", hi: true },
-  { t: "PromptControl (1 pack)", hi: true },
-  { t: "Priority support", hi: true },
+  { t: "750 AI credits per month in Managed mode", hi: true },
+  { t: "Rolls over up to 1,500 credits", hi: false },
+  { t: "Frontier Models (Opus, GPT-5 Pro, o3 Pro)", hi: true },
+  { t: "Skill Router", hi: true },
+  { t: "Skill Flow — up to 5 parallel flows (agents)", hi: true },
+  { t: "Skill Preset — encrypted style locks + licensing", hi: true },
+  { t: "Skill Control — versioning (3 packs)", hi: true },
+  { t: "7 cloud skillsets of total 56 skills", hi: true },
+  { t: "100 Skill Enhances / day", hi: false },
+  { t: "500 Skill Eval runs / day", hi: false },
+  { t: "500 AI Headers / day", hi: false },
+  { t: "Skill Chat with Frontier Models", hi: true },
+  { t: "BYOK - Bring Your Own Key", hi: true },
+  { t: "Priority support", hi: false },
 ];
 
 export function ProCard() {

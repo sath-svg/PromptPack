@@ -1,29 +1,56 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { useState, useCallback } from "react";
 
 const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.skillset.so";
 
-export interface EvaluationScores {
-  chatgpt: number;
-  claude: number;
-  gemini: number;
-  perplexity: number;
-  grok: number;
-  deepseek: number;
-  kimi: number;
+// v2 tier-based evaluation types (mirrors app/src/types.ts).
+export type EvalTierKey = "cheap" | "mid" | "frontier";
+export type EvalEffort = "low" | "medium" | "high" | null;
+export type EvalByokProvider =
+  | "anthropic"
+  | "openai"
+  | "gemini"
+  | "grok"
+  | "deepseek"
+  | "perplexity"
+  | "kimi";
+
+export interface EvalTierRow {
+  tier: EvalTierKey;
+  score: number;
+  selectedModelId: string;
+  selectedModelLabel: string;
+}
+
+export interface EvalModelRow {
+  modelId: string;
+  label: string;
+  score: number;
+}
+
+export interface EvalByokRow {
+  provider: EvalByokProvider;
+  modelId: string;
+  modelLabel: string;
+  tier: EvalTierKey;
+  score: number;
 }
 
 export interface PromptEvaluation {
   promptHash: string;
-  overallScore: number;
-  scores: EvaluationScores;
+  schemaVersion: 2;
+  tiers: { cheap: EvalTierRow; mid: EvalTierRow; frontier: EvalTierRow };
+  recommendedTier: EvalTierKey;
+  recommendedModelId: string;
+  recommendedModelLabel: string;
+  recommendedEffort: EvalEffort;
+  bestTierModels: EvalModelRow[];
+  byok?: EvalByokRow[];
+  rationale?: string;
   evaluatedAt: number;
 }
 
-// Helper to compute SHA-256 hash of prompt text
 async function sha256(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
@@ -33,9 +60,17 @@ async function sha256(text: string): Promise<string> {
 }
 
 /**
- * Hook for managing prompt evaluations
- * @param trialsRemaining - Number of free evaluation trials remaining (for free users)
- * @param onTrialUsed - Callback fired after a free user successfully uses a trial evaluation
+ * Hook for managing prompt evaluations.
+ *
+ * The web client doesn't bundle the LR classifier or expose per-tier
+ * model selections (those live in the desktop app). It passes empty
+ * defaults; the worker falls back to recommended-for-tier and computes
+ * the tier pick from Groq scores alone.
+ *
+ * @param trialsRemaining Number of free evaluation trials remaining
+ *                        (for free users).
+ * @param onTrialUsed Callback fired after a free user successfully uses
+ *                    a trial evaluation.
  */
 export function useEvaluation(
   userId: string | undefined,
@@ -47,26 +82,15 @@ export function useEvaluation(
   const [loadingHash, setLoadingHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Get the hash for a prompt text
-   */
   const getPromptHash = useCallback(async (promptText: string): Promise<string> => {
     return sha256(promptText);
   }, []);
 
-  /**
-   * Get an evaluation from the local cache
-   */
   const getEvaluation = useCallback(
-    (promptHash: string): PromptEvaluation | undefined => {
-      return evaluations[promptHash];
-    },
+    (promptHash: string): PromptEvaluation | undefined => evaluations[promptHash],
     [evaluations]
   );
 
-  /**
-   * Load evaluations from Convex for a list of prompt hashes
-   */
   const loadEvaluations = useCallback(
     async (promptHashes: string[]) => {
       if (!userId || promptHashes.length === 0) return;
@@ -77,51 +101,45 @@ export function useEvaluation(
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId,
-              promptHashes,
-            }),
+            body: JSON.stringify({ userId, promptHashes }),
           }
         );
 
-        if (response.ok) {
-          const data = (await response.json()) as {
-            success: boolean;
-            evaluations: Record<
-              string,
-              {
-                overallScore: number;
-                scores: EvaluationScores;
-                evaluatedAt: number;
-              }
-            >;
-          };
+        if (!response.ok) return;
 
-          if (data.success && data.evaluations) {
-            const evaluationsMap: Record<string, PromptEvaluation> = {};
-            for (const [hash, eval_] of Object.entries(data.evaluations)) {
-              if (eval_) {
-                evaluationsMap[hash] = {
-                  promptHash: hash,
-                  overallScore: eval_.overallScore,
-                  scores: eval_.scores,
-                  evaluatedAt: eval_.evaluatedAt,
-                };
-              }
-            }
-            setEvaluations((prev) => ({ ...prev, ...evaluationsMap }));
+        const data = (await response.json()) as {
+          success: boolean;
+          evaluations: Record<string, (PromptEvaluation & { _id?: string; _creationTime?: number }) | null>;
+        };
+
+        if (!data.success || !data.evaluations) return;
+
+        const evaluationsMap: Record<string, PromptEvaluation> = {};
+        for (const [hash, row] of Object.entries(data.evaluations)) {
+          if (row && row.schemaVersion === 2 && row.tiers && row.recommendedTier) {
+            evaluationsMap[hash] = {
+              promptHash: hash,
+              schemaVersion: 2,
+              tiers: row.tiers,
+              recommendedTier: row.recommendedTier,
+              recommendedModelId: row.recommendedModelId,
+              recommendedModelLabel: row.recommendedModelLabel,
+              recommendedEffort: row.recommendedEffort,
+              bestTierModels: row.bestTierModels,
+              byok: row.byok,
+              rationale: row.rationale,
+              evaluatedAt: row.evaluatedAt,
+            };
           }
         }
-      } catch (error) {
-        console.error("Failed to load evaluations:", error);
+        setEvaluations((prev) => ({ ...prev, ...evaluationsMap }));
+      } catch (err) {
+        console.error("Failed to load evaluations:", err);
       }
     },
     [userId]
   );
 
-  /**
-   * Evaluate a prompt by calling the Workers API
-   */
   const evaluatePrompt = useCallback(
     async (promptText: string, sessionToken: string): Promise<PromptEvaluation | null> => {
       const canEvaluate = hasPro || trialsRemaining > 0;
@@ -132,11 +150,8 @@ export function useEvaluation(
 
       const promptHash = await sha256(promptText);
 
-      // Check if already cached
       const cached = evaluations[promptHash];
-      if (cached) {
-        return cached;
-      }
+      if (cached) return cached;
 
       setLoadingHash(promptHash);
       setError(null);
@@ -148,7 +163,15 @@ export function useEvaluation(
             "Content-Type": "application/json",
             Authorization: `Bearer ${sessionToken}`,
           },
-          body: JSON.stringify({ text: promptText }),
+          body: JSON.stringify({
+            text: promptText,
+            // Web has no settings store / no classifier — let the worker
+            // resolve to recommended-for-tier and Groq pick the tier.
+            selectedManagedModels: {},
+            classifierTier: null,
+            classifierEffort: null,
+            byokProviders: [],
+          }),
         });
 
         if (!response.ok) {
@@ -156,31 +179,30 @@ export function useEvaluation(
           throw new Error(data.error || `Evaluation failed (${response.status})`);
         }
 
-        const result = (await response.json()) as {
-          overallScore: number;
-          scores: EvaluationScores;
-          promptHash: string;
-          cached?: boolean;
-        };
+        const result = (await response.json()) as PromptEvaluation & { cached?: boolean };
 
         const evaluation: PromptEvaluation = {
           promptHash: result.promptHash || promptHash,
-          overallScore: result.overallScore,
-          scores: result.scores,
-          evaluatedAt: Date.now(),
+          schemaVersion: 2,
+          tiers: result.tiers,
+          recommendedTier: result.recommendedTier,
+          recommendedModelId: result.recommendedModelId,
+          recommendedModelLabel: result.recommendedModelLabel,
+          recommendedEffort: result.recommendedEffort,
+          bestTierModels: result.bestTierModels,
+          byok: result.byok,
+          rationale: result.rationale,
+          evaluatedAt: result.evaluatedAt ?? Date.now(),
         };
 
         setEvaluations((prev) => ({ ...prev, [promptHash]: evaluation }));
         setLoadingHash(null);
 
-        // Notify caller that a free trial was used
-        if (!hasPro && onTrialUsed) {
-          onTrialUsed();
-        }
+        if (!hasPro && onTrialUsed) onTrialUsed();
 
         return evaluation;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Evaluation failed";
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Evaluation failed";
         setError(message);
         setLoadingHash(null);
         return null;
@@ -189,16 +211,8 @@ export function useEvaluation(
     [hasPro, trialsRemaining, evaluations, onTrialUsed]
   );
 
-  /**
-   * Clear the error
-   */
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+  const clearError = useCallback(() => setError(null), []);
 
-  /**
-   * Clear all cached evaluations
-   */
   const clearCache = useCallback(() => {
     setEvaluations({});
     setLoadingHash(null);

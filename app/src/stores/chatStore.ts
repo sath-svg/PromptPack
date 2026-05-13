@@ -22,14 +22,14 @@ import { useAuthStore } from './authStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel, estimateCreditsForCall } from '../lib/managed-models';
 import { syncCreditsFromHeaders } from '../lib/creditSync';
+import { friendlyApiError, safeParseErrorBody } from '../lib/apiErrors';
 
 // ---------------------------------------------------------------------------
 // Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
 // ---------------------------------------------------------------------------
 
-// TODO: switch back to api.skillset.so once that domain is live.
-// const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
-const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat';
+const MANAGED_API_URL = 'https://api.skillset.so/api/llm/chat';
+// const MANAGED_API_URL = 'https://api.pmtpk.com/api/llm/chat'; // rollback only
 
 class InsufficientCreditsError extends Error {
   constructor() {
@@ -42,6 +42,27 @@ class SessionExpiredError extends Error {
   constructor() {
     super('session_expired');
     this.name = 'SessionExpiredError';
+  }
+}
+
+class SkillFlowLockedError extends Error {
+  constructor() {
+    super('SkillFlow workflows are a Pro / Studio feature. Upgrade to run multi-step AI workflows.');
+    this.name = 'SkillFlowLockedError';
+  }
+}
+
+class FrontierLockedError extends Error {
+  constructor() {
+    super('Premium Models (Opus, GPT-5 Pro, o3 Pro) are a Pro / Studio feature. Pick a Standard model or upgrade.');
+    this.name = 'FrontierLockedError';
+  }
+}
+
+class DailyLimitError extends Error {
+  constructor() {
+    super('Daily free-trial limit reached. Resets at midnight UTC, or upgrade for the full monthly allowance.');
+    this.name = 'DailyLimitError';
   }
 }
 
@@ -82,8 +103,25 @@ async function callManagedProxy(
     throw new InsufficientCreditsError();
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Managed proxy error: ${res.status} ${JSON.stringify(err)}`);
+    const err = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
+    if (res.status === 403 && err.code === 'SKILLFLOW_REQUIRES_PAID') {
+      throw new SkillFlowLockedError();
+    }
+    if (res.status === 403 && err.code === 'FRONTIER_NOT_ALLOWED') {
+      throw new FrontierLockedError();
+    }
+    if (res.status === 429 && err.code === 'DAILY_FREE_LIMIT_REACHED') {
+      throw new DailyLimitError();
+    }
+    // Friendly fallback. Raw status + JSON only goes to console for debugging.
+    console.error('[managed-proxy]', res.status, err);
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error('Connection to the AI provider failed. Please try again in a moment.');
+    }
+    if (res.status >= 500) {
+      throw new Error('Something went wrong on our end. Please try again in a moment.');
+    }
+    throw new Error(err.message || "Couldn't send this message. Please try again.");
   }
 
   // Sync balance from response headers
@@ -391,9 +429,8 @@ const HISTORY_MAX_MESSAGES = 14;
 
 // Server-side openai-compat endpoint for inbuilt Groq agent flow. Plain
 // chat keeps the legacy /chat shape via callServer().
-// TODO: switch back to api.skillset.so once worker DNS transfer is complete.
-// const SERVER_OPENAI_COMPAT_BASE = 'https://api.skillset.so/v1';
-const SERVER_OPENAI_COMPAT_BASE = 'https://api.pmtpk.com/v1';
+const SERVER_OPENAI_COMPAT_BASE = 'https://api.skillset.so/v1';
+// const SERVER_OPENAI_COMPAT_BASE = 'https://api.pmtpk.com/v1'; // rollback only
 
 // Local providers we treat as last-resort. If user configured a cloud key
 // (BYOK), they explicitly opted in to that provider — using a free local
@@ -515,8 +552,7 @@ async function callServer(
   if (session?.session_token) {
     headers['authorization'] = `Bearer ${session.session_token}`;
   }
-  // TODO: switch back to api.skillset.so once worker DNS transfer is complete.
-  const response = await tauriFetch('https://api.pmtpk.com/chat', {
+  const response = await tauriFetch('https://api.skillset.so/chat', {
     method: 'POST',
     headers,
     body: JSON.stringify({ model: modelId, messages }),
@@ -969,6 +1005,22 @@ import type { SubtaskRunner } from '../lib/orchestrator/executor';
 import { runAgentSubtask } from '../lib/orchestrator/agentSubtask';
 import { emptyTaskState } from '../lib/orchestrator/types';
 import { runCreate } from '../lib/orchestrator/persist';
+import { classifyExecutionMode } from '../lib/orchestrator/executionMode';
+
+/**
+ * Convert a raw run-failure message into a user-readable sentence.
+ * Catches the `HTTP NNN` shape that `fetchWithRetry` throws and routes
+ * through `friendlyApiError` so the chat bubble doesn't surface raw
+ * status codes. Falls through to the original message when no HTTP
+ * pattern is found.
+ */
+function humanizeRunFailure(raw: string): string {
+  const m = raw.match(/HTTP\s+(\d{3})/);
+  if (!m) return raw;
+  const status = parseInt(m[1], 10);
+  if (!Number.isFinite(status)) return raw;
+  return friendlyApiError(status, null, 'agent');
+}
 import { useRunStore } from './runStore';
 import type { ManagedTier } from '../lib/managed-models';
 
@@ -1013,12 +1065,22 @@ interface OrchestratorMessageDeps {
    */
   resumeTaskState?: import('../lib/orchestrator/types').TaskState;
   /**
-   * Free-form extra context (e.g. workspace `skillset.md` contents)
-   * pre-loaded into `TaskState.summaries.rolling` so every subtask sees
-   * it under "CONTEXT SO FAR". Lets users layer per-pack instructions
-   * on top of the pack's hard-coded prompts without forking the pack.
+   * Free-form extra context (e.g. user-typed per-run extras) pre-loaded
+   * into `TaskState.summaries.rolling` so every subtask sees it under
+   * "CONTEXT SO FAR". Use {@link projectInstructions} for the raw
+   * `skillset.md` contents — those get directive-grade placement in the
+   * agent's system prompt instead of rolling-summary framing.
    */
   extraContext?: string;
+  /**
+   * Raw contents of the workspace's `skillset.md` file (no wrapping
+   * headers). Stamped onto `TaskState.projectInstructions` so every
+   * subtask's agent loop injects it as a "# Project Skill (MUST FOLLOW)"
+   * system-prompt suffix. Cheap-tier models (Haiku 4.5, Gemini 2.5 Flash)
+   * ignore rules buried in user-message context but obey system-prompt
+   * directives — this field is the registration fix.
+   */
+  projectInstructions?: string;
   set: (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
 }
 
@@ -1037,9 +1099,40 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     predefinedPlan,
     predefinedPlanLabel,
     extraContext,
+    projectInstructions,
     resumeTaskState,
     set,
   } = deps;
+
+  // Auto-enable Skill Flow ONLY for Set runs (packs with predefinedPlan).
+  // Set runs are inherently a Skill Flow chain regardless of toggle; the
+  // indicator must reflect that. Normal typed prompts respect the user's
+  // toggle preference — we don't flip it for them. Idempotent.
+  if (predefinedPlan && !useSettingsStore.getState().orchestratorEnabled) {
+    useSettingsStore.getState().setOrchestratorEnabled(true);
+  }
+
+  // Auto-accept edits for the duration of a Set Run. Set runs are a
+  // curated chain the user explicitly clicked "Run" on — they have
+  // already consented to the whole batch. Pausing the executor between
+  // steps for per-edit clicks defeats the point AND (worse) causes the
+  // next step to read stale file content because the executor doesn't
+  // block on pending-edit acceptance. Save the prior value so we can
+  // restore in the finally — but only un-flip our own change. If the
+  // user manually toggled mid-run, respect their choice.
+  let autoAcceptRestore: (() => void) | null = null;
+  if (predefinedPlan) {
+    const agentStore = useAgentStore.getState();
+    agentStore.setSetRunActive(true);
+    if (!agentStore.autoAcceptEdits) {
+      agentStore.setAutoAcceptEdits(true);
+      autoAcceptRestore = () => {
+        if (useAgentStore.getState().autoAcceptEdits === true) {
+          useAgentStore.getState().setAutoAcceptEdits(false);
+        }
+      };
+    }
+  }
   // `deps.jwt` is intentionally ignored — refresh-aware tokens are
   // resolved via `useAuthStore.getValidAccessToken()` in `getJwt`
   // below + at every managed-proxy call site that follows.
@@ -1089,11 +1182,19 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // pending/failed ones run fresh.
     const taskState = resumeTaskState ?? emptyTaskState(text);
     if (!resumeTaskState && extraContext?.trim()) {
-      // Seed the rolling summary with skillset.md / user-supplied extras
-      // so every subtask sees them under "CONTEXT SO FAR". The rebuild
+      // Seed the rolling summary with user-supplied per-run extras so
+      // every subtask sees them under "CONTEXT SO FAR". The rebuild
       // job in memory.ts later overwrites this slot — the user-instructions
       // header is preserved by including it inside the cap budget.
       taskState.summaries.rolling = extraContext.trim();
+    }
+    if (!resumeTaskState && projectInstructions?.trim()) {
+      // skillset.md goes on a dedicated TaskState field so the executor
+      // can route it to each subtask's system prompt (directive weight)
+      // instead of letting it ride in rolling-summary framing (which
+      // cheap-tier models treat as informational). See agentSubtask.ts
+      // buildSystemPrompt() for the placement strategy.
+      taskState.projectInstructions = projectInstructions.trim();
     }
     await useRunStore.getState().setTaskState(taskState);
 
@@ -1118,12 +1219,18 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     };
     const runSubtask: SubtaskRunner | undefined =
       workspace
-        ? async ({ prompt, decision, signal }) => {
+        ? async ({ subtask, prompt, decision, signal }) => {
             const toolPreset = pickToolCapableModel(
               decision.preset.tier,
               available,
               billingTier,
             );
+            // Per-subtask skillset directive + dep-barrier tagging. Read
+            // off the live TaskState so a resumed run picks up whatever
+            // skillset.md was captured when the run originally started
+            // (the snapshot persists across the 402 / Top up gap).
+            const projectInstructions = taskState.projectInstructions;
+            const subtaskId = subtask.id;
             // No-BYOK + managed mode + workspace: route through managed
             // proxy `/api/llm/chat/completions` so the agent loop runs on
             // Sonnet/GPT-5/Opus instead of free Llama 8B (which drops
@@ -1152,6 +1259,10 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 effort: decision.effort ?? null,
                 signal,
                 urlOverride: 'https://api.pmtpk.com/api/llm',
+                projectInstructions,
+                subtaskId,
+                getJwt,
+                cheapModelId: selections.cheap,
               });
             }
             if (toolPreset) {
@@ -1170,6 +1281,10 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 prompt,
                 effort: decision.effort ?? null,
                 signal,
+                projectInstructions,
+                subtaskId,
+                getJwt,
+                cheapModelId: selections.cheap,
               });
             }
             // No tool-capable preset survived (rare — server is always
@@ -1179,6 +1294,8 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${await getJwt()}`,
+                // Orchestrator subtask — bypass /api/llm/chat concurrent cap.
+                'X-From-Orchestrator': 'true',
               },
               body: JSON.stringify({
                 model: decision.managed.id,
@@ -1188,18 +1305,9 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
               signal,
             });
             if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              if (res.status === 402) {
-                throw new Error(
-                  'Out of credits — top up to keep this run going.',
-                );
-              }
-              if (res.status === 401) {
-                throw new Error(
-                  'Session expired — sign in again to continue this run.',
-                );
-              }
-              throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
+              const err = await safeParseErrorBody(res);
+              console.error('[skillflow-subtask]', res.status, err);
+              throw new Error(friendlyApiError(res.status, err, 'subtask'));
             }
             syncCreditsFromHeaders(res);
             const data = (await res.json()) as {
@@ -1232,6 +1340,8 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 headers: {
                   'Content-Type': 'application/json',
                   Authorization: `Bearer ${await getJwt()}`,
+                  // Orchestrator subtask — bypass /api/llm/chat concurrent cap.
+                  'X-From-Orchestrator': 'true',
                 },
                 body: JSON.stringify({
                   model: decision.managed.id,
@@ -1241,8 +1351,9 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 signal,
               });
               if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(`Subtask LLM error ${res.status}: ${JSON.stringify(err)}`);
+                const err = await safeParseErrorBody(res);
+                console.error('[skillflow-byok-fallback]', res.status, err);
+                throw new Error(friendlyApiError(res.status, err, 'subtask'));
               }
               syncCreditsFromHeaders(res);
               const data = (await res.json()) as {
@@ -1306,6 +1417,13 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
       signal: abort.signal,
       workspace,
       runSubtask,
+      // Cap pack-run tier at `balanced` (Sonnet 4.6 / GPT-5 / Gemini 2.5
+      // Pro). The LR classifier escalates curated analyst-style prompts
+      // to `powerful` (GPT-5 Pro / Opus / o3-Pro) which on 5-round tool
+      // loops costs ~$0.50–$1.00 per step — the pack author already
+      // chose the prompts, the LR head has no business overriding to a
+      // 10× more expensive tier on top of that.
+      tierCap: predefinedPlan ? 'balanced' : undefined,
       predefinedPlan,
       predefinedPlanSource: predefinedPlan
         ? { sourceLabel: 'pack', modelId: predefinedPlanLabel ?? 'pack' }
@@ -1502,19 +1620,24 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         }
         // Real failure — fold the error into the assistant bubble so
         // it's not just a floating empty placeholder + a separate red
-        // toast. Run Trace still owns per-subtask chips.
+        // toast. Run Trace still owns per-subtask chips. Humanize the
+        // raw message: "HTTP 502" / "HTTP 503" / "HTTP 504" → friendly
+        // "Connection to the AI provider failed. Please try again."
+        // The toolbar retry button (rendered when bubble.looksFailed)
+        // is the user's one-click recovery path.
+        const humanized = humanizeRunFailure(msg);
         blocks.length = 0;
         blocks.push({
           kind: 'text',
-          text: `_(run failed: ${msg.slice(0, 280)})_`,
+          text: `_(run failed: ${humanized.slice(0, 280)})_`,
         });
         set((state) => ({
           messages: state.messages.map((m) =>
             m.id === assistantId
-              ? { ...m, blocks: [...blocks], content: msg }
+              ? { ...m, blocks: [...blocks], content: humanized }
               : m,
           ),
-          error: msg,
+          error: humanized,
           isLoading: false,
         }));
       },
@@ -1545,6 +1668,16 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     const msg = err instanceof Error ? err.message : String(err);
     if (runId) await useRunStore.getState().endRun('failed', msg);
     set({ error: msg, isLoading: false });
+  } finally {
+    // Restore the user's auto-accept preference + clear the Set-Run
+    // active flag. Covers every exit path — success, mid-loop error,
+    // outer reject, cancel, 402 credit exhaustion. On resume after 402,
+    // runOrchestratorMessage is called afresh, so the enable + finally
+    // fires cleanly again with no leak.
+    autoAcceptRestore?.();
+    if (predefinedPlan) {
+      useAgentStore.getState().setSetRunActive(false);
+    }
   }
 }
 
@@ -1590,15 +1723,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     //   - effort → reasoning budget (null on fast tier)
     //   - route → dispatch decision: chat | agent | workflow
     const { tier: rawTier, effort: rawEffort } = classifyPrompt(text);
-    // Pack prompts always ride mid+ tier — cheap models hallucinate
-    // tool calls (write_file, read_file) too often, breaking pack flows
-    // that depend on file artifacts surviving across steps. Force at
-    // least `balanced` for any packName-tagged message and seed an
-    // effort floor of `low` so reasoning models actually reason instead
-    // of dumping a one-shot guess.
-    const tier = packName && rawTier === 'fast' ? 'balanced' : rawTier;
+    // Compute write-file intent up-front so it can both:
+    //   - bump tier to balanced (cheap models hallucinate file tools), AND
+    //   - force the agent path later (workspace + intent = real tools).
+    const writeFileIntent = detectWriteFileIntent(text);
+    // Pack prompts AND write-file-intent prompts always ride mid+ tier —
+    // cheap models hallucinate tool calls (write_file, read_file) too
+    // often, breaking pack flows and producing fake file-edit results.
+    // Force at least `balanced` and seed an effort floor of `low` so
+    // reasoning models actually reason instead of one-shot guessing.
+    const needsBalancedFloor = Boolean(packName) || writeFileIntent !== null;
+    const tier = needsBalancedFloor && rawTier === 'fast' ? 'balanced' : rawTier;
     const effort: typeof rawEffort =
-      packName && tier !== 'fast' && !rawEffort ? 'low' : rawEffort;
+      needsBalancedFloor && tier !== 'fast' && !rawEffort ? 'low' : rawEffort;
     const lrRoute = predictRouteWithConfidence(text);
     let route: RouteClass = lrRoute.route;
     let fallbackUsed = false;
@@ -1701,26 +1838,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     //   - anything else → single-shot managed
     // Pack prompts always bypass orchestration — pack steps are user-
     // curated single-task units.
-    // Dispatch override: if the user explicitly asks to save a file
-    // ("output as plan.md", "save to report.json", "put it in
-    // workspace"), the prompt unambiguously needs file tools. Force
-    // the agent path even when:
-    //   - the LR route head guessed `chat` (managed-proxy plain has
-    //     no tools), AND
-    //   - the agent mode toggle is OFF (write-intent + workspace is
-    //     itself enough signal — keeps single-shot users from being
-    //     told "I can't create files" when a workspace is connected).
-    const writeFileIntent = detectWriteFileIntent(text);
+    // Skill Flow is the master switch for agent capabilities.
+    //   Skill Flow ON  + workspace → agent path (single-agent vs
+    //                                multi-agent decided automatically
+    //                                by the LR route head + orchestrator).
+    //   Skill Flow OFF              → single-shot, no tools. The SkillChat
+    //                                handleSend gate intercepts prompts
+    //                                that clearly need tools and shows the
+    //                                "Enable Skill Flow?" popup before
+    //                                reaching this code.
+    // agentMode is no longer a user-facing toggle; it follows Skill Flow.
     const wantsAgent =
-      Boolean(workspace) &&
-      (
-        // Agent mode toggle on + LR says agent → traditional path.
-        (agentMode && route === 'agent') ||
-        // Any write-intent + workspace forces tools, regardless of
-        // toggle. Users frequently leave the toggle off but type
-        // file-modifying prompts.
-        writeFileIntent !== null
-      );
+      Boolean(workspace) && settings.orchestratorEnabled;
     // Cost-aware confidence floor for orchestrator routing.
     //
     // The LR route head outputs a soft probability across {chat, agent,
@@ -1753,7 +1882,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (shouldOrchestrate) {
       const ws = useAgentStore.getState().workspace;
       set({
-        pendingRouteLabel: `Routing → SkillFlow workflow · planner + subtasks`,
+        pendingRouteLabel: `Routing → Skill Flow workflow · planner + subtasks`,
       });
       await runOrchestratorMessage({
         text,
@@ -1807,7 +1936,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       };
       const managedModel = getManagedModel(modelId);
       const routeLabelStr = orchestratorSkipped
-        ? `Routing → single-shot (auto-bypassed SkillFlow) · ${managedModel?.label ?? modelId}`
+        ? `Routing → single-shot (auto-bypassed Skill Flow) · ${managedModel?.label ?? modelId}`
         : `Routing → single-shot · ${managedModel?.label ?? modelId}`;
       set((state) => ({
         messages: [...state.messages, userMsg],
@@ -1862,9 +1991,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set({ error: '__SESSION_EXPIRED__', isLoading: false });
         } else if (err instanceof InsufficientCreditsError) {
           set({ error: '__INSUFFICIENT_CREDITS__', isLoading: false });
+        } else if (err instanceof SkillFlowLockedError) {
+          set({ error: err.message, isLoading: false });
+        } else if (err instanceof FrontierLockedError) {
+          set({ error: err.message, isLoading: false });
+        } else if (err instanceof DailyLimitError) {
+          set({ error: err.message, isLoading: false });
         } else {
           set({
-            error: err instanceof Error ? err.message : 'Managed chat failed',
+            error: err instanceof Error ? err.message : "Couldn't send this message. Please try again.",
             isLoading: false,
           });
         }
@@ -1888,16 +2023,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const reconciled = reconcileOllamaPreset(preset, loaded);
         preset = reconciled; // null if Ollama unusable — fall through to plain
       }
-      // Pack runs AND any write-intent prompt must NEVER fall to Llama 8B.
-      // Llama drops tool calls, emits malformed `<formation=...>` wrappers
-      // (or pseudo-bash text claiming "file created" when nothing happened),
-      // and writes 0-byte files when forced via tool_choice. Swap to the
-      // user's managed model selection (Haiku / Sonnet / GPT-5) and route
-      // through the managed proxy `/api/llm/chat/completions` alias which
-      // forwards `tools` + `tool_choice` to OpenRouter.
+      // Every workspace-attached turn now reaches this block (wantsAgent =
+      // Boolean(workspace)) so we always need a tool-capable model. Llama
+      // 8B drops tool calls, emits `<formation=...>` wrappers, and writes
+      // 0-byte files when forced via tool_choice — never trustworthy here.
+      // Redirect to the managed proxy whenever the picked preset would be
+      // the inbuilt server. `packName` and `writeFileIntent` are kept on
+      // the audit list for clarity/telemetry; the practical value is
+      // always `true` while inside this branch.
       const llamaCantBeTrustedHere =
-        packName !== undefined ||      // pack run
-        writeFileIntent !== null;       // explicit/implicit file-write intent
+        true ||
+        packName !== undefined ||
+        writeFileIntent !== null;
       // The user-selected provider keys actually plugged in. Used to
       // tailor error messages so we don't suggest "add a provider key"
       // to a managed-only user (which sounds like we're claiming they
@@ -1980,7 +2117,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // fall-through to plain-chat below; the assistant's model tag tells
       // the user what was used. Tools simply aren't invoked this turn.
     }
-    if (agentMode && workspace && agentPresetReady) {
+    if (workspace && agentPresetReady) {
       const preset = agentPresetReady;
       const userMsg: ChatMessage = {
         id: makeId(),
@@ -2339,15 +2476,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     );
     const workspace = useAgentStore.getState().workspace;
 
-    // Optional skillset.md — extra instructions the user drops into the
-    // workspace root that every subtask in the pack should see. Threaded
-    // into TaskState.summaries.rolling so memory.ts injects it under
-    // "CONTEXT SO FAR" for every subtask. Absent file = silent skip.
-    // Per-run `extraInstructions` (typed by the user in the chat input
-    // alongside the pack tag) layer on top of skillset.md — both end
-    // up under one "User instructions" block so the model treats them
-    // as a single bundle of run-time adjustments.
-    const contextBlocks: string[] = [];
+    // Optional skillset.md — project rules the user drops into the
+    // workspace root that every subtask in the pack must follow. The
+    // RAW contents go onto TaskState.projectInstructions so the agent
+    // loop can inject them into the system prompt under "# Project
+    // Skill (MUST FOLLOW)" — directive weight that cheap-tier models
+    // actually obey. Per-run `extraInstructions` (typed by the user in
+    // the chat input alongside the pack tag) remain in rolling-summary
+    // framing under "## User instructions" / "# CONTEXT SO FAR"; they
+    // are advisory adjustments rather than rules.
+    let projectInstructions: string | undefined;
     if (workspace) {
       for (const candidate of ['skillset.md', '.skillset.md']) {
         try {
@@ -2356,9 +2494,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             path: candidate,
           });
           if (result?.content?.trim()) {
-            contextBlocks.push(
-              `### From ${candidate}\n\n${result.content.trim()}`,
-            );
+            projectInstructions = result.content.trim();
             break;
           }
         } catch {
@@ -2366,21 +2502,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }
     }
-    if (extraInstructions?.trim()) {
-      contextBlocks.push(
-        `### From this run's chat input\n\n${extraInstructions.trim()}`,
-      );
-    }
-    const extraContext =
-      contextBlocks.length > 0
-        ? `## User instructions\n\n${contextBlocks.join('\n\n')}`
-        : undefined;
+    const extraContext = extraInstructions?.trim()
+      ? `## User instructions\n\n### From this run's chat input\n\n${extraInstructions.trim()}`
+      : undefined;
 
-    // Synthetic plan: one subtask per pack step. Each step depends on
-    // the previous so memory.ts auto-injects the prior output into the
-    // next step's prompt. Allow a broad tool set since pack prompts
-    // commonly read / write / search files. Merge=first → final answer
-    // is the last subtask's output (not a synthesized recap).
+    // Classify execution mode — cheap Llama 8B pre-call decides whether
+    // to collapse the pack into a single LLM call (cheapest), keep the
+    // existing per-step chain (default; required for file artifacts), or
+    // fan out to DAG (independent research → parallel). Falls back to
+    // 'chain' on Groq cap / network failure.
+    const execDecision = await classifyExecutionMode({
+      packTitle,
+      prompts: steps,
+      getJwt: async () => authSession.session_token,
+    });
+
+    // Synthetic plan shape depends on the execution decision.
     const ALLOWED_TOOLS = [
       'read_file',
       'write_file',
@@ -2391,21 +2528,73 @@ export const useChatStore = create<ChatState>((set, get) => ({
       'bash',
       'lsp_diagnostics',
     ];
-    const subtasks = steps.map((step, i) => ({
-      id: `t${i + 1}`,
-      title: step.header?.trim() || `Step ${i + 1}`,
-      instruction: step.text,
-      complexity_hint: 'moderate' as const,
-      reasoning_hint: 'none' as const,
-      needs_tools: ALLOWED_TOOLS,
-      depends_on: i === 0 ? [] : [`t${i}`],
-      produces: 'text' as const,
-    }));
+
+    let subtasks: import('../lib/orchestrator/types').PlannerSubtask[];
+    if (execDecision.mode === 'single') {
+      // Single-call mode: collapse all prompts into ONE subtask. The
+      // model receives every step as numbered sections in one prompt and
+      // produces a combined response. Skips chain orchestration entirely
+      // — ~3× cheaper for pure-text packs that don't build file artifacts.
+      const combined = steps
+        .map((s, i) => {
+          const header = s.header?.trim() || `Step ${i + 1}`;
+          return `## ${header}\n\n${s.text}`;
+        })
+        .join('\n\n');
+      subtasks = [
+        {
+          id: 't1',
+          title: packTitle,
+          instruction:
+            `Complete EVERY step below in a single comprehensive response. ` +
+            `Each step may build on prior steps' reasoning. Produce all ` +
+            `requested outputs as one combined answer.\n\n${combined}`,
+          complexity_hint: 'moderate',
+          reasoning_hint: 'none',
+          needs_tools: ALLOWED_TOOLS,
+          depends_on: [],
+          produces: 'text',
+        },
+      ];
+    } else if (execDecision.mode === 'dag') {
+      // DAG mode: prompts in `serialIndices` depend on ALL earlier ones
+      // (synthesis / aggregation steps); others are parallel roots.
+      const serial = new Set(execDecision.serialIndices);
+      subtasks = steps.map((step, i) => ({
+        id: `t${i + 1}`,
+        title: step.header?.trim() || `Step ${i + 1}`,
+        instruction: step.text,
+        complexity_hint: 'moderate',
+        reasoning_hint: 'none',
+        needs_tools: ALLOWED_TOOLS,
+        depends_on: serial.has(i)
+          ? steps.slice(0, i).map((_, j) => `t${j + 1}`)
+          : [],
+        produces: 'text',
+      }));
+    } else {
+      // chain (default) — every step depends on the previous one.
+      subtasks = steps.map((step, i) => ({
+        id: `t${i + 1}`,
+        title: step.header?.trim() || `Step ${i + 1}`,
+        instruction: step.text,
+        complexity_hint: 'moderate',
+        reasoning_hint: 'none',
+        needs_tools: ALLOWED_TOOLS,
+        depends_on: i === 0 ? [] : [`t${i}`],
+        produces: 'text',
+      }));
+    }
     const predefinedPlan: import('../lib/orchestrator/types').PlannerOutput = {
       goal: packTitle,
       subtasks,
       merge: 'first',
     };
+
+    // Publish the execution decision to runStore so the Run Trace panel
+    // can show the mode + reason. Done before runOrchestratorMessage so
+    // the chip appears as soon as the run starts.
+    useRunStore.getState().setExecutionDecision(execDecision);
 
     // Telemetry — log the pack as one workflow event so retraining
     // sees pack runs as `workflow` ground truth.
@@ -2438,6 +2627,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       predefinedPlan,
       predefinedPlanLabel: packTitle,
       extraContext,
+      projectInstructions,
       set,
     });
   },

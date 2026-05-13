@@ -20,7 +20,7 @@
 
 import { tauriFetch } from './tauriFetch';
 
-const SERVER_OPENAI_COMPAT_URL = 'https://api.pmtpk.com/v1/chat/completions';
+const SERVER_OPENAI_COMPAT_URL = 'https://api.skillset.so/v1/chat/completions';
 const EXTRACTOR_MODEL = 'llama-3.1-8b-instant';
 
 export interface PackExtractionResult {

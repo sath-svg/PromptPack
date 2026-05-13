@@ -71,6 +71,13 @@ export interface OrchestratorDeps {
   skill?: Skill | null;
   signal: AbortSignal;
   /**
+   * Hard ceiling on routed tier for every subtask in this run. Forwarded
+   * to the executor → router. chatStore.runOrchestratorMessage sets this
+   * to `balanced` for predefinedPlan (pack) runs so curated pack prompts
+   * can't be escalated to GPT-5 Pro / Opus by the LR classifier.
+   */
+  tierCap?: import('../classifier').ModelTier;
+  /**
    * Workspace path. Forwarded into the planner's system prompt so
    * subtasks correctly declare `needs_tools` instead of asking the user
    * to paste file content. Also signals "tools available at runtime"
@@ -190,6 +197,7 @@ export class Orchestrator {
         await execute(plan, state, {
           jwt: executorJwt,
           selections: this.deps.selections,
+          tierCap: this.deps.tierCap,
           signal: haltController.signal,
           runSubtask: this.deps.runSubtask,
           runAbort: (_reason) => haltController.abort(),

@@ -1150,23 +1150,49 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
       try {
         const body = await request.json();
         const userId = (body as any).userId ?? (body as any).clerkId;
-        const { promptHash, overallScore, scores } = body as {
+        const {
+          promptHash,
+          schemaVersion,
+          tiers,
+          recommendedTier,
+          recommendedModelId,
+          recommendedModelLabel,
+          recommendedEffort,
+          bestTierModels,
+          byok,
+          rationale,
+          evaluatedAt,
+        } = body as {
           userId?: string;
           clerkId?: string;
           promptHash: string;
-          overallScore: number;
-          scores: {
-            chatgpt: number;
-            claude: number;
-            gemini: number;
-            perplexity: number;
-            grok: number;
-            deepseek: number;
-            kimi: number;
-          };
+          schemaVersion: 2;
+          tiers: any;
+          recommendedTier: "cheap" | "mid" | "frontier";
+          recommendedModelId: string;
+          recommendedModelLabel: string;
+          recommendedEffort: "low" | "medium" | "high" | null;
+          bestTierModels: Array<{ modelId: string; label: string; score: number }>;
+          byok?: Array<{
+            provider: string;
+            modelId: string;
+            modelLabel: string;
+            tier: "cheap" | "mid" | "frontier";
+            score: number;
+          }>;
+          rationale?: string;
+          evaluatedAt?: number;
         };
 
-        if (!userId || !promptHash || overallScore === undefined || !scores) {
+        if (
+          !userId ||
+          !promptHash ||
+          schemaVersion !== 2 ||
+          !tiers ||
+          !recommendedTier ||
+          !recommendedModelId ||
+          !Array.isArray(bestTierModels)
+        ) {
           return new Response(
             JSON.stringify({ error: "Missing required fields" }),
             {
@@ -1176,36 +1202,19 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Validate scores are numbers in range 0-100
-        const allScores = [
-          overallScore,
-          scores.chatgpt,
-          scores.claude,
-          scores.gemini,
-          scores.perplexity,
-          scores.grok,
-          scores.deepseek,
-          scores.kimi,
-        ];
-        for (const score of allScores) {
-          if (typeof score !== "number" || score < 0 || score > 100) {
-            return new Response(
-              JSON.stringify({ error: "Invalid score value" }),
-              {
-                status: 400,
-                headers: { ...headers, "Content-Type": "application/json" },
-              }
-            );
-          }
-        }
-
-        // Save evaluation to Convex
         const evaluationId = await ctx.runMutation(api.evaluations.upsert, {
           userId,
           promptHash,
-          overallScore,
-          scores,
-          version: "1.0",
+          schemaVersion: 2,
+          tiers,
+          recommendedTier,
+          recommendedModelId,
+          recommendedModelLabel,
+          recommendedEffort,
+          bestTierModels,
+          byok: byok && byok.length > 0 ? (byok as any) : undefined,
+          rationale,
+          evaluatedAt,
         });
 
         return new Response(
@@ -1364,15 +1373,15 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Pro users: only 1 pack can have version control enabled
+        // Pro users: up to 3 packs can have version control enabled
         if (enabled && user.plan === "pro") {
           const allPacks = await ctx.runQuery(api.packs.listByAuthor, { authorId: user._id });
           const alreadyEnabled = allPacks.filter(
             (p) => p.versionControlEnabled && p._id !== packId
           );
-          if (alreadyEnabled.length >= 1) {
+          if (alreadyEnabled.length >= 3) {
             return new Response(
-              JSON.stringify({ error: "Pro plan allows version control on 1 pack only. Disable it on another pack first." }),
+              JSON.stringify({ error: "Pro plan allows version control on 3 packs only. Disable it on another pack first." }),
               { status: 400, headers: { ...headers, "Content-Type": "application/json" } }
             );
           }

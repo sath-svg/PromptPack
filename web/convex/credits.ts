@@ -7,16 +7,43 @@ import { findUserByAnyId } from "./users";
  * Constants
  * ────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Monthly credit grant by plan + variant.
+ *
+ * `legacy_pro` = grandfathered $9 Pro subscribers from before the 2026 price
+ * change. They keep their plan at $9/mo but receive 300 cr/mo instead of the
+ * full 750. Upgrade flow flips planVariant → undefined (or "pro"), restoring
+ * the full grant on the next billing cycle.
+ *
+ * Legacy table left exported (read-only) so existing callers that index by
+ * plan continue to compile; new code should call `getMonthlyCredits()`.
+ */
 export const PLAN_MONTHLY_CREDITS: Record<"free" | "pro" | "studio", number> = {
   free: 0,
   pro: 750,
   studio: 2750,
 };
 
-export const FREE_SIGNUP_GRANT = 50;
+export type PlanVariant = "pro" | "legacy_pro" | undefined;
 
+export function getMonthlyCredits(
+  plan: "free" | "pro" | "studio",
+  variant?: PlanVariant,
+): number {
+  if (plan === "free") return 0;
+  if (plan === "pro") {
+    return variant === "legacy_pro" ? 300 : 750;
+  }
+  return 2750; // studio (no legacy variant currently)
+}
+
+export const FREE_SIGNUP_GRANT = 100;
+
+// NOTE: small pack raised to $5 (was $4) to reduce stripe-fee drag.
+// REQUIRED ACTION: create new Stripe Price for $5/200cr and update the
+// STRIPE_TOPUP_200_PRICE_ID env var to point to it.
 export const TOPUP_PACKS = {
-  small: { credits: 200, priceCents: 400 },
+  small: { credits: 200, priceCents: 500 },
   medium: { credits: 500, priceCents: 1000 },
   large: { credits: 1500, priceCents: 3000 },
   xl: { credits: 5000, priceCents: 10000 },
@@ -28,8 +55,18 @@ export const CREDIT_USD_VALUE = 0.005;
 // Holds older than this are considered stale and refunded by the cron
 export const HOLD_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
+// Free-tier per-day burn cap (signup-grant pool only).
+// Spreads the 100cr trial across multiple days, blocks instant drain.
+export const FREE_DAILY_BURN_LIMIT = 30;
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MONTHLY_PERIOD_MS = 30 * MS_PER_DAY;
+
+// UTC day bucket — "YYYY-MM-DD" — for per-day counters
+function utcDayBucket(now: number): string {
+  const d = new Date(now);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
 
 /* ────────────────────────────────────────────────────────────────────────── *
  * Helpers
@@ -70,7 +107,7 @@ function maybeRefreshMonthly(
   now: number,
 ): { newMonthly: number; granted: number; expired: number; resetAt: number } | null {
   if (user.plan === "free") return null;
-  const grant = PLAN_MONTHLY_CREDITS[user.plan];
+  const grant = getMonthlyCredits(user.plan, user.planVariant);
   const resetAt = user.monthlyCreditsResetAt ?? 0;
   if (resetAt > now) return null;
 
@@ -104,20 +141,56 @@ const reserveResult = v.object({
  */
 export const reserveCredits = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     estimatedCredits: v.number(),
     modelId: v.string(),
+    // Optional tier — when set, gates frontier models behind paid plans.
+    // Worker passes the model's tier so this mutation can reject before
+    // any OpenRouter spend.
+    tier: v.optional(v.union(v.literal("cheap"), v.literal("mid"), v.literal("frontier"))),
+    // Worker sets this true when X-From-Orchestrator header is present.
+    // SkillFlow (orchestrator + agent loops) is a paid feature — free
+    // plan signups cannot trigger multi-step subtask fan-out.
+    fromOrchestrator: v.optional(v.boolean()),
   },
   returns: reserveResult,
-  handler: async (ctx, { clerkId, estimatedCredits, modelId }) => {
+  handler: async (ctx, { userId, estimatedCredits, modelId, tier, fromOrchestrator }) => {
     if (estimatedCredits <= 0) {
       throw new Error("estimatedCredits must be positive");
     }
 
-    const user = await findUserByAnyId(ctx.db, clerkId);
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) throw new Error("USER_NOT_FOUND");
 
+    // SkillFlow (orchestrator + agent loops) gated to paid plans.
+    if (fromOrchestrator === true && user.plan === "free") {
+      throw new Error("SKILLFLOW_REQUIRES_PAID");
+    }
+
+    // Free-tier frontier-model gate. Free users (signup grant only) cannot
+    // burn 100cr on a single Opus turn — paid plans only.
+    if (tier === "frontier" && user.plan === "free") {
+      throw new Error("FRONTIER_NOT_ALLOWED");
+    }
+
     const now = Date.now();
+
+    // Free-tier per-day burn cap. Only enforced on free plan users still
+    // drawing from the signup grant (monthly pool > 0). Once they top up,
+    // they're a paying customer — no daily cap.
+    if (user.plan === "free" && (user.monthlyCredits ?? 0) > 0) {
+      const todayBucket = utcDayBucket(now);
+      const currentBucket = user.dailyBurnBucket;
+      const burnedToday = currentBucket === todayBucket ? (user.dailyBurnCredits ?? 0) : 0;
+      if (burnedToday + estimatedCredits > FREE_DAILY_BURN_LIMIT) {
+        throw new Error("DAILY_FREE_LIMIT_REACHED");
+      }
+      // Update bucket + counter atomically with the reserve below
+      await ctx.db.patch(user._id, {
+        dailyBurnBucket: todayBucket,
+        dailyBurnCredits: burnedToday + estimatedCredits,
+      });
+    }
 
     // Lazy monthly refresh
     let monthly = user.monthlyCredits ?? 0;
@@ -249,10 +322,15 @@ export const settleCredits = internalMutation({
       topupDelta = debit.topupDelta;
     }
 
-    await ctx.db.patch(user._id, {
+    const userPatch: Record<string, unknown> = {
       monthlyCredits: monthly,
       topupCredits: topup,
-    });
+    };
+    if (shortfall > 0) {
+      userPatch.shortfallCount = (user.shortfallCount ?? 0) + 1;
+      userPatch.lastShortfallAt = now;
+    }
+    await ctx.db.patch(user._id, userPatch);
 
     // Convert hold → debit_llm with actual cost recorded
     await ctx.db.patch(hold._id, {
@@ -344,10 +422,10 @@ export const releaseHold = internalMutation({
  * ────────────────────────────────────────────────────────────────────────── */
 
 export const grantFreeSignupCreditsIfEligible = internalMutation({
-  args: { clerkId: v.string() },
+  args: { userId: v.string() },
   returns: v.object({ granted: v.boolean() }),
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return { granted: false };
     if (user.freeCreditsGrantedAt) return { granted: false };
     if (!user.emailVerified) return { granted: false };
@@ -378,12 +456,15 @@ export const grantFreeSignupCreditsIfEligible = internalMutation({
 
 export const grantMonthlyFromInvoice = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     invoiceId: v.string(),
     plan: v.union(v.literal("pro"), v.literal("studio")),
+    // Optional — webhook passes it from the subscription's price ID lookup
+    // so legacy_pro users get the reduced 300cr grant. Undefined = full tier.
+    planVariant: v.optional(v.union(v.literal("pro"), v.literal("legacy_pro"))),
   },
   returns: v.object({ granted: v.boolean() }),
-  handler: async (ctx, { clerkId, invoiceId, plan }) => {
+  handler: async (ctx, { userId, invoiceId, plan, planVariant }) => {
     // Idempotency: skip if this invoice already granted credits
     const existing = await ctx.db
       .query("creditTransactions")
@@ -391,11 +472,13 @@ export const grantMonthlyFromInvoice = internalMutation({
       .first();
     if (existing) return { granted: false };
 
-    const user = await findUserByAnyId(ctx.db, clerkId);
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return { granted: false };
 
     const now = Date.now();
-    const grant = PLAN_MONTHLY_CREDITS[plan];
+    // Prefer the variant from the webhook arg; fall back to whatever is
+    // stored on the user record (set previously by subscription.* events).
+    const grant = getMonthlyCredits(plan, planVariant ?? user.planVariant);
     const cap = grant * 2;
     const current = user.monthlyCredits ?? 0;
     const newMonthly = Math.min(current + grant, cap);
@@ -441,13 +524,13 @@ export const grantMonthlyFromInvoice = internalMutation({
 
 export const grantTopup = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     credits: v.number(),
     stripeEventId: v.string(),
     sessionId: v.optional(v.string()),
   },
   returns: v.object({ granted: v.boolean() }),
-  handler: async (ctx, { clerkId, credits, stripeEventId, sessionId }) => {
+  handler: async (ctx, { userId, credits, stripeEventId, sessionId }) => {
     // Idempotency
     const existing = await ctx.db
       .query("creditTransactions")
@@ -455,7 +538,7 @@ export const grantTopup = internalMutation({
       .first();
     if (existing) return { granted: false };
 
-    const user = await findUserByAnyId(ctx.db, clerkId);
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return { granted: false };
 
     const now = Date.now();
@@ -481,7 +564,7 @@ export const grantTopup = internalMutation({
 
 export const addCredits = internalMutation({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     credits: v.number(),
     reason: v.optional(v.string()),
   },
@@ -489,10 +572,10 @@ export const addCredits = internalMutation({
     granted: v.boolean(),
     topupAfter: v.number(),
   }),
-  handler: async (ctx, { clerkId, credits, reason }) => {
+  handler: async (ctx, { userId, credits, reason }) => {
     if (credits <= 0) throw new Error("credits must be > 0");
 
-    const user = await findUserByAnyId(ctx.db, clerkId);
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return { granted: false, topupAfter: 0 };
 
     const now = Date.now();
@@ -646,7 +729,7 @@ export const backfillExistingUsers = internalMutation({
         continue;
       }
 
-      const grant = PLAN_MONTHLY_CREDITS[user.plan];
+      const grant = getMonthlyCredits(user.plan, user.planVariant);
       const patch: Partial<Doc<"users">> = {
         monthlyCredits: grant,
         topupCredits: 0,
@@ -686,7 +769,7 @@ export const backfillExistingUsers = internalMutation({
  * ────────────────────────────────────────────────────────────────────────── */
 
 export const getBalance = query({
-  args: { clerkId: v.string() },
+  args: { userId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
@@ -696,8 +779,8 @@ export const getBalance = query({
       plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
     }),
   ),
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return null;
     return {
       monthly: user.monthlyCredits ?? 0,
@@ -710,18 +793,18 @@ export const getBalance = query({
 
 export const listTransactions = query({
   args: {
-    clerkId: v.string(),
+    userId: v.string(),
     limit: v.optional(v.number()),
   },
-  handler: async (ctx, { clerkId, limit }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, limit }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return [];
 
     const max = Math.min(limit ?? 50, 200);
-    const userId: Id<"users"> = user._id;
+    const dbUserId: Id<"users"> = user._id;
     return await ctx.db
       .query("creditTransactions")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user", (q) => q.eq("userId", dbUserId))
       .order("desc")
       .take(max);
   },
@@ -733,7 +816,7 @@ export const listTransactions = query({
  * call should proceed before reserving.
  */
 export const getBalanceInternal = internalQuery({
-  args: { clerkId: v.string() },
+  args: { userId: v.string() },
   returns: v.union(
     v.null(),
     v.object({
@@ -743,8 +826,8 @@ export const getBalanceInternal = internalQuery({
       managedModeEnabled: v.boolean(),
     }),
   ),
-  handler: async (ctx, { clerkId }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return null;
     return {
       monthly: user.monthlyCredits ?? 0,
@@ -760,12 +843,67 @@ export const getBalanceInternal = internalQuery({
  * ────────────────────────────────────────────────────────────────────────── */
 
 export const setManagedModeEnabled = mutation({
-  args: { clerkId: v.string(), enabled: v.boolean() },
+  args: { userId: v.string(), enabled: v.boolean() },
   returns: v.null(),
-  handler: async (ctx, { clerkId, enabled }) => {
-    const user = await findUserByAnyId(ctx.db, clerkId);
+  handler: async (ctx, { userId, enabled }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
     if (!user) throw new Error("USER_NOT_FOUND");
     await ctx.db.patch(user._id, { managedModeEnabled: enabled });
     return null;
+  },
+});
+
+/* ────────────────────────────────────────────────────────────────────────── *
+ * Cron — daily settlement-shortfall summary (called from crons.ts)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+export const summarizeShortfallsLast24h = internalMutation({
+  args: {},
+  returns: v.object({
+    totalShortfallCredits: v.number(),
+    totalShortfallUsd: v.number(),
+    eventCount: v.number(),
+    affectedUsers: v.number(),
+  }),
+  handler: async (ctx) => {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    // Scan recent transactions; reason field carries "settlement_shortfall=N"
+    const recent = await ctx.db
+      .query("creditTransactions")
+      .filter((q) => q.gte(q.field("createdAt"), cutoff))
+      .collect();
+
+    let totalShortfallCredits = 0;
+    let eventCount = 0;
+    const affected = new Set<string>();
+    for (const txn of recent) {
+      const m = txn.reason?.match(/^settlement_shortfall=(\d+(?:\.\d+)?)$/);
+      if (!m) continue;
+      const amt = Number(m[1]);
+      if (!Number.isFinite(amt) || amt <= 0) continue;
+      totalShortfallCredits += amt;
+      eventCount += 1;
+      affected.add(String(txn.userId));
+    }
+
+    const totalShortfallUsd = totalShortfallCredits * CREDIT_USD_VALUE;
+
+    console.log(
+      "[shortfall-summary]",
+      JSON.stringify({
+        windowHours: 24,
+        totalShortfallCredits,
+        totalShortfallUsd,
+        eventCount,
+        affectedUsers: affected.size,
+      }),
+    );
+
+    return {
+      totalShortfallCredits,
+      totalShortfallUsd,
+      eventCount,
+      affectedUsers: affected.size,
+    };
   },
 });

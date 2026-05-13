@@ -70,6 +70,31 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 }
 
 // Decode obfuscated .skill file
+/**
+ * Normalize prompts from imported file. Handles both:
+ *   - Pack format: {text, header, ...} (CloudPrompt)
+ *   - Skillset format: {id, label, template, ...} (SkillPrompt)
+ *     Maps template→text, label/icon/purpose→header so they fit pack schema.
+ */
+function normalizeImportedPrompts(data: any): CloudPrompt[] {
+  if (!data.prompts || !Array.isArray(data.prompts)) {
+    throw new Error('Invalid pack format');
+  }
+  const isSkillset =
+    data.type === 'skillset' ||
+    data.prompts.some((p: any) => typeof p.template === 'string' && typeof p.text !== 'string');
+
+  if (isSkillset) {
+    return data.prompts.map((p: any, idx: number) => ({
+      text: p.template ?? p.text ?? '',
+      header: `${p.icon ? p.icon + ' ' : ''}${p.label ?? 'Prompt'}${p.purpose ? ' — ' + p.purpose : ''}`,
+      url: '',
+      createdAt: Date.now() + idx,
+    })) as CloudPrompt[];
+  }
+  return data.prompts as CloudPrompt[];
+}
+
 async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   if (bytes.length < HEADER_SIZE) {
     throw new Error('File is too small or corrupted');
@@ -83,11 +108,7 @@ async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
   const jsonString = decoder.decode(jsonBytes);
   const data = JSON.parse(jsonString);
 
-  if (data.prompts && Array.isArray(data.prompts)) {
-    return data.prompts;
-  }
-
-  throw new Error('Invalid pack format');
+  return normalizeImportedPrompts(data);
 }
 
 // Decrypt encrypted .skill file
@@ -116,11 +137,7 @@ async function decryptPmtpk(bytes: Uint8Array, password: string): Promise<CloudP
     const jsonString = decoder.decode(decompressed);
     const data = JSON.parse(jsonString);
 
-    if (data.prompts && Array.isArray(data.prompts)) {
-      return data.prompts;
-    }
-
-    throw new Error('Invalid pack format');
+    return normalizeImportedPrompts(data);
   } catch (e) {
     if (e instanceof Error && e.message === 'Invalid pack format') throw e;
     throw new Error('Wrong password');
@@ -186,7 +203,7 @@ export function ImportPage() {
 
       // Check magic bytes (PPK\0 or PPK\1)
       if (data[0] !== 80 || data[1] !== 80 || data[2] !== 75) {
-        throw new Error('Invalid PromptPack file format');
+        throw new Error('Invalid Skillset file format');
       }
 
       const version = data[3];
@@ -589,7 +606,7 @@ export function ImportPage() {
           <FileUp size={20} className="text-[var(--primary)]" />
           <div>
             <p className="font-medium text-[var(--foreground)]">.skill</p>
-            <p className="text-xs text-[var(--muted-foreground)]">PromptPack skillset format (also accepts legacy .pmtpk)</p>
+            <p className="text-xs text-[var(--muted-foreground)]">Skillset format (also accepts legacy .pmtpk)</p>
           </div>
         </div>
       </div>

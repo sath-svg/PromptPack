@@ -86,7 +86,7 @@ export default function PricingPage() {
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
             </span>
             <span>
-              Only 9 spots left at{" "}
+              Only 8 spots left at{" "}
               <span className="text-orange-400 font-medium">$1.99/mo</span>
             </span>
           </div>
