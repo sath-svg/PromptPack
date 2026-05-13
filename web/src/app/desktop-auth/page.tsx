@@ -155,7 +155,7 @@ export default function DesktopAuthPage() {
           </div>
 
           <h1 className="text-xl font-semibold text-foreground text-center mb-2">
-            Connect to PromptPack
+            Connect to Skillset
           </h1>
           <p className="text-sm text-muted-foreground text-center mb-8">
             Sign in to sync your prompts with the desktop app
@@ -228,7 +228,7 @@ export default function DesktopAuthPage() {
         </div>
 
         <h1 className="text-xl font-semibold text-foreground mb-2">
-          {switchingAccount ? "Switch Account" : "Sign in to PromptPack"}
+          {switchingAccount ? "Switch Account" : "Sign in to Skillset"}
         </h1>
         <p className="text-muted-foreground text-sm mb-8">
           {switchingAccount ? "Sign in with a different account" : "Connect your desktop app to sync prompts"}
@@ -248,7 +248,7 @@ export default function DesktopAuthPage() {
           </svg>
         </div>
         <h1 className="text-xl font-semibold text-foreground mb-2">
-          Connected to PromptPack
+          Connected to Skillset
         </h1>
         <p className="text-muted-foreground text-sm text-center max-w-sm mb-6">
           You&apos;re signed in. You can close this tab and return to the desktop app.

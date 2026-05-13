@@ -50,7 +50,7 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
           ))}
         </nav>
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end gap-3 text-zinc-400">
           <SignedOut>
             <Link
               href="/sign-in"

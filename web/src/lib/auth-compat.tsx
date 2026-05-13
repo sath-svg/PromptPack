@@ -273,7 +273,7 @@ export function SignIn({ callbackURL }: { callbackURL?: string } = {}) {
 
       <p style={{ marginTop: 16, fontSize: 14, color: "#888", textAlign: "center" }}>
         Don&apos;t have an account?{" "}
-        <a href="/sign-up" style={{ color: "#6366f1" }}>
+        <a href="/sign-up" style={{ color: "#2563eb" }}>
           Sign up
         </a>
       </p>
@@ -401,7 +401,7 @@ export function SignUp({ callbackURL }: { callbackURL?: string } = {}) {
 
       <p style={{ marginTop: 16, fontSize: 14, color: "#888", textAlign: "center" }}>
         Already have an account?{" "}
-        <a href="/sign-in" style={{ color: "#6366f1" }}>
+        <a href="/sign-in" style={{ color: "#2563eb" }}>
           Sign in
         </a>
       </p>
@@ -439,7 +439,7 @@ export function UserButton({
           height: 36,
           borderRadius: "50%",
           border: "2px solid #333",
-          background: user.image ? `url(${user.image}) center/cover` : "#4f46e5",
+          background: user.image ? `url(${user.image}) center/cover` : "#2563eb",
           color: "#fff",
           fontSize: 14,
           fontWeight: 600,
