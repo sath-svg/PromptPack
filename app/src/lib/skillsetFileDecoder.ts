@@ -35,8 +35,7 @@ function detectFileType(bytes: Uint8Array): 'skill-json' | 'pmtpk' {
   // Check magic bytes
   if (bytes.length >= 4) {
     const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2]);
-    const type = bytes[3];
-
+    // bytes[3] = type byte (PPK\0 = XOR, PPK\1 = AES-GCM) — kept for forward compat
     if (magic === 'PPK') {
       return 'pmtpk'; // Binary .pmtpk format
     }

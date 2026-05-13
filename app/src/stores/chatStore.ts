@@ -1829,7 +1829,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // multi-step prompts when no workspace is connected and no pack is
     // driving the message.
     const workspace = useAgentStore.getState().workspace;
-    const agentMode = get().agentMode;
     // Dispatch decision now driven by the LR `route` head.
     //   - `agent`    → tool loop, but only if a workspace is connected
     //                  (otherwise model can't actually act → degrades to chat)

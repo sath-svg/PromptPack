@@ -123,7 +123,7 @@ interface TierNodeProps {
   active?: boolean;
 }
 
-function TierNode({ label, sublabel, color, modelHint, active }: TierNodeProps) {
+function TierNode({ label, sublabel, color, active }: TierNodeProps) {
   const ringColors: Record<TierNodeProps['color'], string> = {
     emerald: 'bg-emerald-500/15 text-emerald-400 ring-emerald-500/30',
     primary: 'bg-[var(--primary)]/15 text-[var(--primary)] ring-[var(--primary)]/40',

@@ -2429,7 +2429,7 @@ export async function syncSelectedPackToWorkspace(
       prompts = loaded.prompts.map((p) => ({ text: p.text, header: p.header }));
     }
   } else if (cloudPack) {
-    packTitle = cloudPack.title ?? cloudPack.source;
+    packTitle = (cloudPack as { title?: string }).title ?? cloudPack.source;
     const loaded = state.loadedPacks[packId];
     if (loaded?.prompts) {
       prompts = loaded.prompts.map((p) => ({ text: p.text, header: p.header }));

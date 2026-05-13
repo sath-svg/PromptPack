@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Download, Cloud, X, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { save as tauriSave } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
-import { createSkillsetFile, encodeSkillset, encryptSkillset } from '../../lib/skillsetFileEncoder';
+import { encodeSkillset, encryptSkillset } from '../../lib/skillsetFileEncoder';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { tauriFetch } from '../../lib/tauriFetch';
@@ -122,7 +122,7 @@ export function ExportModal({ onClose, onExportSuccess, skillsetData }: ExportMo
         return;
       } catch {
         // Tauri dialog unavailable (web) — fall back to browser download
-        const blob = new Blob([fileBytes], { type: 'application/octet-stream' });
+        const blob = new Blob([fileBytes as unknown as BlobPart], { type: 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

@@ -250,7 +250,7 @@ export const useSettingsStore = create<SettingsState>()(
             s.selectedManagedModels = { ...DEFAULT_MANAGED_SELECTIONS };
           }
         }
-        return s as SettingsState;
+        return s as unknown as SettingsState;
       },
       merge: (persisted, current) => {
         const merged = { ...current, ...(persisted as Partial<SettingsState>) };

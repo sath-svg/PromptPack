@@ -163,5 +163,5 @@ export async function createSkillsetFile(
   password?: string
 ): Promise<Blob> {
   const bytes = password ? await encryptSkillset(payload, password) : await encodeSkillset(payload);
-  return new Blob([bytes], { type: 'application/octet-stream' });
+  return new Blob([bytes as unknown as BlobPart], { type: 'application/octet-stream' });
 }

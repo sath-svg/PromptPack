@@ -47,7 +47,7 @@ export function SkillPresetPage() {
   const [editingPrompt, setEditingPrompt] = useState(false);
 
   // Phase 3: Image generation
-  const [previewGenerations, setPreviewGenerations] = useState<PreviewGeneration[]>([]);
+  const [, setPreviewGenerations] = useState<PreviewGeneration[]>([]);
   const [currentGeneration, setCurrentGeneration] = useState<PreviewGeneration | null>(null);
 
   // UI state
