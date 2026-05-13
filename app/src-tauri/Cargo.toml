@@ -1,6 +1,6 @@
 [package]
 name = "skillset"
-version = "1.0.0"
+version = "2.0.0"
 description = "Skillset Desktop - Turn your prompts into reusable skills"
 authors = ["Skillset"]
 license = "MIT"
