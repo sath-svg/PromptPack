@@ -149,11 +149,14 @@ export function WindowsDownload({ version }: { version: string }) {
               value={arch}
               onChange={(e) => setArch(e.target.value as Arch)}
               className="appearance-none rounded-full border border-white/10 bg-white/[0.02] py-2.5 pl-4 pr-9 text-[12.5px] text-zinc-200 transition-all hover:border-white/20 hover:bg-white/[0.05] focus:border-[#2563EB]/50 focus:outline-none"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              style={{
+                fontFamily: "var(--font-geist-mono), monospace",
+                colorScheme: "dark",
+              }}
             >
-              <option value="x64">x64</option>
-              <option value="arm64">ARM64</option>
-              <option value="x86">x86</option>
+              <option value="x64" className="bg-zinc-900 text-zinc-100">x64</option>
+              <option value="arm64" className="bg-zinc-900 text-zinc-100">ARM64</option>
+              <option value="x86" className="bg-zinc-900 text-zinc-100">x86</option>
             </select>
             <ChevronDown
               className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"
