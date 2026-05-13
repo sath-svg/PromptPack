@@ -16,6 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { Metadata } from "next";
+import { ChatVisual, PresetVisual, RouterVisual, WorkflowVisual } from "@/components/bento-visuals";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { SkillsetNav } from "@/components/skillset-nav";
 
@@ -23,7 +24,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset — Turn your prompts into reusable skills",
+  title: "Skillset: Turn your prompts into reusable skills",
   description:
     "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini — any AI tool. No memory transfers. No copy-paste.",
 };
@@ -559,246 +560,7 @@ function BentoCard({
         <p className="mt-4 max-w-[44ch] text-[14px] leading-[1.6] text-zinc-400">
           {body}
         </p>
-        <div className="mt-auto pt-6 overflow-hidden pb-2">{visual}</div>
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────────── BENTO VISUALS */
-
-function ChatVisual() {
-  type Turn =
-    | { kind: "you"; text: string }
-    | { kind: "ai"; model: string; text: string }
-    | { kind: "parallel"; agents: { model: string; result: string }[] };
-
-  const turns: Turn[] = [
-    { kind: "you", text: "Rewrite this in this voice." },
-    { kind: "ai", model: "Claude", text: "Done. Switching to GPT-5 for the code block." },
-    { kind: "ai", model: "GPT-5", text: "Refactored. Same skill, same context." },
-    { kind: "you", text: "Now audit it — tests, lint, security in parallel." },
-    { kind: "ai", model: "Planner", text: "Fanning out to 3 agents…" },
-    {
-      kind: "parallel",
-      agents: [
-        { model: "Haiku 4.5", result: "Tests ✓ 47 pass" },
-        { model: "Sonnet 4.5", result: "Lint ✓ 2 fixes" },
-        { model: "GPT-5", result: "Security ✓ clean" },
-      ],
-    },
-  ];
-
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2563EB]/15 px-2 py-1 text-[11px] text-[#7BA7FF]">
-          <Package className="h-3 w-3" strokeWidth={2} />
-          Email Tone Pro
-        </span>
-        <span
-          className="text-[10px] text-zinc-600"
-          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-        >
-          8 prompts
-        </span>
-      </div>
-      {turns.map((t, i) => {
-        if (t.kind === "parallel") {
-          return (
-            <div key={i} className="space-y-1">
-              <p
-                className="text-[9px] uppercase tracking-[0.18em] text-[#7BA7FF]"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                ↳ 3 agents · parallel
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                {t.agents.map((a) => (
-                  <div
-                    key={a.model}
-                    className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1"
-                  >
-                    <span
-                      className="block text-[8.5px] uppercase tracking-[0.12em] text-zinc-500"
-                      style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-                    >
-                      {a.model}
-                    </span>
-                    <span className="block text-[10.5px] text-zinc-200">
-                      {a.result}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-        return (
-          <div
-            key={i}
-            className={`flex items-start gap-2 ${t.kind === "you" ? "justify-end" : ""}`}
-          >
-            {t.kind === "ai" && (
-              <span
-                className="mt-0.5 shrink-0 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[9.5px] uppercase tracking-[0.12em] text-zinc-400"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                {t.model}
-              </span>
-            )}
-            <div
-              className={`max-w-[80%] rounded-lg px-3 py-1.5 text-[12px] leading-snug ${
-                t.kind === "you"
-                  ? "bg-[#2563EB]/15 text-zinc-100"
-                  : "bg-white/[0.03] text-zinc-300"
-              }`}
-            >
-              {t.text}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PresetVisual() {
-  const variants = [
-    { file: "variant-1", label: "Scene" },
-    { file: "variant-2", label: "Object" },
-    { file: "variant-3", label: "Character" },
-    { file: "variant-4", label: "Mood" },
-  ];
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="relative overflow-hidden rounded-md border border-white/[0.06]">
-        <Image
-          src="/img/skill-preset/source.jpg"
-          alt="Verified artist photo"
-          width={400}
-          height={140}
-          className="h-[72px] w-full object-cover"
-          unoptimized
-        />
-        <span
-          className="absolute bottom-1 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-zinc-200"
-          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-        >
-          your photo · verified
-        </span>
-      </div>
-      <p
-        className="text-center text-[9px] uppercase tracking-[0.22em] text-[#7BA7FF]"
-        style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-      >
-        ↓ locked into skillset
-      </p>
-      <div className="grid grid-cols-4 gap-1">
-        {variants.map((v) => (
-          <div
-            key={v.file}
-            className="relative aspect-square overflow-hidden rounded-md border border-white/[0.06]"
-          >
-            <Image
-              src={`/img/skill-preset/${v.file}.png`}
-              alt={`Style-locked ${v.label}`}
-              width={160}
-              height={160}
-              className="h-full w-full object-cover"
-              unoptimized
-            />
-            <span
-              className="absolute bottom-0.5 left-0.5 rounded bg-black/55 px-1 py-0.5 text-[7.5px] uppercase tracking-[0.12em] text-white/90"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-            >
-              {v.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function WorkflowVisual() {
-  const steps = [
-    { n: "01", t: "Research brief", state: "done" },
-    { n: "02", t: "Outline sections", state: "done" },
-    { n: "03", t: "Draft each block", state: "running" },
-    { n: "04", t: "Polish & cite", state: "queued" },
-  ];
-  return (
-    <ol className="divide-y divide-white/[0.05] border-y border-white/[0.05]">
-      {steps.map((s) => (
-        <li key={s.n} className="flex items-center gap-3 py-2.5">
-          <span
-            className="w-7 text-[11px] text-zinc-500"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            {s.n}
-          </span>
-          <span className="text-[13px] text-zinc-200">{s.t}</span>
-          <span
-            className={`ml-auto inline-flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.12em] ${
-              s.state === "done"
-                ? "text-emerald-400/80"
-                : s.state === "running"
-                ? "text-[#7BA7FF]"
-                : "text-zinc-500"
-            }`}
-          >
-            {s.state === "running" && (
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#7BA7FF]" />
-            )}
-            {s.state}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function RouterVisual() {
-  const rows = [
-    { task: "summarize 80-page PDF", model: "Haiku 4.5", cost: "$0.0012" },
-    { task: "refactor TypeScript module", model: "Sonnet 4.6", cost: "$0.0143" },
-    { task: "extract chart from image", model: "Gemini 3", cost: "$0.0061" },
-  ];
-  return (
-    <div>
-      <div className="divide-y divide-white/[0.05] border-y border-white/[0.05]">
-        {rows.map((r) => (
-          <div
-            key={r.task}
-            className="grid grid-cols-[1.6fr_1fr_0.7fr] items-center gap-3 py-2.5"
-          >
-            <span className="truncate text-[13px] text-zinc-300">{r.task}</span>
-            <span
-              className="text-[12.5px] text-[#7BA7FF]"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-            >
-              {r.model}
-            </span>
-            <span
-              className="text-right text-[12.5px] tabular-nums text-zinc-400"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-            >
-              {r.cost}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-3 rounded-lg border border-[#2563EB]/30 bg-gradient-to-br from-[#2563EB]/15 via-[#7BA7FF]/10 to-transparent px-3 py-2.5 text-center">
-        <p className="bg-gradient-to-r from-[#7BA7FF] via-[#a5c3ff] to-emerald-300 bg-clip-text text-[20px] font-semibold leading-none tracking-[-0.02em] text-transparent md:text-[22px]">
-          Save up to 80% on tokens
-        </p>
-        <p
-          className="mt-1.5 text-[9.5px] uppercase tracking-[0.18em] text-zinc-400"
-          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-        >
-          auto-routed to the cheapest capable tier
-        </p>
+        <div className="relative mt-auto pt-6 pb-2">{visual}</div>
       </div>
     </div>
   );
@@ -1113,11 +875,11 @@ function FaqSection() {
   const faqs = [
     {
       q: "What exactly is a skillset?",
-      a: "A skill is one reusable prompt saved as markdown — the format Anthropic popularized. A skillset is a bundle of related skills you can rework, version, encrypt, license, and sell. Same prompts, except now they ship like a product, not sit dead in some doc.",
+      a: "A skill is one reusable prompt saved as markdown — the format Anthropic popularized. A skillset is a bundle of related skills you can rework, version, encrypt, license, and sell. Same prompts, except now they ship like a product, not sit dead in some document.",
     },
     {
       q: "Why not just save prompts in Notion or a doc?",
-      a: "A doc holds prompts. Skillset runs them. Notion can't sync your prompts into the tools you use, can't lock them when you share, can't reversion them when a model updates, and can't license them for you. Skillset wraps them into something you own — always synced, private by default, earning the moment someone pays.",
+      a: "A document holds prompts. Skillset runs them. Notion can't sync your prompts into the tools you use, can't lock them when you share, can't re-version them when a model updates, and can't license them for you. Skillset wraps them into something you own — always synced, private by default, earning the moment someone pays.",
     },
     {
       q: "Does this replace ChatGPT / Claude / Cursor?",

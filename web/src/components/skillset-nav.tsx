@@ -54,7 +54,7 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
           <SignedOut>
             <Link
               href="/sign-in"
-              className="hidden text-[15px] text-zinc-400 transition-colors hover:text-zinc-50 md:inline"
+              className="hidden text-[15px] text-zinc-50 transition-colors hover:text-white md:inline"
             >
               Sign in
             </Link>
