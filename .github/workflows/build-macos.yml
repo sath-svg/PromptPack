@@ -11,12 +11,11 @@ on:
       build_target:
         description: "Target to build"
         type: choice
-        default: "universal"
+        default: "both"
         options:
-          - universal
           - aarch64
           - x86_64
-          - all
+          - both
 
 concurrency:
   # Cancel in-flight builds for the same ref so a fresh push wins.
@@ -91,23 +90,12 @@ jobs:
         run: |
           set -e
           TARGET="${{ github.event.inputs.build_target }}"
-          if [ -z "$TARGET" ]; then TARGET="universal"; fi
+          if [ -z "$TARGET" ]; then TARGET="both"; fi
           echo "build_target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "Building target=$TARGET"
 
-      - name: Tauri build — universal
-        if: steps.target.outputs.build_target == 'universal' || steps.target.outputs.build_target == 'all'
-        working-directory: app
-        run: |
-          set -euxo pipefail
-          if command -v bun >/dev/null 2>&1; then
-            bun run tauri build -- --target universal-apple-darwin
-          else
-            npm run tauri build -- --target universal-apple-darwin
-          fi
-
       - name: Tauri build — Apple Silicon
-        if: steps.target.outputs.build_target == 'aarch64' || steps.target.outputs.build_target == 'all'
+        if: steps.target.outputs.build_target == 'aarch64' || steps.target.outputs.build_target == 'both'
         working-directory: app
         run: |
           set -euxo pipefail
@@ -118,7 +106,7 @@ jobs:
           fi
 
       - name: Tauri build — Intel
-        if: steps.target.outputs.build_target == 'x86_64' || steps.target.outputs.build_target == 'all'
+        if: steps.target.outputs.build_target == 'x86_64' || steps.target.outputs.build_target == 'both'
         working-directory: app
         run: |
           set -euxo pipefail
@@ -132,10 +120,6 @@ jobs:
         run: |
           set -e
           mkdir -p artifacts
-          # Universal
-          for f in app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Universal.dmg"
-          done
           # Apple Silicon
           for f in app/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-AppleSilicon.dmg"
