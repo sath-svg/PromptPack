@@ -2,7 +2,7 @@
 
 > Stop losing your best prompts. Save, organize, and share LLM prompts across ChatGPT, Claude, and Gemini.
 
-[Website](https://pmtpk.com) | [Chrome Extension](https://chrome.google.com/webstore) | [Documentation](./DOCUMENTATION.md)
+[Website](https://skillset.so) | [Chrome Extension](https://chrome.google.com/webstore) | [Documentation](./DOCUMENTATION.md)
 
 ## Overview
 
@@ -235,7 +235,7 @@ See [LICENSE](./LICENSE) for details.
 
 - **Issues**: [GitHub Issues](https://github.com/yourusername/PromptPack/issues)
 - **Email**: [sathvik.work@gmail.com](mailto:sathvik.work@gmail.com)
-- **Website**: [pmtpk.com](https://pmtpk.com)
+- **Website**: [skillset.so](https://skillset.so)
 
 ## Acknowledgments
 

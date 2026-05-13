@@ -43,7 +43,7 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
   // YAML frontmatter
   lines.push('---');
   lines.push(`name: ${slug}`);
-  lines.push(`description: "Multi-step prompt workflow: ${stepSummary}. Exported from PromptPack."`);
+  lines.push(`description: "Sequential prompt chain: ${stepSummary}. Each step receives the previous step's full output (text + any generated files) as context. Exported from Skillset."`);
   lines.push('disable-model-invocation: true');
   lines.push('---');
   lines.push('');
@@ -51,7 +51,22 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
   // Title
   lines.push(`# ${packTitle}`);
   lines.push('');
-  lines.push('A multi-step prompt workflow where each step builds on the previous output.');
+  lines.push(
+    'A **Skill Flow** workflow. Prompts run sequentially. Each step has full knowledge of every previous step — including any files, code, data, or content the previous step produced. Treat the chain as one continuous task with shared memory.'
+  );
+  lines.push('');
+
+  // Skill Flow core rules — these instructions apply to EVERY step
+  lines.push('## Skill Flow Rules');
+  lines.push('');
+  lines.push('Before running any step, internalize these rules:');
+  lines.push('');
+  lines.push('1. **Sequential execution** — Run steps strictly in order (1 → 2 → 3 → ...). Do not skip ahead or run in parallel.');
+  lines.push('2. **Shared memory** — Each step inherits *everything* the previous steps produced: text output, generated files (PDFs, code, images, data), variable values, tool results, and any artifacts.');
+  lines.push('3. **Reference previous outputs explicitly** — When step N runs, list which prior outputs/files it depends on at the top of its work (e.g. "Using `hello-world.pdf` from Step 1...").');
+  lines.push('4. **Persist artifacts** — If a step creates a file (PDF, code, image, JSON, etc.), keep it accessible to subsequent steps by exact name/path. Do not regenerate or rename it in later steps.');
+  lines.push('5. **Carry context forward** — Each step\'s response must include enough summary of its output that the next step\'s LLM can act on it without re-asking the user.');
+  lines.push('6. **Fail loudly** — If a step needs a file/variable/output from a prior step that is missing, stop and report rather than guess.');
   lines.push('');
 
   // Collect all unique template variables across all prompts
@@ -66,7 +81,7 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
   if (allVars.size > 0) {
     lines.push('## Variables');
     lines.push('');
-    lines.push('This workflow uses template variables. Before executing any step, ask the user to provide a value for each variable listed below. The variable name describes what value is needed.');
+    lines.push('This workflow uses template variables. Before executing Step 1, ask the user to provide a value for each variable listed below.');
     lines.push('');
     lines.push('| Variable | Value |');
     lines.push('|----------|-------|');
@@ -74,11 +89,11 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
       lines.push(`| ${v} | _____ |`);
     }
     lines.push('');
-    lines.push('Replace every `{VariableName}` placeholder in the prompts below with the value the user provides.');
+    lines.push('Replace every `{VariableName}` placeholder in the prompts below with the value the user provides. Variable values persist across all steps.');
     lines.push('');
   }
 
-  // Workflow steps
+  // Workflow steps with explicit dependency framing
   lines.push('## Workflow Steps');
   lines.push('');
 
@@ -86,14 +101,24 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
     const prompt = prompts[i];
     const stepNum = i + 1;
     const title = prompt.header || `Step ${stepNum}`;
+    const isFirst = i === 0;
+    const prevTitle = i > 0 ? (prompts[i - 1].header || `Step ${i}`) : null;
 
     lines.push(`### Step ${stepNum}: ${title}`);
     lines.push('');
 
-    if (i === 0) {
-      lines.push('Execute the following prompt:');
+    if (isFirst) {
+      lines.push('**Inputs:** user-provided variables (see above).');
+      lines.push('');
+      lines.push('Execute the prompt below. Record your full output — text response, any files created (with exact filenames + locations), any data produced. Step 2 will need it all.');
     } else {
-      lines.push('Using the output from the previous step as context, execute the following prompt:');
+      lines.push(`**Inputs:** the complete output of Step ${i} ("${prevTitle}") — text, generated files, data, and any intermediate artifacts.`);
+      lines.push('');
+      lines.push(`Before executing this step:`);
+      lines.push(`1. State which Step ${i} outputs you are referencing (e.g. "Reading \`<file-from-step-${i}>\` produced earlier").`);
+      lines.push(`2. If those outputs are missing, stop and surface the gap.`);
+      lines.push('');
+      lines.push('Then execute the prompt below using those prior outputs as primary context:');
     }
 
     lines.push('');
@@ -101,12 +126,15 @@ function generateClaudeSkill({ packTitle, prompts }: WorkflowExportOptions): str
     lines.push(prompt.text);
     lines.push('```');
     lines.push('');
+    lines.push(`**After execution:** Record this step's output (text + filenames + data). Hand it to Step ${stepNum + 1}${stepNum === prompts.length ? ' (final step — no successor)' : ''}.`);
+    lines.push('');
   }
 
   lines.push('## Notes');
   lines.push('');
-  lines.push('- Each step\'s output should be provided as context when executing the next step.');
-  lines.push('- Generated by PromptPack.');
+  lines.push('- This is Skill Flow: every prompt is a *link* in a chain. Treat the whole pack as one task with intermediate checkpoints, not as independent prompts.');
+  lines.push('- Generated files persist across steps. Always reference them by exact name.');
+  lines.push('- Generated by Skillset.');
   lines.push('');
 
   return lines.join('\n');

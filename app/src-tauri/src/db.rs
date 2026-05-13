@@ -120,6 +120,100 @@ pub async fn init_database(app_handle: &AppHandle) -> Result<(), DbError> {
             INSERT INTO prompts_fts(prompts_fts, rowid, text, header) VALUES('delete', OLD.rowid, OLD.text, OLD.header);
             INSERT INTO prompts_fts(rowid, text, header) VALUES (NEW.rowid, NEW.text, NEW.header);
         END;
+
+        -- Skill Chat orchestrator: skills (workflow definitions, may sync to Convex)
+        CREATE TABLE IF NOT EXISTS skills (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT,
+            goal_template TEXT,
+            planner_model_id TEXT,
+            planner_hints TEXT,        -- JSON: { maxSubtasks, allowedTools[], defaultTier, seedSteps?[] }
+            source_pack_id TEXT,
+            workflow_json TEXT,        -- frozen plan from a successful run, optional
+            cloud_id TEXT,             -- Convex skills._id when synced
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_skills_cloud ON skills(cloud_id);
+
+        -- Skill Chat orchestrator: runs (one execution of a skill or ad-hoc goal)
+        CREATE TABLE IF NOT EXISTS runs (
+            id TEXT PRIMARY KEY,
+            skill_id TEXT,
+            workspace TEXT,
+            goal TEXT NOT NULL,
+            status TEXT NOT NULL,      -- queued|planning|running|merging|done|failed|cancelled
+            total_credits INTEGER DEFAULT 0,
+            reserve_id TEXT,           -- credit hold id (api/src/credits.ts)
+            error TEXT,
+            created_at INTEGER NOT NULL,
+            ended_at INTEGER,
+            FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_runs_skill ON runs(skill_id);
+        CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+        CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
+
+        -- Skill Chat orchestrator: subtasks (planner-emitted units of work)
+        CREATE TABLE IF NOT EXISTS subtasks (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL,
+            parent_id TEXT,
+            ord INTEGER NOT NULL,
+            title TEXT,
+            instruction TEXT NOT NULL,
+            complexity_hint TEXT,      -- planner: easy|moderate|complex
+            reasoning_hint TEXT,       -- planner: none|light|deep
+            needs_tools TEXT,          -- JSON array of tool names
+            depends_on TEXT,           -- JSON array of subtask ids
+            status TEXT NOT NULL,      -- pending|routing|running|done|retry|escalated|failed
+            preset_json TEXT,          -- chosen ModelPreset (JSON)
+            effort TEXT,               -- low|medium|high|null
+            output TEXT,
+            confidence REAL,
+            credits INTEGER,
+            reasoning_tokens INTEGER,
+            retries INTEGER DEFAULT 0,
+            error TEXT,
+            started_at INTEGER,
+            ended_at INTEGER,
+            FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+            FOREIGN KEY (parent_id) REFERENCES subtasks(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_subtasks_run ON subtasks(run_id, ord);
+        CREATE INDEX IF NOT EXISTS idx_subtasks_status ON subtasks(status);
+
+        -- Skill Chat orchestrator: canonical TaskState per run
+        CREATE TABLE IF NOT EXISTS task_memory (
+            run_id TEXT PRIMARY KEY,
+            state_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+        );
+
+        -- Routing telemetry — feeds Phase 2 retraining of the LR route
+        -- head. Logged on every classification; settled when the run
+        -- completes (success/fail/cancel + thumbs-up/down + reprompt
+        -- detection). Stays local; export via `telemetry_export`
+        -- command before retraining offline.
+        CREATE TABLE IF NOT EXISTS route_telemetry (
+            id TEXT PRIMARY KEY,
+            prompt TEXT NOT NULL,
+            word_count INTEGER,
+            predicted_route TEXT NOT NULL,    -- chat | agent | workflow
+            confidence REAL NOT NULL,         -- max softmax prob (Phase 3 sets this)
+            fallback_used INTEGER DEFAULT 0,  -- 1 = LLM fallback fired
+            fallback_route TEXT,              -- LLM's verdict (may differ)
+            actual_route TEXT,                -- what dispatch actually used
+            completed INTEGER,                -- 0 pending | 1 done | -1 failed/cancelled
+            reprompt_within INTEGER,          -- seconds until next user msg, NULL if none
+            user_signal TEXT,                 -- thumbs_up | thumbs_down
+            created_at INTEGER NOT NULL,
+            settled_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_route_telemetry_created ON route_telemetry(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_route_telemetry_route ON route_telemetry(predicted_route);
         "#,
     )?;
 

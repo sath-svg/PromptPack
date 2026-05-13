@@ -14,8 +14,9 @@ use tauri::{AppHandle, Manager, State};
 
 /// Web app URL for OAuth redirects
 /// - DEV: http://localhost:3000 (local Next.js dev server)
-/// - PROD: https://pmtpk.com
-const WEB_APP_URL: &str = "https://pmtpk.com";
+/// - PROD: https://skillset.so
+const WEB_APP_URL: &str = "https://skillset.so";
+// const WEB_APP_URL: &str = "https://pmtpk.com"; // rollback only
 
 /// Desktop auth page URL - where the OAuth popup opens for sign-in
 const DESKTOP_AUTH_URL: &str = const_format::concatcp!(WEB_APP_URL, "/desktop-auth");
@@ -620,9 +621,29 @@ pub fn close_auth_window(app_handle: AppHandle) -> Result<(), String> {
 pub struct HttpClient(pub reqwest::Client);
 
 const ALLOWED_API_HOSTS: &[&str] = &[
+    // Skillset infra (legacy pmtpk.com hosts kept for backward compat with existing
+    // installs during dual-run cutover — Worker serves both via dual route binding).
     "https://determined-lark-313.convex.site",
+    "https://api.skillset.so",
+    "https://grok.skillset.so",
     "https://api.pmtpk.com",
     "https://grok.pmtpk.com",
+    // LLM provider endpoints (kept in sync with PROVIDER_BASE_URLS in classifier.ts)
+    "https://api.anthropic.com",
+    "https://api.openai.com",
+    "https://generativelanguage.googleapis.com",
+    "https://api.x.ai",
+    "https://api.deepseek.com",
+    "https://api.perplexity.ai",
+    "https://api.moonshot.cn",
+    "https://api.groq.com",
+    "https://openrouter.ai",
+    // Local Ollama (no TLS)
+    "http://localhost:11434",
+    "http://127.0.0.1:11434",
+    // Local Wrangler dev worker (landingpage branch, dev Clerk).
+    "http://localhost:8787",
+    "http://127.0.0.1:8787",
 ];
 
 #[derive(Debug, Deserialize)]

@@ -12,7 +12,7 @@ import { createAuthClient } from "better-auth/react";
 // ---- BetterAuth Client ----
 
 const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL || "https://pmtpk.com",
+  baseURL: process.env.NEXT_PUBLIC_APP_URL || "https://skillset.so",
 });
 
 // ---- Session Context ----

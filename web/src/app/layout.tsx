@@ -1,24 +1,14 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import {
-  AuthProvider,
-  SignInButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-} from "@/lib/auth-compat";
-import Link from "next/link";
-import Image from "next/image";
+import { AuthProvider } from "@/lib/auth-compat";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
-import { UserButtonWithExtensionSync } from "@/components/user-button-with-extension-sync";
 import { SupportButton } from "@/components/support-button";
-import { MobileNav } from "@/components/mobile-nav";
 import { PWARegister } from "@/components/pwa-register";
 import { assetUrl } from "@/lib/constants";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://pmtpk.com'),
+  metadataBase: new URL('https://skillset.so'),
   title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
   description:
     "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries, create PromptPacks, and discover community prompts. Free Chrome extension.",
@@ -51,7 +41,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PromptPack - Save, Organize & Share AI Prompts for ChatGPT, Claude & Gemini",
     description: "Save and organize your best AI prompts from ChatGPT, Claude, and Gemini. Build reusable prompt libraries and discover community prompts.",
-    url: "https://pmtpk.com",
+    url: "https://skillset.so",
     siteName: "PromptPack",
     locale: "en_US",
     type: "website",
@@ -100,7 +90,7 @@ export const metadata: Metadata = {
     // google: 'your-google-verification-code',
   },
   alternates: {
-    canonical: 'https://pmtpk.com',
+    canonical: 'https://skillset.so',
   },
 };
 
@@ -127,69 +117,6 @@ export default function RootLayout({
           </noscript>
         </head>
         <body>
-          <header className="header">
-            <MobileNav />
-
-            <Link href="/" className="header-logo">
-            <Image
-              src={assetUrl("/img/logo_text.png")}
-              alt="PromptPack"
-              width={200}
-              height={40}
-              priority
-              className="header-logo-image"
-              style={{
-                display: "block",
-                marginRight: "auto",
-                marginLeft: "0"
-              }}
-            />
-            </Link>
-            <nav className="header-nav">
-              <SignedIn>
-                <Link href="/dashboard" className="header-link">
-                  Dashboard
-                </Link>
-              </SignedIn>
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <span className="header-link" style={{ cursor: 'pointer' }}>
-                    Dashboard
-                  </span>
-                </SignInButton>
-              </SignedOut>
-              <Link href="/downloads" className="header-link">
-                Downloads
-              </Link>
-              <Link href="/marketplace" className="header-link">
-                Marketplace
-              </Link>
-              <Link href="/tools" className="header-link">
-                Tools
-              </Link>
-              <Link href="/pricing" className="header-link">
-                Pricing
-              </Link>
-              <Link href="/blog" className="header-link">
-                Blog
-              </Link>
-            </nav>
-
-            <div className="header-auth">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button className="btn btn-secondary">Sign In</button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button className="btn btn-primary">Get Started</button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButtonWithExtensionSync />
-              </SignedIn>
-            </div>
-          </header>
-
           <main className="main">
             <ConvexClientProvider>{children}</ConvexClientProvider>
           </main>
@@ -197,8 +124,8 @@ export default function RootLayout({
           <PWARegister />
           <Script
             defer
-            data-domain="pmtpk.com"
-            src="https://analytics.pmtpk.com/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
+            data-domain="skillset.so"
+            src="https://analytics.skillset.so/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js"
           />
           <Script id="plausible-init">
             {`window.plausible = window.plausible || function() { (window.plausible.q = window.plausible.q || []).push(arguments) }`}

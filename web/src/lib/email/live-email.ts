@@ -1,8 +1,8 @@
-const APP_URL = "https://pmtpk.com";
-const DASHBOARD_URL = "https://pmtpk.com/dashboard";
+const APP_URL = "https://skillset.so";
+const DASHBOARD_URL = "https://skillset.so/dashboard";
 const EXTENSION_URL =
   "https://chromewebstore.google.com/detail/ajfgnekiofhiblifmiimnlmcnfhibnbl?utm_source=item-share-cb";
-const LOGO_URL = "https://pmtpk.com/img/promptpack_logo_horizontal.png";
+const LOGO_URL = "https://skillset.so/img/skillset_logo_horizontal.png";
 
 const themeLight = {
   background: "#f3f4f6",
@@ -24,7 +24,7 @@ const themeDark = {
   primaryHover: "#4f46e5",
 };
 
-export const LIVE_EMAIL_SUBJECT = "PromptPack is live - welcome aboard";
+export const LIVE_EMAIL_SUBJECT = "Skillset is live - welcome aboard";
 
 export function buildLiveEmailHtml() {
   return `<!doctype html>
@@ -34,7 +34,7 @@ export function buildLiveEmailHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <meta name="supported-color-schemes" content="light dark" />
-    <title>PromptPack is live</title>
+    <title>Skillset is live</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -89,7 +89,7 @@ export function buildLiveEmailHtml() {
   </head>
   <body bgcolor="${themeLight.background}" style="margin:0;padding:0;background-color:${themeLight.background};color:${themeLight.foreground};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Ubuntu,'Helvetica Neue',Arial,sans-serif;">
     <div style="display:none;max-height:0;overflow:hidden;">
-      PromptPack is live. Thanks for choosing PromptPack.
+      Skillset is live. Thanks for choosing Skillset.
     </div>
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="${themeLight.background}" class="email-body" style="background-color:${themeLight.background};padding:24px 0;">
       <tr>
@@ -97,7 +97,7 @@ export function buildLiveEmailHtml() {
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" class="container email-content" bgcolor="${themeLight.background}" style="width:600px;max-width:600px;background-color:${themeLight.background};">
             <tr>
               <td style="padding:24px 16px 8px;">
-                <img src="${LOGO_URL}" alt="PromptPack" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
+                <img src="${LOGO_URL}" alt="Skillset" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
               </td>
             </tr>
             <tr>
@@ -108,11 +108,11 @@ export function buildLiveEmailHtml() {
             <tr>
               <td style="padding:0 16px 24px;">
                 <h1 class="email-foreground" style="margin:0 0 8px;font-size:26px;line-height:1.3;color:${themeLight.foreground};">
-                  PromptPack is live 🎉
+                  Skillset is live 🎉
                 </h1>
                 <p class="email-muted" style="margin:0 0 16px;font-size:16px;line-height:1.6;color:${themeLight.muted};">
                   Thanks for joining the waitlist — your beta access is ready.
-                  Save your best prompts, organize them into PromptPacks, and reuse them across ChatGPT, Claude, and Gemini.
+                  Save your best prompts, organize them into Skills, and reuse them across ChatGPT, Claude, and Gemini.
                 </p>
                 <table role="presentation" cellspacing="0" cellpadding="0" class="stack">
                   <tr>
@@ -149,7 +149,7 @@ export function buildLiveEmailHtml() {
                       <ol class="email-muted" style="margin:0;padding-left:18px;color:${themeLight.muted};font-size:14px;line-height:1.6;">
                         <li>Install the extension and start saving prompts as you work.</li>
                         <li>Sign in to sync your library to the dashboard.</li>
-                        <li>Optional: Go Pro to create and share PromptPacks.</li>
+                        <li>Optional: Go Pro to create and share Skills.</li>
                       </ol>
                     </td>
                   </tr>
@@ -162,7 +162,7 @@ export function buildLiveEmailHtml() {
                   <tr>
                     <td style="padding:16px 20px;">
                       <p class="email-muted" style="margin:0;font-size:14px;line-height:1.6;color:${themeLight.muted};">
-                        Hit reply with bugs, feature requests, or anything confusing — or use the Contact Support button on pmtpk.com. We read every note.
+                        Hit reply with bugs, feature requests, or anything confusing — or use the Contact Support button on skillset.so. We read every note.
                       </p>
                     </td>
                   </tr>
@@ -171,7 +171,7 @@ export function buildLiveEmailHtml() {
             </tr>
             <tr>
               <td style="padding:0 16px 32px;font-size:12px;color:#9ca3af;line-height:1.6;">
-                <p style="margin:0 0 4px;">PromptPack Support</p>
+                <p style="margin:0 0 4px;">Skillset Support</p>
                 <p style="margin:0;">If you didn’t request this email, ignore it.</p>
                 <p style="margin:8px 0 0;">
                   <a href="${APP_URL}" class="email-link" style="color:${themeLight.primary};text-decoration:none;">${APP_URL}</a>

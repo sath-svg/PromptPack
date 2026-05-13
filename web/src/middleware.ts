@@ -26,6 +26,7 @@ const publicRoutes = [
   "/tools",
   "/prompts",
   "/compare",
+  "/skillset",
   "/manifest.json",
   "/sitemap.xml",
   "/robots.txt",
@@ -35,7 +36,6 @@ const publicRoutes = [
   "/auth",
   "/desktop-auth",
   "/extension-auth",
-  "/mcp-auth",
 ];
 
 function isPublicRoute(pathname: string): boolean {

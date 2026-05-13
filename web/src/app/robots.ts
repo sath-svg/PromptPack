@@ -11,13 +11,10 @@ export default function robots(): MetadataRoute.Robots {
         '/subscribe',
         '/sign-in',
         '/sign-up',
-        '/auth',
-        '/extension-auth',
-        '/mcp-auth',
         '/api/',
         '/_next/',
       ],
     },
-    sitemap: 'https://pmtpk.com/sitemap.xml',
+    sitemap: 'https://skillset.so/sitemap.xml',
   }
 }

@@ -35,6 +35,14 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "storage.pmtpk.com",
       },
+      {
+        protocol: "https",
+        hostname: "storage.skillset.so",
+      },
+      {
+        protocol: "https",
+        hostname: "image.skillset.so",
+      },
     ],
   },
 };

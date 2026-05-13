@@ -1,5 +1,5 @@
 // ============================================================================
-// CENTRALIZED CONFIGURATION FOR PROMPTPACK WEB APP
+// CENTRALIZED CONFIGURATION FOR SKILLSET WEB APP
 // ============================================================================
 // All configurable parameters, limits, URLs, and constants in one place.
 // Update these values when deploying to production.
@@ -10,10 +10,10 @@
 // ============================================================================
 
 // R2 API URL (Cloudflare Workers)
-export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://api.pmtpk.com";
+export const R2_API_URL = process.env.NEXT_PUBLIC_R2_API_URL || "https://api.skillset.so";
 
 // Workers API URL (same as R2 for now)
-export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.pmtpk.com";
+export const WORKERS_API_URL = process.env.NEXT_PUBLIC_WORKERS_API_URL || "https://api.skillset.so";
 
 // Default support email
 export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.com";
@@ -22,17 +22,17 @@ export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "sathvik.work@gmail.co
 // PROMPT & PACK LIMITS
 // ============================================================================
 export const FREE_PROMPT_LIMIT = 5;
-export const PRO_PROMPT_LIMIT = 40;
+export const PRO_PROMPT_LIMIT = 56;
 export const STUDIO_PROMPT_LIMIT = 200;
 export const FREE_PACK_LIMIT = 6;
-export const PRO_PACK_LIMIT = 10;
+export const PRO_PACK_LIMIT = 56;
 export const STUDIO_PACK_LIMIT = 21;
-export const MAX_PRO_PACKS = 3; // Maximum packs for Pro tier on web (was 2, +1 for PromptControl)
-export const MAX_STUDIO_PACKS = 14; // Maximum packs for Studio tier on web
+export const MAX_PRO_PACKS = 7; // Maximum packs for Pro tier on web
+export const MAX_STUDIO_PACKS = 17; // Maximum packs for Studio tier on web
 
 // PromptControl (version control) limits
-export const PRO_VERSION_CONTROL_LIMIT = 1; // Pro: 1 pack can have version control
-export const STUDIO_VERSION_CONTROL_LIMIT = 14; // Studio: all packs
+export const PRO_VERSION_CONTROL_LIMIT = 3; // Pro: 3 packs can have version control
+export const STUDIO_VERSION_CONTROL_LIMIT = 17; // Studio: all packs
 export const MAX_VERSIONS_PER_PACK = 10;
 
 // Studio tier rate limits

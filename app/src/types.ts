@@ -73,26 +73,55 @@ export interface UserSession {
 
 export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
-  globalHotkey: string;
   storageLocation: string;
   syncEnabled: boolean;
 }
 
-// Evaluation score types
-export interface EvaluationScores {
-  chatgpt: number;
-  claude: number;
-  gemini: number;
-  perplexity: number;
-  grok: number;
-  deepseek: number;
-  kimi: number;
+// Evaluation types (v2 — tier-based)
+//
+// Mirrors the chat router's three-tier model system. The overall headline
+// shown on each saved prompt is the score of the recommended tier; the
+// modal drills into per-tier scores plus a ranking of every model within
+// the recommended tier and an optional BYOK section.
+
+import type { EvalByokProvider } from './lib/managed-models';
+export type { EvalByokProvider };
+
+export type EvalTierKey = 'cheap' | 'mid' | 'frontier';
+export type EvalEffort = 'low' | 'medium' | 'high' | null;
+
+export interface EvalTierRow {
+  tier: EvalTierKey;
+  score: number;              // 0-100
+  selectedModelId: string;    // from settings.selectedManagedModels[tier]
+  selectedModelLabel: string;
+}
+
+export interface EvalModelRow {
+  modelId: string;
+  label: string;
+  score: number;              // 0-100
+}
+
+export interface EvalByokRow {
+  provider: EvalByokProvider;
+  modelId: string;
+  modelLabel: string;
+  tier: EvalTierKey;
+  score: number;
 }
 
 export interface PromptEvaluation {
   promptHash: string;
-  overallScore: number;
-  scores: EvaluationScores;
+  schemaVersion: 2;
+  tiers: { cheap: EvalTierRow; mid: EvalTierRow; frontier: EvalTierRow };
+  recommendedTier: EvalTierKey;
+  recommendedModelId: string;
+  recommendedModelLabel: string;
+  recommendedEffort: EvalEffort;
+  bestTierModels: EvalModelRow[];
+  byok?: EvalByokRow[];
+  rationale?: string;
   evaluatedAt: number;
 }
 

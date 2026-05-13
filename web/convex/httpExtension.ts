@@ -2,6 +2,21 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { corsHeaders } from "./httpDesktop";
+import { mintDesktopAccessToken } from "./jwt";
+
+// Convex env: `npx convex env set JWT_SECRET <hex>` (32+ bytes).
+// Same secret deployed to the Cloudflare Worker via
+// `wrangler secret put JWT_SECRET` so the worker can HMAC-verify.
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.length < 16) {
+    throw new Error(
+      "JWT_SECRET env missing or too short — refresh-token flow disabled. " +
+        "Set via `npx convex env set JWT_SECRET <hex>`.",
+    );
+  }
+  return secret;
+}
 
 export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
   // Handle CORS preflight
@@ -192,6 +207,15 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           userAgent,
         });
 
+        // Mint a 1-hour HS256 access token. Worker validates it via the
+        // shared JWT_SECRET, no Clerk round-trip needed. Long pack runs
+        // (multi-subtask, multi-round agent loops) used to 401 mid-flow
+        // because Clerk session tokens default to 60s — this is the fix.
+        const accessTokenResult = await mintDesktopAccessToken(
+          user.clerkId,
+          getJwtSecret(),
+        );
+
         // Return user data + tokens for extension to store
         return new Response(
           JSON.stringify({
@@ -202,8 +226,10 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
               name: user.name,
               plan: user.plan,
             },
-            token: authData.token, // Clerk session token (short-lived)
-            refreshToken: refreshTokenResult.refreshToken, // Long-lived refresh token
+            token: authData.token, // Clerk session token (legacy, kept for compat)
+            accessToken: accessTokenResult.token, // 1h HS256, primary auth for desktop
+            accessTokenExpiresAt: accessTokenResult.expiresAt,
+            refreshToken: refreshTokenResult.refreshToken, // 7d rotating
             refreshTokenExpiresAt: refreshTokenResult.expiresAt,
           }),
           {
@@ -302,9 +328,17 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Return new tokens
-        // Note: The caller should get a fresh Clerk JWT from Clerk's API
-        // We return the user info and new refresh token
+        // Mint a fresh HS256 access token alongside the rotated refresh
+        // token. Client replaces both in keychain + memory and resumes
+        // its in-flight call. No Clerk hop required.
+        // `result.clerkId` doesn't exist on the rotate-token return shape;
+        // the Clerk user id is on the `user` row we already fetched above
+        // (same field used at line 343 for the response body).
+        const accessTokenResult = await mintDesktopAccessToken(
+          user.clerkId,
+          getJwtSecret(),
+        );
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -314,6 +348,8 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
               name: user.name,
               plan: user.plan,
             },
+            accessToken: accessTokenResult.token,
+            accessTokenExpiresAt: accessTokenResult.expiresAt,
             refreshToken: result.refreshToken,
             refreshTokenExpiresAt: result.expiresAt,
           }),
@@ -760,6 +796,61 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
         return new Response(
           JSON.stringify({
             error: error instanceof Error ? error.message : "Failed to get billing status",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
+  // Credit balance for managed-mode UI (desktop + extension)
+  http.route({
+    path: "/api/extension/credit-balance",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/extension/credit-balance",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { clerkId } = body as { clerkId: string };
+        if (!clerkId) {
+          return new Response(JSON.stringify({ error: "Missing clerkId" }), {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        // `api.credits.getBalance` takes `{ userId }` (the Clerk subject id);
+        // local body field is named `clerkId` for legacy reasons — pass through.
+        const balance = await ctx.runQuery(api.credits.getBalance, { userId: clerkId });
+        if (!balance) {
+          return new Response(JSON.stringify({ error: "User not found" }), {
+            status: 404,
+            headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify(balance), {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "Failed to get credit balance",
           }),
           {
             status: 500,

@@ -14,6 +14,7 @@ import { generateWorkflow, getSkillDirName } from '../../lib/workflowExporter';
 import { TemplateInputDialog } from '../TemplateInputDialog';
 import { ScoreBadge } from '../ScoreBadge';
 import { EvaluationModal } from '../EvaluationModal';
+import { PromptEditModal } from '../Common/PromptEditModal';
 import type { PromptEvaluation } from '../../types';
 
 // Common emojis for pack icons
@@ -435,7 +436,7 @@ export function UserPacksPage() {
       // Open native save dialog
       const filePath = await save({
         defaultPath: `${selectedPack.title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'PromptPack', extensions: ['pmtpk'] }],
+        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
       });
 
       if (filePath) {
@@ -549,7 +550,7 @@ export function UserPacksPage() {
           Sign in to view your packs
         </h2>
         <p className="text-[var(--muted-foreground)] max-w-md">
-          Connect your PromptPack account to view and manage your prompt packs.
+          Connect your Skillset account to view and manage your prompt packs.
         </p>
       </div>
     );
@@ -781,14 +782,14 @@ export function UserPacksPage() {
             {filteredPrompts.map((prompt) => {
               // Find the original index in the loaded prompts array for editing
               const index = loaded.prompts.findIndex(p => p === prompt);
-              const isEditingThisPrompt = editingPrompt?.packId === selectedPack.id && editingPrompt?.index === index;
               const isEditingThisHeader = editingHeader?.packId === selectedPack.id && editingHeader?.index === index;
               const isGenerating = isGeneratingHeader(selectedPack.id, index);
 
               return (
                 <div
                   key={index}
-                  className="group bg-[var(--card)] rounded-xl border border-[var(--border)] p-4 hover:border-[var(--primary)]/50 transition-colors flex flex-col"
+                  id={`prompt-${selectedPack.id}-${index}`}
+                  className="group bg-[var(--card)] rounded-xl border border-[var(--border)] p-4 hover:border-[var(--primary)]/50 transition-colors flex flex-col scroll-mt-20"
                 >
                   {/* Header section */}
                   <div className="flex items-center gap-2 mb-2">
@@ -830,7 +831,7 @@ export function UserPacksPage() {
                           const evaluation = hash ? getEvaluation(hash) : undefined;
                           return evaluation ? (
                             <ScoreBadge
-                              score={evaluation.overallScore}
+                              score={evaluation.tiers[evaluation.recommendedTier].score}
                               size="sm"
                               onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
                             />
@@ -846,7 +847,7 @@ export function UserPacksPage() {
                           const evaluation = hash ? getEvaluation(hash) : undefined;
                           return evaluation ? (
                             <ScoreBadge
-                              score={evaluation.overallScore}
+                              score={evaluation.tiers[evaluation.recommendedTier].score}
                               size="sm"
                               onClick={() => setShowEvaluationModal({ evaluation, header: undefined })}
                             />
@@ -871,40 +872,10 @@ export function UserPacksPage() {
                   </div>
 
                   {/* Prompt text section */}
-                  {isEditingThisPrompt ? (
-                    <div className="mt-2 flex-1">
-                      <textarea
-                        value={promptDraft}
-                        onChange={(e) => setPromptDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditPrompt();
-                          if (e.key === 'Escape') cancelEditPrompt();
-                        }}
-                        rows={4}
-                        className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] resize-none"
-                        autoFocus
-                      />
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          onClick={saveEditPrompt}
-                          className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90"
-                        >
-                          <Save size={12} />
-                          Save
-                        </button>
-                        <button onClick={cancelEditPrompt} className="px-3 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]">
-                          Cancel
-                        </button>
-                        <span className="text-xs text-[var(--muted-foreground)]">Ctrl+Enter to save</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap line-clamp-3 flex-1">{prompt.text}</p>
-                  )}
+                  <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap line-clamp-3 flex-1">{prompt.text}</p>
 
                   {/* Actions */}
-                  {!isEditingThisPrompt && (
-                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center justify-between mt-auto pt-3 border-t border-[var(--border)]">
                       <span className="text-xs text-[var(--muted-foreground)]">{formatDate(prompt.createdAt)}</span>
                       <div className="flex items-center gap-1">
                         <button
@@ -925,7 +896,7 @@ export function UserPacksPage() {
                           if (evaluation) {
                             return (
                               <ScoreBadge
-                                score={evaluation.overallScore}
+                                score={evaluation.tiers[evaluation.recommendedTier].score}
                                 size="sm"
                                 onClick={() => setShowEvaluationModal({ evaluation, header: prompt.header })}
                               />
@@ -1001,7 +972,6 @@ export function UserPacksPage() {
                         )}
                       </div>
                     </div>
-                  )}
                 </div>
               );
             })}
@@ -1083,7 +1053,7 @@ export function UserPacksPage() {
                   }`}
                 >
                   <Plus size={18} />
-                  {promptLimits.isAtLimit ? 'Prompt Limit Reached' : 'Add Prompt'}
+                  {promptLimits.isAtLimit ? 'Skill Limit Reached' : 'Add Skill'}
                 </button>
                 <p className="text-xs text-center text-[var(--muted-foreground)]">
                   {promptLimits.currentPromptCount} / {promptLimits.maxPrompts} prompts used ({promptLimits.tier} plan)
@@ -1187,6 +1157,20 @@ export function UserPacksPage() {
             onClose={() => setShowEvaluationModal(null)}
           />
         )}
+
+        {/* Prompt edit modal */}
+        <PromptEditModal
+          open={editingPrompt !== null}
+          title={(() => {
+            if (!editingPrompt) return undefined;
+            const loaded = loadedUserPacks[selectedPack.id];
+            return loaded?.prompts[editingPrompt.index]?.header || undefined;
+          })()}
+          value={promptDraft}
+          onChange={setPromptDraft}
+          onSave={saveEditPrompt}
+          onCancel={cancelEditPrompt}
+        />
       </div>
     );
   }
@@ -1199,10 +1183,10 @@ export function UserPacksPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--foreground)] flex items-center gap-2">
             <Package size={24} />
-            Your Prompt Packs
+            Your Skillsets
           </h1>
           <p className="text-sm text-[var(--muted-foreground)] mt-1">
-            Prompt packs created on the web dashboard
+            Skillsets created on the web dashboard
           </p>
         </div>
 
@@ -1440,6 +1424,7 @@ export function UserPacksPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

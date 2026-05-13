@@ -3,12 +3,12 @@ import { join } from "node:path";
 import { Resend } from "resend";
 
 const EMAIL_TO = ["ivan.securebyte@gmail.com"];
-const FROM_EMAIL = "PromptPack Support <support@pmtpk.com>";
-const REPLY_TO = "support@pmtpk.com";
+const FROM_EMAIL = "Skillset Support <support@skillset.so>";
+const REPLY_TO = "support@skillset.so";
 const SUBJECT = "Re: Bug/Technical Issue";
 
-const APP_URL = "https://pmtpk.com";
-const LOGO_URL = "https://pmtpk.com/img/promptpack_logo_horizontal.png";
+const APP_URL = "https://skillset.so";
+const LOGO_URL = "https://skillset.so/img/skillset_logo_horizontal.png";
 
 const themeLight = {
   background: "#f3f4f6",

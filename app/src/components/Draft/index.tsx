@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Save, Trash2, Cloud, ChevronDown, Sparkles } from 'lucide-react';
-import { SOURCE_META } from '../../types';
-import type { PromptSource } from '../../types';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { ENHANCE_API_URL } from '../../lib/constants';
@@ -9,7 +7,6 @@ import { tauriFetch } from '../../lib/tauriFetch';
 
 type EnhanceMode = 'structured' | 'clarity' | 'concise' | 'strict';
 
-// Draft is stored in localStorage for persistence
 const DRAFT_KEY_PREFIX = 'promptpack-draft-';
 const MAX_DRAFTS = 3;
 
@@ -17,21 +14,26 @@ interface DraftData {
   id: number;
   text: string;
   header: string;
-  source: PromptSource;
   lastSaved: number;
   name: string;
 }
 
-type SaveDestination = { type: 'local'; source: PromptSource } | { type: 'userPack'; packId: string } | { type: 'savedPack'; packId: string };
+type SaveDestination = { type: 'userPack'; packId: string } | { type: 'none' };
 
-// Load all drafts from localStorage
 function loadAllDrafts(): DraftData[] {
   const drafts: DraftData[] = [];
   for (let i = 0; i < MAX_DRAFTS; i++) {
     const saved = localStorage.getItem(`${DRAFT_KEY_PREFIX}${i}`);
     if (saved) {
       try {
-        drafts.push(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        drafts.push({
+          id: parsed.id ?? i,
+          text: parsed.text ?? '',
+          header: parsed.header ?? '',
+          lastSaved: parsed.lastSaved ?? 0,
+          name: parsed.name ?? `Draft ${i + 1}`,
+        });
       } catch {
         drafts.push(createEmptyDraft(i));
       }
@@ -47,7 +49,6 @@ function createEmptyDraft(id: number): DraftData {
     id,
     text: '',
     header: '',
-    source: 'chatgpt',
     lastSaved: 0,
     name: `Draft ${id + 1}`,
   };
@@ -55,38 +56,41 @@ function createEmptyDraft(id: number): DraftData {
 
 export function DraftPage() {
   const { session } = useAuthStore();
-  const { userPacks, cloudPacks, addUserPackPrompt, addSavedPackPrompt, createSavedPack, loadedUserPacks, loadedPacks, fetchUserPackPrompts, fetchPackPrompts, fetchAllPacks } = useSyncStore();
+  const { userPacks, addUserPackPrompt, loadedUserPacks, fetchUserPackPrompts, fetchAllPacks } = useSyncStore();
 
-  // Tab state
   const [activeTab, setActiveTab] = useState(0);
   const [drafts, setDrafts] = useState<DraftData[]>(() => loadAllDrafts());
   const [isSaving, setIsSaving] = useState(false);
 
-  // Current draft derived from active tab
   const currentDraft = drafts[activeTab];
   const text = currentDraft?.text || '';
   const header = currentDraft?.header || '';
-  const source = currentDraft?.source || 'chatgpt';
   const lastSaved = currentDraft?.lastSaved || null;
 
-  // Save destination - either local (with source) or a cloud pack
-  const [saveDestination, setSaveDestination] = useState<SaveDestination>({ type: 'local', source: 'chatgpt' });
+  const [saveDestination, setSaveDestination] = useState<SaveDestination>({ type: 'none' });
   const [showDestinationDropdown, setShowDestinationDropdown] = useState(false);
   const [isSavingToCloud, setIsSavingToCloud] = useState(false);
 
-  // Enhance feature state
   const [enhanceMode, setEnhanceMode] = useState<EnhanceMode>('structured');
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [enhanceError, setEnhanceError] = useState<string | null>(null);
 
-  // Fetch user packs when session is available
   useEffect(() => {
-    if (session?.user_id && userPacks.length === 0 && cloudPacks.length === 0) {
+    if (session?.user_id && userPacks.length === 0) {
       fetchAllPacks(session.user_id);
     }
   }, [session?.user_id]);
 
-  // Update draft helper
+  // Auto-select first skillset once available
+  useEffect(() => {
+    if (saveDestination.type === 'none' && userPacks.length > 0) {
+      setSaveDestination({ type: 'userPack', packId: userPacks[0].id });
+    }
+    if (saveDestination.type === 'userPack' && !userPacks.find(p => p.id === saveDestination.packId)) {
+      setSaveDestination(userPacks.length > 0 ? { type: 'userPack', packId: userPacks[0].id } : { type: 'none' });
+    }
+  }, [userPacks, saveDestination]);
+
   const updateCurrentDraft = useCallback((updates: Partial<DraftData>) => {
     setDrafts(prev => {
       const newDrafts = [...prev];
@@ -97,9 +101,7 @@ export function DraftPage() {
 
   const setText = (newText: string) => updateCurrentDraft({ text: newText });
   const setHeader = (newHeader: string) => updateCurrentDraft({ header: newHeader });
-  const setSource = (newSource: PromptSource) => updateCurrentDraft({ source: newSource });
 
-  // Autosave draft to localStorage
   const saveDraft = useCallback(() => {
     const draft = drafts[activeTab];
     if (!draft) return;
@@ -118,18 +120,16 @@ export function DraftPage() {
     setTimeout(() => setIsSaving(false), 500);
   }, [drafts, activeTab]);
 
-  // Autosave every 15 seconds if there's content
   useEffect(() => {
     if (!text && !header) return;
 
     const timer = setInterval(() => {
       saveDraft();
-    }, 15000); // Autosave every 15 seconds
+    }, 15000);
 
     return () => clearInterval(timer);
-  }, [text, header, source, saveDraft]);
+  }, [text, header, saveDraft]);
 
-  // Clear current draft
   const clearDraft = () => {
     if (confirm('Are you sure you want to clear this draft?')) {
       const emptyDraft = createEmptyDraft(activeTab);
@@ -142,102 +142,30 @@ export function DraftPage() {
     }
   };
 
-  // Save as prompt to cloud
   const saveAsPrompt = async () => {
     if (!text.trim()) return;
+    if (saveDestination.type !== 'userPack') return;
 
-    // Handle saving to cloud packs
-    if (saveDestination.type === 'userPack' || saveDestination.type === 'savedPack') {
-      setIsSavingToCloud(true);
+    setIsSavingToCloud(true);
 
-      try {
-        let success = false;
-
-        if (saveDestination.type === 'userPack') {
-          // Make sure pack is loaded first
-          const pack = userPacks.find(p => p.id === saveDestination.packId);
-          if (pack && !loadedUserPacks[saveDestination.packId]) {
-            await fetchUserPackPrompts(pack);
-          }
-          success = await addUserPackPrompt(saveDestination.packId, text.trim(), header.trim() || undefined);
-        } else {
-          // savedPack
-          const pack = cloudPacks.find(p => p.id === saveDestination.packId);
-          if (pack && !loadedPacks[saveDestination.packId]) {
-            await fetchPackPrompts(pack);
-          }
-          success = await addSavedPackPrompt(saveDestination.packId, text.trim(), header.trim() || undefined);
-        }
-
-        if (success) {
-          // Clear draft after saving
-          const emptyDraft = createEmptyDraft(activeTab);
-          localStorage.setItem(`${DRAFT_KEY_PREFIX}${activeTab}`, JSON.stringify(emptyDraft));
-          setDrafts(prev => {
-            const newDrafts = [...prev];
-            newDrafts[activeTab] = emptyDraft;
-            return newDrafts;
-          });
-        }
-      } finally {
-        setIsSavingToCloud(false);
+    try {
+      const pack = userPacks.find(p => p.id === saveDestination.packId);
+      if (pack && !loadedUserPacks[saveDestination.packId]) {
+        await fetchUserPackPrompts(pack);
       }
-      return;
-    }
+      const success = await addUserPackPrompt(saveDestination.packId, text.trim(), header.trim() || undefined);
 
-    // For "local" type, we save to the selected savedPack source
-    // Create the pack if it doesn't exist
-    if (saveDestination.type === 'local') {
-      if (!session?.user_id) {
-        alert('Please sign in to save prompts to cloud.');
-        return;
+      if (success) {
+        const emptyDraft = createEmptyDraft(activeTab);
+        localStorage.setItem(`${DRAFT_KEY_PREFIX}${activeTab}`, JSON.stringify(emptyDraft));
+        setDrafts(prev => {
+          const newDrafts = [...prev];
+          newDrafts[activeTab] = emptyDraft;
+          return newDrafts;
+        });
       }
-
-      setIsSavingToCloud(true);
-
-      try {
-        // Find or create the savedPack for this source
-        const existingPack = cloudPacks.find(p => p.source === saveDestination.source);
-
-        if (existingPack) {
-          // Add to existing pack
-          if (!loadedPacks[existingPack.id]) {
-            await fetchPackPrompts(existingPack);
-          }
-          const success = await addSavedPackPrompt(existingPack.id, text.trim(), header.trim() || undefined);
-
-          if (success) {
-            const emptyDraft = createEmptyDraft(activeTab);
-            localStorage.setItem(`${DRAFT_KEY_PREFIX}${activeTab}`, JSON.stringify(emptyDraft));
-            setDrafts(prev => {
-              const newDrafts = [...prev];
-              newDrafts[activeTab] = emptyDraft;
-              return newDrafts;
-            });
-          }
-        } else {
-          // Create a new savedPack for this source with the prompt
-          const newPrompt = {
-            text: text.trim(),
-            header: header.trim() || undefined,
-            createdAt: Date.now(),
-          };
-
-          const newPack = await createSavedPack(session.user_id, saveDestination.source, [newPrompt]);
-
-          if (newPack) {
-            const emptyDraft = createEmptyDraft(activeTab);
-            localStorage.setItem(`${DRAFT_KEY_PREFIX}${activeTab}`, JSON.stringify(emptyDraft));
-            setDrafts(prev => {
-              const newDrafts = [...prev];
-              newDrafts[activeTab] = emptyDraft;
-              return newDrafts;
-            });
-          }
-        }
-      } finally {
-        setIsSavingToCloud(false);
-      }
+    } finally {
+      setIsSavingToCloud(false);
     }
   };
 
@@ -251,7 +179,6 @@ export function DraftPage() {
     return new Date(timestamp).toLocaleDateString();
   };
 
-  // Enhance prompt using API
   const handleEnhance = async () => {
     if (isEnhancing) return;
     if (!text.trim()) {
@@ -284,7 +211,6 @@ export function DraftPage() {
       });
 
       if (response.status === 429) {
-        // Parse the detailed error message from API
         try {
           const errorData = await response.json() as { error?: string; code?: string };
           setEnhanceError(errorData.error || 'Enhance limit reached');
@@ -314,7 +240,6 @@ export function DraftPage() {
 
       const data = await response.json() as { enhanced?: string };
       if (data.enhanced) {
-        // Update drafts state with enhanced text and save to localStorage
         setDrafts(prev => {
           const newDrafts = [...prev];
           const updatedDraft: DraftData = {
@@ -337,8 +262,9 @@ export function DraftPage() {
     }
   };
 
-  // Check if a draft has content
   const hasDraftContent = (draft: DraftData) => draft.text.trim() || draft.header.trim();
+  const selectedPack = saveDestination.type === 'userPack' ? userPacks.find(p => p.id === saveDestination.packId) : null;
+  const canSave = !!text.trim() && saveDestination.type === 'userPack' && !isSavingToCloud;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -388,7 +314,8 @@ export function DraftPage() {
           </button>
           <button
             onClick={saveAsPrompt}
-            disabled={!text.trim() || isSavingToCloud}
+            disabled={!canSave}
+            title={saveDestination.type !== 'userPack' ? 'Select a skillset to save to' : undefined}
             className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
           >
             {isSavingToCloud ? (
@@ -427,7 +354,6 @@ export function DraftPage() {
             <label className="block text-sm font-medium text-[var(--foreground)]">
               Prompt
             </label>
-            {/* Enhance Controls */}
             <div className="flex items-center gap-2">
               <select
                 value={enhanceMode}
@@ -479,125 +405,62 @@ export function DraftPage() {
         {/* Save Destination */}
         <div>
           <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-            Save To
+            Save To Skillset
           </label>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowDestinationDropdown(!showDestinationDropdown)}
-              className="w-full px-3 py-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] text-left flex items-center justify-between"
-            >
-              <span className="flex items-center gap-2">
-                {saveDestination.type === 'local' ? (
-                  <>
-                    <span>{SOURCE_META[saveDestination.source].icon}</span>
-                    <span>{SOURCE_META[saveDestination.source].label}</span>
-                  </>
-                ) : saveDestination.type === 'userPack' ? (
-                  <>
-                    <Cloud size={16} className="text-[var(--primary)]" />
-                    <span>{userPacks.find(p => p.id === saveDestination.packId)?.title || 'Unknown Pack'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Cloud size={16} className="text-[var(--primary)]" />
-                    <span>{SOURCE_META[cloudPacks.find(p => p.id === saveDestination.packId)?.source as PromptSource]?.label || 'Saved Pack'}</span>
-                  </>
-                )}
-              </span>
-              <ChevronDown size={16} className={`text-[var(--muted-foreground)] transition-transform ${showDestinationDropdown ? 'rotate-180' : ''}`} />
-            </button>
+          {!session ? (
+            <div className="px-3 py-3 rounded-lg bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--muted-foreground)]">
+              Sign in to save prompts to your skillsets.
+            </div>
+          ) : userPacks.length === 0 ? (
+            <div className="px-3 py-3 rounded-lg bg-[var(--card)] border border-[var(--border)] text-sm text-[var(--muted-foreground)]">
+              No skillsets yet. Create one from the dashboard to start saving prompts.
+            </div>
+          ) : (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowDestinationDropdown(!showDestinationDropdown)}
+                className="w-full px-3 py-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] text-left flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  {selectedPack ? (
+                    <>
+                      <span>{selectedPack.icon || '📦'}</span>
+                      <span>{selectedPack.title}</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{selectedPack.promptCount} prompts</span>
+                    </>
+                  ) : (
+                    <>
+                      <Cloud size={16} className="text-[var(--muted-foreground)]" />
+                      <span className="text-[var(--muted-foreground)]">Select a skillset</span>
+                    </>
+                  )}
+                </span>
+                <ChevronDown size={16} className={`text-[var(--muted-foreground)] transition-transform ${showDestinationDropdown ? 'rotate-180' : ''}`} />
+              </button>
 
-            {showDestinationDropdown && (
-              <div className="absolute z-10 mt-1 w-full bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                {/* Local packs header */}
-                <div className="px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] bg-[var(--accent)]/50">
-                  Local Packs
+              {showDestinationDropdown && (
+                <div className="absolute z-10 mt-1 w-full bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  {userPacks.map((pack) => (
+                    <button
+                      key={pack.id}
+                      type="button"
+                      onClick={() => {
+                        setSaveDestination({ type: 'userPack', packId: pack.id });
+                        setShowDestinationDropdown(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-[var(--accent)] ${
+                        saveDestination.type === 'userPack' && saveDestination.packId === pack.id ? 'bg-[var(--accent)]' : ''
+                      }`}
+                    >
+                      <span>{pack.icon || '📦'}</span>
+                      <span className="text-[var(--foreground)]">{pack.title}</span>
+                      <span className="text-xs text-[var(--muted-foreground)] ml-auto">{pack.promptCount}</span>
+                    </button>
+                  ))}
                 </div>
-                {(Object.keys(SOURCE_META) as PromptSource[]).map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => {
-                      setSaveDestination({ type: 'local', source: s });
-                      setSource(s);
-                      setShowDestinationDropdown(false);
-                    }}
-                    className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-[var(--accent)] ${
-                      saveDestination.type === 'local' && saveDestination.source === s ? 'bg-[var(--accent)]' : ''
-                    }`}
-                  >
-                    <span>{SOURCE_META[s].icon}</span>
-                    <span className="text-[var(--foreground)]">{SOURCE_META[s].label}</span>
-                  </button>
-                ))}
-
-                {/* Cloud packs - only show if signed in */}
-                {session && (userPacks.length > 0 || cloudPacks.length > 0) && (
-                  <>
-                    {/* User Packs (from web dashboard) */}
-                    {userPacks.length > 0 && (
-                      <>
-                        <div className="px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] bg-[var(--accent)]/50 border-t border-[var(--border)]">
-                          Your Prompt Packs
-                        </div>
-                        {userPacks.map((pack) => (
-                          <button
-                            key={pack.id}
-                            type="button"
-                            onClick={() => {
-                              setSaveDestination({ type: 'userPack', packId: pack.id });
-                              setShowDestinationDropdown(false);
-                            }}
-                            className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-[var(--accent)] ${
-                              saveDestination.type === 'userPack' && saveDestination.packId === pack.id ? 'bg-[var(--accent)]' : ''
-                            }`}
-                          >
-                            <Cloud size={16} className="text-[var(--primary)]" />
-                            <span className="text-[var(--foreground)]">{pack.title}</span>
-                            <span className="text-xs text-[var(--muted-foreground)] ml-auto">{pack.promptCount}</span>
-                          </button>
-                        ))}
-                      </>
-                    )}
-
-                    {/* Saved Packs (from extension) */}
-                    {cloudPacks.length > 0 && (
-                      <>
-                        <div className="px-3 py-2 text-xs font-medium text-[var(--muted-foreground)] bg-[var(--accent)]/50 border-t border-[var(--border)]">
-                          Saved from Extension
-                        </div>
-                        {cloudPacks.map((pack) => {
-                          const meta = SOURCE_META[pack.source as PromptSource];
-                          return (
-                            <button
-                              key={pack.id}
-                              type="button"
-                              onClick={() => {
-                                setSaveDestination({ type: 'savedPack', packId: pack.id });
-                                setShowDestinationDropdown(false);
-                              }}
-                              className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-[var(--accent)] ${
-                                saveDestination.type === 'savedPack' && saveDestination.packId === pack.id ? 'bg-[var(--accent)]' : ''
-                              }`}
-                            >
-                              <span>{meta?.icon || '📦'}</span>
-                              <span className="text-[var(--foreground)]">{meta?.label || pack.source}</span>
-                              <span className="text-xs text-[var(--muted-foreground)] ml-auto">{pack.promptCount}</span>
-                            </button>
-                          );
-                        })}
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-          {(saveDestination.type === 'userPack' || saveDestination.type === 'savedPack') && (
-            <p className="mt-1 text-xs text-[var(--primary)]">
-              Will sync to cloud
-            </p>
+              )}
+            </div>
           )}
         </div>
 

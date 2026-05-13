@@ -4,12 +4,12 @@ import { Resend } from "resend";
 
 // Recipients - pass email addresses as CLI arguments
 const EMAIL_TO: string[] = process.argv.slice(2);
-const FROM_EMAIL = "PromptPack <support@pmtpk.com>";
-const REPLY_TO = "support@pmtpk.com";
-const SUBJECT = "PromptPack 2.0.0 is here!";
+const FROM_EMAIL = "Skillset <support@skillset.so>";
+const REPLY_TO = "support@skillset.so";
+const SUBJECT = "Skillset 2.0.0 is here!";
 
 // Email images hosted on R2 custom domain
-const IMG_BASE = "https://image.pmtpk.com/img";
+const IMG_BASE = "https://image.skillset.so/img";
 const IMAGES = {
   enhanceSave: `${IMG_BASE}/Enhance-save.jpg`,
   quickSelect: `${IMG_BASE}/Quick-Select.jpg`,
@@ -122,7 +122,7 @@ async function main() {
             <!-- Logo -->
             <tr>
               <td style="padding:24px 16px 8px;">
-                <img src="https://pmtpk.com/img/promptpack_logo_horizontal.png" alt="PromptPack" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
+                <img src="https://skillset.so/img/promptpack_logo_horizontal.png" alt="PromptPack" width="220" style="display:block;border:0;outline:none;text-decoration:none;height:auto;" />
               </td>
             </tr>
             <!-- Gradient divider -->
@@ -147,7 +147,7 @@ async function main() {
             <tr>
               <td align="center" style="padding:0 16px 24px;">
                 <a href="https://chromewebstore.google.com/detail/promptpack/ajfgnekiofhiblifmiimnlmcnfhibnbl" target="_blank" style="display:inline-block;text-decoration:none;">
-                  <img src="https://image.pmtpk.com/img/Chrome..png" alt="Add to Chrome" width="200" style="display:block;border:0;height:auto;" />
+                  <img src="https://image.skillset.so/img/Chrome..png" alt="Add to Chrome" width="200" style="display:block;border:0;height:auto;" />
                 </a>
               </td>
             </tr>
@@ -266,7 +266,7 @@ async function main() {
             <tr>
               <td align="center" style="padding:0 16px 24px;">
                 <p class="email-muted" style="margin:0;font-size:14px;color:${themeLight.muted};">
-                  <a href="https://pmtpk.com/dashboard" style="color:${themeLight.primary};text-decoration:underline;">Open Dashboard</a> · <a href="https://pmtpk.com/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
+                  <a href="https://skillset.so/dashboard" style="color:${themeLight.primary};text-decoration:underline;">Open Dashboard</a> · <a href="https://skillset.so/pricing" style="color:${themeLight.primary};text-decoration:underline;">Upgrade to Pro</a>
                 </p>
               </td>
             </tr>
@@ -276,7 +276,7 @@ async function main() {
               <td style="padding:0 16px 32px;font-size:12px;color:#9ca3af;line-height:1.6;">
                 <p style="margin:0 0 4px;">PromptPack Support</p>
                 <p style="margin:8px 0 0;">
-                  <a href="https://pmtpk.com" style="color:${themeLight.primary};text-decoration:none;">https://pmtpk.com</a>
+                  <a href="https://skillset.so" style="color:${themeLight.primary};text-decoration:none;">https://skillset.so</a>
                 </p>
               </td>
             </tr>

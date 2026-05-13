@@ -19,16 +19,20 @@ export const CONVEX_URL = 'https://determined-lark-313.convex.site';
 
 /**
  * Cloudflare Workers API URL (R2 storage, enhance, classify)
- * - Used for: fetching .pmtpk files from R2, prompt enhancement
- * - DEV: https://api.pmtpk.com
- * - PROD: https://api.pmtpk.com (same)
+ * - Used for: fetching .skill files from R2, prompt enhancement
+ * - DEV: https://api.skillset.so
+ * - PROD: https://api.skillset.so (same)
  */
-export const WORKERS_API_URL = 'https://api.pmtpk.com';
+// Worker DNS migrated — primary is skillset.so. Legacy pmtpk.com Worker
+// routes stay live for old desktop installs (see api/wrangler.toml).
+export const WORKERS_API_URL = 'https://api.skillset.so';
+// export const WORKERS_API_URL = 'https://api.pmtpk.com'; // rollback only
 
 /**
  * Grok API URL for prompt enhancement
  */
-export const GROK_API_URL = 'https://grok.pmtpk.com';
+export const GROK_API_URL = 'https://grok.skillset.so';
+// export const GROK_API_URL = 'https://grok.pmtpk.com'; // rollback only
 
 /**
  * Enhance API endpoint
@@ -39,9 +43,10 @@ export const ENHANCE_API_URL = `${GROK_API_URL}/api/enhance`;
  * Web app URL for OAuth redirects
  * - Used for: desktop auth flow, sign-in redirects
  * - DEV: http://localhost:3000 (local Next.js dev server)
- * - PROD: https://pmtpk.com
+ * - PROD: https://skillset.so
  */
-export const WEB_APP_URL = 'https://pmtpk.com';
+export const WEB_APP_URL = 'https://skillset.so';
+// export const WEB_APP_URL = 'https://pmtpk.com'; // rollback only
 
 /**
  * Desktop auth page URL
@@ -96,20 +101,20 @@ export const SYNC_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 // PACK LIMITS BY TIER
 // ============================================================================
 // Custom packs are user-created packs (not platform-saved packs like ChatGPT, Claude, etc.)
-// Free: 0 custom packs (can only save to platform packs)
-// Pro: 3 custom packs (was 2, +1 for PromptControl)
-// Studio: 14 custom packs
-export const FREE_CUSTOM_PACK_LIMIT = 0;
-export const PRO_CUSTOM_PACK_LIMIT = 3;
-export const STUDIO_CUSTOM_PACK_LIMIT = 14;
+// Free: 1 custom pack
+// Pro: 7 custom packs
+// Studio: 17 custom packs
+export const FREE_CUSTOM_PACK_LIMIT = 1;
+export const PRO_CUSTOM_PACK_LIMIT = 7;
+export const STUDIO_CUSTOM_PACK_LIMIT = 17;
 
 // ============================================================================
 // PROMPTCONTROL (VERSION CONTROL) LIMITS
 // ============================================================================
-// Pro: 1 pack can have version control enabled (user chooses which)
+// Pro: 3 packs can have version control enabled (user chooses which)
 // Studio: all packs can have version control
-export const PRO_VERSION_CONTROL_LIMIT = 1;
-export const STUDIO_VERSION_CONTROL_LIMIT = 14;
+export const PRO_VERSION_CONTROL_LIMIT = 3;
+export const STUDIO_VERSION_CONTROL_LIMIT = 17;
 export const MAX_VERSIONS_PER_PACK = 10;
 
 // Helper to get pack limit by tier
@@ -130,7 +135,7 @@ export function getCustomPackLimit(tier: 'free' | 'pro' | 'studio'): number {
 // PROMPT LIMITS BY TIER (total prompts across all packs)
 // ============================================================================
 export const FREE_PROMPT_LIMIT = 5;
-export const PRO_PROMPT_LIMIT = 40;
+export const PRO_PROMPT_LIMIT = 56;
 export const STUDIO_PROMPT_LIMIT = 200;
 
 // Helper to get prompt limit by tier
@@ -145,4 +150,16 @@ export function getPromptLimit(tier: 'free' | 'pro' | 'studio'): number {
     default:
       return FREE_PROMPT_LIMIT;
   }
+}
+
+// ============================================================================
+// PROMPTS-PER-PACK CAP (per-skillset limit)
+// ============================================================================
+// Free: 5 prompts per set (binds tightly — only 1 set)
+// Pro/Studio: not capped per set (total cap binds)
+export const FREE_PROMPTS_PER_PACK = 5;
+
+export function getPromptsPerPackLimit(tier: 'free' | 'pro' | 'studio'): number {
+  if (tier === 'free') return FREE_PROMPTS_PER_PACK;
+  return Number.POSITIVE_INFINITY;
 }

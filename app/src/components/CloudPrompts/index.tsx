@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { SOURCE_META } from '../../types';
 import type { PromptSource } from '../../types';
 import { PASSWORD_MAX_LENGTH, isValidPassword } from '../../lib/constants';
+import { PromptEditModal } from '../Common/PromptEditModal';
 
 export function CloudPromptsPage() {
   const { session } = useAuthStore();
@@ -313,7 +314,7 @@ export function CloudPromptsPage() {
       // Open native save dialog
       const filePath = await save({
         defaultPath: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'PromptPack', extensions: ['pmtpk'] }],
+        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
       });
 
       if (filePath) {
@@ -350,7 +351,7 @@ export function CloudPromptsPage() {
           Sign in to sync your prompts
         </h2>
         <p className="text-[var(--muted-foreground)] max-w-md">
-          Connect your PromptPack account to sync prompts saved from the browser extension
+          Connect your Skillset account to sync prompts saved from the browser extension
           across all your devices.
         </p>
       </div>
@@ -521,7 +522,6 @@ export function CloudPromptsPage() {
                   {loaded && loaded.prompts.length > 0 && (
                     <div className="divide-y divide-[var(--border)]">
                       {loaded.prompts.map((prompt, index) => {
-                        const isEditingThisPrompt = editingPrompt?.packId === pack.id && editingPrompt?.index === index;
                         const isEditingThisHeader = editingHeader?.packId === pack.id && editingHeader?.index === index;
                         const isGenerating = isGeneratingHeader(pack.id, index);
 
@@ -588,77 +588,41 @@ export function CloudPromptsPage() {
                             </div>
 
                             {/* Prompt text section */}
-                            {isEditingThisPrompt ? (
-                              <div className="mt-2">
-                                <textarea
-                                  value={promptDraft}
-                                  onChange={(e) => setPromptDraft(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditPrompt();
-                                    if (e.key === 'Escape') cancelEditPrompt();
-                                  }}
-                                  rows={4}
-                                  className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] resize-none"
-                                  autoFocus
-                                />
-                                <div className="flex items-center gap-2 mt-2">
-                                  <button
-                                    onClick={saveEditPrompt}
-                                    className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90"
-                                  >
-                                    <Save size={12} />
-                                    Save
-                                  </button>
-                                  <button
-                                    onClick={cancelEditPrompt}
-                                    className="px-3 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <span className="text-xs text-[var(--muted-foreground)]">
-                                    Ctrl+Enter to save
-                                  </span>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">
-                                {prompt.text}
-                              </p>
-                            )}
+                            <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">
+                              {prompt.text}
+                            </p>
 
                             {/* Actions */}
-                            {!isEditingThisPrompt && (
-                              <div className="flex items-center justify-between mt-2">
-                                <span className="text-xs text-[var(--muted-foreground)]">
-                                  {formatDate(prompt.createdAt)}
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => startEditPrompt(pack.id, index, prompt.text, 'saved')}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                    title="Edit prompt"
-                                  >
-                                    <Pencil size={14} />
-                                  </button>
-                                  <button
-                                    onClick={() => handleCopy(prompt.text, `${pack.id}-${index}`)}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                  >
-                                    {copiedId === `${pack.id}-${index}` ? (
-                                      <>
-                                        <Check size={14} className="text-green-500" />
-                                        Copied
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy size={14} />
-                                        Copy
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-xs text-[var(--muted-foreground)]">
+                                {formatDate(prompt.createdAt)}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => startEditPrompt(pack.id, index, prompt.text, 'saved')}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                  title="Edit prompt"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleCopy(prompt.text, `${pack.id}-${index}`)}
+                                  className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                >
+                                  {copiedId === `${pack.id}-${index}` ? (
+                                    <>
+                                      <Check size={14} className="text-green-500" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy size={14} />
+                                      Copy
+                                    </>
+                                  )}
+                                </button>
                               </div>
-                            )}
+                            </div>
                           </div>
                         );
                       })}
@@ -758,7 +722,7 @@ export function CloudPromptsPage() {
           <div className="mt-8 mb-4">
             <h2 className="text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
               <Package size={20} />
-              Your Prompt Packs
+              Your Skillsets
             </h2>
             <p className="text-sm text-[var(--muted-foreground)] mt-1">
               Prompt packs created on the web dashboard
@@ -862,7 +826,6 @@ export function CloudPromptsPage() {
                       {loaded && loaded.prompts.length > 0 && (
                         <div className="divide-y divide-[var(--border)]">
                           {loaded.prompts.map((prompt, index) => {
-                            const isEditingThisPrompt = editingPrompt?.packId === pack.id && editingPrompt?.index === index;
                             const isEditingThisHeader = editingHeader?.packId === pack.id && editingHeader?.index === index;
                             const isGenerating = isGeneratingHeader(pack.id, index);
 
@@ -929,77 +892,41 @@ export function CloudPromptsPage() {
                                 </div>
 
                                 {/* Prompt text section */}
-                                {isEditingThisPrompt ? (
-                                  <div className="mt-2">
-                                    <textarea
-                                      value={promptDraft}
-                                      onChange={(e) => setPromptDraft(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditPrompt();
-                                        if (e.key === 'Escape') cancelEditPrompt();
-                                      }}
-                                      rows={4}
-                                      className="w-full px-3 py-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded-lg text-[var(--foreground)] resize-none"
-                                      autoFocus
-                                    />
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <button
-                                        onClick={saveEditPrompt}
-                                        className="flex items-center gap-1 px-3 py-1 text-xs bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90"
-                                      >
-                                        <Save size={12} />
-                                        Save
-                                      </button>
-                                      <button
-                                        onClick={cancelEditPrompt}
-                                        className="px-3 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <span className="text-xs text-[var(--muted-foreground)]">
-                                        Ctrl+Enter to save
-                                      </span>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">
-                                    {prompt.text}
-                                  </p>
-                                )}
+                                <p className="text-sm text-[var(--foreground)] whitespace-pre-wrap">
+                                  {prompt.text}
+                                </p>
 
                                 {/* Actions */}
-                                {!isEditingThisPrompt && (
-                                  <div className="flex items-center justify-between mt-2">
-                                    <span className="text-xs text-[var(--muted-foreground)]">
-                                      {formatDate(prompt.createdAt)}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => startEditPrompt(pack.id, index, prompt.text, 'user')}
-                                        className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                        title="Edit prompt"
-                                      >
-                                        <Pencil size={14} />
-                                      </button>
-                                      <button
-                                        onClick={() => handleCopy(prompt.text, `${pack.id}-${index}`)}
-                                        className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-                                      >
-                                        {copiedId === `${pack.id}-${index}` ? (
-                                          <>
-                                            <Check size={14} className="text-green-500" />
-                                            Copied
-                                          </>
-                                        ) : (
-                                          <>
-                                            <Copy size={14} />
-                                            Copy
-                                          </>
-                                        )}
-                                      </button>
-                                    </div>
+                                <div className="flex items-center justify-between mt-2">
+                                  <span className="text-xs text-[var(--muted-foreground)]">
+                                    {formatDate(prompt.createdAt)}
+                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => startEditPrompt(pack.id, index, prompt.text, 'user')}
+                                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                      title="Edit prompt"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleCopy(prompt.text, `${pack.id}-${index}`)}
+                                      className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                                    >
+                                      {copiedId === `${pack.id}-${index}` ? (
+                                        <>
+                                          <Check size={14} className="text-green-500" />
+                                          Copied
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy size={14} />
+                                          Copy
+                                        </>
+                                      )}
+                                    </button>
                                   </div>
-                                )}
+                                </div>
                               </div>
                             );
                           })}
@@ -1181,6 +1108,22 @@ export function CloudPromptsPage() {
           </div>
         </div>
       )}
+
+      {/* Prompt edit modal */}
+      <PromptEditModal
+        open={editingPrompt !== null}
+        title={(() => {
+          if (!editingPrompt) return undefined;
+          const src = editingPrompt.packType === 'user'
+            ? loadedUserPacks[editingPrompt.packId]
+            : loadedPacks[editingPrompt.packId];
+          return src?.prompts[editingPrompt.index]?.header || undefined;
+        })()}
+        value={promptDraft}
+        onChange={setPromptDraft}
+        onSave={saveEditPrompt}
+        onCancel={cancelEditPrompt}
+      />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import { Check } from "lucide-react";
+import { SkillsetShell } from "@/components/skillset-shell";
+
 /**
  * Desktop Callback page
  *
@@ -11,17 +14,21 @@
  */
 export default function DesktopCallbackPage() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-8">
-      <div className="text-green-500 text-5xl mb-4">✓</div>
-      <h1 className="text-xl font-semibold text-foreground mb-2">
-        Authentication Complete
-      </h1>
-      <p className="text-muted-foreground text-center mb-6">
-        You can close this window and return to the PromptPack desktop app.
-      </p>
-      <p className="text-sm text-muted-foreground/60">
-        If you&apos;re seeing this in a regular browser, please open the link in the PromptPack app.
-      </p>
-    </div>
+    <SkillsetShell showNav={false}>
+      <section className="flex min-h-[100dvh] flex-col items-center justify-center px-6 text-center">
+        <div className="grid h-14 w-14 place-items-center rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+          <Check strokeWidth={2} className="h-6 w-6" />
+        </div>
+        <h1 className="mt-6 text-[20px] font-medium text-zinc-50">
+          Authentication complete
+        </h1>
+        <p className="mt-2 max-w-[44ch] text-[14px] text-zinc-400">
+          You can close this window and return to the Skillset desktop app.
+        </p>
+        <p className="mt-3 max-w-[44ch] text-[12px] text-zinc-500">
+          If you&apos;re seeing this in a regular browser, please open the link in the Skillset app.
+        </p>
+      </section>
+    </SkillsetShell>
   );
 }

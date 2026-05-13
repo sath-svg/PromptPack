@@ -1,20 +1,16 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Download, Lock, Check, Package, Cloud, Search } from 'lucide-react';
-import { useSyncStore, encodePmtpk, encryptPmtpk, type CloudPrompt, type LoadedPack, type LoadedUserPack } from '../../stores/syncStore';
+import { Download, Lock, Check, Package, Search } from 'lucide-react';
+import { useSyncStore, encodePmtpk, encryptPmtpk, type CloudPrompt, type LoadedUserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
-import { SOURCE_META, type PromptSource } from '../../types';
 
-// Extended prompt type for export that includes pack information
 interface ExportablePrompt {
   id: string;
   text: string;
   header?: string;
-  source: PromptSource | 'custom';
   createdAt: number;
   packId: string;
   packTitle: string;
   packIcon?: string;
-  packType: 'saved' | 'user';
 }
 
 export function ExportPage() {
@@ -26,17 +22,16 @@ export function ExportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingPacks, setIsLoadingPacks] = useState(false);
 
-  const { cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts, fetchAllPacks } = useSyncStore();
+  const { userPacks, loadedUserPacks, fetchUserPackPrompts, fetchAllPacks } = useSyncStore();
   const { session } = useAuthStore();
 
-  // Refresh packs and load all prompts on mount
+  // Refresh packs on mount
   useEffect(() => {
     const refreshAndLoadPacks = async () => {
       if (!session?.user_id) return;
 
       setIsLoadingPacks(true);
       try {
-        // First refresh the pack list from cloud (including updated emojis)
         await fetchAllPacks(session.user_id);
       } catch (err) {
         console.error('Failed to refresh packs:', err);
@@ -48,16 +43,10 @@ export function ExportPage() {
     refreshAndLoadPacks();
   }, [session?.user_id, fetchAllPacks]);
 
-  // Load all pack prompts when cloudPacks or userPacks change
+  // Load user-pack prompts when userPacks change
   useEffect(() => {
     const loadAllPackPrompts = async () => {
       const promises: Promise<unknown>[] = [];
-
-      for (const pack of cloudPacks) {
-        if (!loadedPacks[pack.id]) {
-          promises.push(fetchPackPrompts(pack));
-        }
-      }
 
       for (const pack of userPacks) {
         if (!loadedUserPacks[pack.id]) {
@@ -70,35 +59,15 @@ export function ExportPage() {
       }
     };
 
-    if (cloudPacks.length > 0 || userPacks.length > 0) {
+    if (userPacks.length > 0) {
       loadAllPackPrompts();
     }
-  }, [cloudPacks, userPacks, loadedPacks, loadedUserPacks, fetchPackPrompts, fetchUserPackPrompts]);
+  }, [userPacks, loadedUserPacks, fetchUserPackPrompts]);
 
-  // Build a flat list of exportable prompts from all loaded packs
+  // Build a flat list of exportable prompts from user packs only
   const exportablePrompts = useMemo(() => {
     const prompts: ExportablePrompt[] = [];
 
-    // Add prompts from loaded cloud packs (saved packs)
-    for (const pack of cloudPacks) {
-      const loaded = loadedPacks[pack.id] as LoadedPack | undefined;
-      if (loaded?.prompts) {
-        loaded.prompts.forEach((prompt, index) => {
-          prompts.push({
-            id: `${pack.id}-${index}`,
-            text: prompt.text,
-            header: prompt.header,
-            source: pack.source as PromptSource,
-            createdAt: prompt.createdAt,
-            packId: pack.id,
-            packTitle: SOURCE_META[pack.source as PromptSource]?.label || pack.source,
-            packType: 'saved',
-          });
-        });
-      }
-    }
-
-    // Add prompts from loaded user packs
     for (const pack of userPacks) {
       const loaded = loadedUserPacks[pack.id] as LoadedUserPack | undefined;
       if (loaded?.prompts) {
@@ -107,22 +76,18 @@ export function ExportPage() {
             id: `${pack.id}-${index}`,
             text: prompt.text,
             header: prompt.header,
-            source: 'custom' as const,
             createdAt: prompt.createdAt,
             packId: pack.id,
             packTitle: pack.title,
             packIcon: pack.icon,
-            packType: 'user',
           });
         });
       }
     }
 
-    // Sort by createdAt descending
     return prompts.sort((a, b) => b.createdAt - a.createdAt);
-  }, [cloudPacks, userPacks, loadedPacks, loadedUserPacks]);
+  }, [userPacks, loadedUserPacks]);
 
-  // Filter prompts based on search query
   const filteredPrompts = useMemo(() => {
     if (!searchQuery.trim()) return exportablePrompts;
 
@@ -133,12 +98,6 @@ export function ExportPage() {
       prompt.packTitle.toLowerCase().includes(query)
     );
   }, [exportablePrompts, searchQuery]);
-
-  // Count loaded vs total packs
-  const loadedCloudPackCount = cloudPacks.filter(p => loadedPacks[p.id]?.prompts?.length).length;
-  const loadedUserPackCount = userPacks.filter(p => loadedUserPacks[p.id]?.prompts?.length).length;
-  const totalPacks = cloudPacks.length + userPacks.length;
-  const loadedPacks2 = loadedCloudPackCount + loadedUserPackCount;
 
   const togglePrompt = (id: string) => {
     const newSet = new Set(selectedPromptIds);
@@ -158,25 +117,6 @@ export function ExportPage() {
     }
   };
 
-  // Load all packs that haven't been loaded yet
-  const loadAllPacks = async () => {
-    const promises: Promise<unknown>[] = [];
-
-    for (const pack of cloudPacks) {
-      if (!loadedPacks[pack.id]) {
-        promises.push(fetchPackPrompts(pack));
-      }
-    }
-
-    for (const pack of userPacks) {
-      if (!loadedUserPacks[pack.id]) {
-        promises.push(fetchUserPackPrompts(pack));
-      }
-    }
-
-    await Promise.all(promises);
-  };
-
   const handleExport = async () => {
     if (selectedPromptIds.size === 0) return;
     if (password && password !== confirmPassword) {
@@ -189,22 +129,19 @@ export function ExportPage() {
     try {
       const selectedPrompts = exportablePrompts.filter((p) => selectedPromptIds.has(p.id));
 
-      // Convert to CloudPrompt format for encoding
       const cloudPrompts: CloudPrompt[] = selectedPrompts.map((p) => ({
         text: p.text,
         header: p.header,
         createdAt: p.createdAt,
       }));
 
-      // Encode to .pmtpk format (with or without encryption)
       let encoded: Uint8Array;
       if (password) {
-        encoded = await encryptPmtpk(cloudPrompts, 'PromptPack Export', password);
+        encoded = await encryptPmtpk(cloudPrompts, 'Skillset Export', password);
       } else {
-        encoded = await encodePmtpk(cloudPrompts, 'PromptPack Export');
+        encoded = await encodePmtpk(cloudPrompts, 'Skillset Export');
       }
 
-      // Create blob and download (ensure regular ArrayBuffer for Blob compatibility)
       const buffer = new ArrayBuffer(encoded.length);
       new Uint8Array(buffer).set(encoded);
       const blob = new Blob([buffer], {
@@ -213,7 +150,7 @@ export function ExportPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `promptpack-export-${Date.now()}.pmtpk`;
+      a.download = `promptpack-export-${Date.now()}.skill`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -236,26 +173,8 @@ export function ExportPage() {
         Export Prompts
       </h2>
       <p className="text-[var(--muted-foreground)] mb-6">
-        Select prompts to export as a .pmtpk file. Optionally add password protection.
+        Select prompts from your custom skillsets to export as a .skill file. Optionally add password protection.
       </p>
-
-      {/* Pack loading status */}
-      {totalPacks > 0 && loadedPacks2 < totalPacks && (
-        <div className="mb-4 p-3 bg-[var(--accent)]/50 border border-[var(--border)] rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-[var(--muted-foreground)]">
-            <Cloud size={16} />
-            <span>
-              {loadedPacks2} of {totalPacks} packs loaded. Load all packs to see all prompts.
-            </span>
-          </div>
-          <button
-            onClick={loadAllPacks}
-            className="text-sm text-[var(--primary)] hover:underline font-medium"
-          >
-            Load All Packs
-          </button>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Prompt Selection */}
@@ -304,22 +223,14 @@ export function ExportPage() {
                 ) : (
                   <>
                     <p>No prompts available to export.</p>
-                    {totalPacks > 0 && (
-                      <p className="text-sm mt-2">
-                        Click "Load All Packs" above to load your prompts from the cloud.
-                      </p>
-                    )}
-                    {totalPacks === 0 && (
-                      <p className="text-sm mt-2">
-                        Save some prompts from the extension or create packs in the dashboard first.
-                      </p>
-                    )}
+                    <p className="text-sm mt-2">
+                      Create a custom skillset and add prompts to it first.
+                    </p>
                   </>
                 )}
               </div>
             ) : (
               filteredPrompts.map((prompt) => {
-                const sourceMeta = prompt.source !== 'custom' ? SOURCE_META[prompt.source] : null;
                 const isSelected = selectedPromptIds.has(prompt.id);
 
                 return (
@@ -337,23 +248,9 @@ export function ExportPage() {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        {sourceMeta ? (
-                          <span
-                            className="px-1.5 py-0.5 rounded text-xs"
-                            style={{
-                              backgroundColor: `${sourceMeta.color}20`,
-                              color: sourceMeta.color,
-                            }}
-                          >
-                            {sourceMeta.icon}
-                          </span>
-                        ) : (
-                          <span
-                            className="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-500"
-                          >
-                            {prompt.packIcon || '📦'}
-                          </span>
-                        )}
+                        <span className="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-500">
+                          {prompt.packIcon || '📦'}
+                        </span>
                         <span className="text-xs text-[var(--muted-foreground)]">
                           {prompt.packTitle}
                         </span>
@@ -432,7 +329,7 @@ export function ExportPage() {
           </button>
 
           <p className="text-xs text-center text-[var(--muted-foreground)]">
-            Exports as .pmtpk format{password ? ' (encrypted)' : ''}
+            Exports as .skill format{password ? ' (encrypted)' : ''}
           </p>
         </div>
       </div>

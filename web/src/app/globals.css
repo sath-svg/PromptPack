@@ -42,16 +42,25 @@
   --sidebar-ring: #6366f1;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
 }
 
 html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
 }
 
 body {
@@ -201,6 +210,12 @@ a {
 .main {
   min-height: calc(100vh - 65px);
   padding: clamp(1rem, 3vw, 2rem);
+}
+
+/* Landing page breaks out of .main padding for full-bleed hero/marquee */
+.main:has(> .landing-root) {
+  padding: 0;
+  min-height: auto;
 }
 
 /* Hero section */

@@ -58,6 +58,46 @@ export const createSubscriptionCheckout = action({
   },
 });
 
+export const createTopupCheckout = action({
+  args: {
+    userId: v.string(),
+    email: v.string(),
+    name: v.optional(v.string()),
+    priceId: v.string(),
+    credits: v.number(),
+    successUrl: v.string(),
+    cancelUrl: v.string(),
+  },
+  returns: v.object({
+    sessionId: v.string(),
+    url: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const customer = await stripeClient.getOrCreateCustomer(ctx, {
+      userId: args.userId,
+      email: args.email,
+      name: args.name,
+    });
+
+    // Use raw Stripe SDK so we can attach credits in metadata for the
+    // checkout.session.completed webhook handler in http.ts.
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const session = await stripe.checkout.sessions.create({
+      customer: customer.customerId,
+      mode: "payment",
+      line_items: [{ price: args.priceId, quantity: 1 }],
+      success_url: args.successUrl,
+      cancel_url: args.cancelUrl,
+      metadata: {
+        userId: args.userId,
+        credits: String(args.credits),
+        type: "topup",
+      },
+    });
+    return { sessionId: session.id, url: session.url };
+  },
+});
+
 export const createCustomerPortalSession = action({
   args: {
     userId: v.string(),

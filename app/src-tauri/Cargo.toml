@@ -39,9 +39,19 @@ sha2 = "0.10"
 pbkdf2 = "0.12"
 rand = "0.8"
 thiserror = "1.0"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "gzip", "brotli", "deflate"] }
 tokio = { version = "1", features = ["full"] }
 jsonwebtoken = "9"
 urlencoding = "2.1"
 open = "5"
 const_format = "0.2"
+walkdir = "2"
+globset = "0.4"
+url = "2"
+regex = "1"
+tokio-util = { version = "0.7", features = ["codec"] }
+futures-util = "0.3"
+# Phase 10 — pure-Rust PDF generator. No system deps (no Chrome). Used
+# by the agent's `pdf_generate` tool to write basic A4 text/markdown
+# reports. HTML/CSS rendering is intentionally out of scope.
+printpdf = "0.7"

@@ -1,7 +1,10 @@
+mod agent;
 mod auth;
 mod commands;
 mod crypto;
 mod db;
+mod orchestrator;
+mod telemetry;
 
 use tauri::{Emitter, Manager};
 
@@ -30,9 +33,19 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .manage(commands::AuthState::default())
+        .manage(agent::LspState::default())
         .manage(commands::HttpClient(
             reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(30))
+                // Reasoning-capable models can spend several minutes
+                // thinking before emitting a single token, especially
+                // GPT-5 / Opus on multi-round tool loops. The previous
+                // 180s budget tripped on the second-pass GPT-5 call in
+                // pack runs (Stock Analyzer eval timed out mid-thought).
+                // 600s ≈ 10 minutes — covers the worst single round we've
+                // observed without leaving runaway requests dangling
+                // forever.
+                .timeout(std::time::Duration::from_secs(600))
+                .connect_timeout(std::time::Duration::from_secs(15))
                 .build()
                 .expect("failed to create HTTP client"),
         ))
@@ -49,6 +62,15 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
+
+                // Register `promptpack://` URI scheme in OS so the browser
+                // hands off auth callback URLs to this app. Production
+                // installers do this via NSIS/MSI; dev runs need it explicit.
+                #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+                {
+                    let _ = app.deep_link().register_all();
+                }
+
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();
@@ -126,6 +148,40 @@ pub fn run() {
             commands::open_auth_window,
             commands::close_auth_window,
             commands::proxy_fetch,
+            agent::agent_read,
+            agent::agent_write,
+            agent::agent_edit,
+            agent::agent_list,
+            agent::agent_glob,
+            agent::agent_grep,
+            agent::agent_bash,
+            agent::agent_web_fetch,
+            agent::agent_http,
+            agent::agent_pdf_generate,
+            agent::agent_attach_files,
+            agent::agent_init_workspace_doc,
+            agent::agent_git_status,
+            agent::agent_check_tool,
+            agent::agent_install_tool,
+            agent::lsp_spawn,
+            agent::lsp_send,
+            agent::lsp_stop,
+            orchestrator::skill_upsert,
+            orchestrator::skill_list,
+            orchestrator::skill_delete,
+            orchestrator::run_create,
+            orchestrator::run_update,
+            orchestrator::run_get,
+            orchestrator::run_cancel,
+            orchestrator::subtask_upsert,
+            orchestrator::subtask_list,
+            orchestrator::task_memory_get,
+            orchestrator::task_memory_set,
+            telemetry::telemetry_log_route,
+            telemetry::telemetry_settle_route,
+            telemetry::telemetry_export_route,
+            telemetry::telemetry_get_route,
+            telemetry::telemetry_clear_route,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

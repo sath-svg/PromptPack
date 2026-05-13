@@ -6,8 +6,9 @@ import { SettingsPage } from './components/Settings';
 import { DraftPage } from './components/Draft';
 import { SavedPacksPage } from './components/SavedPacks';
 import { UserPacksPage } from './components/UserPacks';
-import { PromptControlPage } from './components/PromptControl';
-import { PromptChatPage } from './components/PromptChat';
+import { SkillControlPage } from './components/PromptControl';
+import { SkillChatPage } from './components/SkillChat';
+import { SkillPresetPage } from './components/SkillPreset';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
@@ -40,18 +41,55 @@ function App() {
     }
   }, [session?.user_id]);
 
+  // Cross-component navigation: in-app code dispatches CustomEvent
+  // 'skillset:navigate' with detail = page id. Avoids prop-drilling
+  // setCurrentPage to deeply nested components.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<unknown>).detail;
+      let page: string | null = null;
+      let section: string | null = null;
+      if (typeof detail === 'string') {
+        page = detail;
+      } else if (detail && typeof detail === 'object') {
+        const d = detail as { page?: unknown; section?: unknown };
+        if (typeof d.page === 'string') page = d.page;
+        if (typeof d.section === 'string') section = d.section;
+      }
+      if (page) setCurrentPage(page);
+      if (section) {
+        let tries = 0;
+        const tryScroll = () => {
+          const el = document.getElementById(section!);
+          if (el) {
+            el.scrollIntoView({ behavior: 'auto', block: 'start' });
+            el.classList.add('search-flash');
+            setTimeout(() => el.classList.remove('search-flash'), 1500);
+            return;
+          }
+          if (++tries < 20) setTimeout(tryScroll, 25);
+        };
+        requestAnimationFrame(tryScroll);
+      }
+    };
+    window.addEventListener('skillset:navigate', handler);
+    return () => window.removeEventListener('skillset:navigate', handler);
+  }, []);
+
   const renderPage = () => {
     switch (currentPage) {
       case 'chat':
-        return <PromptChatPage />;
+        return <SkillChatPage />;
       case 'draft':
         return <DraftPage />;
+      case 'skill-preset':
+        return <SkillPresetPage />;
       case 'saved-packs':
         return <SavedPacksPage />;
       case 'user-packs':
         return <UserPacksPage />;
       case 'prompt-control':
-        return <PromptControlPage />;
+        return <SkillControlPage />;
       case 'import':
         return <ImportPage />;
       case 'export':

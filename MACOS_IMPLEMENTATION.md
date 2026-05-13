@@ -232,7 +232,7 @@ git push
 ```
 
 ### 5. Verify Download
-Visit `https://pmtpk.com/downloads` and test the macOS download button.
+Visit `https://skillset.so/downloads` and test the macOS download button.
 
 ---
 
@@ -315,7 +315,7 @@ Before deploying to production, test on macOS:
 ### Contact
 - GitHub Issues: Report build problems
 - Email: sathvik.work@gmail.com
-- Website: https://pmtpk.com
+- Website: https://skillset.so
 
 ---
 

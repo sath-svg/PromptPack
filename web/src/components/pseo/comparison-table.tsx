@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import type { ComparisonPoint } from "@/lib/pseo/types";
 
 interface ComparisonTableProps {
@@ -7,48 +8,20 @@ interface ComparisonTableProps {
 
 export function ComparisonTable({ points, competitorName }: ComparisonTableProps) {
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          fontSize: "0.9rem",
-        }}
-      >
+    <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-[#0f0f12]">
+      <table className="w-full border-collapse text-[14px]">
         <thead>
-          <tr>
+          <tr className="border-b border-white/[0.06]">
             <th
-              style={{
-                textAlign: "left",
-                padding: "0.75rem 1rem",
-                borderBottom: "2px solid var(--border, #27272a)",
-                color: "var(--muted-foreground)",
-                fontWeight: 500,
-                fontSize: "0.85rem",
-              }}
+              className="px-5 py-3.5 text-left text-[11px] uppercase tracking-[0.16em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
               Feature
             </th>
-            <th
-              style={{
-                textAlign: "left",
-                padding: "0.75rem 1rem",
-                borderBottom: "2px solid #6366f1",
-                color: "#6366f1",
-                fontWeight: 600,
-              }}
-            >
-              PromptPack
+            <th className="px-5 py-3.5 text-left text-[14px] font-medium text-[#7BA7FF]">
+              Skillset
             </th>
-            <th
-              style={{
-                textAlign: "left",
-                padding: "0.75rem 1rem",
-                borderBottom: "2px solid var(--border, #27272a)",
-                color: "var(--muted-foreground)",
-                fontWeight: 500,
-              }}
-            >
+            <th className="px-5 py-3.5 text-left text-[14px] font-medium text-zinc-400">
               {competitorName}
             </th>
           </tr>
@@ -57,41 +30,24 @@ export function ComparisonTable({ points, competitorName }: ComparisonTableProps
           {points.map((point, i) => (
             <tr
               key={point.feature}
-              style={{
-                backgroundColor: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)",
-              }}
+              className={`border-b border-white/[0.04] last:border-0 ${i % 2 === 1 ? "bg-white/[0.015]" : ""}`}
             >
-              <td
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderBottom: "1px solid var(--border, #27272a)",
-                  fontWeight: 500,
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <td className="whitespace-nowrap px-5 py-3.5 font-medium text-zinc-200">
                 {point.feature}
               </td>
               <td
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderBottom: "1px solid var(--border, #27272a)",
-                  color: point.winner === "promptpack" ? "#22c55e" : "var(--foreground)",
-                }}
+                className={`px-5 py-3.5 ${point.winner === "promptpack" ? "text-emerald-400" : "text-zinc-300"}`}
               >
                 {point.winner === "promptpack" && (
-                  <span style={{ marginRight: "0.35rem" }}>&#10003;</span>
+                  <Check className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2.5} />
                 )}
                 {point.promptpack}
               </td>
               <td
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderBottom: "1px solid var(--border, #27272a)",
-                  color: point.winner === "competitor" ? "#22c55e" : "var(--muted-foreground)",
-                }}
+                className={`px-5 py-3.5 ${point.winner === "competitor" ? "text-emerald-400" : "text-zinc-400"}`}
               >
                 {point.winner === "competitor" && (
-                  <span style={{ marginRight: "0.35rem" }}>&#10003;</span>
+                  <Check className="mr-1.5 inline h-3.5 w-3.5" strokeWidth={2.5} />
                 )}
                 {point.competitor}
               </td>

@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "PromptPack",
+  "productName": "Skillset",
   "version": "1.0.0",
   "identifier": "com.promptpack.desktop",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PromptPack",
+        "title": "Skillset",
         "width": 1500,
         "height": 700,
         "minWidth": 900,
@@ -42,8 +42,8 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "Prompt management for AI tools",
-    "longDescription": "PromptPack is a desktop app for managing, organizing, and syncing your AI prompts across ChatGPT, Claude, Gemini, and more.",
+    "shortDescription": "Turn your prompts into reusable skills",
+    "longDescription": "Skillset is a desktop app to save your prompts as portable skills and run them across ChatGPT, Claude, Gemini, Midjourney, and any AI tool.",
     "macOS": {
       "minimumSystemVersion": "10.15",
       "exceptionDomain": "",

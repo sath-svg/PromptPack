@@ -57,7 +57,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">
-            Sign In to PromptPack
+            Sign In to Skillset
           </h2>
           <button
             onClick={handleClose}
@@ -74,7 +74,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <LogIn size={28} className="text-[var(--primary)]" />
             </div>
             <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
-              Welcome to PromptPack
+              Welcome to Skillset
             </h3>
             <p className="text-sm text-[var(--muted-foreground)]">
               Sign in to sync your prompts across devices and access premium features.

@@ -2,189 +2,144 @@ import type { ComparisonPage } from "./types";
 
 export const comparisonPages: ComparisonPage[] = [
   {
-    slug: "promptpack-vs-aiprm",
-    competitorName: "AIPRM",
-    title: "PromptPack vs AIPRM",
+    slug: "skillset-vs-claude-code",
+    competitorName: "Claude Code",
+    title: "Skillset vs Claude Code",
     metaDescription:
-      "Compare PromptPack and AIPRM side by side. See which prompt management tool offers better features, pricing, and multi-platform support in 2026.",
+      "Compare Skillset and Claude Code side by side. See how the multi-model agent + Skill Flow workflow chains stack up against Anthropic's single-model coding agent in 2026.",
     competitorDescription:
-      "AIPRM is a browser extension primarily for ChatGPT that provides curated prompt templates and community-submitted prompts. It offers a library of pre-built prompts organized by category, with premium tiers for additional features.",
+      "Claude Code is Anthropic's terminal + desktop coding agent. It runs on Claude models (Sonnet, Opus, Haiku) with tool access to the filesystem, shell, and Git. Strong at agentic dev tasks inside a single workspace; tied to Anthropic's model family.",
     comparisonPoints: [
       {
-        feature: "Supported AI platforms",
-        promptpack: "ChatGPT, Claude, Gemini, Grok, DeepSeek, Perplexity, and more",
-        competitor: "ChatGPT only",
+        feature: "Model coverage",
+        promptpack:
+          "Auto-routes across Claude, GPT-5, Gemini, Grok, DeepSeek, Llama. One credit pool, per-task tier selection (Fast/Mid/Frontier).",
+        competitor: "Claude family only (Sonnet, Opus, Haiku).",
         winner: "promptpack",
       },
       {
-        feature: "Custom prompt packs",
-        promptpack: "Create, encrypt, and share .pmtpk files with your own prompt collections",
-        competitor: "Community prompt templates with voting system",
+        feature: "Multi-step workflows",
+        promptpack:
+          "Skill Flow orchestrator decomposes a goal into subtasks, runs them sequentially, persists generated files between steps, and references prior outputs explicitly.",
+        competitor: "Single-shot agent loop. Multi-step work happens inside one run, no formal chain artifact.",
         winner: "promptpack",
       },
       {
-        feature: "Prompt enhancement",
-        promptpack: "AI-powered prompt optimizer with 4 modes (clarity, structured, concise, strict)",
-        competitor: "No built-in prompt enhancement",
+        feature: "Prompt packs",
+        promptpack:
+          "Build reusable .skill packs with `{variable}` placeholders. Run a pack end-to-end with each step inheriting the previous step's output. Share via marketplace or file.",
+        competitor: "Custom slash commands + skills (markdown files). No managed sequential pack runner.",
         winner: "promptpack",
       },
       {
-        feature: "Prompt evaluation",
-        promptpack: "Score prompts across 7 LLMs with detailed breakdowns",
-        competitor: "Community ratings and votes",
-        winner: "promptpack",
-      },
-      {
-        feature: "Desktop app",
-        promptpack: "Native Windows and macOS app with offline support",
-        competitor: "Browser extension only",
-        winner: "promptpack",
-      },
-      {
-        feature: "MCP server integration",
-        promptpack: "Full MCP server for IDE integration (VS Code, Cursor, etc.)",
-        competitor: "No MCP support",
-        winner: "promptpack",
-      },
-      {
-        feature: "Free tier",
-        promptpack: "Free with 5 saved prompts, 6 packs, 10 enhances/day",
-        competitor: "Free with basic community prompts",
+        feature: "Workspace integration",
+        promptpack:
+          "Native Tauri desktop app. Connect a folder, agent reads/writes files, drops a Skillset.md skill into `.skillset/` automatically. Diff-review on every edit.",
+        competitor: "Terminal-first + desktop. Reads/writes files via tools. Comparable workspace agent.",
         winner: "tie",
       },
       {
-        feature: "Pricing",
-        promptpack: "Pro from $9/mo (early bird $1.99/mo)",
-        competitor: "Plus from $9/mo",
-        winner: "promptpack",
-      },
-    ],
-    verdict:
-      "PromptPack is the better choice if you use multiple AI platforms beyond just ChatGPT. Its multi-platform support, AI-powered enhancement, cross-LLM evaluation, and desktop app make it a more versatile tool for serious prompt engineers. AIPRM is a solid option if you only use ChatGPT and want access to a large library of community-created templates.",
-    targetKeywords: [
-      "PromptPack vs AIPRM",
-      "AIPRM alternative",
-      "best prompt tool comparison",
-    ],
-  },
-  {
-    slug: "promptpack-vs-promptperfect",
-    competitorName: "PromptPerfect",
-    title: "PromptPack vs PromptPerfect",
-    metaDescription:
-      "Compare PromptPack and PromptPerfect for AI prompt optimization. See features, pricing, and which tool is better for managing and enhancing prompts in 2026.",
-    competitorDescription:
-      "PromptPerfect is a web-based prompt optimization tool that uses AI to improve prompts for various LLMs. It focuses on prompt engineering with an interactive editor and supports multiple AI models.",
-    comparisonPoints: [
-      {
-        feature: "Prompt optimization",
-        promptpack: "4 enhancement modes with model-aware optimization",
-        competitor: "AI-powered prompt optimization with interactive editor",
-        winner: "tie",
-      },
-      {
-        feature: "Browser integration",
-        promptpack: "Chrome, Firefox, and Safari extensions that work directly on AI chat sites",
-        competitor: "Web-based tool only — requires copy-pasting between tabs",
-        winner: "promptpack",
-      },
-      {
-        feature: "Prompt library",
-        promptpack: "Build personal prompt collections as portable .pmtpk files",
-        competitor: "Save prompts in the web app",
-        winner: "promptpack",
-      },
-      {
-        feature: "Offline access",
-        promptpack: "Desktop app with local storage and offline prompt management",
-        competitor: "Requires internet connection",
-        winner: "promptpack",
-      },
-      {
-        feature: "Multi-LLM evaluation",
-        promptpack: "Evaluate prompt effectiveness across 7 different LLMs simultaneously",
-        competitor: "Single model optimization",
-        winner: "promptpack",
-      },
-      {
-        feature: "Developer tools",
-        promptpack: "MCP server, npm package, CLI integration",
-        competitor: "API access on premium plans",
+        feature: "Skill Preset (art style mimicry)",
+        promptpack:
+          "Upload reference images → Vision LLM extracts hex palette, line weight, signature elements → generates 5-prompt skillset (image/video/character/setting/mood) → DALL-E 3 previews.",
+        competitor: "No image-style extraction or image generation.",
         winner: "promptpack",
       },
       {
         feature: "Pricing",
-        promptpack: "Free tier available, Pro from $9/mo",
-        competitor: "Free tier with limits, Pro from $9.99/mo",
+        promptpack:
+          "Significantly cheaper than Anthropic's pricing for the same model usage, with predictable monthly caps. Free tier + paid plans with built-in spending limits so you don't get surprise bills.",
+        competitor: "Anthropic API pricing + Claude Pro / Max subscriptions for the desktop app.",
+        winner: "promptpack",
+      },
+      {
+        feature: "Open ecosystem",
+        promptpack: "Vendor-neutral. Switch providers without changing prompts or packs.",
+        competitor: "Anthropic ecosystem. Best Claude experience; not designed for non-Claude models.",
         winner: "promptpack",
       },
     ],
     verdict:
-      "PromptPack offers a more integrated workflow with browser extensions that work directly on AI chat sites, eliminating the copy-paste cycle. PromptPerfect has a polished web-based optimization experience, but PromptPack's combination of in-browser prompt management, offline desktop app, and developer tools like MCP server integration make it more practical for daily use.",
+      "Claude Code is the best agentic-coding experience for Claude models specifically — deep tool integration, fast feedback loop, strong at long-horizon refactors. Skillset wins when you want multi-model auto-routing (cheap tier for lookups, frontier for hard tasks), reusable prompt packs as sequential workflows (SkillFlow), browser-side prompt management on ChatGPT/Gemini/Grok, and creative tools like Skill Preset for image style mimicry. They're complementary: run Claude Code for deep refactors and Skillset for everything else.",
     targetKeywords: [
-      "PromptPack vs PromptPerfect",
-      "PromptPerfect alternative",
-      "prompt optimization tool comparison",
+      "Skillset vs Claude Code",
+      "Claude Code alternative",
+      "multi-model AI agent comparison",
+      "Skill Flow vs Claude Code",
     ],
   },
   {
-    slug: "promptpack-vs-flowgpt",
-    competitorName: "FlowGPT",
-    title: "PromptPack vs FlowGPT",
+    slug: "skillset-vs-chatgpt",
+    competitorName: "ChatGPT",
+    title: "Skillset vs ChatGPT",
     metaDescription:
-      "Compare PromptPack and FlowGPT for prompt management and sharing. See which platform offers better tools for building, sharing, and using AI prompts in 2026.",
+      "Compare Skillset and ChatGPT. See how a multi-model router + workflow chains stack up against OpenAI's flagship chat product for serious prompt and agent workflows.",
     competitorDescription:
-      "FlowGPT is a community-driven platform for sharing and discovering AI prompts and chatbot characters. It features a marketplace-style interface where users can browse, share, and interact with prompts created by the community.",
+      "ChatGPT is OpenAI's chat product. Single product surface (web/mobile/desktop), one model family (GPT-5 / GPT-4o / o-series), with features like Projects, GPTs (custom assistants), Code Interpreter, and DALL-E image generation built in.",
     comparisonPoints: [
       {
-        feature: "Focus",
-        promptpack: "Professional prompt management, enhancement, and workflow optimization",
-        competitor: "Community prompt sharing and chatbot characters",
-        winner: "tie",
-      },
-      {
-        feature: "Prompt quality tools",
-        promptpack: "AI enhancement (4 modes) + multi-LLM evaluation scoring",
-        competitor: "Community voting and usage counts",
+        feature: "Model coverage",
+        promptpack:
+          "Auto-routes across GPT-5, Claude, Gemini, Grok, DeepSeek, Llama. Per-task model picked by classifier; you stay in one app.",
+        competitor: "GPT family only. No native access to Claude/Gemini/etc.",
         winner: "promptpack",
       },
       {
-        feature: "Workflow integration",
-        promptpack: "Browser extensions, desktop app, MCP server — use prompts where you work",
-        competitor: "Web platform with in-app chat interface",
+        feature: "Multi-step workflows",
+        promptpack:
+          "Skill Flow chains a pack's prompts sequentially. Each step inherits prior step's text + generated files + variables. Designed for reusable multi-prompt tasks.",
+        competitor:
+          "Custom GPTs + memory + Projects help with context, but multi-step prompt chaining is manual (you run each turn yourself).",
+        winner: "promptpack",
+      },
+      {
+        feature: "Workspace agent",
+        promptpack:
+          "Connect a local folder → agent reads, edits, runs code with diff review. Auto-drops Skillset.md skill spec into workspace.",
+        competitor:
+          "No local workspace. Code Interpreter runs in a sandboxed cloud environment; files don't persist to your machine.",
+        winner: "promptpack",
+      },
+      {
+        feature: "Image generation (style mimicry)",
+        promptpack:
+          "Skill Preset extracts an artist's style (palette, line weight, signature quirks) from reference images and generates 5 reusable prompts (image/video/character/setting/mood). DALL-E 3 used under the hood when configured.",
+        competitor:
+          "DALL-E 3 + GPT Image-1 directly available in chat. No structured style-extraction or reusable prompt set.",
         winner: "promptpack",
       },
       {
         feature: "Prompt portability",
-        promptpack: "Export as encrypted .pmtpk files, share with teams, use offline",
-        competitor: "Prompts live on the FlowGPT platform",
+        promptpack:
+          "Encrypted .skill files you can share, version-control, or sell on the marketplace. Your prompts, your files.",
+        competitor:
+          "GPTs live on chatgpt.com. No export to a portable file format.",
         winner: "promptpack",
       },
       {
-        feature: "AI platform support",
-        promptpack: "Works on ChatGPT, Claude, Gemini, Grok, DeepSeek, Perplexity, and more",
-        competitor: "Built-in chat interface with selected models",
+        feature: "Privacy & ownership",
+        promptpack:
+          "Prompts can stay local (Free tier) or sync encrypted to your account. BYOK keeps requests off Skillset entirely.",
+        competitor:
+          "All conversations + GPTs stored on OpenAI infrastructure. Trained-on-by-default unless toggled off.",
         winner: "promptpack",
       },
       {
-        feature: "Community",
-        promptpack: "Growing marketplace for prompt packs",
-        competitor: "Large community with millions of shared prompts and characters",
-        winner: "competitor",
-      },
-      {
-        feature: "Privacy",
-        promptpack: "Prompts stored locally or encrypted — you own your data",
-        competitor: "All prompts are public by default on the platform",
+        feature: "Pricing",
+        promptpack:
+          "Significantly cheaper than OpenAI's plans for the same model usage, with predictable monthly caps. Pay-per-use without flat seat fees, and built-in spending limits so you don't get surprise bills.",
+        competitor:
+          "Free, Plus $20/mo, Pro $200/mo, Team $30/seat. Per-seat, not per-task.",
         winner: "promptpack",
       },
     ],
     verdict:
-      "PromptPack and FlowGPT serve different needs. FlowGPT excels as a community discovery platform with a massive library of shared prompts and chatbot characters. PromptPack is built for professionals who want to manage, enhance, and deploy their own prompts across multiple AI platforms with privacy and portability. If you're looking for a production-ready prompt workflow tool rather than a social browsing experience, PromptPack is the better fit.",
+      "ChatGPT is the polished default for general chat + GPT-only workflows: tightly integrated DALL-E, Code Interpreter sandbox, GPTs marketplace, mobile apps. Skillset is the right choice when you want multi-model routing (so easy questions don't burn frontier-tier credits), reusable prompt chains with persistent generated files (Skill Flow), a workspace agent that touches YOUR local files with diff review, and portable encrypted prompt packs you actually own. Many users run both — ChatGPT for casual chat, Skillset for serious prompt engineering and agentic work across providers.",
     targetKeywords: [
-      "PromptPack vs FlowGPT",
-      "FlowGPT alternative",
-      "prompt sharing platform comparison",
+      "Skillset vs ChatGPT",
+      "ChatGPT alternative",
+      "multi-model AI assistant",
+      "ChatGPT workflow automation",
     ],
   },
 ];
