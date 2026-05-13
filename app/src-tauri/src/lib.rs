@@ -64,10 +64,11 @@ pub fn run() {
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
 
-                // Register `skillset://` (and legacy `promptpack://`) URI
-                // schemes in the OS so the browser hands off auth callback
+                // Register `skillset://` (primary) and legacy `promptpack://`
+                // URI schemes in the OS so the browser hands off auth callback
                 // URLs to this app. Production installers do this via
-                // NSIS/MSI; dev runs need it explicit.
+                // NSIS/MSI on Windows and CFBundleURLTypes on macOS; dev runs
+                // need the explicit `register_all()` below.
                 #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
                 {
                     let _ = app.deep_link().register_all();
