@@ -107,12 +107,12 @@ export function ProCard() {
           </span>
           <span className="text-[14px] text-zinc-500">/ month</span>
         </p>
-        {isEarlyBird && !isPro ? (
+        {isEarlyBird ? (
           <p
             className="mt-2 text-[12px] text-zinc-500"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            *first 6 months, then ${isAnnual ? `${annualMonthlyPrice}/mo` : `${monthlyPrice}/mo`}
+            *first 6 months, then ${isAnnual ? `${annualMonthlyPrice}/mo` : `${monthlyPrice}/mo`} · cancel anytime
           </p>
         ) : (
           <p
