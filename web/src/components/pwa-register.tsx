@@ -18,6 +18,17 @@ export function PWARegister() {
       return;
     }
 
+    // When the active SW is swapped (e.g. old promptpack-v1 → skillset-v2),
+    // reload once so the new worker's fetch rules (which bypass navigate /
+    // /api / auth pages) take effect immediately. Without this, the old SW
+    // keeps controlling the tab until the user manually reloads twice.
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (reloaded) return;
+      reloaded = true;
+      window.location.reload();
+    });
+
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {

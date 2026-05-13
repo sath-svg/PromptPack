@@ -4,9 +4,18 @@ import bcrypt from "bcrypt";
 import { Pool } from "pg";
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL || "https://skillset.so",
+  trustedOrigins: ["https://skillset.so"],
   database: new Pool({
     connectionString: process.env.DATABASE_URL!,
   }),
+  account: {
+    // Store OAuth state in encrypted cookie instead of the `verification` table.
+    // The Postgres adapter migration hasn't been run, so DB-strategy lookups
+    // return null on callback and BetterAuth bounces users to
+    // /?error=please_restart_the_process.
+    storeStateStrategy: "cookie",
+  },
   plugins: [
     dash(),
   ],
