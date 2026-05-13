@@ -30,9 +30,6 @@ export interface Env {
   OLLAMA_URL: string;
   GROQ_API_KEY: string;
   // Clerk (legacy, active until cutover)
-  CLERK_ISSUER: string;
-  CLERK_JWKS_URL: string;
-  CLERK_AUDIENCE: string;
   OPENROUTER_API_KEY: string;
   OPENAI_API_KEY?: string; // Optional. Enables DALL-E 3 image gen direct (better quality than Gemini fallback).
   SKILLSET_INTERNAL_KEY: string;
@@ -287,13 +284,13 @@ function parseJwtPart<T>(input: string): T | null {
   }
 }
 
-type ClerkJwtHeader = {
+type JwtHeader = {
   alg?: string;
   kid?: string;
   typ?: string;
 };
 
-type ClerkJwtPayload = {
+type JwtPayload = {
   sub?: string;
   iss?: string;
   aud?: string | string[];
@@ -307,7 +304,7 @@ interface JwksKey extends JsonWebKey {
   use?: string;
 }
 
-async function getClerkJwks(jwksUrl: string): Promise<{ keys: JwksKey[] } | null> {
+async function getJwks(jwksUrl: string): Promise<{ keys: JwksKey[] } | null> {
   const cache = caches.default;
   const req = new Request(jwksUrl, { method: "GET" });
   const cached = await cache.match(req);
@@ -332,7 +329,7 @@ async function getClerkJwks(jwksUrl: string): Promise<{ keys: JwksKey[] } | null
   return data;
 }
 
-function isAudienceValid(payload: ClerkJwtPayload, expectedAudience: string | null): boolean {
+function isAudienceValid(payload: JwtPayload, expectedAudience: string | null): boolean {
   if (!expectedAudience) return true;
   const aud = payload.aud;
   if (!aud) return false;
@@ -342,45 +339,6 @@ function isAudienceValid(payload: ClerkJwtPayload, expectedAudience: string | nu
   return aud === expectedAudience;
 }
 
-async function verifyClerkJwt(token: string, env: Env): Promise<ClerkJwtPayload | null> {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [encodedHeader, encodedPayload, encodedSignature] = parts;
-
-  const header = parseJwtPart<ClerkJwtHeader>(encodedHeader);
-  const payload = parseJwtPart<ClerkJwtPayload>(encodedPayload);
-  if (!header || !payload) return null;
-  if (header.alg !== "RS256" || !header.kid) return null;
-
-  if (payload.exp && payload.exp * 1000 < Date.now()) return null;
-  if (payload.nbf && payload.nbf * 1000 > Date.now()) return null;
-  if (env.CLERK_ISSUER && payload.iss !== env.CLERK_ISSUER) return null;
-  if (!isAudienceValid(payload, env.CLERK_AUDIENCE || null)) return null;
-
-  const jwksUrl = env.CLERK_JWKS_URL || (env.CLERK_ISSUER ? `${env.CLERK_ISSUER}/.well-known/jwks.json` : "");
-  if (!jwksUrl) return null;
-  const jwks = await getClerkJwks(jwksUrl);
-  if (!jwks?.keys?.length) return null;
-
-  const jwk = jwks.keys.find((key) => key.kid === header.kid && key.kty === "RSA");
-  if (!jwk) return null;
-
-  const key = await crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-
-  const data = new TextEncoder().encode(`${encodedHeader}.${encodedPayload}`);
-  const signature = decodeBase64Url(encodedSignature);
-  const verified = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, data);
-  if (!verified) return null;
-
-  return payload;
-}
-
 // --- HMAC key helper (used by desktop access token + any future HS256 needs) ---
 
 async function getHmacKey(secret: string): Promise<CryptoKey> {
@@ -388,14 +346,14 @@ async function getHmacKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
-async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPayload | null> {
-  // BetterAuth uses same RS256 format as Clerk
+async function verifyBetterAuthJwt(token: string, env: Env): Promise<JwtPayload | null> {
+  // BetterAuth uses RS256 JWTs.
   const parts = token.split(".");
   if (parts.length !== 3) return null;
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
 
-  const header = parseJwtPart<ClerkJwtHeader>(encodedHeader);
-  const payload = parseJwtPart<ClerkJwtPayload>(encodedPayload);
+  const header = parseJwtPart<JwtHeader>(encodedHeader);
+  const payload = parseJwtPart<JwtPayload>(encodedPayload);
   if (!header || !payload) return null;
   if (header.alg !== "RS256" || !header.kid) return null;
 
@@ -406,7 +364,7 @@ async function verifyBetterAuthJwt(token: string, env: Env): Promise<ClerkJwtPay
 
   const jwksUrl = env.BETTER_AUTH_JWKS_URL || (env.BETTER_AUTH_ISSUER ? `${env.BETTER_AUTH_ISSUER}/.well-known/jwks.json` : "");
   if (!jwksUrl) return null;
-  const jwks = await getClerkJwks(jwksUrl); // Reuse JWKS fetching (generic RS256)
+  const jwks = await getJwks(jwksUrl); // Reuse JWKS fetching (generic RS256)
   if (!jwks?.keys?.length) return null;
 
   const jwk = jwks.keys.find((key) => key.kid === header.kid && key.kty === "RSA");
@@ -449,12 +407,9 @@ async function verifyDesktopAccessToken(token: string, env: Env): Promise<{ sub?
 async function verifyAnyAuthJwt(token: string, env: Env): Promise<{ sub?: string } | null> {
   // Tries every supported auth scheme in order of frequency:
   //  1. Desktop HS256 access token (Tauri app)
-  //  2. Clerk RS256 (legacy web users)
-  //  3. BetterAuth RS256 (current web users)
+  //  2. BetterAuth RS256 (all web + post-migration desktop users)
   const desktop = await verifyDesktopAccessToken(token, env);
   if (desktop) return desktop;
-  const clerk = await verifyClerkJwt(token, env);
-  if (clerk) return clerk;
   const betterAuth = await verifyBetterAuthJwt(token, env);
   if (betterAuth) return betterAuth;
   return null;
@@ -1938,11 +1893,11 @@ How they want AI responses formatted. Constraints, formatting preferences.
         }));
       }
 
-      // Auth status check (validates Clerk JWT)
+      // Auth status check (validates any supported JWT)
       if (path === "/auth/status" && (method === "GET" || method === "POST")) {
         const authHeader = request.headers.get("Authorization") || "";
         const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-        const payload = token ? await verifyClerkJwt(token, env) : null;
+        const payload = token ? await verifyAnyAuthJwt(token, env) : null;
         if (!payload?.sub) {
           return addCors(new Response(JSON.stringify({ error: "Sign in required" }), {
             status: 401,

@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@better-auth/infra": "^0.2.6",
-    "@clerk/nextjs": "^6.20.0",
-    "@clerk/themes": "^2.4.46",
     "@convex-dev/stripe": "^0.1.2",
     "@radix-ui/react-slot": "^1.2.4",
     "@react-email/render": "^1.0.5",

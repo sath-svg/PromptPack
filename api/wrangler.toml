@@ -20,10 +20,8 @@ CONVEX_URL = "https://determined-lark-313.convex.site"
 ALLOWED_ORIGINS = "https://skillset.so, https://www.skillset.so, https://pmtpk.com, https://www.pmtpk.com"
 # OLLAMA_URL canonical; ollama.pmtpk.com DNS-aliased to same backend during dual-run.
 OLLAMA_URL = "https://ollama.skillset.so"
-# CLERK_ISSUER / CLERK_JWKS_URL stay on pmtpk.com until Clerk dashboard primary domain
-# is swapped to skillset.so. Swapping these prematurely would invalidate existing JWTs.
-CLERK_ISSUER = "https://clerk.pmtpk.com"
-CLERK_JWKS_URL = "https://clerk.pmtpk.com/.well-known/jwks.json"
+# Clerk retired — all users migrated to BetterAuth. Worker validates
+# BetterAuth RS256 JWTs (issuer/JWKS via BETTER_AUTH_* env vars).
 
 # R2 bucket binding (production)
 [[r2_buckets]]
@@ -34,4 +32,6 @@ bucket_name = "promptpack-files-prod"
 #   OPENROUTER_API_KEY        — used by /api/llm/chat managed-mode proxy
 #   SKILLSET_INTERNAL_KEY     — shared secret with Convex /api/internal/credits/* endpoints
 #   GROQ_API_KEY              — used by /api/enhance and /api/evaluate
-#   CLERK_AUDIENCE            — Clerk JWT audience claim (optional)
+#   BETTER_AUTH_ISSUER        — BetterAuth JWT issuer (e.g. https://skillset.so)
+#   BETTER_AUTH_JWKS_URL      — BetterAuth JWKS endpoint (optional, derived from issuer)
+#   BETTER_AUTH_AUDIENCE      — BetterAuth JWT audience claim (optional)

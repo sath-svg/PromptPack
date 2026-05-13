@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@/lib/auth-server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../../../../convex/_generated/api";
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     const session = await convexClient.action(api.stripe.createTopupCheckout, {
       userId,
       email,
-      name: user?.fullName ?? user?.firstName ?? undefined,
+      name: user?.fullName ?? undefined,
       priceId,
       credits: config.credits,
       successUrl: `${origin}/dashboard?topup=success`,
