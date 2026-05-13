@@ -8,16 +8,18 @@ type Arch = "x64" | "arm64";
 
 // Filenames match the artifacts produced by .github/workflows/build-windows.yml
 // (see "Collect artifacts" step). Upload them under /downloads/ on the web host.
-const FILES: Record<Arch, { exe: string; msi: string; label: string }> = {
+const FILES: Record<Arch, { exe: string; msi: string; label: string; size: string }> = {
   x64: {
     exe: "/downloads/Skillset-x64-setup.exe",
     msi: "/downloads/Skillset-x64.msi",
     label: "x64 (64-bit Intel / AMD)",
+    size: "~30 MB",
   },
   arm64: {
     exe: "/downloads/Skillset-arm64-setup.exe",
     msi: "/downloads/Skillset-arm64.msi",
     label: "ARM64 (Snapdragon X / Surface Pro 9 5G)",
+    size: "~30 MB",
   },
 };
 
@@ -168,6 +170,10 @@ export function WindowsDownload({ version }: { version: string }) {
             <span className="text-zinc-700">&middot;</span>
             <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
               {current.label}
+            </span>
+            <span className="text-zinc-700">&middot;</span>
+            <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
+              {current.size}
             </span>
           </div>
         </div>
