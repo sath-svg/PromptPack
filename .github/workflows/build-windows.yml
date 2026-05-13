@@ -28,8 +28,10 @@ jobs:
 
     env:
       USE_BUN: "1"
+      # Ship both NSIS .exe (web installer) AND MSI (enterprise / Group Policy)
+      TAURI_BUNDLE_TARGETS: "nsis,msi"
       # Windows code-signing intentionally OFF — secrets unset so Tauri ships
-      # an unsigned MSI/EXE (SmartScreen warns on first launch).
+      # an unsigned EXE/MSI (SmartScreen warns on first launch).
       # To enable later: set WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
       # in GH secrets, then re-add the env block below.
       #
@@ -83,6 +85,20 @@ jobs:
             npm ci
           fi
 
+      # Defender real-time scanning frequently blocks WiX light.exe mid-link,
+      # causing "failed to run light.exe" with no further info. Exclude the
+      # Tauri WixTools cache + the build target dir before WiX runs.
+      - name: Disable Defender realtime scan on WiX + target dirs
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\tauri" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionPath "${{ github.workspace }}\app\src-tauri\target" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionProcess "light.exe" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionProcess "candle.exe" -ErrorAction SilentlyContinue
+          Add-MpPreference -ExclusionProcess "signtool.exe" -ErrorAction SilentlyContinue
+          Write-Host "Defender exclusions added (or silently skipped if unsupported)"
+
       - name: Resolve build target
         id: target
         shell: bash
@@ -122,19 +138,21 @@ jobs:
         run: |
           set -e
           mkdir -p artifacts
-          # x64
-          for f in app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-x64.msi"
-          done
+          # x64 NSIS installer
           for f in app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-x64-setup.exe"
           done
-          # ARM64
-          for f in app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/*.msi; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-arm64.msi"
+          # x64 MSI installer
+          for f in app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-x64.msi"
           done
+          # ARM64 NSIS installer
           for f in app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/*.exe; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-arm64-setup.exe"
+          done
+          # ARM64 MSI installer
+          for f in app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/*.msi; do
+            [ -f "$f" ] && cp "$f" "artifacts/Skillset-arm64.msi"
           done
           ls -la artifacts/
 

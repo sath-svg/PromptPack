@@ -7,18 +7,8 @@ on:
       - "app/**"
       - ".github/workflows/build-macos.yml"
   workflow_dispatch:
-    inputs:
-      build_target:
-        description: "Target to build"
-        type: choice
-        default: "both"
-        options:
-          - aarch64
-          - x86_64
-          - both
 
 concurrency:
-  # Cancel in-flight builds for the same ref so a fresh push wins.
   group: build-macos-${{ github.ref }}
   cancel-in-progress: true
 
@@ -28,15 +18,10 @@ jobs:
     timeout-minutes: 45
 
     env:
-      # Bun for the frontend (matches dev). Falls back to npm if bun fails.
       USE_BUN: "1"
-      # Tauri release build (no dev-only debug symbols)
       TAURI_BUNDLE_TARGETS: "dmg,app"
-      # Apple code-signing intentionally OFF — env vars not set so Tauri
-      # ships an unsigned build (Gatekeeper warns on first launch).
-      # To enable later: set APPLE_CERTIFICATE (base64 .p12), APPLE_CERTIFICATE_PASSWORD,
-      # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID in GH secrets,
-      # then re-add the env block below.
+      # Apple code-signing intentionally OFF — set APPLE_* GH secrets and
+      # re-add the env block to ship a signed/notarized build.
       #
       # Tauri updater signing (pubkey baked into binary, private key signs artifacts):
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -59,7 +44,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          targets: aarch64-apple-darwin
 
       - name: Cache cargo registry + git + target
         uses: Swatinem/rust-cache@v2
@@ -87,52 +72,25 @@ jobs:
             npm ci
           fi
 
-      - name: Resolve build target
-        id: target
-        run: |
-          set -e
-          TARGET="${{ github.event.inputs.build_target }}"
-          if [ -z "$TARGET" ]; then TARGET="both"; fi
-          echo "build_target=$TARGET" >> "$GITHUB_OUTPUT"
-          echo "Building target=$TARGET"
-
       - name: Tauri build — Apple Silicon (native on aarch64 runner)
-        if: steps.target.outputs.build_target == 'aarch64' || steps.target.outputs.build_target == 'both'
         working-directory: app
         run: |
           set -euxo pipefail
-          # macos-latest runner is now aarch64. Building for the host arch
-          # without --target keeps cargo's output at target/release/, which
-          # is where Tauri's bundler expects it. Passing --target=aarch64-apple-darwin
-          # on aarch64 host causes a path mismatch (cargo skips the triple subdir).
+          # macos-latest is aarch64. No --target flag → cargo writes to
+          # target/release/, which Tauri's bundler expects when --target
+          # is omitted.
           if command -v bun >/dev/null 2>&1; then
             bun run tauri build
           else
             npm run tauri build
           fi
 
-      - name: Tauri build — Intel (cross-compile)
-        if: steps.target.outputs.build_target == 'x86_64' || steps.target.outputs.build_target == 'both'
-        working-directory: app
-        run: |
-          set -euxo pipefail
-          if command -v bun >/dev/null 2>&1; then
-            bun run tauri build -- --target x86_64-apple-darwin
-          else
-            npm run tauri build -- --target x86_64-apple-darwin
-          fi
-
       - name: Collect artifacts
         run: |
           set -e
           mkdir -p artifacts
-          # Apple Silicon (native build on aarch64 host → target/release/)
           for f in app/src-tauri/target/release/bundle/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-AppleSilicon.dmg"
-          done
-          # Intel (cross-compile → target/x86_64-apple-darwin/release/)
-          for f in app/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-Intel.dmg"
           done
           ls -la artifacts/
 
