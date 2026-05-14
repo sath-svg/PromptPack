@@ -15,6 +15,32 @@ const resolveUserId = (metadata?: Stripe.Metadata): string | undefined => {
   return userId || undefined;
 };
 
+/**
+ * Resolve the user behind a Stripe webhook event with two paths:
+ *   1. Try metadata.userId / clerkId / clerkUserId (current sign-up flow sets this)
+ *   2. Fall back to looking up by stripeCustomerId on the user row itself
+ *      (handles legacy Clerk-era subscribers whose metadata.userId points at
+ *       an old Convex _id that no longer exists post BetterAuth migration)
+ *
+ * Returns the user's Convex _id as a string, or undefined if neither path hits.
+ */
+const resolveUserIdWithFallback = async (
+  ctx: { runQuery: (ref: any, args: any) => Promise<unknown> },
+  metadata: Stripe.Metadata | undefined,
+  stripeCustomerId: string | undefined,
+): Promise<string | undefined> => {
+  const fromMetadata = resolveUserId(metadata);
+  if (fromMetadata) return fromMetadata;
+  if (!stripeCustomerId) return undefined;
+  // ctx.runQuery returns the query's declared return type, but TS can't always
+  // infer it through the generic ActionCtx — assert against the known shape.
+  const fromCustomer = (await ctx.runQuery(
+    internal.users.getUserIdByStripeCustomerId,
+    { stripeCustomerId },
+  )) as string | null;
+  return fromCustomer ?? undefined;
+};
+
 // Studio price IDs from environment
 const STUDIO_MONTHLY_PRICE_ID = process.env.STRIPE_STUDIO_MONTHLY_PRICE_ID;
 const STUDIO_ANNUAL_PRICE_ID = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
@@ -122,12 +148,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionCreatedEvent
     ) => {
       const subscription = event.data.object;
-      const userId = resolveUserId(subscription.metadata);
-      if (!userId) return;
-
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
+      const userId = await resolveUserIdWithFallback(
+        ctx,
+        subscription.metadata,
+        stripeCustomerId,
+      );
+      if (!userId) return;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
         userId,
@@ -143,12 +172,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionUpdatedEvent
     ) => {
       const subscription = event.data.object;
-      const userId = resolveUserId(subscription.metadata);
-      if (!userId) return;
-
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
+      const userId = await resolveUserIdWithFallback(
+        ctx,
+        subscription.metadata,
+        stripeCustomerId,
+      );
+      if (!userId) return;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
         userId,
@@ -164,12 +196,15 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CustomerSubscriptionDeletedEvent
     ) => {
       const subscription = event.data.object;
-      const userId = resolveUserId(subscription.metadata);
-      if (!userId) return;
-
       const stripeCustomerId = typeof subscription.customer === "string"
         ? subscription.customer
         : subscription.customer?.id;
+      const userId = await resolveUserIdWithFallback(
+        ctx,
+        subscription.metadata,
+        stripeCustomerId,
+      );
+      if (!userId) return;
 
       await ctx.runMutation(internal.users.updatePlanFromStripeEvent, {
         userId,
@@ -189,14 +224,21 @@ registerRoutes(http, components.stripe, {
         return;
       }
 
-      // Resolve userId from invoice or subscription metadata
+      // Resolve userId from invoice or subscription metadata, with a final
+      // fallback to stripeCustomerId so legacy subscribers (whose metadata
+      // points at a stale Clerk-era _id) still get their renewal credits.
       const subscriptionMetadata =
         typeof invoice.subscription_details?.metadata === "object"
           ? (invoice.subscription_details?.metadata as Stripe.Metadata)
           : undefined;
+      const stripeCustomerId =
+        typeof invoice.customer === "string"
+          ? invoice.customer
+          : invoice.customer?.id;
       const userId =
         resolveUserId(invoice.metadata as Stripe.Metadata | undefined) ??
-        resolveUserId(subscriptionMetadata);
+        resolveUserId(subscriptionMetadata) ??
+        (await resolveUserIdWithFallback(ctx, undefined, stripeCustomerId));
       if (!userId) return;
 
       // Resolve plan from line item price IDs (studio takes precedence)

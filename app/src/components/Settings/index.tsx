@@ -15,6 +15,9 @@ interface BillingStatus {
   tier: 'free' | 'pro' | 'studio';
   hasPro: boolean;
   isStudio?: boolean;
+  // `legacy_pro` flags grandfathered $9 subscribers. Drives the in-app upgrade
+  // card under Account. Backend sets it from the user row's planVariant field.
+  planVariant?: 'pro' | 'legacy_pro' | null;
 }
 
 export function SettingsPage() {
@@ -267,6 +270,44 @@ export function SettingsPage() {
                   <span className="text-[var(--foreground)]">{tierLimits.packLimit}</span>
                 </div>
               </div>
+
+              {/* Legacy Pro grandfather upgrade card. Only renders for
+                  grandfathered $9 subscribers (planVariant === "legacy_pro").
+                  CTA opens skillset.so/account/upgrade?from=legacy in default
+                  browser. After Stripe checkout completes, the webhook flips
+                  planVariant → "pro" and this card disappears on next render. */}
+              {billingStatus?.planVariant === 'legacy_pro' && (
+                <div className="p-4 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/[0.04]">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <p className="text-sm font-medium text-[var(--foreground)]">
+                        You're on the legacy Pro plan
+                      </p>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                        Locked at your original price · 300 credits / month from next cycle
+                      </p>
+                    </div>
+                    <span
+                      className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider border border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                    >
+                      Legacy
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-3 leading-relaxed">
+                    Upgrade to the new $15 Pro plan for the full 750 credits / month
+                    and more headroom for heavy days. Cancel any time — you keep
+                    your legacy rate if you change your mind before checkout.
+                  </p>
+                  <a
+                    href="https://skillset.so/account/upgrade?from=legacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
+                  >
+                    Upgrade to $15 Pro →
+                  </a>
+                </div>
+              )}
 
               <button
                 onClick={() => useAuthStore.getState().logout()}

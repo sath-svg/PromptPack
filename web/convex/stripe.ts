@@ -6,6 +6,36 @@ import Stripe from "stripe";
 
 const stripeClient = new StripeSubscriptions(components.stripe, {});
 
+/**
+ * Stamp the BetterAuth user ID onto the Stripe Customer's metadata. The
+ * `@convex-dev/stripe` wrapper may not propagate metadata at create time, so
+ * we always patch it here. This is what lets the webhook handler resolve a
+ * user from any future `customer.*`, `subscription.*`, or `invoice.*` event
+ * — even if the subscription was created via the Customer Portal (which can
+ * skip our checkout flow entirely and produce events with empty subscription
+ * metadata).
+ *
+ * Idempotent: re-running with the same userId is a no-op against Stripe.
+ * Safe to call on every checkout / portal entry.
+ */
+async function stampCustomerMetadata(
+  customerId: string,
+  userId: string,
+): Promise<void> {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+  try {
+    await stripe.customers.update(customerId, {
+      metadata: { userId },
+    });
+  } catch (err) {
+    console.error(
+      `[stripe] failed to stamp metadata.userId on customer ${customerId}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+    // Don't throw — checkout should still succeed even if metadata stamp fails.
+  }
+}
+
 export const createSubscriptionCheckout = action({
   args: {
     userId: v.string(),
@@ -26,6 +56,10 @@ export const createSubscriptionCheckout = action({
       email: args.email,
       name: args.name,
     });
+
+    // Always stamp BetterAuth userId on the Stripe Customer so future webhook
+    // events can resolve back to the user even via fallback lookups.
+    await stampCustomerMetadata(customer.customerId, args.userId);
 
     // When a coupon is provided, use the raw Stripe SDK since the
     // @convex-dev/stripe wrapper doesn't support the discounts parameter.
@@ -79,6 +113,8 @@ export const createTopupCheckout = action({
       name: args.name,
     });
 
+    await stampCustomerMetadata(customer.customerId, args.userId);
+
     // Use raw Stripe SDK so we can attach credits in metadata for the
     // checkout.session.completed webhook handler in http.ts.
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
@@ -114,6 +150,8 @@ export const createCustomerPortalSession = action({
       email: args.email,
       name: args.name,
     });
+
+    await stampCustomerMetadata(customer.customerId, args.userId);
 
     return await stripeClient.createCustomerPortalSession(ctx, {
       customerId: customer.customerId,

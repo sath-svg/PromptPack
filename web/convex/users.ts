@@ -1071,3 +1071,67 @@ export const revertBackfillPlanVariant = internalMutation({
     return { cleared };
   },
 });
+
+/**
+ * Reverse lookup: find a user by their Stripe customer ID. Used by the Stripe
+ * webhook handler as a fallback when subscription/invoice metadata.userId is
+ * missing or stale (e.g. legacy Clerk-era subscribers whose Convex _id changed
+ * during the BetterAuth migration). Returns the user's Convex _id (cast to
+ * string for the webhook layer) so the handler can route events correctly even
+ * when metadata is broken.
+ */
+export const getUserIdByStripeCustomerId = internalQuery({
+  args: { stripeCustomerId: v.string() },
+  returns: v.union(v.null(), v.string()),
+  handler: async (ctx, { stripeCustomerId }) => {
+    if (!stripeCustomerId) return null;
+    const all = await ctx.db.query("users").collect();
+    const match = all.find((u) => u.stripeCustomerId === stripeCustomerId);
+    return match ? (match._id as unknown as string) : null;
+  },
+});
+
+/**
+ * Diagnostic: dump everything we know about a user by email so we can see
+ * why backfillPlanVariant skipped them. Run from CLI:
+ *   npx convex run users:debugUserByEmail '{"email":"wilmar.martina@globalwireai.com"}'
+ *
+ * Safe to leave in place — no PII leaves Convex unless someone explicitly runs
+ * this against the deployment with the email they want to inspect.
+ */
+export const debugUserByEmail = internalQuery({
+  args: { email: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("users"),
+      email: v.string(),
+      name: v.optional(v.string()),
+      clerkId: v.string(),
+      plan: v.optional(v.string()),
+      planVariant: v.optional(v.string()),
+      stripeCustomerId: v.optional(v.string()),
+      stripeSubscriptionId: v.optional(v.string()),
+      monthlyCredits: v.optional(v.number()),
+      _creationTime: v.number(),
+    }),
+  ),
+  handler: async (ctx, { email }) => {
+    const target = email.trim().toLowerCase();
+    const all = await ctx.db.query("users").collect();
+    const u = all.find((row) => (row.email ?? "").toLowerCase() === target);
+    if (!u) return null;
+    return {
+      _id: u._id,
+      email: u.email,
+      name: u.name,
+      clerkId: u.clerkId,
+      plan: u.plan,
+      planVariant: u.planVariant,
+      stripeCustomerId: u.stripeCustomerId,
+      stripeSubscriptionId: u.stripeSubscriptionId,
+      monthlyCredits: u.monthlyCredits,
+      _creationTime: u._creationTime,
+    };
+  },
+});

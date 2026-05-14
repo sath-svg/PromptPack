@@ -779,12 +779,16 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
           );
         }
 
-        // Return billing status
+        // Return billing status. `planVariant` is exposed so the desktop app
+        // can render the legacy-Pro upgrade card for grandfathered $9
+        // subscribers (planVariant === "legacy_pro"). Undefined for everyone
+        // else — current Pro, Studio, and free.
         return new Response(
           JSON.stringify({
             tier: user.plan,
             hasPro: user.plan === "pro" || user.plan === "studio",
             isStudio: user.plan === "studio",
+            planVariant: user.planVariant ?? null,
           }),
           {
             status: 200,
