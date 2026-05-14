@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { usePlausible } from "next-plausible";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth-compat";
 
 type NavLink = { label: string; href: string };
@@ -14,6 +15,8 @@ const DEFAULT_LINKS: NavLink[] = [
 ];
 
 export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
+  const plausible = usePlausible();
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
       <div className="mx-auto grid max-w-[1400px] grid-cols-3 items-center px-6 py-4">
@@ -62,6 +65,7 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
               href="/downloads"
               style={{ padding: "8px 18px" }}
               className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
+              onClick={() => plausible("CTA Click", { props: { button: "start_free", location: "skillset_nav" } })}
             >
               Start Free
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />

@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import { Pool } from "pg";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
+import { buildWelcomeEmailHtml } from "./welcome-email";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL!,
@@ -12,6 +13,32 @@ const pool = new Pool({
 const convex = process.env.NEXT_PUBLIC_CONVEX_URL
   ? new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL)
   : null;
+
+async function sendWelcomeEmail(email: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "Skillset <support@skillset.so>",
+        to: email,
+        subject: "Welcome to Skillset!",
+        html: buildWelcomeEmailHtml(),
+        reply_to: "support@skillset.so",
+      }),
+    });
+    if (!res.ok) {
+      console.error("[auth] welcome email failed:", await res.text());
+    }
+  } catch (err) {
+    console.error("[auth] welcome email error:", err);
+  }
+}
 
 async function syncToConvex(user: { id: string; email: string; name?: string | null; image?: string | null }) {
   if (!convex) return;
@@ -92,6 +119,7 @@ export const auth = betterAuth({
         // app (which reads plan/limits/packs from Convex) wouldn't see them.
         after: async (user) => {
           await syncToConvex(user);
+          if (user.email) sendWelcomeEmail(user.email).catch(() => {});
         },
       },
     },
