@@ -14,10 +14,12 @@ const PRO_ANNUAL_PRICE_ID = process.env.STRIPE_PRO_ANNUAL_PRICE_ID;
 const STUDIO_MONTHLY_PRICE_ID = process.env.STRIPE_STUDIO_MONTHLY_PRICE_ID;
 const STUDIO_ANNUAL_PRICE_ID = process.env.STRIPE_STUDIO_ANNUAL_PRICE_ID;
 
-// Early bird coupons (Pro only)
-const EARLY_BIRD_MONTHLY_COUPON_ID = process.env.STRIPE_EARLY_BIRD_MONTHLY_COUPON_ID;
-const EARLY_BIRD_ANNUAL_COUPON_ID = process.env.STRIPE_EARLY_BIRD_ANNUAL_COUPON_ID;
-const EARLY_BIRD_LIMIT = 9;
+// Early-bird coupons retired post-Skillset migration. Constants kept (commented)
+// for historical reference / quick re-enable. Existing legacy subscribers keep
+// their Stripe-side coupon — code change here only affects NEW checkouts.
+// const EARLY_BIRD_MONTHLY_COUPON_ID = process.env.STRIPE_EARLY_BIRD_MONTHLY_COUPON_ID;
+// const EARLY_BIRD_ANNUAL_COUPON_ID = process.env.STRIPE_EARLY_BIRD_ANNUAL_COUPON_ID;
+// const EARLY_BIRD_LIMIT = 9;
 const convexClient = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 function resolvePriceId(plan: CheckoutPlan, interval: CheckoutInterval): string | undefined {
@@ -57,17 +59,9 @@ export async function POST(request: Request) {
       ?? process.env.NEXT_PUBLIC_APP_URL
       ?? "http://localhost:3000";
 
-    // Check if early bird pricing applies (first 9 pro users, Pro plan only)
-    let couponId: string | undefined;
-    if (plan === "pro") {
-      const earlyBirdCoupon = interval === "annual" ? EARLY_BIRD_ANNUAL_COUPON_ID : EARLY_BIRD_MONTHLY_COUPON_ID;
-      if (earlyBirdCoupon) {
-        const proUserCount = await convexClient.query(api.users.countProUsers);
-        if (proUserCount < EARLY_BIRD_LIMIT) {
-          couponId = earlyBirdCoupon;
-        }
-      }
-    }
+    // Early-bird coupon flow retired — new checkouts go through at flat
+    // priceId only. To re-enable: restore the EARLY_BIRD_* constants above
+    // plus the gating block here, then re-add `couponId` to the action call.
 
     const session = await convexClient.action(api.stripe.createSubscriptionCheckout, {
       userId,
@@ -76,7 +70,6 @@ export async function POST(request: Request) {
       priceId,
       successUrl: `${origin}/dashboard?checkout=success`,
       cancelUrl: `${origin}/pricing?checkout=cancel`,
-      couponId,
     });
 
     if (!session?.url) {

@@ -8,8 +8,12 @@ import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
-export const EARLY_BIRD_LIMIT = 9;
-export const EARLY_BIRD_PRICE = 1.99;
+// Early-bird promo retired post-Skillset migration. Existing legacy subscribers
+// (e.g. wilmar.martina) keep their Stripe-side coupon for the remaining cycles
+// — no code change required for them. New sign-ups now pay the flat $15/mo
+// (or $12.50/mo annual) with no first-6-months discount.
+export const EARLY_BIRD_LIMIT = 0;
+export const EARLY_BIRD_PRICE = 1.99; // historical value, no longer rendered
 
 const FEATURES = [
   { t: "750 AI credits per month in Managed mode", hi: true },
