@@ -292,31 +292,30 @@ export function PresetVisual() {
   return (
     <PlayableVisual onPlay={play} state={state} label="Replay skill preset animation">
       <div key={runId} className="flex flex-col gap-1.5">
-        <div
-          className="relative overflow-hidden rounded-md border border-white/[0.06]"
-          style={sourceStyle}
-        >
-          <Image
-            src="/img/skill-preset/source.jpg"
-            alt="Verified artist photo"
-            width={400}
-            height={140}
-            className="h-[72px] w-full object-cover"
-            unoptimized
-          />
-          <span
-            className="absolute bottom-1 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-zinc-200"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            your photo · verified
-          </span>
-          {playing && (
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 h-[2px] bg-[#7BA7FF] shadow-[0_0_12px_2px_rgba(123,167,255,0.7)]"
-              style={{ animation: "bentoScanLine 800ms linear both" }}
+        <div className="rounded-md" style={sourceStyle}>
+          <div className="relative overflow-hidden rounded-md border border-white/[0.06]">
+            <Image
+              src="/img/skill-preset/source.jpg"
+              alt="Verified artist photo"
+              width={400}
+              height={140}
+              className="h-[72px] w-full object-cover"
+              unoptimized
             />
-          )}
+            <span
+              className="absolute bottom-1 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.14em] text-zinc-200"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              your photo · verified
+            </span>
+            {playing && (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 h-[2px] bg-[#7BA7FF] shadow-[0_0_12px_2px_rgba(123,167,255,0.7)]"
+                style={{ animation: "bentoScanLine 800ms linear both" }}
+              />
+            )}
+          </div>
         </div>
         <p
           className="rounded text-center text-[9px] uppercase tracking-[0.22em] text-[#7BA7FF]"
