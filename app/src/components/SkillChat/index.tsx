@@ -1162,9 +1162,11 @@ export function SkillChatPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TIER_COLORS[msg.preset.tier]}`}>
                         {TIER_LABELS[msg.preset.tier]}
                       </span>
-                      <span className="text-xs text-[var(--muted-foreground)]">
-                        {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
-                      </span>
+                      {developerMode && (
+                        <span className="text-[10px] text-[var(--muted-foreground)]">
+                          {PROVIDER_LABELS[msg.preset.provider]} · {msg.preset.label}
+                        </span>
+                      )}
                     </div>
                   )}
                   {msg.role === 'assistant' && msg.modelId && !msg.preset && (() => {
@@ -1185,20 +1187,22 @@ export function SkillChatPage() {
                             {TIER_LABELS[msg.tier]}
                           </span>
                         )}
-                        {msg.effort && (
+                        {developerMode && msg.effort && (
                           <span
-                            className={`text-xs px-2 py-0.5 rounded-full font-medium ${EFFORT_CHIP_COLORS[msg.effort]}`}
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${EFFORT_CHIP_COLORS[msg.effort]}`}
                             title="Reasoning effort the model used (Light / Standard / Deep). Higher = more thinking tokens, higher cost."
                           >
                             {EFFORT_DISPLAY_LABELS[msg.effort]}
                           </span>
                         )}
-                        <span className="text-xs text-[var(--muted-foreground)]">
-                          {label}{tierCost ? ` · ${tierCost}` : ''}
-                        </span>
-                        {msg.orchestratorSkipped && (
+                        {developerMode && (
+                          <span className="text-[10px] text-[var(--muted-foreground)]">
+                            {label}{tierCost ? ` · ${tierCost}` : ''}
+                          </span>
+                        )}
+                        {developerMode && msg.orchestratorSkipped && (
                           <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500"
+                            className="text-[8px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-500"
                             title={
                               'Skill Flow is on, but Skillset auto-routed this turn to a single-shot ' +
                               'call to save credits. The orchestrator only engages when the route ' +
