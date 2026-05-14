@@ -1,0 +1,24 @@
+{
+  "_README": "Tauri auto-updater manifest. Edit the placeholder fields below before going live. Each `signature` is the contents of the matching .sig file produced by `tauri build` when TAURI_SIGNING_PRIVATE_KEY is set (paste the raw text — Tauri base64-decodes it itself). Each `url` must be a publicly downloadable artifact. Bump `version` and `pub_date` for every release.",
+  "version": "1.1.0",
+  "notes": "Skillset 1.1.0 — formerly PromptPack. New brand, in-app Skill Chat, Skill Flow orchestration, encrypted Skill Preset (MVP), and a full migration from pmtpk.com to skillset.so. Sign in with your existing email — your packs and credits move with you.",
+  "pub_date": "2026-05-14T12:00:00Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "PASTE_CONTENTS_OF_Skillset-AppleSilicon.dmg.tar.gz.sig_HERE",
+      "url": "https://skillset.so/downloads/Skillset-AppleSilicon.dmg.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "PASTE_CONTENTS_OF_Skillset-Intel.dmg.tar.gz.sig_HERE",
+      "url": "https://skillset.so/downloads/Skillset-Intel.dmg.tar.gz"
+    },
+    "windows-x86_64": {
+      "signature": "PASTE_CONTENTS_OF_Skillset-x64-setup.nsis.zip.sig_HERE",
+      "url": "https://skillset.so/downloads/Skillset-x64-setup.nsis.zip"
+    },
+    "windows-aarch64": {
+      "signature": "PASTE_CONTENTS_OF_Skillset-arm64-setup.nsis.zip.sig_HERE",
+      "url": "https://skillset.so/downloads/Skillset-arm64-setup.nsis.zip"
+    }
+  }
+}
