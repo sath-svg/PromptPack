@@ -608,7 +608,7 @@ export function StepCaptureVisual() {
             style={savedStyle}
           >
             <span className="text-[12px] text-emerald-400">✓</span>
-            <span className="text-[11px] text-zinc-300">Email Pro · saved</span>
+            <span className="text-[11px] text-zinc-300">Email Tone · saved</span>
             <span
               className="ml-auto text-[9px] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
