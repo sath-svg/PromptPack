@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Package } from "lucide-react";
+import { Package, Lock } from "lucide-react";
 import { SignedIn, SignedOut } from "@/lib/auth-compat";
 import {
   useCallback,
@@ -546,6 +546,216 @@ export function RouterVisual() {
         <SignedIn>
           <RouterCallout href="/pricing" style={calloutStyle} sub="auto-routed to the cheapest capable tier · see plans →" />
         </SignedIn>
+      </div>
+    </PlayableVisual>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────── STEP 01 — CAPTURE */
+
+export function StepCaptureVisual() {
+  const { state, runId, play } = useReplay(2000);
+  const playing = state === "playing";
+
+  const btnStyle: CSSProperties =
+    state === "idle"
+      ? { animation: "bentoIdleGlow 2.4s ease-in-out infinite" }
+      : playing
+        ? { animation: "bentoTagPulse 300ms ease-out both" }
+        : {};
+
+  const savedStyle: CSSProperties = playing
+    ? { animation: "bentoBubbleIn 320ms ease-out 700ms both" }
+    : {};
+
+  return (
+    <PlayableVisual onPlay={play} state={state} label="Replay capture animation">
+      <div key={runId} className="space-y-2">
+        <div className="overflow-hidden rounded-lg border border-white/[0.07] bg-[#0a0a0c]">
+          <div className="flex items-center gap-1.5 border-b border-white/[0.05] px-3 py-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3b3b3f]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3b3b3f]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3b3b3f]" />
+            <span
+              className="ml-2 text-[9px] text-zinc-600"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              chatgpt.com
+            </span>
+          </div>
+          <div className="space-y-2 p-3">
+            <div className="flex justify-end">
+              <div className="max-w-[85%] rounded-lg bg-[#2563EB]/15 px-2.5 py-1.5 text-[11px] text-zinc-200">
+                Rewrite this email in a friendly tone.
+              </div>
+            </div>
+            <div
+              className="flex items-center gap-1.5 rounded-md border border-[#2563EB]/25 bg-[#2563EB]/[0.08] px-2.5 py-1.5"
+              style={btnStyle}
+            >
+              <span className="flex-1 text-[10px] text-[#7BA7FF]">
+                {playing ? "Saving to Skillset…" : "Save to Skillset"}
+              </span>
+              {playing && (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7BA7FF]" />
+              )}
+            </div>
+          </div>
+        </div>
+        {state !== "idle" && (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2"
+            style={savedStyle}
+          >
+            <span className="text-[12px] text-emerald-400">✓</span>
+            <span className="text-[11px] text-zinc-300">Email Rewriter · saved</span>
+            <span
+              className="ml-auto text-[9px] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              just now
+            </span>
+          </div>
+        )}
+      </div>
+    </PlayableVisual>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────── STEP 02 — PACK */
+
+const PACK_CHIPS = ["Email Tone", "Rewrite", "Subject Line"];
+
+export function StepPackVisual() {
+  const { state, runId, play } = useReplay(2400);
+  const playing = state === "playing";
+
+  const chipStyle = (i: number): CSSProperties =>
+    playing
+      ? { animation: `bentoBubbleIn 280ms ease-out ${i * 160}ms both` }
+      : {};
+
+  const arrowStyle: CSSProperties = playing
+    ? { animation: "bentoTagPulse 400ms ease-out 560ms both" }
+    : {};
+
+  const cardStyle: CSSProperties = playing
+    ? { animation: "bentoBubbleIn 420ms cubic-bezier(0.16,1,0.3,1) 900ms both" }
+    : {};
+
+  return (
+    <PlayableVisual onPlay={play} state={state} label="Replay pack animation">
+      <div key={runId} className="space-y-3">
+        <div className="flex flex-wrap gap-1.5">
+          {PACK_CHIPS.map((c, i) => (
+            <span
+              key={c}
+              className="inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[11px] text-zinc-300"
+              style={chipStyle(i)}
+            >
+              {c}
+            </span>
+          ))}
+        </div>
+        {state !== "idle" && (
+          <>
+            <p
+              className="text-center text-[9px] uppercase tracking-[0.2em] text-[#7BA7FF]"
+              style={{ fontFamily: "var(--font-geist-mono), monospace", ...arrowStyle }}
+            >
+              ↓ bundling
+            </p>
+            <div
+              className="rounded-lg border border-[#2563EB]/25 bg-[#2563EB]/[0.07] p-3"
+              style={cardStyle}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-medium text-zinc-100">Email Pro</span>
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                  <Lock className="h-3 w-3" strokeWidth={2} />
+                  encrypted
+                </span>
+              </div>
+              <p
+                className="mt-1 text-[10px] text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                3 prompts · portable · yours
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </PlayableVisual>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────── STEP 03 — RUN / SELL */
+
+export function StepRunVisual() {
+  const { state, runId, play } = useReplay(2800);
+  const playing = state === "playing";
+
+  const responseStyle: CSSProperties = playing
+    ? { animation: "bentoBubbleIn 380ms ease-out 600ms both" }
+    : {};
+
+  const saleStyle: CSSProperties = playing
+    ? { animation: "bentoCalloutPulse 500ms ease-out 1700ms both" }
+    : {};
+
+  const saleFadeStyle: CSSProperties = playing
+    ? { animation: "bentoBubbleIn 400ms ease-out 1700ms both" }
+    : {};
+
+  return (
+    <PlayableVisual onPlay={play} state={state} label="Replay run or sell animation">
+      <div key={runId} className="space-y-2">
+        <div className="flex items-center gap-2 rounded-md border border-white/[0.07] bg-white/[0.02] px-3 py-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2563EB]/15 px-2 py-0.5 text-[10px] text-[#7BA7FF]">
+            <Package className="h-2.5 w-2.5" strokeWidth={2} />
+            Email Pro
+          </span>
+          <span className="ml-auto flex items-center gap-1 text-[10px] text-zinc-500">
+            {playing && (
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#7BA7FF]" />
+            )}
+            {playing ? "running…" : "▶ run"}
+          </span>
+        </div>
+        {state !== "idle" && (
+          <div
+            className="rounded-md border border-white/[0.05] bg-white/[0.03] px-3 py-2 text-[11px] leading-relaxed text-zinc-300"
+            style={responseStyle}
+          >
+            Hi Sarah, just following up on our last chat — wanted to keep things moving on this…
+          </div>
+        )}
+        {state !== "idle" && (
+          <p
+            className="text-center text-[9px] uppercase tracking-[0.2em] text-[#7BA7FF]"
+            style={{ fontFamily: "var(--font-geist-mono), monospace", ...(playing ? { animation: "bentoTagPulse 400ms ease-out 1200ms both" } : {}) }}
+          >
+            ↓ sell your skillset
+          </p>
+        )}
+        {state !== "idle" && (
+          <div
+            className="flex items-center gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.07] px-3 py-2"
+            style={{ ...saleStyle, ...saleFadeStyle }}
+          >
+            <span className="text-[15px]">💰</span>
+            <div>
+              <p className="text-[11px] font-medium text-emerald-300">Someone purchased &ldquo;Email Pro&rdquo; for $9.00</p>
+              <p
+                className="text-[9px] text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                licensed · royalty paid to you
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </PlayableVisual>
   );

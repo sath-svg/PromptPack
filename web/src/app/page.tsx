@@ -16,7 +16,7 @@ import {
   Workflow,
 } from "lucide-react";
 import type { Metadata } from "next";
-import { ChatVisual, PresetVisual, RouterVisual, WorkflowVisual } from "@/components/bento-visuals";
+import { ChatVisual, PresetVisual, RouterVisual, WorkflowVisual, StepCaptureVisual, StepPackVisual, StepRunVisual } from "@/components/bento-visuals";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { SkillsetNav } from "@/components/skillset-nav";
 
@@ -24,9 +24,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset - Turn your prompts into reusable skills",
+  title: "Skillset — Save up to 80% on AI Costs",
   description:
-    "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini — any AI tool. No memory transfers. No copy-paste.",
+    "Cut AI costs up to 80% with smart prompt routing. Save your best prompts as portable skills, route each task to the cheapest capable model, and use them across ChatGPT, Claude, Gemini, and your IDE.",
 };
 
 export default function SkillsetLanding() {
@@ -102,11 +102,12 @@ function Hero() {
           </div>
 
           <h1 className="text-[44px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 md:text-[64px] lg:text-[72px]">
-            Turn your prompts
+            Save up to{" "}
+            <span className="text-emerald-400">80%</span>
             <br />
-            into{" "}
+            on{" "}
             <span className="relative inline-block">
-              <span className="relative z-10">reusable skills.</span>
+              <span className="relative z-10">AI costs.</span>
               <span
                 aria-hidden
                 className="absolute bottom-[0.1em] left-0 right-0 -z-0 h-[0.18em] bg-[#2563EB]/40"
@@ -114,13 +115,8 @@ function Hero() {
             </span>
           </h1>
 
-          <p className="mt-7 max-w-[58ch] text-[17px] leading-[1.55] text-zinc-400">
-            Your prompts, portable across every AI tool. No memory transfers. No
-            copy-paste. Save once, use everywhere — ChatGPT, Claude, Gemini, your IDE.
-          </p>
-          <p className="mt-4 max-w-[58ch] text-[13px] leading-[1.5] text-zinc-500">
-            Stop burning tokens on prompts you've written ten times. Start
-            earning the moment someone licenses one of yours.
+          <p className="mt-7 max-w-[52ch] text-[17px] leading-[1.55] text-zinc-400">
+            Save prompts/skills as skillsets. Route each skillset to the cheapest capable model. One library across every AI tool you use.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center gap-4">
@@ -439,8 +435,7 @@ function CoreFeatures() {
           </div>
           <div className="flex items-end">
             <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              A skill is a reusable unit of prompt + context that travels with
-              you across tools. Build a library once. Run it anywhere.
+              A skill is a reusable prompt that travels with you across tools. Build once. Run anywhere.
             </p>
           </div>
         </div>
@@ -454,14 +449,14 @@ function CoreFeatures() {
             title="One chat. Every model."
             body={
               <>
-                Skills and chat in one place — no jumping between ChatGPT and Claude tabs. Handles normal chat, agentic work, and parallel orchestration like Codex and Claude. Plus auto-routing across models (see{" "}
+                Skills and chat in one place — no tab-switching. Handles chat, agentic work, and multi-model orchestration. Auto-routes to the cheapest capable model (see{" "}
                 <a
                   href="#bento-router"
                   className="text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
                 >
                   Skill Router
-                </a>{" "}
-                below) that <strong className="font-semibold text-zinc-100">top AI apps don&rsquo;t ship</strong>.
+                </a>
+                ) — <strong className="font-semibold text-zinc-100">a feature top AI apps don&rsquo;t ship</strong>.
               </>
             }
             visual={<ChatVisual />}
@@ -472,10 +467,10 @@ function CoreFeatures() {
             id="bento-preset"
             icon={<Palette strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Preset"
-            title="Your style is yours. Encrypt it. License it."
+            title="Your style, licensed. Not stolen."
             body={
               <>
-                Built to protect artists from AI style theft. Verify your work, lock your signature look into an encrypted skillset, then set a price and sell it. <strong className="font-semibold text-zinc-100">Every license sold is a royalty in your pocket</strong> — the new standard for artist rights in generative AI.
+                In the new norm of AI, we care about who gets paid. Encrypt your signature look into a skillset and set a price. <strong className="font-semibold text-zinc-100">AI can only train on your style when they buy your skillset</strong> — every sale is a royalty, not theft.
               </>
             }
             visual={<PresetVisual />}
@@ -487,7 +482,7 @@ function CoreFeatures() {
             icon={<Workflow strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Flow"
             title="Multi-step prompts, chained."
-            body="Output of step 1 feeds step 2. Run the whole sequence on demand."
+            body="Output of step 1 feeds step 2. Run the whole sequence on demand. Save workflows. Save tokens."
             visual={<WorkflowVisual />}
             decor="right"
           />
@@ -497,7 +492,7 @@ function CoreFeatures() {
             icon={<Bolt strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Router"
             title="Route prompts to the cheapest capable model."
-            body="Routine task? Haiku. Reasoning-heavy? Sonnet. Vision? Gemini. Skillset picks the right model per skill so your bill doesn't balloon."
+            body="Routine task? Haiku. Reasoning? Sonnet. Vision? Gemini. Skillset auto-picks the right model per skill — cuts your AI bill up to 80%."
             visual={<RouterVisual />}
             decor="left"
           />
@@ -569,32 +564,35 @@ function BentoCard({
 /* ────────────────────────────────────────────────────────────── HOW IT WORKS */
 
 function HowItWorks() {
-  const steps: { n: string; t: string; d: React.ReactNode }[] = [
+  const steps: { n: string; t: string; d: React.ReactNode; visual: React.ReactNode }[] = [
     {
       n: "01",
       t: "Capture in one click.",
-      d: "Install the app and grab any prompt straight from ChatGPT, Claude, or Gemini — no copy-paste, no losing your best work in chat history.",
+      d: "Install and save any prompt from ChatGPT, Claude, or Gemini in one click — no copy-paste, no lost chat history.",
+      visual: <StepCaptureVisual />,
     },
     {
       n: "02",
       t: "Pack it into a skillset.",
       d: (
         <>
-          Group related prompts, add variables, lock the model that works.{" "}
+          Group prompts, add variables, lock the model.{" "}
           <a
             href="#"
             className="text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
           >
             Skillset
           </a>{" "}
-          bundles them into a portable, encrypted set you fully own.
+          bundles them into a portable encrypted set you own.
         </>
       ),
+      visual: <StepPackVisual />,
     },
     {
       n: "03",
       t: "Run it — or sell it.",
-      d: "Trigger from Skill Chat, then export and license your skillset. Sell your set to people who want to use it — every license sold is yours.",
+      d: "Trigger from Skill Chat, export, and license. Every sale goes to you.",
+      visual: <StepRunVisual />,
     },
   ];
   return (
@@ -620,10 +618,10 @@ function HowItWorks() {
           {steps.map((s) => (
             <li
               key={s.n}
-              className="group grid grid-cols-1 gap-6 bg-[#0f0f12] px-6 py-8 transition-colors hover:bg-white/[0.015] md:grid-cols-[120px_1fr_auto] md:items-center md:px-10 md:py-10"
+              className="grid grid-cols-1 gap-6 bg-[#0f0f12] px-6 py-8 md:grid-cols-[100px_1fr] lg:grid-cols-[100px_1fr_300px] lg:items-center md:px-10 md:py-10"
             >
               <span
-                className="text-[34px] font-medium text-zinc-700 transition-colors group-hover:text-[#7BA7FF]"
+                className="text-[34px] font-medium text-zinc-700"
                 style={{ fontFamily: "var(--font-geist-mono), monospace" }}
               >
                 {s.n}
@@ -632,14 +630,11 @@ function HowItWorks() {
                 <h3 className="text-[22px] font-medium tracking-[-0.015em] text-zinc-50 md:text-[26px]">
                   {s.t}
                 </h3>
-                <p className="mt-2 max-w-[60ch] text-[15px] leading-[1.55] text-zinc-400">
+                <p className="mt-2 max-w-[52ch] text-[15px] leading-[1.55] text-zinc-400">
                   {s.d}
                 </p>
               </div>
-              <ArrowUpRight
-                className="hidden h-6 w-6 text-zinc-600 transition-all group-hover:text-zinc-100 md:block"
-                strokeWidth={1.5}
-              />
+              <div className="hidden lg:block">{s.visual}</div>
             </li>
           ))}
         </ol>
@@ -691,8 +686,7 @@ function PowerFeatures() {
           </div>
           <div className="flex items-end">
             <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              When prompts move from "neat trick" to production dependency, you
-              need versioning, evals, and safety nets. Skillset has all three.
+              When prompts become production dependencies, you need versioning, evals, and safety nets. Skillset ships all three.
             </p>
           </div>
         </div>
@@ -829,8 +823,7 @@ function PricingCallout() {
                 Free forever, for personal libraries.
               </h2>
               <p className="mt-5 max-w-[56ch] text-[16px] leading-[1.6] text-zinc-400">
-                Save up to 5 skills and run them anywhere — no card required. Pro and
-                Studio unlock more skillsets and features, catered based on your needs.
+                Save up to 5 skills, run them anywhere — no card required. Pro and Studio unlock more skillsets based on your needs.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -875,19 +868,19 @@ function FaqSection() {
   const faqs = [
     {
       q: "What exactly is a skillset?",
-      a: "A skill is one reusable prompt saved as markdown — the format Anthropic popularized. A skillset is a bundle of related skills you can rework, version, encrypt, license, and sell. Same prompts, except now they ship like a product, not sit dead in some document.",
+      a: "A skill is one reusable prompt (markdown format). A skillset bundles related skills you can version, encrypt, license, and sell — your prompts shipped as a product, not buried in a doc.",
     },
     {
       q: "Why not just save prompts in Notion or a doc?",
-      a: "A document holds prompts. Skillset runs them. Notion can't sync your prompts into the tools you use, can't lock them when you share, can't re-version them when a model updates, and can't license them for you. Skillset wraps them into something you own — always synced, private by default, earning the moment someone pays.",
+      a: "A doc holds prompts. Skillset runs them. Notion can't sync to your tools, version across model updates, or license them. Skillset wraps prompts into something you own — synced, private, and earning.",
     },
     {
       q: "Does this replace ChatGPT / Claude / Cursor?",
-      a: "Complementary, not a replacement. For repeat workflows, one-off runs, and jobs where token cost matters, Skillset usually carries it alone. But it's built to sit next to ChatGPT, Claude, and Cursor, on the same \"skills.md\" format those labs already use.",
+      a: "Complementary. For repeat workflows and cost-sensitive runs, Skillset handles it. Built to sit next to ChatGPT, Claude, and Cursor — same skills.md format those labs use.",
     },
     {
       q: "I already have a folder of prompts. Can I import?",
-      a: "Yes. Paste them into Draft, run Skill Enhance to tune each one for the model it'll run on, save the batch as a skillset. Messy notes to a clean skillset in under a minute.",
+      a: "Yes. Paste into Draft, run Skill Enhance to tune for the target model, save as a skillset. Messy notes to clean skillset in under a minute.",
     },
   ];
 
@@ -936,7 +929,7 @@ function SiteFooter() {
       <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="flex items-center gap-2">
-            <Image
+            <img
               src="/img/skillset_logo.png"
               alt="Skillset"
               width={28}
@@ -948,8 +941,7 @@ function SiteFooter() {
             </span>
           </Link>
           <p className="mt-4 max-w-[40ch] text-[13.5px] leading-[1.55] text-zinc-500">
-            Turn your prompts into reusable skills. Portable across every AI
-            tool you use.
+            Cut AI costs up to 80%. Save prompts as skills, route to the cheapest model, own your work.
           </p>
           <p className="mt-6 text-[12px] text-zinc-600" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
             © {new Date().getFullYear()} Skillset · skillset.so
