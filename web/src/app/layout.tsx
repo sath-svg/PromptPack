@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-compat";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
 import { SupportButton } from "@/components/support-button";
@@ -53,8 +54,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: assetUrl('/img/skillset_og.jpg'),
-        width: 1200,
-        height: 630,
+        width: 2048,
+        height: 1136,
         alt: "Skillset — Portable AI skills across every tool",
       },
     ],
@@ -127,6 +128,7 @@ export default function RootLayout({
           </main>
           <SupportButton />
           <PWARegister />
+          <Toaster richColors position="bottom-right" theme="dark" />
           <Script
             defer
             data-domain="skillset.so"

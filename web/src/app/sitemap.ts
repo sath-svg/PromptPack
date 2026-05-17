@@ -83,6 +83,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...roleEntries,
     ...compareEntries,
     {
+      url: `${baseUrl}/skillset/brand`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    },
+    {
       url: `${baseUrl}/privacy`,
       lastModified: new Date(),
       changeFrequency: 'yearly',

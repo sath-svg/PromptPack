@@ -1,7 +1,18 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
 import { SkillsetShell } from "@/components/skillset-shell";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy — Skillset",
+  description:
+    "How Skillset collects, uses, stores, and protects your data across the Chrome extension, web app, and desktop app. GDPR & CCPA rights, BYOK details, and third-party processors.",
+  alternates: { canonical: "https://skillset.so/privacy" },
+  openGraph: {
+    title: "Privacy Policy — Skillset",
+    description: "How Skillset handles your prompts, account data, and BYOK keys.",
+    url: "https://skillset.so/privacy",
+  },
+};
 
 export default function PrivacyPolicy() {
   return (

@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { auth } from "@/lib/auth-server";
 import { redirect } from "next/navigation";
 import { ProCard } from "../pricing/pro-card";
 import { SkillsetShell } from "@/components/skillset-shell";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Upgrade — Skillset",
+  robots: { index: false, follow: false },
+};
 
 export default async function SubscribePage() {
   const { userId } = await auth();
