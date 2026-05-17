@@ -35,8 +35,10 @@ jobs:
       # To enable later: set WINDOWS_CERTIFICATE + WINDOWS_CERTIFICATE_PASSWORD
       # in GH secrets, then re-add the env block below.
       #
-      # Tauri updater signing (pubkey baked into binary, private key signs artifacts):
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      # Tauri updater signing — secret is base64-encoded contents of the
+      # minisign private key file. Written to disk in a dedicated step so
+      # the env var doesn't mangle through Windows shell layers (which
+      # corrupted the decoded key structure when passed inline).
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
@@ -57,6 +59,22 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+
+      - name: Materialize Tauri signing key (file, not env)
+        shell: bash
+        env:
+          KEY_B64: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -e
+          # Secret is base64-encoded contents of the minisign private key file.
+          # Decoding to a real file and pointing TAURI_SIGNING_PRIVATE_KEY at
+          # the path bypasses any shell mangling of multi-line env values on
+          # Windows that broke previous runs ("Missing encoded key in secret key").
+          KEY_PATH="$RUNNER_TEMP/tauri-signing.key"
+          printf '%s' "$KEY_B64" | base64 -d > "$KEY_PATH"
+          # Sanity: must start with the minisign comment header
+          head -c 50 "$KEY_PATH"; echo
+          echo "TAURI_SIGNING_PRIVATE_KEY=$KEY_PATH" >> "$GITHUB_ENV"
 
       - name: Cache cargo registry + git + target
         uses: Swatinem/rust-cache@v2
