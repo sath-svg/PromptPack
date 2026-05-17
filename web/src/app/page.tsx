@@ -77,7 +77,7 @@ export default function SkillsetLanding() {
 
 function Hero() {
   return (
-    <section className="relative h-[calc(100dvh-57px)] flex flex-col">
+    <section className="relative flex flex-col md:min-h-[calc(100dvh-57px)]">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 -z-0 h-[640px]"
@@ -88,7 +88,7 @@ function Hero() {
       />
 
       <div className="flex-1 flex items-center">
-      <div className="relative w-full mx-auto grid max-w-[1400px] grid-cols-1 gap-16 px-6 py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
+      <div className="relative w-full mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-5 py-10 md:gap-16 md:px-6 md:py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
         <div className="flex flex-col">
           <div
             className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] text-[12px] text-zinc-400"
@@ -101,7 +101,7 @@ function Hero() {
             <span>v1.1 — formerly PromptPack</span>
           </div>
 
-          <h1 className="text-[44px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 md:text-[64px] lg:text-[72px]">
+          <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[64px] lg:text-[72px]">
             Save up to{" "}
             <span className="text-emerald-400">80%</span>
             <br />
@@ -115,11 +115,11 @@ function Hero() {
             </span>
           </h1>
 
-          <p className="mt-7 max-w-[52ch] text-[17px] leading-[1.55] text-zinc-400">
+          <p className="mt-5 max-w-[52ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
             Save skills and prompts as skillsets. Route each skillset to the cheapest capable model. One library across every AI tool you use.
           </p>
 
-          <div className="mt-10 flex flex-wrap items-center gap-4">
+          <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
             <Link
               href="/downloads"
               style={{ padding: "10px 22px" }}
@@ -144,14 +144,14 @@ function Hero() {
             free forever plan · no credit card · works in any LLM
           </p>
 
-          <dl className="mt-14 grid grid-cols-3 border-t border-white/5 pt-6 text-left">
+          <dl className="mt-10 grid grid-cols-3 gap-3 border-t border-white/5 pt-5 text-left md:mt-14 md:gap-0 md:pt-6">
             <Stat value="2.4M+" label="prompts saved" />
             <Stat value="187" label="public skills" />
             <Stat value="14k" label="active makers" />
           </dl>
         </div>
 
-        <div className="relative flex items-start justify-end pt-4">
+        <div className="relative -mx-1 flex items-start justify-center pt-2 md:mx-0 md:justify-end md:pt-4">
           <AppMockup />
         </div>
       </div>
@@ -166,12 +166,12 @@ function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex flex-col gap-1">
       <dt
-        className="text-[22px] font-medium tracking-tight text-zinc-100"
+        className="text-[18px] font-medium tracking-tight text-zinc-100 md:text-[22px]"
         style={{ fontFamily: "var(--font-geist-mono), monospace" }}
       >
         {value}
       </dt>
-      <dd className="text-[12px] uppercase tracking-[0.12em] text-zinc-500">
+      <dd className="text-[10.5px] uppercase tracking-[0.1em] text-zinc-500 md:text-[12px] md:tracking-[0.12em]">
         {label}
       </dd>
     </div>
@@ -203,8 +203,8 @@ function AppMockup() {
         </div>
 
         <div className="flex">
-          <aside className="w-[150px] shrink-0 border-r border-white/5 bg-[#0a0a0c] p-2">
-            <div className="mb-3 flex items-center gap-2 px-2 py-1.5">
+          <aside className="w-[120px] shrink-0 border-r border-white/5 bg-[#0a0a0c] p-2 md:w-[150px]">
+            <div className="mb-3 flex items-center gap-2 px-1.5 py-1.5 md:px-2">
               {/* Plain <img> — Next Image optimizer races on the 2048x2048 source PNG */}
               <img
                 src="/img/skillset_logo.png"
@@ -250,7 +250,7 @@ function AppMockup() {
             />
           </aside>
 
-          <div className="flex-1 p-5">
+          <div className="flex-1 p-3 md:p-5">
             <div className="mb-3 flex items-center justify-between">
               <p
                 className="text-[10px] uppercase tracking-[0.22em] text-zinc-500"
@@ -417,9 +417,9 @@ function SkillBeltMarquee() {
 
 function CoreFeatures() {
   return (
-    <section id="features" className="relative bg-[#0a0a0c] py-28 md:py-36">
-      <div className="mx-auto max-w-[1400px] px-6">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_1fr] md:gap-16">
+    <section id="features" className="relative bg-[#0a0a0c] py-20 md:py-36">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_1fr] md:gap-16">
           <div>
             <p
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
@@ -427,7 +427,7 @@ function CoreFeatures() {
             >
               01 — Save once. Use everywhere.
             </p>
-            <h2 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
+            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Stop re-explaining yourself
               <br />
               to every new chat.
@@ -440,7 +440,7 @@ function CoreFeatures() {
           </div>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-4 md:grid-cols-12 md:gap-5">
+        <div className="mt-10 grid grid-cols-1 gap-4 md:mt-16 md:grid-cols-12 md:gap-5">
           <BentoCard
             className="md:col-span-8"
             id="bento-chat"
@@ -537,7 +537,7 @@ function BentoCard({
         }}
       />
 
-      <div className="relative z-10 flex h-full flex-col p-7 md:p-9">
+      <div className="relative z-10 flex h-full flex-col p-5 md:p-9">
         <div className="flex items-center gap-2.5">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.03] text-[#7BA7FF]">
             {icon}
@@ -596,9 +596,9 @@ function HowItWorks() {
     },
   ];
   return (
-    <section id="how" className="relative border-t border-white/5 bg-[#0c0c10] py-20 md:py-28">
-      <div className="mx-auto max-w-[1400px] px-6">
-        <div className="mb-16 grid grid-cols-1 gap-8 md:grid-cols-[1fr_1fr] md:gap-16">
+    <section id="how" className="relative border-t border-white/5 bg-[#0c0c10] py-16 md:py-28">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="mb-10 grid grid-cols-1 gap-8 md:mb-16 md:grid-cols-[1fr_1fr] md:gap-16">
           <div>
             <p
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
@@ -606,7 +606,7 @@ function HowItWorks() {
             >
               02 — How it works
             </p>
-            <h2 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
+            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               From scratch to skill in
               <br />
               under a minute.
@@ -618,23 +618,30 @@ function HowItWorks() {
           {steps.map((s) => (
             <li
               key={s.n}
-              className="grid grid-cols-1 gap-6 bg-[#0f0f12] px-6 py-8 md:grid-cols-[100px_1fr] lg:grid-cols-[100px_1fr_300px] lg:items-center md:px-10 md:py-10"
+              className="grid grid-cols-1 gap-5 bg-[#0f0f12] px-5 py-7 md:grid-cols-[100px_1fr] md:gap-6 md:px-10 md:py-10 lg:grid-cols-[100px_1fr_300px] lg:items-center"
             >
-              <span
-                className="text-[34px] font-medium text-zinc-700"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                {s.n}
-              </span>
-              <div>
-                <h3 className="text-[22px] font-medium tracking-[-0.015em] text-zinc-50 md:text-[26px]">
+              <div className="flex items-baseline gap-3 md:block">
+                <span
+                  className="text-[28px] font-medium text-zinc-700 md:text-[34px]"
+                  style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+                >
+                  {s.n}
+                </span>
+                <h3 className="text-[20px] font-medium tracking-[-0.015em] text-zinc-50 md:hidden">
                   {s.t}
                 </h3>
-                <p className="mt-2 max-w-[52ch] text-[15px] leading-[1.55] text-zinc-400">
+              </div>
+              <div>
+                <h3 className="hidden text-[22px] font-medium tracking-[-0.015em] text-zinc-50 md:block md:text-[26px]">
+                  {s.t}
+                </h3>
+                <p className="max-w-[52ch] text-[14.5px] leading-[1.55] text-zinc-400 md:mt-2 md:text-[15px]">
                   {s.d}
                 </p>
               </div>
-              <div className="hidden lg:block">{s.visual}</div>
+              <div className="rounded-xl border border-white/[0.05] bg-[#0a0a0c] p-4 lg:border-0 lg:bg-transparent lg:p-0">
+                {s.visual}
+              </div>
             </li>
           ))}
         </ol>
@@ -668,9 +675,9 @@ function PowerFeatures() {
   ];
 
   return (
-    <section id="power" className="relative bg-[#0a0a0c] py-20 md:py-28">
-      <div className="mx-auto max-w-[1400px] px-6">
-        <div className="mb-16 grid grid-cols-1 gap-8 md:grid-cols-[1fr_1fr] md:gap-16">
+    <section id="power" className="relative bg-[#0a0a0c] py-16 md:py-28">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="mb-10 grid grid-cols-1 gap-8 md:mb-16 md:grid-cols-[1fr_1fr] md:gap-16">
           <div>
             <p
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
@@ -678,7 +685,7 @@ function PowerFeatures() {
             >
               03 — For teams shipping AI
             </p>
-            <h2 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
+            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Built for the engineers
               <br />
               who own the prompts.
@@ -695,7 +702,7 @@ function PowerFeatures() {
           {items.map((it) => (
             <div
               key={it.eyebrow}
-              className="grid grid-cols-1 gap-6 py-10 md:grid-cols-[200px_1fr_1fr] md:items-start md:gap-12"
+              className="grid grid-cols-1 gap-3 py-8 md:grid-cols-[200px_1fr_1fr] md:items-start md:gap-12 md:py-10"
             >
               <div className="flex items-center gap-3">
                 <span className="grid h-9 w-9 place-items-center rounded-md border border-white/10 bg-white/[0.02] text-[#7BA7FF]">
@@ -708,10 +715,10 @@ function PowerFeatures() {
                   {it.eyebrow}
                 </span>
               </div>
-              <h3 className="text-[24px] font-medium leading-[1.15] tracking-[-0.015em] text-zinc-50 md:text-[28px]">
+              <h3 className="text-[22px] font-medium leading-[1.15] tracking-[-0.015em] text-zinc-50 md:text-[28px]">
                 {it.title}
               </h3>
-              <p className="text-[15px] leading-[1.6] text-zinc-400">{it.body}</p>
+              <p className="text-[14.5px] leading-[1.6] text-zinc-400 md:text-[15px]">{it.body}</p>
             </div>
           ))}
         </div>
@@ -747,15 +754,15 @@ function Testimonials() {
   ];
 
   return (
-    <section className="relative border-t border-white/5 bg-[#0c0c10] py-24">
-      <div className="mx-auto mb-12 max-w-[1400px] px-6">
+    <section className="relative border-t border-white/5 bg-[#0c0c10] py-16 md:py-24">
+      <div className="mx-auto mb-8 max-w-[1400px] px-5 md:mb-12 md:px-6">
         <p
           className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
           04 — In the wild
         </p>
-        <h2 className="max-w-[20ch] text-[34px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
+        <h2 className="max-w-[20ch] text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
           People who stopped losing prompts.
         </h2>
       </div>
@@ -765,7 +772,7 @@ function Testimonials() {
           {[...quotes, ...quotes].map((t, i) => (
             <figure
               key={`${t.n}-${i}`}
-              className="flex w-[380px] shrink-0 flex-col gap-5 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-7"
+              className="flex w-[300px] shrink-0 flex-col gap-4 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5 md:w-[380px] md:gap-5 md:p-7"
             >
               <blockquote className="text-[16px] leading-[1.55] text-zinc-200">
                 "{t.q}"
@@ -800,9 +807,9 @@ function Testimonials() {
 
 function PricingCallout() {
   return (
-    <section id="pricing" className="relative bg-[#0a0a0c] py-20 md:py-28">
-      <div className="mx-auto max-w-[1400px] px-6">
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0f0f12] p-10 md:p-16">
+    <section id="pricing" className="relative bg-[#0a0a0c] py-16 md:py-28">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-[#0f0f12] p-6 md:p-16">
           <div
             aria-hidden
             className="pointer-events-none absolute -right-32 -top-32 h-80 w-80 rounded-full"
@@ -811,7 +818,7 @@ function PricingCallout() {
                 "radial-gradient(circle, rgba(37,99,235,0.22), transparent 60%)",
             }}
           />
-          <div className="relative grid grid-cols-1 gap-12 md:grid-cols-[1.2fr_0.8fr] md:items-end md:gap-16">
+          <div className="relative grid grid-cols-1 gap-8 md:grid-cols-[1.2fr_0.8fr] md:items-end md:gap-16">
             <div>
               <p
                 className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
@@ -819,7 +826,7 @@ function PricingCallout() {
               >
                 Pricing
               </p>
-              <h2 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
+              <h2 className="text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
                 Free forever, for personal libraries.
               </h2>
               <p className="mt-5 max-w-[56ch] text-[16px] leading-[1.6] text-zinc-400">
@@ -842,7 +849,7 @@ function PricingCallout() {
               </div>
             </div>
 
-            <ul className="space-y-4 border-l border-white/[0.06] pl-6 text-[14px] text-zinc-300 md:pl-10">
+            <ul className="space-y-3 border-l border-white/[0.06] pl-5 text-[14px] text-zinc-300 md:space-y-4 md:pl-10">
               {[
                 "Up to 17 skillsets, unlimited runs",
                 "AI Chat in app via Skill Chat",
@@ -885,9 +892,9 @@ function FaqSection() {
   ];
 
   return (
-    <section className="relative border-t border-white/5 bg-[#0c0c10] py-28">
-      <div className="mx-auto max-w-[1400px] px-6">
-        <div className="grid grid-cols-1 gap-12 md:grid-cols-[1fr_1.4fr] md:gap-20">
+    <section className="relative border-t border-white/5 bg-[#0c0c10] py-16 md:py-28">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-[1fr_1.4fr] md:gap-20">
           <div>
             <p
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
@@ -895,7 +902,7 @@ function FaqSection() {
             >
               05 — FAQ
             </p>
-            <h2 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
+            <h2 className="text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
               Questions makers ask before signing up.
             </h2>
             <p className="mt-5 max-w-[40ch] text-[15px] text-zinc-400">
@@ -925,9 +932,9 @@ function FaqSection() {
 
 function SiteFooter() {
   return (
-    <footer className="relative border-t border-white/5 bg-[#0a0a0c] py-16">
-      <div className="mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-6 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
-        <div>
+    <footer className="relative border-t border-white/5 bg-[#0a0a0c] py-12 md:py-16">
+      <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-8 px-5 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:gap-10 md:px-6">
+        <div className="col-span-2 md:col-span-1">
           <Link href="/" className="flex items-center gap-2">
             <img
               src="/img/skillset_logo.png"

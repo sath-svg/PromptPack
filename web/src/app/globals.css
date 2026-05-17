@@ -5196,10 +5196,22 @@ h4.hero-hook {
 
 /* ── Bento card play animations ── */
 
+.bento-playable {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease;
+  padding-top: 2rem;
+  min-height: 3.25rem;
+}
+
 .bento-playable:focus-visible {
   outline: 2px solid #2563EB;
   outline-offset: 4px;
   border-radius: 0.5rem;
+}
+
+.bento-playable:active {
+  transform: scale(0.985);
 }
 
 @keyframes bentoBubbleIn {
@@ -5263,26 +5275,40 @@ h4.hero-hook {
 
 .bento-hint {
   position: absolute;
-  bottom: 100%;
-  right: 0;
-  margin-bottom: 0.5rem;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 10;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 9999px;
-  background: rgba(37, 99, 235, 0.18);
-  border: 1px solid rgba(123, 167, 255, 0.35);
+  background: rgba(10, 10, 12, 0.78);
+  border: 1px solid rgba(123, 167, 255, 0.45);
   color: #7BA7FF;
   font-family: var(--font-geist-mono), monospace;
-  font-size: 9px;
+  font-size: 9.5px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.95;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.4);
   transition: opacity 200ms ease;
 }
 
 .bento-playable:hover .bento-hint {
   opacity: 1;
+}
+
+@media (hover: none) {
+  .bento-hint {
+    background: rgba(37, 99, 235, 0.85);
+    border-color: rgba(123, 167, 255, 0.7);
+    color: #ffffff;
+    font-size: 10px;
+    padding: 4px 10px;
+    opacity: 1;
+  }
 }

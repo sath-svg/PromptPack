@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Paperclip, X, FileText } from 'lucide-react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useAgentStore } from '../../stores/agentStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 // Picks files via native dialog and copies them into
 // <workspace>/.skillset-attachments/. The user message is annotated with
@@ -27,8 +28,23 @@ export function AttachmentBar() {
       const sources = Array.isArray(picked) ? picked : [picked];
       const res = await attachFiles(sources);
       if (res.failed.length > 0) {
+        const names = res.failed.map((p) => p.split(/[\\/]/).pop() ?? p).join(', ');
         setPickerError(`${res.failed.length} file(s) failed to copy.`);
+        useNotificationStore.getState().notify({
+          category: 'client',
+          severity: 'warning',
+          title: "Couldn't attach file",
+          message: `${res.failed.length} file(s) failed: ${names}`,
+          actions: [{ kind: 'dismiss' }],
+          details: `failed=${JSON.stringify(res.failed)} copied=${JSON.stringify(res.copied)}`,
+          dedupeKey: 'attach.failed',
+          source: 'AttachmentBar.attachFiles',
+        });
       }
+    } catch (err) {
+      useNotificationStore.getState().report(err, {
+        source: 'AttachmentBar.attachFiles',
+      });
     } finally {
       setBusy(false);
     }

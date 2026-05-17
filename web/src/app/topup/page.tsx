@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, CheckCircle2, XCircle } from "lucide-react";
+import { reportError } from "@/lib/errors/notify";
 
 // Mirror of TOPUP_PACKS in web/convex/credits.ts. Kept in sync manually —
 // changing pricing requires updating both this file AND the Convex const.
@@ -66,6 +67,7 @@ export default function TopupPage() {
       window.location.href = url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed");
+      reportError(err, { source: "topup.buy" });
       setLoadingKey(null);
     }
   };

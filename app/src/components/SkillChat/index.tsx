@@ -131,19 +131,19 @@ function TierNode({ label, sublabel, color, active }: TierNodeProps) {
   };
 
   return (
-    <div className="relative z-10 flex flex-col items-center gap-1 min-w-0">
+    <div className="relative z-10 flex flex-col items-center gap-2 min-w-0">
       <div
-        className={`w-8 h-8 rounded-full ring-1 ring-inset flex items-center justify-center bg-[var(--card)] ${
+        className={`w-12 h-12 rounded-full ring-1 ring-inset flex items-center justify-center bg-[var(--card)] ${
           ringColors[color]
         } ${active ? 'shadow-[0_0_18px_-4px_currentColor] animate-pulse' : ''}`}
       >
-        <span className="text-[9px] font-bold uppercase tracking-tight" style={{ fontFamily: 'var(--font-mono)' }}>
+        <span className="text-xs font-bold uppercase tracking-tight" style={{ fontFamily: 'var(--font-mono)' }}>
           {label.slice(0, 2)}
         </span>
       </div>
       <div className="text-center">
-        <p className="text-[10px] font-medium text-[var(--foreground)] leading-tight">{label}</p>
-        <p className="text-[8px] text-[var(--muted-foreground)] uppercase tracking-[0.14em] leading-tight"
+        <p className="text-sm font-medium text-[var(--foreground)] leading-tight">{label}</p>
+        <p className="text-[11px] text-[var(--muted-foreground)] uppercase tracking-[0.14em] leading-tight mt-0.5"
           style={{ fontFamily: 'var(--font-mono)' }}>
           {sublabel}
         </p>
@@ -201,7 +201,7 @@ function SubtaskHeaderChip({ block }: SubtaskHeaderChipProps) {
 // Tweak this to scale the empty-state Skill Flow Router card (1 = default).
 // Uses CSS `zoom` so layout box shrinks too — kills scrollbar when card is
 // taller than the available chat area.
-const EMPTY_STATE_SCALE = 0.87;
+const EMPTY_STATE_SCALE = 1;
 
 export function SkillChatPage() {
   const { messages, isLoading, error, sendMessage, clearMessages, clearError, agentMode, setAgentMode, voteOnMessage } = useChatStore();
@@ -847,17 +847,13 @@ export function SkillChatPage() {
             topmost bubble — visible whenever the first prompt of a
             session sits alone (e.g. a sign-in error blocks the
             assistant reply). */}
-        <div className={`flex-1 space-y-4 pr-1 min-h-0 ${messages.length === 0 ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-10'}`}>
+        <div className={`flex-1 space-y-4 pr-1 min-h-0 ${messages.length === 0 ? 'overflow-y-auto pt-0' : 'overflow-y-auto pt-10'}`}>
           {messages.length === 0 && !packVarForm && !variablePrompt && (
-            <div className="flex h-full items-center justify-center py-12">
+            <div className="flex min-h-full items-end justify-center pt-4 pb-4">
               <div
-                className="relative w-full max-w-[520px]"
+                className="relative w-full max-w-[720px]"
                 style={{ zoom: EMPTY_STATE_SCALE }}
               >
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute -inset-6 rounded-3xl border border-[var(--border)]"
-                />
                 <div
                   className="relative rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden"
                   style={{
@@ -866,11 +862,11 @@ export function SkillChatPage() {
                   }}
                 >
                   {/* Header strip — minimal status bar */}
-                  <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Brain size={13} className="text-[var(--primary)]" />
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <Brain size={15} className="text-[var(--primary)]" />
                       <span
-                        className="text-[10px] uppercase tracking-[0.18em] text-[var(--foreground)] font-medium"
+                        className="text-xs uppercase tracking-[0.18em] text-[var(--foreground)] font-medium"
                         style={{ fontFamily: 'var(--font-mono)' }}
                       >
                         Skill Router
@@ -879,7 +875,7 @@ export function SkillChatPage() {
                     <div className="flex items-center gap-1.5">
                       <span className="status-ping" />
                       <span
-                        className="text-[10px] uppercase tracking-[0.14em] text-emerald-400/90"
+                        className="text-xs uppercase tracking-[0.14em] text-emerald-400/90"
                         style={{ fontFamily: 'var(--font-mono)' }}
                       >
                         Live
@@ -888,8 +884,8 @@ export function SkillChatPage() {
                   </div>
 
                   {/* Routing graph — 3 tier nodes with flowing dots */}
-                  <div className="px-4 py-3">
-                    <div className="flex items-center justify-between gap-2 relative max-w-[360px] mx-auto">
+                  <div className="px-5 py-5">
+                    <div className="flex items-center justify-between gap-2 relative max-w-[520px] mx-auto">
                       {/* Animated dot trail along the connecting line.
                           Bar inset on both sides so it floats between Fast
                           and stops before Frontier — feels less crowded.
@@ -923,7 +919,7 @@ export function SkillChatPage() {
                     </div>
 
                     {/* Status line */}
-                    <div className="mt-3 pt-2.5 border-t border-[var(--border)] flex items-center justify-center text-[10px]">
+                    <div className="mt-5 pt-4 border-t border-[var(--border)] flex items-center justify-center text-xs">
                       <span
                         className="uppercase tracking-[0.14em] text-[var(--muted-foreground)]"
                         style={{ fontFamily: 'var(--font-mono)' }}
@@ -934,12 +930,12 @@ export function SkillChatPage() {
                   </div>
 
                   {/* Helpful prompts row */}
-                  <div className="border-t border-[var(--border)] px-6 py-3.5">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-2.5 font-medium"
+                  <div className="border-t border-[var(--border)] px-6 py-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-3 font-medium"
                       style={{ fontFamily: 'var(--font-mono)' }}>
                       Try
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-2">
                       {[
                         'Summarize this PDF',
                         'Build a landing page',
@@ -960,7 +956,7 @@ export function SkillChatPage() {
                               }
                             });
                           }}
-                          className="px-2 py-1 rounded-md text-[11px] text-[var(--muted-foreground)] bg-[var(--background)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] hover:bg-[var(--primary)]/5 transition-colors cursor-pointer"
+                          className="px-3 py-1.5 rounded-md text-sm text-[var(--muted-foreground)] bg-[var(--background)] border border-[var(--border)] hover:border-[var(--primary)]/40 hover:text-[var(--foreground)] hover:bg-[var(--primary)]/5 transition-colors cursor-pointer"
                         >
                           {tip}
                         </button>
@@ -969,7 +965,7 @@ export function SkillChatPage() {
                   </div>
                 </div>
                 <p
-                  className="mt-6 text-center text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
+                  className="mt-6 text-center text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   Shift + Enter for newline · Enter to send

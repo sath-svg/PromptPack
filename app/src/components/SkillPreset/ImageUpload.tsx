@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Upload, AlertCircle } from 'lucide-react';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface UploadedImage {
   id: string;
@@ -28,23 +29,52 @@ export function ImageUpload({ onImagesAdded }: ImageUploadProps) {
 
         // Check file type
         if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setUploadError(
-            `Invalid file type: ${file.name}. Only JPG, PNG, WebP allowed.`
-          );
+          const msg = `Invalid file type: ${file.name}. Only JPG, PNG, WebP allowed.`;
+          setUploadError(msg);
+          useNotificationStore.getState().notify({
+            category: 'validation',
+            severity: 'warning',
+            title: 'Unsupported file type',
+            message: msg,
+            actions: [{ kind: 'dismiss' }],
+            details: `name=${file.name} type=${file.type}`,
+            dedupeKey: `upload.invalid_type:${file.name}`,
+            source: 'ImageUpload',
+          });
           continue;
         }
 
         // Check file size
         if (file.size > maxSize) {
-          setUploadError(
-            `File too large: ${file.name}. Max ${maxSizeMB}MB per file.`
-          );
+          const msg = `${file.name} exceeds ${maxSizeMB}MB. Try a smaller file.`;
+          setUploadError(msg);
+          useNotificationStore.getState().notify({
+            category: 'client',
+            severity: 'warning',
+            title: 'File too large',
+            message: msg,
+            actions: [{ kind: 'dismiss' }],
+            details: `name=${file.name} size=${file.size} max=${maxSize}`,
+            dedupeKey: `upload.too_large:${file.name}`,
+            source: 'ImageUpload',
+          });
           continue;
         }
 
         totalSize += file.size;
         if (totalSize > maxSize) {
-          setUploadError('Total size exceeds 5MB limit.');
+          const msg = `Total upload size exceeds ${maxSizeMB}MB. Remove some files and try again.`;
+          setUploadError(msg);
+          useNotificationStore.getState().notify({
+            category: 'client',
+            severity: 'warning',
+            title: 'Total size too large',
+            message: msg,
+            actions: [{ kind: 'dismiss' }],
+            details: `totalSize=${totalSize} max=${maxSize}`,
+            dedupeKey: 'upload.total_too_large',
+            source: 'ImageUpload',
+          });
           break;
         }
 

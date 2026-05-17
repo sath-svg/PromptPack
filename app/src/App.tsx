@@ -13,6 +13,8 @@ import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
+import { NotificationCenter } from './components/Notifications/NotificationCenter';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('chat');
@@ -124,10 +126,13 @@ function App() {
 
   return (
     <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
-      {renderPage()}
+      <ErrorBoundary key={currentPage} onGoHome={() => setCurrentPage('chat')}>
+        {renderPage()}
+      </ErrorBoundary>
       {!hasCompletedOnboarding && (
         <TutorialOverlay onComplete={completeOnboarding} />
       )}
+      <NotificationCenter />
     </Layout>
   );
 }

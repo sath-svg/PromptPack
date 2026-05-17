@@ -19,6 +19,7 @@ import { applyReasoning, capEffortForAgentLoop, managedProxyReasoning } from '..
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
+import { useNotificationStore } from './notificationStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel, estimateCreditsForCall } from '../lib/managed-models';
 import { syncCreditsFromHeaders } from '../lib/creditSync';
@@ -2001,6 +2002,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             error: err instanceof Error ? err.message : "Couldn't send this message. Please try again.",
             isLoading: false,
           });
+          useNotificationStore.getState().report(err, {
+            source: 'chatStore.sendMessage.managedProxy',
+            onRetry: () => get().sendMessage(text, packName, systemPrompt, attachments),
+          });
         }
       }
       return;
@@ -2292,6 +2297,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
           error: rawMsg || 'Something went wrong',
           isLoading: false,
         });
+        useNotificationStore.getState().report(err, {
+          source: 'chatStore.sendMessage.agent',
+          onRetry: () => get().sendMessage(text, packName, systemPrompt, attachments),
+        });
       }
       return;
     }
@@ -2390,6 +2399,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         return;
       }
       set({ error: rawMsg || 'Something went wrong', isLoading: false });
+      useNotificationStore.getState().report(err, {
+        source: 'chatStore.sendMessage.plain',
+        onRetry: () => get().sendMessage(text, packName, systemPrompt, attachments),
+      });
     }
   },
 

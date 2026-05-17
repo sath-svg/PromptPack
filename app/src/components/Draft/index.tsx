@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Save, Trash2, Cloud, ChevronDown, Sparkles } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useNotificationStore } from '../../stores/notificationStore';
 import { ENHANCE_API_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 
@@ -77,7 +78,11 @@ export function DraftPage() {
 
   useEffect(() => {
     if (session?.user_id && userPacks.length === 0) {
-      fetchAllPacks(session.user_id);
+      Promise.resolve(fetchAllPacks(session.user_id)).catch((err) =>
+        useNotificationStore.getState().report(err, {
+          source: 'Draft.fetchAllPacks',
+        }),
+      );
     }
   }, [session?.user_id]);
 

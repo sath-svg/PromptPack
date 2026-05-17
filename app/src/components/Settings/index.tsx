@@ -10,6 +10,7 @@ import { MANAGED_MODELS, MANAGED_TIER_LABELS, formatCreditRate } from '../../lib
 import { CONVEX_URL, WEB_APP_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
+import { useNotificationStore } from '../../stores/notificationStore';
 
 interface BillingStatus {
   tier: 'free' | 'pro' | 'studio';
@@ -65,6 +66,16 @@ export function SettingsPage() {
         });
       } catch (err) {
         console.error('credit balance fetch failed:', err);
+        useNotificationStore.getState().notify({
+          category: 'unknown',
+          severity: 'info',
+          title: 'Credit balance unavailable',
+          message: "Couldn't load your credit balance — check your connection.",
+          actions: [{ kind: 'dismiss' }],
+          details: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+          dedupeKey: 'settings.credit_balance_failed',
+          source: 'Settings.fetchBalance',
+        }, { ttlMs: 6000 });
       }
     };
     fetchBalance();
@@ -130,6 +141,16 @@ export function SettingsPage() {
         }
       } catch (error) {
         console.error('Failed to fetch billing status:', error);
+        useNotificationStore.getState().notify({
+          category: 'unknown',
+          severity: 'info',
+          title: 'Billing status unavailable',
+          message: "Couldn't load your plan details — using cached info.",
+          actions: [{ kind: 'dismiss' }],
+          details: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          dedupeKey: 'settings.billing_status_failed',
+          source: 'Settings.fetchBillingStatus',
+        }, { ttlMs: 6000 });
       } finally {
         setIsLoadingBilling(false);
       }

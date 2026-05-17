@@ -19,7 +19,7 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
-      <div className="mx-auto grid max-w-[1400px] grid-cols-3 items-center px-6 py-4">
+      <div className="mx-auto grid max-w-[1400px] grid-cols-[1fr_auto] items-center gap-3 px-4 py-3 md:grid-cols-3 md:px-6 md:py-4">
         <Link href="/" className="flex items-center gap-2">
           {/* Plain <img> — Next Image optimizer was racing on the 2048x2048
               source PNG, intermittently showing as broken in the sticky header. */}

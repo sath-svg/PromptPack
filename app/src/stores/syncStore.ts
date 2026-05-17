@@ -4,6 +4,7 @@ import type { PromptSource, UserTier, PackVersion, PromptVersion } from '../type
 import { CONVEX_URL, WORKERS_API_URL, getPromptLimit, getPromptsPerPackLimit } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 import { useAuthStore } from './authStore';
+import { useNotificationStore } from './notificationStore';
 import { syncWorkflowToWorkspace, clearWorkflowPointer } from '../lib/workspaceWorkflowSync';
 import { useAgentStore } from './agentStore';
 
@@ -2171,6 +2172,9 @@ export const useSyncStore = create<SyncState>()(
           return [];
         } catch (error) {
           console.error('Failed to fetch versions:', error);
+          useNotificationStore.getState().report(error, {
+            source: 'syncStore.fetchPackVersions',
+          });
           return [];
         }
       },
@@ -2311,6 +2315,9 @@ export const useSyncStore = create<SyncState>()(
           return [];
         } catch (error) {
           console.error('Failed to fetch prompt versions:', error);
+          useNotificationStore.getState().report(error, {
+            source: 'syncStore.fetchPromptVersions',
+          });
           return [];
         }
       },

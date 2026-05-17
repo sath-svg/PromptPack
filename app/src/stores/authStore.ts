@@ -9,6 +9,7 @@ import { tauriFetch } from '../lib/tauriFetch';
 // webview without CORS. Tauri side proxies requests via Rust.
 import { useSyncStore } from './syncStore';
 import { useSettingsStore } from './settingsStore';
+import { useNotificationStore } from './notificationStore';
 
 // Helper to fetch user's billing tier from the backend
 async function fetchUserTier(userId: string): Promise<string> {
@@ -188,12 +189,25 @@ export const useAuthStore = create<AuthState>()(
                 '[auth] Convex exchange-code failed; falling back to raw Clerk token. ' +
                   `status=${exchangeRes.status} body=${errBody.slice(0, 500)}`,
               );
+              useNotificationStore.getState().notify({
+                category: 'auth',
+                severity: 'warning',
+                title: 'Offline sign-in',
+                message: 'Signed in but the credit/billing service was unreachable. Long runs may need re-signing.',
+                actions: [{ kind: 'dismiss' }],
+                details: `status=${exchangeRes.status}\nbody=${errBody.slice(0, 500)}`,
+                dedupeKey: 'auth.exchange_offline',
+                source: 'authStore.exchangeCode',
+              });
             }
           } catch (e) {
             // Network failure during exchange — fall back to the raw Clerk
             // token so the user can still sign in offline-ish. Long runs
             // will 401 until they sign in again with Convex reachable.
             console.warn('[auth] Convex exchange-code error:', e);
+            useNotificationStore.getState().report(e, {
+              source: 'authStore.exchangeCode',
+            });
           }
 
           const session: AuthSession = {
@@ -295,6 +309,16 @@ export const useAuthStore = create<AuthState>()(
           useSettingsStore.getState().setBillingTier(tier as 'free' | 'pro' | 'studio');
         } catch (error) {
           console.error('Failed to refresh tier:', error);
+          useNotificationStore.getState().notify({
+            category: 'unknown',
+            severity: 'info',
+            title: 'Plan status unavailable',
+            message: "Couldn't refresh your plan status — using cached tier.",
+            actions: [{ kind: 'dismiss' }],
+            details: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+            dedupeKey: 'auth.tier_refresh_failed',
+            source: 'authStore.refreshTier',
+          }, { ttlMs: 6000 });
         }
       },
 
@@ -365,6 +389,16 @@ export const useAuthStore = create<AuthState>()(
               // Clear the session so the UI prompts re-sign-in.
               console.warn(`[auth] refresh failed status=${res.status}`);
               set({ session: null });
+              useNotificationStore.getState().notify({
+                category: 'auth',
+                severity: 'error',
+                title: 'Session expired',
+                message: 'Sign in again to keep using Skillset.',
+                actions: [{ kind: 'sign_in' }, { kind: 'dismiss' }],
+                details: `refresh status=${res.status}`,
+                dedupeKey: 'auth.session_expired',
+                source: 'authStore.refresh',
+              });
               return null;
             }
           } catch (e) {
