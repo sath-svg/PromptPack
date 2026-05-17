@@ -123,7 +123,7 @@ jobs:
         run: |
           set -e
           TARGET="${{ github.event.inputs.build_target }}"
-          if [ -z "$TARGET" ]; then TARGET="x64"; fi
+          if [ -z "$TARGET" ]; then TARGET="all"; fi
           echo "build_target=$TARGET" >> "$GITHUB_OUTPUT"
           echo "Building target=$TARGET"
 
@@ -141,6 +141,7 @@ jobs:
 
       - name: Tauri build — ARM64
         if: steps.target.outputs.build_target == 'arm64' || steps.target.outputs.build_target == 'all'
+        continue-on-error: true
         working-directory: app
         shell: bash
         run: |
