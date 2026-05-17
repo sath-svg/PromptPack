@@ -116,7 +116,7 @@ function Hero() {
           </h1>
 
           <p className="mt-7 max-w-[52ch] text-[17px] leading-[1.55] text-zinc-400">
-            Save prompts/skills as skillsets. Route each skillset to the cheapest capable model. One library across every AI tool you use.
+            Save skills and prompts as skillsets. Route each skillset to the cheapest capable model. One library across every AI tool you use.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center gap-4">

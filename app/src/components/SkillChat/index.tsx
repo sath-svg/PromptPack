@@ -499,6 +499,12 @@ export function SkillChatPage() {
     const text = input.trim();
     if (!text) return;
 
+    // Auth gate — require sign-in before any chat interaction
+    if (!session) {
+      openSignIn();
+      return;
+    }
+
     // SkillFlow gate. The LR route head OR write-intent detector flags
     // a prompt that needs agent/orchestrator capabilities but the user
     // has SkillFlow disabled. Pause here, surface a modal asking them
