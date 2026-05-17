@@ -24,7 +24,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset — Save up to 80% on AI Costs",
+  title: "Skillset: cut your AI costs by up to 80%",
   description:
     "Cut AI costs up to 80% with smart prompt routing. Save your best prompts as portable skills, route each task to the cheapest capable model, and use them across ChatGPT, Claude, Gemini, and your IDE.",
 };

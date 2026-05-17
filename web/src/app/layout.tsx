@@ -10,7 +10,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://skillset.so'),
-  title: "Skillset - Save up to 80% on AI Costs",
+  title: "Skillset: cut your AI costs by up to 80%",
   description:
     "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste. Free Chrome extension and desktop app.",
   keywords: [
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Skillset - Save up to 80% on AI Costs",
+    title: "Skillset: cut your AI costs by up to 80%",
     description: "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste.",
     url: "https://skillset.so",
     siteName: "Skillset",
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skillset - Save up to 80% on AI Costs",
+    title: "Skillset: cut your AI costs by up to 80%",
     description: "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste.",
     images: [assetUrl('/img/skillset_og.jpg')],
   },
