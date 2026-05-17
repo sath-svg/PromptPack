@@ -138,22 +138,23 @@ jobs:
         run: |
           set -e
           mkdir -p artifacts
-          # x64 NSIS installer
-          for f in app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-x64-setup.exe"
-          done
-          # x64 MSI installer
-          for f in app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-x64.msi"
-          done
-          # ARM64 NSIS installer
-          for f in app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/*.exe; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-arm64-setup.exe"
-          done
-          # ARM64 MSI installer
-          for f in app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/*.msi; do
-            [ -f "$f" ] && cp "$f" "artifacts/Skillset-arm64.msi"
-          done
+          # Helper: copy first match if exists.
+          cp_one() { for f in $1; do [ -f "$f" ] && cp "$f" "$2" && return 0; done; return 0; }
+
+          # x64 installers (versioned filename preserved as-is)
+          cp_one "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*_x64-setup.exe"          "artifacts/"
+          cp_one "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Skillset_*_x64_en-US.msi"           "artifacts/"
+          # x64 updater bundles + signatures (createUpdaterArtifacts:true)
+          cp_one "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*_x64-setup.nsis.zip"     "artifacts/"
+          cp_one "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*_x64-setup.nsis.zip.sig" "artifacts/"
+
+          # ARM64 installers
+          cp_one "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*_arm64-setup.exe"        "artifacts/"
+          cp_one "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/Skillset_*_arm64_en-US.msi"         "artifacts/"
+          # ARM64 updater bundles + signatures
+          cp_one "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*_arm64-setup.nsis.zip"     "artifacts/"
+          cp_one "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*_arm64-setup.nsis.zip.sig" "artifacts/"
+
           ls -la artifacts/
 
       - name: Upload artifacts

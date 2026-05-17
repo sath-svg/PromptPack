@@ -92,9 +92,17 @@ jobs:
         run: |
           set -e
           mkdir -p artifacts
+          cp_one() { for f in $1; do [ -f "$f" ] && cp "$f" "$2" && return 0; done; return 0; }
+
+          # Public-facing DMG (manual download, stable filename for /downloads page)
           for f in app/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
             [ -f "$f" ] && cp "$f" "artifacts/Skillset-Universal.dmg"
           done
+
+          # Updater bundle + signature (createUpdaterArtifacts:true → .app.tar.gz + .sig)
+          cp_one "app/src-tauri/target/universal-apple-darwin/release/bundle/macos/Skillset.app.tar.gz"     "artifacts/"
+          cp_one "app/src-tauri/target/universal-apple-darwin/release/bundle/macos/Skillset.app.tar.gz.sig" "artifacts/"
+
           ls -la artifacts/
 
       - name: Upload artifact

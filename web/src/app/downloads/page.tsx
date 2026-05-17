@@ -6,7 +6,7 @@ import { MacOSDownload } from "@/components/macos-download";
 import { WindowsDownload } from "@/components/windows-download";
 import { SignedOut } from "@/lib/auth-compat";
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 
 export const metadata: Metadata = {
   title: "Download Skillset — Mac & Windows desktop apps",
@@ -89,7 +89,7 @@ function DesktopSection() {
             className="hidden max-w-[40ch] text-[13.5px] text-zinc-500 md:block"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            v{APP_VERSION} &middot; updated 2026-05-13
+            v{APP_VERSION} &middot; updated 2026-05-17
           </p>
         </div>
 

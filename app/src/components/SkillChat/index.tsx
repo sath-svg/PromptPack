@@ -700,7 +700,7 @@ export function SkillChatPage() {
                   >
                     <Info size={12} />
                   </button>
-                  <div className="absolute left-0 top-full mt-2 w-72 p-3 rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-lg text-xs text-[var(--foreground)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                  <div className="absolute right-0 bottom-full mb-3 w-[520px] p-4 rounded-lg bg-[var(--card)] border border-[var(--border)] shadow-lg text-xs text-[var(--foreground)] opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
                     <p className="font-semibold mb-1.5 text-[var(--foreground)]">Notice your credits falling fast?</p>
                     <p className="text-[var(--muted-foreground)] leading-relaxed">
                       For Skill Flow, we take a loan to send to the agents. Any unused credits will be returned.
