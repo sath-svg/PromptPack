@@ -148,52 +148,26 @@ jobs:
           npx --yes @tauri-apps/cli@latest build --target aarch64-pc-windows-msvc
 
       - name: Collect artifacts
+        if: always()
         shell: bash
         run: |
-          set -ex
+          set -x
           mkdir -p artifacts
 
-          echo "=== x64 bundle dir contents ==="
-          ls -la app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/ 2>/dev/null || echo "(missing)"
-          ls -la app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/  2>/dev/null || echo "(missing)"
-          echo "=== arm64 bundle dir contents ==="
-          ls -la app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/ 2>/dev/null || echo "(missing)"
-          ls -la app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/  2>/dev/null || echo "(missing)"
+          echo "=== full target tree (every .exe / .msi / .sig / .zip under bundle/) ==="
+          find app/src-tauri/target -path '*/release/bundle/*' \
+            \( -name 'Skillset_*' -o -name 'Skillset.*' \) -type f \
+            | tee /tmp/found.txt || true
 
-          # Helper: copy every match (greedy — picks up both versioned + sig sibling)
-          cp_glob() {
-            local matched=0
-            for f in $1; do
-              if [ -f "$f" ]; then
-                cp "$f" artifacts/
-                matched=$((matched + 1))
-              fi
-            done
-            echo "  ↳ $matched file(s) matched: $1"
-          }
+          echo "=== copying everything found ==="
+          while IFS= read -r f; do
+            [ -f "$f" ] && cp -v "$f" artifacts/
+          done < /tmp/found.txt
 
-          # x64
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*.exe"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*.exe.sig"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*.nsis.zip"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Skillset_*.nsis.zip.sig"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.sig"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.zip"
-          cp_glob "app/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.zip.sig"
-
-          # arm64
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*.exe"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*.exe.sig"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*.nsis.zip"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/nsis/Skillset_*.nsis.zip.sig"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.sig"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.zip"
-          cp_glob "app/src-tauri/target/aarch64-pc-windows-msvc/release/bundle/msi/Skillset_*.msi.zip.sig"
-
-          echo "=== final artifacts/ ==="
+          echo "=== final artifacts/ contents ==="
           ls -la artifacts/
+          echo "=== sig files in artifacts/ ==="
+          ls artifacts/*.sig 2>/dev/null || echo "(NO .sig FILES — signing step did not produce them)"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
