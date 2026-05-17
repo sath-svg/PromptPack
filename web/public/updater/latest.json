@@ -2,7 +2,7 @@
   "_README": "Tauri auto-updater manifest. Each `signature` is the raw text contents of the matching .sig file produced by `tauri build` when TAURI_SIGNING_PRIVATE_KEY is set. Each `url` must be a publicly downloadable artifact. Bump `version` and `pub_date` for every release. Platforms not listed get a 204 (no update) — see web/src/app/updater/[target]/[arch]/[current_version]/route.ts.",
   "version": "1.2.0",
   "notes": "Skillset 1.2.0 — user-friendly error handling with global toast notifications + Copy details, in-app updater check, and reliability fixes across chat, sync, auth, and settings.",
-  "pub_date": "2026-05-17T14:25:00Z",
+  "pub_date": "2026-05-17T15:00:00Z",
   "platforms": {
     "darwin-aarch64": {
       "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTRE4ybmp1L0F1NC9pVzdJWXU5a2krVDdFMHJHbHpocDlFMGpmYUU0MlpqZnNiSk0zcThOdFdvZmpwQ0RReFRVVGUwWWRiV3pnbzNmaEtRVWZRaEpwQjhkWVQwa3A4R3dBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4OTk2MjEwCWZpbGU6U2tpbGxzZXQuYXBwLnRhci5negpTMkV6Rnd1dVlvaEJaVnBFVllFMEZqWlBrVnJ5Y29aVzZXK1doVGhXR1paUGUwc1FKNm44c3JUdDBNeVJ2K2wrbW4wY0FWSUxiMVh4Q2IveThvTW9CQT09Cg==",
@@ -13,8 +13,12 @@
       "url": "https://skillset.so/downloads/Skillset.app.tar.gz"
     },
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTRE4ybmp1L0F1NDlES2pEd09NQkNlYUl0SjAvM3JCR0RFcUhLOTFIbWl0ZnVFZlRhaWFMaFEyZFpqN29SbFdnaU5CMmhPUEhUMXMvdkhLR0xkOWFKVjllSzhlWmZjUEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc4OTk4NjQyCWZpbGU6U2tpbGxzZXRfMS4yLjBfeDY0LXNldHVwLmV4ZQpCaXM5bTQ4NlR6NWFkWURMN25lRmNCZ0MxZnVjR2x0dW9FTHU3cGxIZmxmUWFMVzFlZnAwMFhFY3E0RnZvZDRmc3FKZ1hKakppb0FwTGJpcE1lOUtDdz09Cg==",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTRE4ybmp1L0F1NHozVkNFQ051d0J1dVdETmN5ZWNlbXNpWk9UMTFzZDI4NWg1RW9TeG5xN2Npcng4ajlMWXdIemJjajJWY3BZdE1Sb3NzRFFKZFJNSlJuaFFyeXhjL3djPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MDAwNDU3CWZpbGU6U2tpbGxzZXRfMS4yLjBfeDY0LXNldHVwLmV4ZQpUenFudmpIVkczeFo0cGxxTXdudDFmWFVuRVltUEJiR1VrcEZteFVJOFhmWmp1QkxBRmtDY256U3FwZVNTWE5leldkVlphMDRycTdGYjBOemdCQ1pDQT09Cg==",
       "url": "https://skillset.so/downloads/Skillset_1.2.0_x64-setup.exe"
+    },
+    "windows-aarch64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTRE4ybmp1L0F1NDd5eSsyZVBlTXJZcVVIOEE1WkhzeHpsRTRZM3hJUTNnckQ2b3RSUnF6akV2VW8vZ3ZQTXNyeWhxcnJCbWZ6dm1uUURxSHdlTXhLN1dyWHNTWm93SndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc5MDAxMDIxCWZpbGU6U2tpbGxzZXRfMS4yLjBfYXJtNjQtc2V0dXAuZXhlCkNnVnZMSGE1WkNvdGhmUjdwVzlJZW5kLytKWC9vbmhwN3Y1elR4NFo3bjdNZlY5TXMwVnEvNkxFekJKYjJxNTFGNzZkRmtLRkdpWjdVbzRQT0I3eEJRPT0K",
+      "url": "https://skillset.so/downloads/Skillset_1.2.0_arm64-setup.exe"
     }
   }
 }
