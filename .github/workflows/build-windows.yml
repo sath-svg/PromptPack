@@ -139,6 +139,15 @@ jobs:
           # find them (os error 2).
           npx --yes @tauri-apps/cli@latest build --target x86_64-pc-windows-msvc
 
+      # Cross-compile vcvars: sets INCLUDE/LIB/PATH so the arm64 C toolchain
+      # (clang-cl/cl.exe + Windows SDK) can resolve vcruntime.h etc. Without
+      # this, `ring` crate fails: "fatal error: 'vcruntime.h' file not found".
+      - name: Setup MSVC arm64 cross-compile env
+        if: steps.target.outputs.build_target == 'arm64' || steps.target.outputs.build_target == 'all'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: amd64_arm64
+
       - name: Tauri build — ARM64
         if: steps.target.outputs.build_target == 'arm64' || steps.target.outputs.build_target == 'all'
         continue-on-error: true
