@@ -847,9 +847,9 @@ export function SkillChatPage() {
             topmost bubble — visible whenever the first prompt of a
             session sits alone (e.g. a sign-in error blocks the
             assistant reply). */}
-        <div className={`flex-1 space-y-4 pr-1 min-h-0 ${messages.length === 0 ? 'overflow-y-auto pt-0' : 'overflow-y-auto pt-10'}`}>
+        <div className={`flex-1 space-y-4 pr-1 min-h-0 ${messages.length === 0 ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-10'}`}>
           {messages.length === 0 && !packVarForm && !variablePrompt && (
-            <div className="flex min-h-full items-end justify-center pt-4 pb-4">
+            <div className="flex h-full items-end justify-center pb-4">
               <div
                 className="relative w-full max-w-[720px]"
                 style={{ zoom: EMPTY_STATE_SCALE }}
@@ -964,12 +964,6 @@ export function SkillChatPage() {
                     </div>
                   </div>
                 </div>
-                <p
-                  className="mt-6 text-center text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Shift + Enter for newline · Enter to send
-                </p>
               </div>
             </div>
           )}

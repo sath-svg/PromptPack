@@ -15,6 +15,7 @@ import { useSettingsStore } from './stores/settingsStore';
 import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { NotificationCenter } from './components/Notifications/NotificationCenter';
+import { checkForUpdateOnLaunch } from './lib/appUpdater';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('chat');
@@ -27,6 +28,12 @@ function App() {
     let unlisten: (() => void) | undefined;
     initAuthListener().then((fn) => { unlisten = fn; });
     return () => { unlisten?.(); };
+  }, []);
+
+  // Poll the updater endpoint once on launch. Shows an Install toast if
+  // a new signed build is available; otherwise silent.
+  useEffect(() => {
+    void checkForUpdateOnLaunch();
   }, []);
 
   // Fetch cloud and user packs when session is available
