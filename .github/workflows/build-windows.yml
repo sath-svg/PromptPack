@@ -115,11 +115,11 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          if command -v bun >/dev/null 2>&1; then
-            bun run tauri build -- --target x86_64-pc-windows-msvc
-          else
-            npx tauri build --target x86_64-pc-windows-msvc
-          fi
+          # Call tauri CLI directly (not via `bun run <script>`) — bun
+          # strips the `--` separator so `--target` never reaches cargo,
+          # builds land in `target/release/` and the bundler then can't
+          # find them (os error 2).
+          npx --yes @tauri-apps/cli@latest build --target x86_64-pc-windows-msvc
 
       - name: Tauri build — ARM64
         if: steps.target.outputs.build_target == 'arm64' || steps.target.outputs.build_target == 'all'
@@ -127,11 +127,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          if command -v bun >/dev/null 2>&1; then
-            bun run tauri build -- --target aarch64-pc-windows-msvc
-          else
-            npx tauri build --target aarch64-pc-windows-msvc
-          fi
+          npx --yes @tauri-apps/cli@latest build --target aarch64-pc-windows-msvc
 
       - name: Collect artifacts
         shell: bash
