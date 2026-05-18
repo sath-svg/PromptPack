@@ -15,7 +15,7 @@ const FEATURES = [
   { t: "3 Skill Enhances / day", hi: false },
   { t: "15 AI Headers / day", hi: false },
   { t: "3 Prompt Scores / day", hi: false },
-  { t: "Quick + Balanced models only - No Opus or GPT-5 Pro in managed mode", hi: false },
+  { t: "Fast + Balanced models only - No Opus or GPT-5 Pro in managed mode", hi: false },
   { t: "No Bring Your Own Key (managed mode only)", hi: false },
 ];
 

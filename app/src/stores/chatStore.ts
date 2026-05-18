@@ -55,7 +55,7 @@ class SkillFlowLockedError extends Error {
 
 class FrontierLockedError extends Error {
   constructor() {
-    super('Premium Models (Opus, GPT-5 Pro, o3 Pro) are a Pro / Studio feature. Pick a Standard model or upgrade.');
+    super('Powerful Models (Opus, GPT-5 Pro, o3 Pro) are a Pro / Studio feature. Pick a Fast or Balanced model or upgrade.');
     this.name = 'FrontierLockedError';
   }
 }

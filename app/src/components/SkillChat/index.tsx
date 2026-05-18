@@ -681,12 +681,12 @@ export function SkillChatPage() {
             {isManagedActive && (
               <>
                 {/* Change model → routes to Settings page where the
-                    cheap/mid/frontier picks live. */}
+                    Fast / Balanced / Powerful picks live. */}
                 <button
                   type="button"
                   onClick={() => window.dispatchEvent(new CustomEvent('skillset:navigate', { detail: 'settings' }))}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)] hover:bg-[var(--accent)] transition-colors"
-                  title="Configure cheap / mid / frontier picks"
+                  title="Configure Fast / Balanced / Powerful picks"
                 >
                   <SettingsIcon size={12} />
                   Change model
@@ -888,7 +888,7 @@ export function SkillChatPage() {
                     <div className="flex items-center justify-between gap-2 relative max-w-[520px] mx-auto">
                       {/* Animated dot trail along the connecting line.
                           Bar inset on both sides so it floats between Fast
-                          and stops before Frontier — feels less crowded.
+                          and stops before Powerful — feels less crowded.
                           Dot's `left` keyframe traverses this narrower span. */}
                       <div className="absolute top-[58%] left-[15%] right-[28%] -translate-y-1/2 h-px overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[var(--border)] to-transparent" />
@@ -904,14 +904,14 @@ export function SkillChatPage() {
                         modelHint="Haiku · Llama"
                       />
                       <TierNode
-                        label="Mid"
+                        label="Balanced"
                         sublabel="reasoning"
                         color="primary"
                         active
                         modelHint="Sonnet · GPT-5"
                       />
                       <TierNode
-                        label="Frontier"
+                        label="Powerful"
                         sublabel="hard tasks"
                         color="amber"
                         modelHint="Opus · GPT-5 Pro"
@@ -1693,8 +1693,8 @@ export function SkillChatPage() {
       >
         <p className="mb-2">
           One chat, every model. <span className="text-[var(--foreground)]">Skill Chat</span> picks
-          the cheapest model that can actually answer — fast tier for lookups, mid tier for normal
-          back-and-forth, frontier when the question is hard.
+          the cheapest model that can actually answer — Fast for lookups, Balanced for normal
+          back-and-forth, Powerful when the question is hard.
         </p>
         <p className="mb-2">
           No more tab-juggling between providers. Old turns roll out of context automatically, so a

@@ -18,7 +18,7 @@ export const EARLY_BIRD_PRICE = 1.99; // historical value, no longer rendered
 const FEATURES = [
   { t: "750 AI credits per month in Managed mode", hi: true },
   { t: "Rolls over up to 1,500 credits", hi: false },
-  { t: "Frontier Models (Opus, GPT-5 Pro, o3 Pro)", hi: true },
+  { t: "Powerful Models (Opus, GPT-5 Pro, o3 Pro)", hi: true },
   { t: "Skill Router", hi: true },
   { t: "Skill Flow — up to 5 parallel flows (agents)", hi: true },
   { t: "Skill Preset — encrypted style locks + licensing", hi: true },
@@ -27,7 +27,7 @@ const FEATURES = [
   { t: "100 Skill Enhances / day", hi: false },
   { t: "500 Skill Eval runs / day", hi: false },
   { t: "500 AI Headers / day", hi: false },
-  { t: "Skill Chat with Frontier Models", hi: true },
+  { t: "Skill Chat with Powerful Models", hi: true },
   { t: "BYOK - Bring Your Own Key", hi: true },
   { t: "Priority support", hi: false },
 ];

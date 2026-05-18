@@ -45,7 +45,7 @@ export function friendlyApiError(
       return 'SkillFlow workflows are a Pro / Studio feature. Upgrade to run multi-step AI workflows.';
     }
     if (code === 'FRONTIER_NOT_ALLOWED') {
-      return 'Premium Models (Opus, GPT-5 Pro, o3 Pro) are a Pro / Studio feature. Pick a Standard model or upgrade.';
+      return 'Powerful Models (Opus, GPT-5 Pro, o3 Pro) are a Pro / Studio feature. Pick a Fast or Balanced model or upgrade.';
     }
     return serverMessage || 'Access denied for this request.';
   }

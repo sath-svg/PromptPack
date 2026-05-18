@@ -89,7 +89,7 @@ export default function PrivacyPolicy() {
               <li><strong>Service Delivery:</strong> To provide, maintain, and improve our browser extensions, web app, and desktop app.</li>
               <li><strong>Cloud Sync:</strong> To sync your saved prompts, packs, and skillsets across devices (Pro / Studio tiers).</li>
               <li><strong>Authentication:</strong> To verify your identity and manage your account.</li>
-              <li><strong>Routing &amp; Metering:</strong> In managed mode, to route your request to the appropriate model tier (Fast / Mid / Frontier) and to meter usage against your credit balance.</li>
+              <li><strong>Routing &amp; Metering:</strong> In managed mode, to route your request to the appropriate model tier (Fast / Balanced / Powerful) and to meter usage against your credit balance.</li>
               <li><strong>Style Analysis (Skill Preset):</strong> To send your uploaded reference images to a Vision LLM (Claude Haiku 4.5 via OpenRouter) for art-style extraction.</li>
               <li><strong>Image Generation:</strong> To send your style-locked prompts to DALL-E 3 (OpenAI) or Gemini Flash Image (OpenRouter) for preview generation.</li>
               <li><strong>Payment Processing:</strong> To process subscription payments and credit top-ups (Stripe).</li>

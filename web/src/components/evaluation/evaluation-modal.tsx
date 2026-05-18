@@ -18,9 +18,9 @@ interface EvaluationModalProps {
 const TIER_ORDER: EvalTierKey[] = ["cheap", "mid", "frontier"];
 
 const TIER_LABELS: Record<EvalTierKey, string> = {
-  cheap: "Cheap",
-  mid: "Mid",
-  frontier: "Frontier",
+  cheap: "Fast",
+  mid: "Balanced",
+  frontier: "Powerful",
 };
 
 const TIER_DOT_COLORS: Record<EvalTierKey, string> = {

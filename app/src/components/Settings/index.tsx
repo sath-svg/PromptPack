@@ -362,7 +362,7 @@ export function SettingsPage() {
             <div>
               <p className="text-sm font-medium text-[var(--foreground)]">Managed mode (using Skillset credits)</p>
               <p className="text-xs text-[var(--muted-foreground)]">
-                Route chats through curated frontier models. Metered against your credit balance.
+                Route chats through curated managed models. Metered against your credit balance.
               </p>
             </div>
             <input

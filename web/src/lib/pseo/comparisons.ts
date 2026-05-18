@@ -13,7 +13,7 @@ export const comparisonPages: ComparisonPage[] = [
       {
         feature: "Model coverage",
         skillset:
-          "Auto-routes across Claude, GPT-5, Gemini, Grok, DeepSeek, Llama. One credit pool, per-task tier selection (Fast/Mid/Frontier).",
+          "Auto-routes across Claude, GPT-5, Gemini, Grok, DeepSeek, Llama. One credit pool, per-task tier selection (Fast/Balanced/Powerful).",
         competitor: "Claude family only (Sonnet, Opus, Haiku).",
         winner: "skillset",
       },
@@ -60,7 +60,7 @@ export const comparisonPages: ComparisonPage[] = [
       },
     ],
     verdict:
-      "Claude Code is the best agentic-coding experience for Claude models specifically — deep tool integration, fast feedback loop, strong at long-horizon refactors. Skillset wins when you want multi-model auto-routing (cheap tier for lookups, frontier for hard tasks), reusable prompt packs as sequential workflows (SkillFlow), browser-side prompt management on ChatGPT/Gemini/Grok, and creative tools like Skill Preset for image style mimicry. They're complementary: run Claude Code for deep refactors and Skillset for everything else.",
+      "Claude Code is the best agentic-coding experience for Claude models specifically — deep tool integration, fast feedback loop, strong at long-horizon refactors. Skillset wins when you want multi-model auto-routing (Fast tier for lookups, Powerful for hard tasks), reusable prompt packs as sequential workflows (SkillFlow), browser-side prompt management on ChatGPT/Gemini/Grok, and creative tools like Skill Preset for image style mimicry. They're complementary: run Claude Code for deep refactors and Skillset for everything else.",
     targetKeywords: [
       "Skillset vs Claude Code",
       "Claude Code alternative",
@@ -134,7 +134,7 @@ export const comparisonPages: ComparisonPage[] = [
       },
     ],
     verdict:
-      "ChatGPT is the polished default for general chat + GPT-only workflows: tightly integrated DALL-E, Code Interpreter sandbox, GPTs marketplace, mobile apps. Skillset is the right choice when you want multi-model routing (so easy questions don't burn frontier-tier credits), reusable prompt chains with persistent generated files (Skill Flow), a workspace agent that touches YOUR local files with diff review, and portable encrypted prompt packs you actually own. Many users run both — ChatGPT for casual chat, Skillset for serious prompt engineering and agentic work across providers.",
+      "ChatGPT is the polished default for general chat + GPT-only workflows: tightly integrated DALL-E, Code Interpreter sandbox, GPTs marketplace, mobile apps. Skillset is the right choice when you want multi-model routing (so easy questions don't burn Powerful-tier credits), reusable prompt chains with persistent generated files (Skill Flow), a workspace agent that touches YOUR local files with diff review, and portable encrypted prompt packs you actually own. Many users run both — ChatGPT for casual chat, Skillset for serious prompt engineering and agentic work across providers.",
     targetKeywords: [
       "Skillset vs ChatGPT",
       "ChatGPT alternative",
