@@ -69,11 +69,24 @@ export function ProCard() {
     <div className="relative flex flex-col rounded-2xl border-2 border-[#2563EB]/60 bg-[#0f0f12] p-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-20px_rgba(37,99,235,0.35)] transition-all duration-300">
       {/* recommended badge */}
       <span
-        className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#2563EB] text-[10px] font-medium uppercase tracking-[0.16em] text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+        className="absolute -top-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-[#2563EB] text-[10px] font-medium uppercase tracking-[0.16em] text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
         style={{ padding: "4px 12px", fontFamily: "var(--font-geist-mono), monospace" }}
       >
         {isPro ? "Current Plan" : isEarlyBird ? `Early Bird · ${spotsLeft} left` : "Recommended"}
       </span>
+
+      {/* corner ribbon */}
+      <div
+        className="pointer-events-none absolute top-0 right-0 h-[170px] w-[170px] overflow-hidden rounded-tr-2xl"
+        aria-hidden="true"
+      >
+        <span
+          className="absolute top-[38px] -right-[60px] w-[240px] rotate-45 bg-emerald-500 text-center text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-[0_6px_16px_-4px_rgba(16,185,129,0.55)]"
+          style={{ padding: "9px 0", fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          Cheaper than Claude
+        </span>
+      </div>
 
       <div>
         <h2
