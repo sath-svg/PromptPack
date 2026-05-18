@@ -26,7 +26,11 @@ jobs:
     env:
       USE_BUN: "1"
       TAURI_BUNDLE_TARGETS: "dmg,app"
-      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      # TAURI_SIGNING_PRIVATE_KEY is materialized to a file below — see
+      # "Materialize Tauri signing key" step. Passing the base64 secret
+      # inline triggers "Missing encoded key in secret key" because Tauri
+      # expects either a path to the raw minisign key file or the raw key
+      # contents, not the base64 wrapper.
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
@@ -47,6 +51,21 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Materialize Tauri signing key (file, not env)
+        shell: bash
+        env:
+          KEY_B64: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          set -e
+          # Secret is base64-encoded contents of the minisign private key file.
+          # Decoding to a real file and pointing TAURI_SIGNING_PRIVATE_KEY at
+          # the path matches the Windows workflow's working approach.
+          KEY_PATH="$RUNNER_TEMP/tauri-signing.key"
+          printf '%s' "$KEY_B64" | base64 -d > "$KEY_PATH"
+          # Sanity: must start with the minisign comment header
+          head -c 50 "$KEY_PATH"; echo
+          echo "TAURI_SIGNING_PRIVATE_KEY=$KEY_PATH" >> "$GITHUB_ENV"
 
       - name: Cache cargo registry + git + target
         uses: Swatinem/rust-cache@v2
