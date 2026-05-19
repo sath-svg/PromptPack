@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
+import { AwsClient } from 'aws4fetch';
 import { tauriFetch } from '../lib/tauriFetch';
 import {
   classifyTier,
@@ -371,7 +372,26 @@ function getAvailableProviders(apiKeys: Record<string, string | undefined>): Set
   if (apiKeys.kimi) providers.add('kimi');
   if (apiKeys.groq) providers.add('groq');
   if (apiKeys.openrouter) providers.add('openrouter');
+  if (apiKeys.mistral) providers.add('mistral');
+  if (apiKeys.cohere) providers.add('cohere');
+  if (apiKeys.together) providers.add('together');
+  if (apiKeys.fireworks) providers.add('fireworks');
+  if (apiKeys.cerebras) providers.add('cerebras');
+  // Bedrock config lives on the typed store, not in the Record<string,string>
+  // bag — `getAvailableProvidersAsync` and the picker check this separately
+  // by reading `useSettingsStore` directly via the helper below.
+  if (hasBedrockConfig()) providers.add('bedrock');
   return providers;
+}
+
+/** True when all three Bedrock SigV4 fields are filled. Bedrock requires
+ *  access key + secret + region; missing any one breaks the signing call.
+ *  Read directly from settingsStore so we don't have to widen the
+ *  `apiKeys: Record<string,string|undefined>` signature through every
+ *  caller. */
+function hasBedrockConfig(): boolean {
+  const bedrock = useSettingsStore.getState().apiKeys?.bedrock;
+  return !!(bedrock && bedrock.accessKeyId && bedrock.secretAccessKey && bedrock.region);
 }
 
 /// Fresh reachability probe — uncached. Picker uses this each send so a
@@ -412,6 +432,13 @@ const TOOL_CAPABLE: Set<Provider> = new Set([
   'ollama',
   'gemini',
   'server',  // Skillset-hosted Groq proxy supports tools via openai-compat
+  // OpenAI-tools-compatible newcomers. Cohere's compat layer + Bedrock's
+  // native Anthropic-tools format are not wired into the agent loop yet —
+  // they stay BYOK-plain-only until that work lands.
+  'mistral',
+  'together',
+  'fireworks',
+  'cerebras',
 ]);
 
 // Inbuilt server is pinned to fast/balanced (8B Llama via Groq). Powerful
@@ -482,6 +509,93 @@ function pickToolCapableModel(
 // ---------------------------------------------------------------------------
 // Plain chat (no tools)
 // ---------------------------------------------------------------------------
+
+/**
+ * Resolve the actual Bedrock model identifier to invoke. Order:
+ *   1. Manual override for this tier (haiku/sonnet/opus) — wins absolutely
+ *      so users can punch through to any profile name AWS introduces.
+ *   2. Auto-prefix toggle — derive a cross-region inference profile from
+ *      the region (`us-*` → `us.`, `eu-*` → `eu.`, `ap-*` → `apac.`).
+ *   3. Raw canonical model ID from the preset.
+ */
+function resolveBedrockModelId(
+  canonical: string,
+  config: { region: string; useInferenceProfile?: boolean; modelIdOverrides?: { haiku?: string; sonnet?: string; opus?: string } },
+): string {
+  const overrides = config.modelIdOverrides;
+  if (overrides) {
+    if (canonical.includes('claude-haiku') && overrides.haiku?.trim()) return overrides.haiku.trim();
+    if (canonical.includes('claude-sonnet') && overrides.sonnet?.trim()) return overrides.sonnet.trim();
+    if (canonical.includes('claude-opus') && overrides.opus?.trim()) return overrides.opus.trim();
+  }
+  if (config.useInferenceProfile) {
+    const r = config.region.toLowerCase();
+    const prefix = r.startsWith('us-') ? 'us.'
+      : r.startsWith('eu-') ? 'eu.'
+      : r.startsWith('ap-') ? 'apac.'
+      : null;
+    if (prefix && !canonical.startsWith(prefix)) return `${prefix}${canonical}`;
+  }
+  return canonical;
+}
+
+/**
+ * Bedrock plain chat. Bedrock speaks the Anthropic Messages API but signs
+ * requests with AWS SigV4 instead of `x-api-key`. Body uses the same shape
+ * as `callAnthropicPlain` minus the top-level `model` field (encoded in
+ * the URL path) plus an explicit `anthropic_version: 'bedrock-2023-05-31'`.
+ *
+ * We sign with `aws4fetch.AwsClient.sign()` to get the signed Headers,
+ * then dispatch via `tauriFetch` so the request goes through the Rust
+ * HTTP client (CORS-free, same path as every other BYOK provider).
+ */
+async function callBedrockPlain(
+  preset: ModelPreset,
+  messages: { role: string; content: string }[],
+  system?: string,
+  effort?: EffortLevel | null,
+): Promise<string> {
+  const bedrock = useSettingsStore.getState().apiKeys?.bedrock;
+  if (!bedrock?.accessKeyId || !bedrock.secretAccessKey || !bedrock.region) {
+    throw new Error('Bedrock not configured — set access key, secret, and region in Settings.');
+  }
+  let payload: Record<string, unknown> = {
+    anthropic_version: 'bedrock-2023-05-31',
+    max_tokens: 4096,
+    messages,
+  };
+  if (system) payload.system = system;
+  payload = applyReasoning(preset, effort ?? null, payload);
+
+  const resolvedModelId = resolveBedrockModelId(preset.modelId, bedrock);
+  const url = `https://bedrock-runtime.${bedrock.region}.amazonaws.com/model/${encodeURIComponent(resolvedModelId)}/invoke`;
+  const body = JSON.stringify(payload);
+  const aws = new AwsClient({
+    accessKeyId: bedrock.accessKeyId,
+    secretAccessKey: bedrock.secretAccessKey,
+    region: bedrock.region,
+    service: 'bedrock',
+  });
+  // `.sign()` returns a Request with the SigV4 auth headers attached.
+  // We pull the headers off and re-issue via tauriFetch so the call uses
+  // the same network path (and CORS workaround) as every other provider.
+  const signed = await aws.sign(url, {
+    method: 'POST',
+    body,
+    headers: { 'content-type': 'application/json' },
+  });
+  const headers: Record<string, string> = {};
+  signed.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  const response = await tauriFetch(url, { method: 'POST', headers, body });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.message || err?.error?.message || `Bedrock error ${response.status}`);
+  }
+  const data = await response.json();
+  return data?.content?.[0]?.text ?? '';
+}
 
 async function callAnthropicPlain(
   apiKey: string,
@@ -579,6 +693,14 @@ async function callPlainPreset(
     const chatMessages = messages.filter((m) => m.role !== 'system');
     const system = systemPrompt || messages.find((m) => m.role === 'system')?.content;
     return callAnthropicPlain(apiKeys.anthropic!, preset, chatMessages, system, effort);
+  }
+  // Bedrock uses native Anthropic Messages format but SigV4 auth — keys
+  // come from settingsStore, not the bearer-key bag, so the routing
+  // happens before the generic OpenAI-compat path.
+  if (provider === 'bedrock') {
+    const chatMessages = messages.filter((m) => m.role !== 'system');
+    const system = systemPrompt || messages.find((m) => m.role === 'system')?.content;
+    return callBedrockPlain(preset, chatMessages, system, effort);
   }
   const withSystem = systemPrompt
     ? [{ role: 'system', content: systemPrompt }, ...messages.filter((m) => m.role !== 'system')]

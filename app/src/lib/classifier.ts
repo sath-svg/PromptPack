@@ -11,6 +11,12 @@ export type Provider =
   | 'kimi'        // Moonshot Kimi
   | 'groq'        // Groq (fast inference)
   | 'openrouter'  // OpenRouter (200+ models)
+  | 'mistral'     // Mistral AI
+  | 'cohere'      // Cohere (Command R/R+)
+  | 'together'    // Together AI (open-weights host)
+  | 'fireworks'   // Fireworks AI (fast OSS inference)
+  | 'cerebras'    // Cerebras (ultra-fast Llama inference)
+  | 'bedrock'     // AWS Bedrock — SigV4-signed, Claude family
   | 'ollama';     // Local models
 
 export interface ModelPreset {
@@ -61,6 +67,10 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { provider: 'grok',        modelId: 'grok-3-mini',                  label: 'Grok 3 Mini',            tier: 'fast',     costPer1M: 0.30  },
   { provider: 'perplexity',  modelId: 'sonar',                        label: 'Perplexity Sonar',       tier: 'fast',     costPer1M: 1.00  },
   { provider: 'anthropic',   modelId: 'claude-haiku-4-5-20251001',    label: 'Claude Haiku',           tier: 'fast',     costPer1M: 0.80,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 2 },
+  { provider: 'cerebras',    modelId: 'llama3.1-8b',                  label: 'Llama 3.1 8B',           tier: 'fast',     costPer1M: 0.10  },
+  { provider: 'cohere',      modelId: 'command-r7b-12-2024',          label: 'Command R7B',            tier: 'fast',     costPer1M: 0.0375 },
+  { provider: 'mistral',     modelId: 'mistral-small-latest',         label: 'Mistral Small',          tier: 'fast',     costPer1M: 0.20  },
+  { provider: 'bedrock',     modelId: 'anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku (Bedrock)', tier: 'fast', costPer1M: 0.80, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 2 },
 
   // ── Balanced tier ─────────────────────────────────────────────────────────
   { provider: 'server',      modelId: 'llama-3.1-8b-instant',              label: 'Llama 3.1 8B', tier: 'balanced', costPer1M: 0.00  },
@@ -74,6 +84,12 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { provider: 'grok',        modelId: 'grok-3',                       label: 'Grok 3',                 tier: 'balanced', costPer1M: 3.00,  supportsReasoning: true, reasoningEfforts: ['low','high'], reasoningCostMult: 3 },
   { provider: 'perplexity',  modelId: 'sonar-pro',                    label: 'Perplexity Sonar Pro',  tier: 'balanced', costPer1M: 3.00  },
   { provider: 'anthropic',   modelId: 'claude-sonnet-4-6',            label: 'Claude Sonnet',          tier: 'balanced', costPer1M: 3.00,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 3 },
+  { provider: 'cerebras',    modelId: 'llama-3.3-70b',                label: 'Llama 3.3 70B',          tier: 'balanced', costPer1M: 0.85  },
+  { provider: 'together',    modelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Turbo', tier: 'balanced', costPer1M: 0.88 },
+  { provider: 'fireworks',   modelId: 'accounts/fireworks/models/llama-v3p3-70b-instruct', label: 'Llama 3.3 70B', tier: 'balanced', costPer1M: 0.90 },
+  { provider: 'mistral',     modelId: 'mistral-large-latest',         label: 'Mistral Large',          tier: 'balanced', costPer1M: 2.00  },
+  { provider: 'cohere',      modelId: 'command-r-plus-08-2024',       label: 'Command R+',             tier: 'balanced', costPer1M: 2.50  },
+  { provider: 'bedrock',     modelId: 'anthropic.claude-sonnet-4-6-20251001-v1:0', label: 'Claude Sonnet (Bedrock)', tier: 'balanced', costPer1M: 3.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 3 },
 
   // ── Powerful tier ─────────────────────────────────────────────────────────
   { provider: 'ollama',      modelId: 'llama3.3:70b',                 label: 'Llama 3.3 70B (local)', tier: 'powerful', costPer1M: 0.00  },
@@ -84,7 +100,9 @@ export const MODEL_PRESETS: ModelPreset[] = [
   { provider: 'perplexity',  modelId: 'sonar-reasoning-pro',          label: 'Perplexity Reasoning',  tier: 'powerful', costPer1M: 8.00,  alwaysReasons: true, reasoningCostMult: 1 },
   { provider: 'openai',      modelId: 'gpt-4o',                       label: 'GPT-4o',                 tier: 'powerful', costPer1M: 5.00  },
   { provider: 'grok',        modelId: 'grok-3',                       label: 'Grok 3',                 tier: 'powerful', costPer1M: 3.00,  supportsReasoning: true, reasoningEfforts: ['low','high'], reasoningCostMult: 3 },
+  { provider: 'mistral',     modelId: 'mistral-large-latest',         label: 'Mistral Large',          tier: 'powerful', costPer1M: 2.00  },
   { provider: 'anthropic',   modelId: 'claude-opus-4-6',              label: 'Claude Opus',            tier: 'powerful', costPer1M: 15.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 4 },
+  { provider: 'bedrock',     modelId: 'anthropic.claude-opus-4-6-20251001-v1:0', label: 'Claude Opus (Bedrock)', tier: 'powerful', costPer1M: 15.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], reasoningCostMult: 4 },
 ];
 
 import {
@@ -305,6 +323,12 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   // "Skillset" / "Multi-model" so end users only see the abstractions.
   groq:       'Skillset Server',
   openrouter: 'Multi-model',
+  mistral:    'Mistral AI',
+  cohere:     'Cohere',
+  together:   'Together AI',
+  fireworks:  'Fireworks AI',
+  cerebras:   'Cerebras',
+  bedrock:    'AWS Bedrock (Claude)',
   ollama:     'Ollama (local)',
 };
 
@@ -319,5 +343,14 @@ export const PROVIDER_BASE_URLS: Record<Provider, string> = {
   kimi:       'https://api.moonshot.cn/v1',
   groq:       'https://api.groq.com/openai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
+  mistral:    'https://api.mistral.ai/v1',
+  cohere:     'https://api.cohere.com/compatibility/v1',
+  together:   'https://api.together.xyz/v1',
+  fireworks:  'https://api.fireworks.ai/inference/v1',
+  cerebras:   'https://api.cerebras.ai/v1',
+  // Bedrock URL is region-dependent and built at call time —
+  // bedrock-runtime.{region}.amazonaws.com. Placeholder kept so the
+  // Record<Provider, string> stays exhaustive.
+  bedrock:    'https://bedrock-runtime.us-east-1.amazonaws.com',
   ollama:     'http://localhost:11434/v1',
 };

@@ -24,11 +24,25 @@ const BYOK_PROVIDERS: readonly EvalByokProvider[] = [
   'deepseek',
   'perplexity',
   'kimi',
+  'mistral',
+  'cohere',
+  'together',
+  'fireworks',
+  'cerebras',
+  'bedrock',
 ];
 
 function currentByokProviders(): EvalByokProvider[] {
   const apiKeys = useSettingsStore.getState().apiKeys;
-  return BYOK_PROVIDERS.filter((p) => typeof apiKeys[p] === 'string' && apiKeys[p]!.length > 0);
+  return BYOK_PROVIDERS.filter((p) => {
+    const v = apiKeys[p];
+    // Bedrock is an object (access key + secret + region); every other
+    // provider is a bearer-string. Both shapes are gated by "configured".
+    if (p === 'bedrock') {
+      return !!(v && typeof v === 'object' && 'accessKeyId' in v && v.accessKeyId && v.secretAccessKey && v.region);
+    }
+    return typeof v === 'string' && v.length > 0;
+  });
 }
 
 interface EvaluationState {

@@ -167,7 +167,13 @@ export type EvalByokProvider =
   | 'grok'
   | 'deepseek'
   | 'perplexity'
-  | 'kimi';
+  | 'kimi'
+  | 'mistral'
+  | 'cohere'
+  | 'together'
+  | 'fireworks'
+  | 'cerebras'
+  | 'bedrock';
 
 export const BYOK_PROVIDER_TIER_MAP: Record<
   EvalByokProvider,
@@ -204,6 +210,29 @@ export const BYOK_PROVIDER_TIER_MAP: Record<
     mid: { modelId: 'moonshot-v1-32k', label: 'Kimi 32K' },
     frontier: { modelId: 'moonshot-v1-128k', label: 'Kimi 128K' },
   },
+  mistral: {
+    cheap: { modelId: 'mistral-small-latest', label: 'Mistral Small' },
+    mid: { modelId: 'mistral-large-latest', label: 'Mistral Large' },
+  },
+  cohere: {
+    cheap: { modelId: 'command-r7b-12-2024', label: 'Command R7B' },
+    mid: { modelId: 'command-r-plus-08-2024', label: 'Command R+' },
+  },
+  together: {
+    mid: { modelId: 'meta-llama/Llama-3.3-70B-Instruct-Turbo', label: 'Llama 3.3 70B Turbo' },
+  },
+  fireworks: {
+    mid: { modelId: 'accounts/fireworks/models/llama-v3p3-70b-instruct', label: 'Llama 3.3 70B' },
+  },
+  cerebras: {
+    cheap: { modelId: 'llama3.1-8b', label: 'Llama 3.1 8B' },
+    mid: { modelId: 'llama-3.3-70b', label: 'Llama 3.3 70B' },
+  },
+  bedrock: {
+    cheap: { modelId: 'anthropic.claude-haiku-4-5-20251001-v1:0', label: 'Claude Haiku (Bedrock)' },
+    mid: { modelId: 'anthropic.claude-sonnet-4-6-20251001-v1:0', label: 'Claude Sonnet (Bedrock)' },
+    frontier: { modelId: 'anthropic.claude-opus-4-6-20251001-v1:0', label: 'Claude Opus (Bedrock)' },
+  },
 };
 
 export function byokModelForTier(
@@ -222,4 +251,10 @@ export const BYOK_PROVIDER_LABELS: Record<EvalByokProvider, string> = {
   deepseek: 'DeepSeek',
   perplexity: 'Perplexity',
   kimi: 'Moonshot',
+  mistral: 'Mistral',
+  cohere: 'Cohere',
+  together: 'Together',
+  fireworks: 'Fireworks',
+  cerebras: 'Cerebras',
+  bedrock: 'AWS Bedrock',
 };

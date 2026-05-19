@@ -922,6 +922,12 @@ function providerBaseUrl(provider: ModelPreset['provider']): string {
     case 'ollama': return 'http://localhost:11434/v1';
     case 'perplexity': return 'https://api.perplexity.ai';
     case 'server': return 'https://api.skillset.so/v1';
+    case 'mistral': return 'https://api.mistral.ai/v1';
+    case 'cohere': return 'https://api.cohere.com/compatibility/v1';
+    case 'together': return 'https://api.together.xyz/v1';
+    case 'fireworks': return 'https://api.fireworks.ai/inference/v1';
+    case 'cerebras': return 'https://api.cerebras.ai/v1';
     case 'anthropic': return 'https://api.anthropic.com'; // unused — Anthropic path forks earlier
+    case 'bedrock': return 'https://bedrock-runtime.us-east-1.amazonaws.com'; // unused — Bedrock path forks earlier (SigV4 + region-specific URL)
   }
 }

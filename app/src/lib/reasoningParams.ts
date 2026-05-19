@@ -134,12 +134,34 @@ export function applyReasoning(
       return { ...body, reasoning: { effort: e } };
     }
 
+    case 'bedrock': {
+      // Bedrock Claude speaks the native Anthropic Messages format —
+      // mirror the anthropic branch above so extended-thinking still
+      // engages on Bedrock-hosted Sonnet/Opus.
+      const budget = ANTHROPIC_BUDGET[e];
+      const currentMax = (body.max_tokens as number | undefined) ?? 4096;
+      return {
+        ...body,
+        thinking: { type: 'enabled', budget_tokens: budget },
+        max_tokens: Math.max(currentMax, budget + ANTHROPIC_ANSWER_HEADROOM),
+      };
+    }
+
+    case 'mistral':
+    case 'together':
+    case 'fireworks':
+    case 'cerebras':
+    case 'cohere':
     case 'deepseek':
     case 'perplexity':
     case 'kimi':
     case 'groq':
     case 'ollama':
     case 'server':
+      // None of these providers currently expose a `reasoning_effort` knob
+      // on the models we surface (Mistral/Together/Fireworks/Cerebras/Cohere
+      // host open-weights chat models; the others are non-reasoning). Drop
+      // the effort field silently.
       return body;
   }
 }

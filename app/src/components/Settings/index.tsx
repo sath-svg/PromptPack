@@ -3,7 +3,7 @@ import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Load
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
-import { useSettingsStore, getTierLimits, type ApiKeys } from '../../stores/settingsStore';
+import { useSettingsStore, getTierLimits, type StringApiKeyProvider, type BedrockConfig } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
 import { PROVIDER_LABELS } from '../../lib/classifier';
 import { MANAGED_MODELS, MANAGED_TIER_LABELS, formatCreditRate } from '../../lib/managed-models';
@@ -23,7 +23,7 @@ interface BillingStatus {
 
 export function SettingsPage() {
   const {
-    theme, setTheme, apiKeys, setApiKey, setBillingTier,
+    theme, setTheme, apiKeys, setApiKey, setBedrockConfig, setBillingTier,
     managedModeEnabled, setManagedModeEnabled,
     developerMode, setDeveloperMode,
     advancedSettingsExpanded, setAdvancedExpanded,
@@ -89,7 +89,7 @@ export function SettingsPage() {
     ? creditBalance.monthly + creditBalance.topup
     : 0;
 
-  type KeyedProvider = keyof ApiKeys;
+  type KeyedProvider = StringApiKeyProvider;
   const KEYED_PROVIDERS: { key: KeyedProvider; placeholder: string }[] = [
     { key: 'anthropic',  placeholder: 'sk-ant-...' },
     { key: 'openai',     placeholder: 'sk-...' },
@@ -98,6 +98,11 @@ export function SettingsPage() {
     { key: 'deepseek',   placeholder: 'sk-...' },
     { key: 'perplexity', placeholder: 'pplx-...' },
     { key: 'kimi',       placeholder: 'sk-...' },
+    { key: 'mistral',    placeholder: 'mistral API key' },
+    { key: 'cohere',     placeholder: 'Cohere API key' },
+    { key: 'together',   placeholder: 'Together AI key' },
+    { key: 'fireworks',  placeholder: 'fw_...' },
+    { key: 'cerebras',   placeholder: 'csk-...' },
     // `groq` + `openrouter` BYOK fields removed from the UI so the
     // user surface stays brand-clean. Stored values still pass through
     // the runtime providers list — users with a key already saved keep
@@ -113,7 +118,27 @@ export function SettingsPage() {
     kimi:       apiKeys?.kimi       ?? '',
     groq:       apiKeys?.groq       ?? '',
     openrouter: apiKeys?.openrouter ?? '',
+    mistral:    apiKeys?.mistral    ?? '',
+    cohere:     apiKeys?.cohere     ?? '',
+    together:   apiKeys?.together   ?? '',
+    fireworks:  apiKeys?.fireworks  ?? '',
+    cerebras:   apiKeys?.cerebras   ?? '',
   });
+  // Bedrock has three required fields (access key + secret + region) plus
+  // optional cross-region inference toggle and per-tier model-ID overrides.
+  const [bedrockInput, setBedrockInput] = useState<BedrockConfig>({
+    accessKeyId:     apiKeys?.bedrock?.accessKeyId     ?? '',
+    secretAccessKey: apiKeys?.bedrock?.secretAccessKey ?? '',
+    region:          apiKeys?.bedrock?.region          ?? 'us-east-1',
+    useInferenceProfile: apiKeys?.bedrock?.useInferenceProfile ?? false,
+    modelIdOverrides: {
+      haiku:  apiKeys?.bedrock?.modelIdOverrides?.haiku  ?? '',
+      sonnet: apiKeys?.bedrock?.modelIdOverrides?.sonnet ?? '',
+      opus:   apiKeys?.bedrock?.modelIdOverrides?.opus   ?? '',
+    },
+  });
+  const [bedrockSecretVisible, setBedrockSecretVisible] = useState(false);
+  const [bedrockOverridesOpen, setBedrockOverridesOpen] = useState(false);
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [isLoadingBilling, setIsLoadingBilling] = useState(false);
@@ -672,6 +697,185 @@ export function SettingsPage() {
                     )}
                   </div>
                 ))}
+
+                {/* AWS Bedrock — three fields (SigV4 signing). Save button is
+                    disabled until all three are non-empty. Clear wipes the
+                    stored config (passing null to setBedrockConfig). */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1">
+                    {PROVIDER_LABELS.bedrock}
+                  </label>
+                  <p className="text-xs text-[var(--muted-foreground)] mb-2">
+                    Signs requests with AWS SigV4. Use an IAM key with{' '}
+                    <span className="font-mono">bedrock:InvokeModel</span> permission for the Claude family.
+                  </p>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={bedrockInput.accessKeyId}
+                      onChange={(e) => setBedrockInput((p) => ({ ...p, accessKeyId: e.target.value }))}
+                      placeholder="AKIA... (Access Key ID)"
+                      className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none font-mono"
+                    />
+                    <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                      <input
+                        type={bedrockSecretVisible ? 'text' : 'password'}
+                        value={bedrockInput.secretAccessKey}
+                        onChange={(e) => setBedrockInput((p) => ({ ...p, secretAccessKey: e.target.value }))}
+                        placeholder="Secret Access Key"
+                        className="flex-1 bg-transparent text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none font-mono"
+                      />
+                      <button
+                        onClick={() => setBedrockSecretVisible((v) => !v)}
+                        className="text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                      >
+                        {bedrockSecretVisible ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                    </div>
+                    <select
+                      value={bedrockInput.region}
+                      onChange={(e) => setBedrockInput((p) => ({ ...p, region: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--background)] text-sm text-[var(--foreground)]"
+                    >
+                      {/* Subset of Bedrock-enabled regions where Claude models
+                          are commonly available. Users can self-select; AWS
+                          adds new regions periodically. */}
+                      <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                      <option value="us-east-2">us-east-2 (Ohio)</option>
+                      <option value="us-west-2">us-west-2 (Oregon)</option>
+                      <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+                      <option value="eu-west-1">eu-west-1 (Ireland)</option>
+                      <option value="eu-west-3">eu-west-3 (Paris)</option>
+                      <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+                      <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+                      <option value="ap-southeast-2">ap-southeast-2 (Sydney)</option>
+                    </select>
+
+                    {/* Cross-region inference profile toggle. When ON, the
+                        model ID is auto-prefixed at call time based on the
+                        region family (us./eu./apac.). Needed in regions
+                        where direct invoke is gated behind a profile. */}
+                    <label className="flex items-start justify-between gap-3 p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] cursor-pointer">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--foreground)]">
+                          Use cross-region inference profile
+                        </p>
+                        <p className="text-xs text-[var(--muted-foreground)]">
+                          Auto-prefixes model IDs based on region family
+                          (<span className="font-mono">us.</span>,{' '}
+                          <span className="font-mono">eu.</span>,{' '}
+                          <span className="font-mono">apac.</span>). Turn ON if
+                          direct invoke returns <span className="font-mono">ResourceNotFoundException</span>.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={!!bedrockInput.useInferenceProfile}
+                        onChange={(e) => setBedrockInput((p) => ({ ...p, useInferenceProfile: e.target.checked }))}
+                        className="w-5 h-5 accent-[var(--primary)] mt-0.5"
+                      />
+                    </label>
+
+                    {/* Advanced: per-tier model ID overrides. Wins over the
+                        auto-prefix toggle. For exotic profile names or
+                        models AWS adds after this build ships. */}
+                    <button
+                      onClick={() => setBedrockOverridesOpen((v) => !v)}
+                      className="w-full flex items-center justify-between text-left px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] hover:bg-[var(--accent)] text-sm text-[var(--foreground)]"
+                    >
+                      <span className="flex items-center gap-2">
+                        {bedrockOverridesOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        Advanced: custom model IDs
+                      </span>
+                      <span className="text-xs text-[var(--muted-foreground)]">Overrides auto-prefix</span>
+                    </button>
+                    {bedrockOverridesOpen && (
+                      <div className="space-y-2 p-3 rounded-lg border border-[var(--border)] bg-[var(--background)]">
+                        <p className="text-xs text-[var(--muted-foreground)]">
+                          Paste the exact Bedrock model ID or inference profile
+                          ARN to use for each tier. Leave blank to use the
+                          default (with auto-prefix applied if enabled above).
+                        </p>
+                        {(['haiku', 'sonnet', 'opus'] as const).map((tier) => (
+                          <div key={tier}>
+                            <label className="block text-[11px] font-medium text-[var(--muted-foreground)] mb-1 uppercase tracking-wide">
+                              Claude {tier}
+                            </label>
+                            <input
+                              type="text"
+                              value={bedrockInput.modelIdOverrides?.[tier] ?? ''}
+                              onChange={(e) => setBedrockInput((p) => ({
+                                ...p,
+                                modelIdOverrides: { ...p.modelIdOverrides, [tier]: e.target.value },
+                              }))}
+                              placeholder={`anthropic.claude-${tier}-...`}
+                              className="w-full px-3 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] outline-none font-mono"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          // Strip empty override strings so the resolver
+                          // skips them cleanly. Trim whitespace on all
+                          // saved fields.
+                          const overrides = bedrockInput.modelIdOverrides;
+                          const cleanedOverrides = overrides
+                            ? {
+                                haiku:  overrides.haiku?.trim()  || undefined,
+                                sonnet: overrides.sonnet?.trim() || undefined,
+                                opus:   overrides.opus?.trim()   || undefined,
+                              }
+                            : undefined;
+                          const hasAnyOverride =
+                            !!cleanedOverrides &&
+                            (cleanedOverrides.haiku || cleanedOverrides.sonnet || cleanedOverrides.opus);
+                          setBedrockConfig({
+                            accessKeyId:         bedrockInput.accessKeyId.trim(),
+                            secretAccessKey:     bedrockInput.secretAccessKey.trim(),
+                            region:              bedrockInput.region.trim(),
+                            useInferenceProfile: !!bedrockInput.useInferenceProfile,
+                            modelIdOverrides:    hasAnyOverride ? cleanedOverrides : undefined,
+                          });
+                        }}
+                        disabled={
+                          !bedrockInput.accessKeyId.trim() ||
+                          !bedrockInput.secretAccessKey.trim() ||
+                          !bedrockInput.region.trim()
+                        }
+                        className="px-3 py-2 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Save Bedrock config
+                      </button>
+                      {apiKeys?.bedrock && (
+                        <button
+                          onClick={() => {
+                            setBedrockConfig(null);
+                            setBedrockInput({
+                              accessKeyId: '',
+                              secretAccessKey: '',
+                              region: 'us-east-1',
+                              useInferenceProfile: false,
+                              modelIdOverrides: { haiku: '', sonnet: '', opus: '' },
+                            });
+                          }}
+                          className="px-3 py-2 rounded-lg border border-[var(--border)] text-sm text-[var(--muted-foreground)] hover:bg-[var(--accent)]"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {apiKeys?.bedrock && (
+                    <p className="mt-1 text-xs text-green-500 flex items-center gap-1">
+                      <CheckCircle2 size={11} /> Saved · region {apiKeys.bedrock.region}
+                      {apiKeys.bedrock.useInferenceProfile ? ' · inference profile' : ''}
+                    </p>
+                  )}
+                </div>
 
               </div>
             </>

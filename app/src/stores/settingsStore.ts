@@ -14,6 +14,32 @@ const applyTheme = (theme: 'light' | 'dark' | 'system') => {
   }
 };
 
+/**
+ * AWS Bedrock requires SigV4-signed requests (access key + secret + region),
+ * not a single bearer token. Stored as a sub-object so the simple-bearer
+ * `setApiKey(provider, string)` path doesn't have to handle multi-field input.
+ *
+ * `useInferenceProfile` flips the resolver to derive a cross-region
+ * inference-profile ID from the region prefix (`us-*` → `us.`, `eu-*` →
+ * `eu.`, `ap-*` → `apac.`). Off by default — many users have direct
+ * model-invoke access and don't need the rerouting layer.
+ *
+ * `modelIdOverrides` is the power-user escape hatch when AWS rolls a new
+ * profile naming scheme or a region uses a non-default profile. A non-empty
+ * value wins over the auto-prefix toggle for that tier.
+ */
+export interface BedrockConfig {
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  useInferenceProfile?: boolean;
+  modelIdOverrides?: {
+    haiku?: string;
+    sonnet?: string;
+    opus?: string;
+  };
+}
+
 export interface ApiKeys {
   anthropic?: string;
   openai?: string;
@@ -24,7 +50,18 @@ export interface ApiKeys {
   kimi?: string;
   groq?: string;
   openrouter?: string;
+  mistral?: string;
+  cohere?: string;
+  together?: string;
+  fireworks?: string;
+  cerebras?: string;
+  bedrock?: BedrockConfig;
 }
+
+/** Subset of ApiKeys whose value is a plain string — i.e. all BYOK providers
+ *  except Bedrock. Used by the generic `setApiKey` setter and the Settings
+ *  multi-field input loop. */
+export type StringApiKeyProvider = Exclude<keyof ApiKeys, 'bedrock'>;
 
 export interface CreditBalance {
   monthly: number;
@@ -91,7 +128,8 @@ interface SettingsState extends AppSettings {
   setStorageLocation: (path: string) => void;
   setSyncEnabled: (enabled: boolean) => void;
   setSession: (session: UserSession | null) => void;
-  setApiKey: (provider: keyof ApiKeys, key: string) => void;
+  setApiKey: (provider: StringApiKeyProvider, key: string) => void;
+  setBedrockConfig: (config: BedrockConfig | null) => void;
   setBillingTier: (tier: 'free' | 'pro' | 'studio') => void;
   incrementServerChatCount: () => void;
   /// Increment the daily inbuilt-server counter. Resets when the local
@@ -168,6 +206,16 @@ export const useSettingsStore = create<SettingsState>()(
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
       setApiKey: (provider, key) =>
         set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key || undefined } })),
+      setBedrockConfig: (config) =>
+        set((state) => ({
+          apiKeys: {
+            ...state.apiKeys,
+            bedrock:
+              config && config.accessKeyId && config.secretAccessKey && config.region
+                ? config
+                : undefined,
+          },
+        })),
       setSession: (session) => set({ session }),
       setBillingTier: (tier) => set({ billingTier: tier }),
       incrementServerChatCount: () => set((s) => ({ serverChatCount: s.serverChatCount + 1 })),
