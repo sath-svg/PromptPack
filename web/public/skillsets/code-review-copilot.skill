@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Code Review Co-pilot",
+  "icon": "👨‍💻",
+  "description": "Paste a PR diff. Get a polished review comment in one click. 5-step workflow for devs.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-analyze-diff",
+      "label": "Step 1 · Analyze the diff",
+      "icon": "🔍",
+      "purpose": "Summarize what the PR changes",
+      "template": "Analyze the following PR diff. Summarize:\n\n1. What changed (3 bullets max)\n2. Why it likely changed (1 sentence)\n3. Surface area touched (files / modules)\n4. Risk level (low / medium / high) with 1-line reason\n\nDiff:\n{pr_diff}"
+    },
+    {
+      "id": "step2-style-check",
+      "label": "Step 2 · Style guide check",
+      "icon": "📐",
+      "purpose": "Flag violations against your style guide",
+      "template": "Using the analysis from step 1, check the diff against this style guide:\n\n{style_guide}\n\nList every violation: file / line / what's wrong / suggested fix. Use markdown table. If none, say 'No style violations found.'"
+    },
+    {
+      "id": "step3-security",
+      "label": "Step 3 · Security audit",
+      "icon": "🔒",
+      "purpose": "Flag security concerns",
+      "template": "Audit the changes from step 1 for security concerns. Check for:\n\n1. Injection (SQL, command, XSS)\n2. Auth / authorization gaps\n3. Secret leaks (hardcoded keys, tokens)\n4. Unsafe deserialization\n5. Permissive defaults\n\nFor each finding: severity (low/med/high/critical), location, recommended fix. If clean, say 'No security issues found.'"
+    },
+    {
+      "id": "step4-test-coverage",
+      "label": "Step 4 · Test coverage gaps",
+      "icon": "🧪",
+      "purpose": "Surface missing test cases",
+      "template": "Looking at the changes from step 1, identify test coverage gaps. For each change:\n\n1. Existing test coverage (if any)\n2. What's still untested\n3. Suggested test cases (happy path / error cases / edge cases)\n\nFormat as bulleted list per file."
+    },
+    {
+      "id": "step5-review-comment",
+      "label": "Step 5 · Final review comment",
+      "icon": "💬",
+      "purpose": "Polished PR review comment",
+      "template": "Merge the outputs from steps 2, 3, and 4 into one polished PR review comment.\n\nStructure:\n\n## Summary\nWhat the PR does (1 paragraph from step 1)\n\n## Findings\n- Style issues (from step 2)\n- Security concerns (from step 3)\n- Test coverage gaps (from step 4)\n\n## Recommendation\nApprove / Request changes / Block — with 1-line reason\n\nTone: collegial, specific, no fluff. Mark blockers clearly."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

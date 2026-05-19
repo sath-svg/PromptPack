@@ -201,27 +201,42 @@ export function ImportPage() {
       const buffer = await file.arrayBuffer();
       const data = new Uint8Array(buffer);
 
-      // Check magic bytes (PPK\0 or PPK\1)
-      if (data[0] !== 80 || data[1] !== 80 || data[2] !== 75) {
+      // Detect format. Binary .pmtpk/.skill files start with "PPK" magic
+      // bytes. Plain JSON .skill files start with "{" (123) and contain the
+      // expected schema. Try JSON path first when the byte signature matches.
+      const isBinary = data[0] === 80 && data[1] === 80 && data[2] === 75;
+      const isJson =
+        !isBinary && (data[0] === 123 || (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf && data[3] === 123));
+
+      if (!isBinary && !isJson) {
         throw new Error('Invalid Skillset file format');
       }
 
-      const version = data[3];
-      const isEncrypted = version === 1;
-
-      if (isEncrypted && !pwd) {
-        setNeedsPassword(true);
-        setPendingFile(file);
-        setImporting(false);
-        return;
-      }
-
-      // Decode the file
       let prompts: CloudPrompt[];
-      if (isEncrypted) {
-        prompts = await decryptPmtpk(data, pwd!);
+
+      if (isJson) {
+        // Plain JSON .skill file: {type:"skillset", prompts:[{template,label,...}]}
+        const decoder = new TextDecoder();
+        const offset = data[0] === 0xef ? 3 : 0;
+        const jsonString = decoder.decode(data.slice(offset));
+        const parsed = JSON.parse(jsonString);
+        prompts = normalizeImportedPrompts(parsed);
       } else {
-        prompts = await decodeObfuscated(data);
+        const version = data[3];
+        const isEncrypted = version === 1;
+
+        if (isEncrypted && !pwd) {
+          setNeedsPassword(true);
+          setPendingFile(file);
+          setImporting(false);
+          return;
+        }
+
+        if (isEncrypted) {
+          prompts = await decryptPmtpk(data, pwd!);
+        } else {
+          prompts = await decodeObfuscated(data);
+        }
       }
 
       if (prompts.length === 0) {

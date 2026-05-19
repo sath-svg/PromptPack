@@ -1,0 +1,94 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Brand Voice Studio",
+  "icon": "📣",
+  "description": "Draft 10 brand-voice posts in 2 minutes. Built for marketers.",
+  "prompts": [
+    {
+      "id": "linkedin-post",
+      "label": "LinkedIn post in your voice",
+      "icon": "📝",
+      "purpose": "Match your past LinkedIn writing style",
+      "template": "You are a LinkedIn ghostwriter. Given these past posts as voice samples:\n\n{voice_samples}\n\nWrite a new LinkedIn post about {topic}. Match: tone, sentence length, vocabulary, structure. Output: 250-400 words, conversational, with one personal anecdote."
+    },
+    {
+      "id": "twitter-thread",
+      "label": "Twitter/X thread from long doc",
+      "icon": "🧵",
+      "purpose": "Turn a long article into a 5-10 tweet thread",
+      "template": "Turn the following source document into a 5-10 tweet Twitter/X thread. Use punchy openers, 1 idea per tweet, no fluff. End with a CTA tweet.\n\nSource document:\n{source_doc}"
+    },
+    {
+      "id": "email-subjects",
+      "label": "Email subject lines (×5 variants)",
+      "icon": "📧",
+      "purpose": "Five subject options for one email",
+      "template": "Generate 5 distinct email subject line options for an email about {email_topic}. Mix: 1 curiosity, 1 question, 1 benefit-led, 1 urgency, 1 personal. Keep each under 60 characters. Output as numbered list."
+    },
+    {
+      "id": "ad-copy",
+      "label": "Ad copy: 3 headlines + 3 bodies",
+      "icon": "💰",
+      "purpose": "Meta/Google ads creative pack",
+      "template": "Write a paid-ad creative pack for {product}. Target audience: {audience}. Output:\n\n3 headlines (max 40 chars each)\n3 body copy variants (max 90 chars each)\n3 CTAs\n\nTone: punchy, benefit-led, no marketing fluff."
+    },
+    {
+      "id": "press-release",
+      "label": "Press release first draft",
+      "icon": "📰",
+      "purpose": "Formatted press release from key facts",
+      "template": "Write a press release first draft from these key facts: {facts}\n\nFormat: dateline, lede paragraph, body with 2 quotes, boilerplate. Tone: AP style, third person, no superlatives."
+    },
+    {
+      "id": "newsletter-intro",
+      "label": "Newsletter intro paragraph",
+      "icon": "📬",
+      "purpose": "Punchy 80-word intro from your story summary",
+      "template": "Write a newsletter intro paragraph (80 words max) for a newsletter about: {story_summary}. Hook in first sentence. End with a one-line tease of what's inside."
+    },
+    {
+      "id": "tone-audit",
+      "label": "Brand-voice tone audit",
+      "icon": "🎯",
+      "purpose": "Checks any draft against past brand voice",
+      "template": "Compare the following draft against my brand voice samples. Flag any sentences that drift from the established tone. Suggest revisions.\n\nBrand voice samples:\n{voice_samples}\n\nDraft to audit:\n{draft}"
+    },
+    {
+      "id": "competitor-analysis",
+      "label": "Competitor analysis from URL",
+      "icon": "🔍",
+      "purpose": "Pulls positioning + diff from competitor page",
+      "template": "Analyze the competitor positioning from this URL: {competitor_url}\n\nProduce:\n1. Their core positioning statement (1 sentence)\n2. Top 3 value props\n3. Tone descriptors\n4. 3 ways our product differs"
+    },
+    {
+      "id": "testimonial-polish",
+      "label": "Customer testimonial polisher",
+      "icon": "⭐",
+      "purpose": "Tightens raw quote without changing meaning",
+      "template": "Polish this customer testimonial. Keep their voice. Tighten redundant phrasing. Keep meaning intact. Output the polished version + a 1-line note on what changed.\n\nRaw quote:\n{raw_quote}"
+    },
+    {
+      "id": "cta-button-ab",
+      "label": "CTA button copy A/B",
+      "icon": "🔘",
+      "purpose": "5 button options per conversion goal",
+      "template": "Generate 5 CTA button copy options for: {goal}\n\nMix: 1 action verb, 1 benefit-led, 1 urgency, 1 curiosity, 1 plain. Each max 4 words."
+    },
+    {
+      "id": "instagram-caption",
+      "label": "Instagram caption + hashtag set",
+      "icon": "📸",
+      "purpose": "Caption + 12 hashtags matched to topic",
+      "template": "Write an Instagram caption (150 words max) for a post about: {topic}\n\nThen suggest 12 hashtags: 4 broad (>1M posts), 4 medium (100k-1M), 4 niche (<100k). Output: caption, blank line, hashtags."
+    },
+    {
+      "id": "repurpose-blog",
+      "label": "Repurpose blog → 5 socials",
+      "icon": "♻️",
+      "purpose": "Turns one post into 5 platform-tailored versions",
+      "template": "Take the following blog post and produce 5 platform-tailored versions:\n\n1. LinkedIn post (250 words)\n2. Twitter/X thread (5 tweets)\n3. Instagram caption (100 words)\n4. Newsletter blurb (80 words)\n5. Reddit-style discussion opener\n\nSource blog post:\n{blog_post}"
+    }
+  ],
+  "exportedAt": 1716120000000
+}

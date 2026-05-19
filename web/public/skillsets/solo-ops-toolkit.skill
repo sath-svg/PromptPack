@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Solo Ops Toolkit",
+  "icon": "💼",
+  "description": "Your customer-support playbook + sales outreach + ops, every reply. Built for solopreneurs.",
+  "prompts": [
+    {
+      "id": "support-reply",
+      "label": "Customer support reply (in tone)",
+      "icon": "💬",
+      "purpose": "Drafts reply matching your support voice",
+      "template": "Draft a customer support reply to the message below. Match the tone in my past replies (samples).\n\nPast replies (voice samples):\n{past_replies}\n\nCustomer message:\n{customer_message}"
+    },
+    {
+      "id": "refund-cancel",
+      "label": "Refund / cancel response",
+      "icon": "↩️",
+      "purpose": "Handles refund requests firmly but warmly",
+      "template": "Write a refund-or-cancel response to this customer request. Be firm but warm. Acknowledge the issue, state the policy in plain English, offer one alternative if reasonable.\n\nCustomer request:\n{customer_request}"
+    },
+    {
+      "id": "sales-followup",
+      "label": "Sales follow-up email",
+      "icon": "🤝",
+      "purpose": "Post-call follow-up referencing meeting notes",
+      "template": "Write a post-sales-call follow-up email. Reference the meeting notes below. Recap 2 key takeaways, restate next steps, propose a date. Keep under 150 words.\n\nMeeting notes:\n{meeting_notes}"
+    },
+    {
+      "id": "cold-outreach-1",
+      "label": "Cold outreach (first touch)",
+      "icon": "✉️",
+      "purpose": "Personalized cold email from prospect URL",
+      "template": "Write a cold outreach email to the prospect at this URL: {prospect_url}\n\nMy product / value prop: {value_prop}\n\nRequirements: open with one specific observation about them, 1 sentence value prop, 1 line ask. Under 80 words."
+    },
+    {
+      "id": "cold-outreach-2",
+      "label": "Cold outreach (follow-up 1)",
+      "icon": "📤",
+      "purpose": "1-week bump after no reply",
+      "template": "Write a 1-week follow-up to my previous cold email. Acknowledge they might be busy. Add one new piece of value (resource, insight, case study). Keep under 60 words. Reuse my value prop: {value_prop}"
+    },
+    {
+      "id": "cold-outreach-3",
+      "label": "Cold outreach (follow-up 2)",
+      "icon": "📨",
+      "purpose": "2-week bump with new angle",
+      "template": "Write a 2-week follow-up email with a different angle than my prior touches. Reframe the value prop: {value_prop}. Lead with a question that gets them thinking. Under 60 words."
+    },
+    {
+      "id": "cold-outreach-final",
+      "label": "Cold outreach (final touch)",
+      "icon": "👋",
+      "purpose": "Break-up email, last attempt",
+      "template": "Write a polite break-up email closing the loop. Acknowledge they may not be a fit right now. Leave the door open. Mention one quick resource they can use anyway. Under 50 words. Context: {value_prop}"
+    },
+    {
+      "id": "invoice-reminder",
+      "label": "Invoice reminder (polite + firm)",
+      "icon": "💵",
+      "purpose": "Chases late invoice without burning relationship",
+      "template": "Write an invoice reminder for an overdue payment. Be polite but firm. State invoice number, amount, original due date. Offer one easy payment link. End with a deadline. Variables: {invoice_number}, {amount}, {due_date}"
+    },
+    {
+      "id": "lead-qualifier",
+      "label": "Lead qualifier from form data",
+      "icon": "🎯",
+      "purpose": "Scores inbound lead against ICP",
+      "template": "Score this inbound lead against my Ideal Customer Profile (ICP): {icp}\n\nLead form data:\n{form_data}\n\nOutput: score /10, 3 reasons for the score, recommended next step (auto-reply / sales call / nurture / disqualify)."
+    },
+    {
+      "id": "meeting-recap",
+      "label": "Meeting recap → action items",
+      "icon": "📋",
+      "purpose": "Turns transcript into action-item list",
+      "template": "Turn this meeting transcript into a clean recap with action items. Structure:\n\nTL;DR (2 lines)\nDecisions made\nOpen questions\nAction items (owner / deadline / what)\n\nTranscript:\n{transcript}"
+    },
+    {
+      "id": "pricing-objection",
+      "label": "Pricing objection handler",
+      "icon": "💡",
+      "purpose": "Frame-shift response to 'too expensive'",
+      "template": "Write a response to a pricing objection. Don't defend the price. Reframe to value: what they're losing without it. Use the value prop: {value_prop}. Ask one diagnostic question to surface the real concern. Under 100 words."
+    },
+    {
+      "id": "onboarding-sequence",
+      "label": "Onboarding email sequence (×3)",
+      "icon": "🚀",
+      "purpose": "Drip series for new customers",
+      "template": "Write a 3-email onboarding sequence for new customers of {product}.\n\nEmail 1 (day 0): welcome + first quick win\nEmail 2 (day 3): teach 1 power feature\nEmail 3 (day 7): invite to community / collect feedback\n\nKeep each under 120 words."
+    },
+    {
+      "id": "faq-from-tickets",
+      "label": "FAQ generator from past tickets",
+      "icon": "❓",
+      "purpose": "Clusters past tickets into top-10 FAQ",
+      "template": "Cluster these past support tickets into the top 10 most-common questions. For each: the question (in customer's voice), a 2-sentence answer.\n\nPast tickets:\n{tickets}"
+    },
+    {
+      "id": "churn-prevention",
+      "label": "Churn-prevention email",
+      "icon": "🔥",
+      "purpose": "Re-engagement to dormant customer",
+      "template": "Write a churn-prevention re-engagement email to a dormant customer.\n\nCustomer: {customer_name}\nLast active: {last_active}\nWhat they used: {used_feature}\n\nRequirements: empathy, 1 new reason to come back, 1 low-friction ask. Under 100 words."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

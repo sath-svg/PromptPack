@@ -106,7 +106,58 @@ export default function PricingPage() {
           <ProCard />
           <StudioCard />
         </div>
+
+        {/* Glossary FAQ */}
+        <Glossary />
       </section>
     </div>
+  );
+}
+
+function Glossary() {
+  const items = [
+    {
+      q: "What's BYOK?",
+      a: "Short for \"Bring Your Own Key\". You add your own ChatGPT, Claude, or Gemini API key into Skillset. The AI lab bills you directly — Skillset doesn't take a cut. Best for power users who want full control of model costs.",
+    },
+    {
+      q: "What's managed mode?",
+      a: "Skillset covers the AI bills. You pay a flat monthly fee, get a credit pool, and we handle the model costs. Best if you don't want to set up API keys or watch usage.",
+    },
+    {
+      q: "What are credits?",
+      a: "Each AI call uses 1+ credits. Quick replies = cheap. Big multi-step jobs = more. Credits roll over month-to-month up to your plan cap.",
+    },
+    {
+      q: "Which mode should I pick?",
+      a: "Default to managed mode — it's the easiest. Switch to BYOK when you have your own API key and want to skip the credit pool entirely.",
+    },
+  ];
+
+  return (
+    <section className="mt-20 md:mt-28">
+      <div className="mx-auto max-w-[900px]">
+        <p
+          className="mb-3 text-center text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          Quick glossary
+        </p>
+        <h2 className="text-center text-[24px] font-medium leading-[1.15] tracking-[-0.015em] text-zinc-50 md:text-[32px]">
+          New here? Some terms unpacked.
+        </h2>
+        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+          {items.map((item) => (
+            <div
+              key={item.q}
+              className="rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 transition-colors hover:border-white/[0.12]"
+            >
+              <h3 className="text-[15px] font-medium text-zinc-100">{item.q}</h3>
+              <p className="mt-2 text-[14px] leading-[1.55] text-zinc-400">{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

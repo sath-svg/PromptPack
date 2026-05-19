@@ -6,17 +6,20 @@ import {
   ArrowUpRight,
   Bolt,
   Boxes,
-  FileEdit,
+  Briefcase,
+  Code2,
+  Download,
   GitBranch,
-  History,
+  GraduationCap,
+  Megaphone,
   MessagesSquare,
-  Package,
   Palette,
   Sparkles,
   Workflow,
 } from "lucide-react";
 import type { Metadata } from "next";
 import { ChatVisual, PresetVisual, RouterVisual, WorkflowVisual, StepCaptureVisual, StepPackVisual, StepRunVisual } from "@/components/bento-visuals";
+import { AppMockupTabbed } from "@/components/app-mockup-tabbed";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { SkillsetNav } from "@/components/skillset-nav";
 
@@ -24,9 +27,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset: cut your AI costs by up to 80%",
+  title: "Skillset — AI is getting expensive. Spend less on it.",
   description:
-    "Cut AI costs up to 80% with smart prompt routing. Save your best prompts as portable skills, route each task to the cheapest capable model, and use them across ChatGPT, Claude, Gemini, and your IDE.",
+    "Save your best prompts once, reuse them in every workflow. Skillset auto-picks the cheapest AI that nails each job — up to 80% off your AI bill. Works in ChatGPT, Claude, Gemini, and your IDE.",
 };
 
 export default function SkillsetLanding() {
@@ -48,6 +51,12 @@ export default function SkillsetLanding() {
 
       <Hero />
 
+      <ScrollReveal>
+        <Problem />
+      </ScrollReveal>
+      <ScrollReveal>
+        <Personas />
+      </ScrollReveal>
       <ScrollReveal>
         <CoreFeatures />
       </ScrollReveal>
@@ -98,25 +107,20 @@ function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2563EB] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
             </span>
-            <span>v1.1 — formerly PromptPack</span>
+            <span>v1.2 — formerly PromptPack</span>
           </div>
 
-          <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[64px] lg:text-[72px]">
-            Save up to{" "}
-            <span className="text-emerald-400">80%</span>
+          <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[60px] lg:text-[68px]">
+            AI is getting expensive.
             <br />
-            on{" "}
-            <span className="relative inline-block">
-              <span className="relative z-10">AI costs.</span>
-              <span
-                aria-hidden
-                className="absolute bottom-[0.1em] left-0 right-0 -z-0 h-[0.18em] bg-[#2563EB]/40"
-              />
+            <span className="block mt-2 text-[24px] font-normal leading-[1.15] text-zinc-300 sm:text-[28px] md:text-[36px] lg:text-[40px]">
+              Skillset helps you <span className="text-zinc-100 font-medium">spend less</span> on it.
             </span>
           </h1>
 
-          <p className="mt-5 max-w-[52ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
-            Skillset picks the cheapest model strong enough for each saved prompt. Stop overpaying for frontier model prices.
+          <p className="mt-5 max-w-[56ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
+            Save your best prompts once, reuse them in every workflow. Get top-tier answers for{" "}
+            <span className="font-medium text-emerald-400">up to 80% less</span> - Skillset auto-picks the right, cheapest AI for each job.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
@@ -125,15 +129,15 @@ function Hero() {
               style={{ padding: "10px 22px" }}
               className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
             >
-              Start Free
+              Save your first prompt
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
             </Link>
             <a
-              href="#how"
+              href="#features"
               style={{ padding: "10px 22px" }}
               className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] text-sm text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.05] active:translate-y-[1px]"
             >
-              See how it works
+              Features
             </a>
           </div>
 
@@ -141,18 +145,18 @@ function Hero() {
             className="mt-5 text-[12px] text-zinc-500"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            free forever plan · no credit card · works in any LLM
+            free forever plan · no credit card · works in ChatGPT, Claude, Gemini, your IDE
           </p>
 
           <dl className="mt-10 grid grid-cols-3 gap-3 border-t border-white/5 pt-5 text-left md:mt-14 md:gap-0 md:pt-6">
-            <Stat value="2.4M+" label="prompts saved" />
-            <Stat value="187" label="public skills" />
-            <Stat value="14k" label="active makers" />
+            <Stat value="1B+" label="weekly AI users" />
+            <Stat value="10B+" label="prompts run daily" />
+            <Stat value="50k+" label="public skills on GitHub" />
           </dl>
         </div>
 
         <div className="relative -mx-1 flex items-start justify-center pt-2 md:mx-0 md:justify-end md:pt-4">
-          <AppMockup />
+          <AppMockupTabbed />
         </div>
       </div>
       </div>
@@ -178,186 +182,252 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-function AppMockup() {
+/* ────────────────────────────────────────────────────────────── PROBLEM */
+
+function Problem() {
+  const pains = [
+    "You re-type the same prompt every day.",
+    "Your best prompts are scattered across all conversations and documents.",
+    "ChatGPT works better today, Claude tomorrow, but your prompts and conversations don't follow.",
+    "One plan = one company's models. ChatGPT, Claude, Gemini each charges separately.",
+  ];
+
   return (
-    <div className="relative w-full max-w-[680px] md:mt-12 md:translate-x-28 md:scale-[1.15] md:origin-top-right">
-      <div
-        aria-hidden
-        className="absolute -inset-3 rounded-3xl border border-white/[0.04]"
-      />
-
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f12] shadow-[0_30px_80px_-30px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)]">
-        <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
-          <div className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-            <span className="h-2.5 w-2.5 rounded-full bg-[#3b3b3f]" />
-          </div>
-          <span
-            className="text-[11px] uppercase tracking-[0.16em] text-zinc-500"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            Skillset Desktop
-          </span>
-          <span className="text-[11px] text-zinc-500">v1.1</span>
-        </div>
-
-        <div className="flex">
-          <aside className="w-[120px] shrink-0 border-r border-white/5 bg-[#0a0a0c] p-2 md:w-[150px]">
-            <div className="mb-3 flex items-center gap-2 px-1.5 py-1.5 md:px-2">
-              {/* Plain <img> — Next Image optimizer races on the 2048x2048 source PNG */}
-              <img
-                src="/img/skillset_logo.png"
-                alt="Skillset"
-                width={20}
-                height={20}
-                className="h-5 w-5 shrink-0 rounded-md object-cover"
-              />
-              <span className="whitespace-nowrap text-[12px] font-medium tracking-tight text-zinc-100">
-                Skillset
-              </span>
-            </div>
-
-            <NavRow
-              icon={<MessagesSquare className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              label="Chat"
-              tip="Skill Chat"
-              href="#bento-chat"
-              active
-            />
-            <NavRow
-              icon={<FileEdit className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              label="Draft"
-            />
-            <NavRow
-              icon={<Palette className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              label="Skill Preset"
-              tip="Skill Preset"
-              href="#bento-preset"
-            />
-            <NavRow
-              icon={<Package className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              label="Your Skillsets"
-            />
-
-            <div className="my-2 border-t border-white/5" />
-
-            <NavRow
-              icon={<History className="h-3.5 w-3.5" strokeWidth={1.75} />}
-              label="Skill Control"
-              tip="Skill Control"
-              href="#power"
-            />
-          </aside>
-
-          <div className="flex-1 p-3 md:p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <p
-                className="text-[10px] uppercase tracking-[0.22em] text-zinc-500"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                Skill Chat
-              </p>
-              <a
-                href="#bento-router"
-                className="group relative inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[10px] text-zinc-300 transition-colors hover:border-[#2563EB]/50 hover:text-zinc-50"
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7BA7FF]" />
-                <span style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
-                  haiku 4.5 · 1c
-                </span>
-                <span className="pointer-events-none absolute -bottom-7 right-0 z-30 whitespace-nowrap rounded-md border border-white/10 bg-[#0a0a0c] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100">
-                  Skill Router
-                </span>
-              </a>
-            </div>
-
-            <div className="mb-2 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2563EB]/15 px-2 py-1 text-[11px] text-[#7BA7FF]">
-                <Package className="h-3 w-3" strokeWidth={2} />
-                Stock Analyzer
-              </span>
-              <span
-                className="text-[10px] text-zinc-600"
-                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-              >
-                13 prompts
-              </span>
-            </div>
-
-            <a
-              href="#bento-workflow"
-              className="group relative mb-3 flex items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.015] px-3 py-2 transition-colors hover:border-[#2563EB]/40 hover:bg-white/[0.03]"
+    <section className="relative border-t border-white/5 bg-[#0a0a0c] py-16 md:py-24">
+      <div className="mx-auto max-w-[1100px] px-5 md:px-6">
+        <p
+          className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          01 — The problem
+        </p>
+        <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
+          Sound familiar?
+        </h2>
+        <ul className="mt-8 grid grid-cols-1 gap-3 md:mt-12 md:grid-cols-2 md:gap-4">
+          {pains.map((p, i) => (
+            <li
+              key={i}
+              className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4 text-[15px] leading-[1.55] text-zinc-300 md:text-[17px] md:p-5"
             >
-              <Workflow className="h-3.5 w-3.5 text-[#7BA7FF]" strokeWidth={1.75} />
-              <span className="text-[11px] text-zinc-300">
-                Skill Flow · step 2 of 4
+              <span
+                className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-[10px] font-medium text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                {String(i + 1).padStart(2, "0")}
               </span>
-              <span className="ml-auto inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#7BA7FF]" />
-              <span className="pointer-events-none absolute -bottom-7 left-0 z-30 whitespace-nowrap rounded-md border border-white/10 bg-[#0a0a0c] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100">
-                Skill Flow
-              </span>
-            </a>
-
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <div className="max-w-[80%] rounded-lg bg-[#2563EB]/15 px-3 py-2 text-[12px] leading-snug text-zinc-100">
-                  Run on TSLA.
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span
-                  className="mt-1 shrink-0 rounded-full border border-white/10 bg-white/[0.02] px-1.5 py-0.5 text-[9px] uppercase tracking-[0.12em] text-zinc-400"
-                  style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-                >
-                  Claude
-                </span>
-                <div className="max-w-[80%] rounded-lg bg-white/[0.03] px-3 py-2 text-[12px] leading-snug text-zinc-300">
-                  Pulled 13 prompts. Running step 1: Executive summary…
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+              <span>{p}</span>
+            </li>
+          ))}
+        </ul>
       </div>
-    </div>
+    </section>
   );
 }
 
-function NavRow({
-  icon,
-  label,
-  tip,
-  href,
-  active,
-}: {
+/* ────────────────────────────────────────────────────────────── PERSONAS */
+
+type PersonaCard = {
   icon: React.ReactNode;
-  label: string;
-  tip?: string;
-  href?: string;
-  active?: boolean;
-}) {
-  const inner = (
-    <div
-      className={`group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[11.5px] transition-colors ${
-        active ? "bg-white/[0.05] text-zinc-50" : "text-zinc-400"
-      } ${href ? "cursor-pointer hover:bg-white/[0.04] hover:text-zinc-50" : ""}`}
-    >
-      <span className={active ? "text-[#7BA7FF]" : "text-zinc-500"}>{icon}</span>
-      <span className="truncate">{label}</span>
-      {tip && (
-        <span className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-white/10 bg-[#0a0a0c] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-zinc-200 opacity-0 transition-opacity group-hover:opacity-100">
-          {tip}
-        </span>
-      )}
-    </div>
+  role: string;
+  outcome: string;
+  skillsetTitle: string;
+  skillCount: number;
+  type: "workflow" | "folder";
+  preview: string[];
+  file: string;
+};
+
+function Personas() {
+  const personas: PersonaCard[] = [
+    {
+      icon: <Megaphone strokeWidth={1.75} className="h-5 w-5" />,
+      role: "Marketer",
+      outcome: "Draft 10 brand-voice posts in 2 minutes.",
+      skillsetTitle: "Brand Voice Studio",
+      skillCount: 12,
+      type: "folder",
+      preview: [
+        "LinkedIn post in your voice",
+        "Twitter/X thread from long doc",
+        "Email subject lines (×5 variants)",
+        "Ad copy: 3 headlines + 3 bodies",
+        "Press release first draft",
+      ],
+      file: "/skillsets/brand-voice-studio.skill",
+    },
+    {
+      icon: <GraduationCap strokeWidth={1.75} className="h-5 w-5" />,
+      role: "Student",
+      outcome: "Lecture notes → flashcards + study plan.",
+      skillsetTitle: "Study Faster",
+      skillCount: 5,
+      type: "workflow",
+      preview: [
+        "Step 1 · Extract key concepts",
+        "Step 2 · Generate flashcards",
+        "Step 3 · Build practice quiz",
+        "Step 4 · Make a mind map",
+        "Step 5 · Spaced-repetition schedule",
+      ],
+      file: "/skillsets/study-faster.skill",
+    },
+    {
+      icon: <Briefcase strokeWidth={1.75} className="h-5 w-5" />,
+      role: "Solopreneur",
+      outcome: "Your support playbook, every reply.",
+      skillsetTitle: "Solo Ops Toolkit",
+      skillCount: 14,
+      type: "folder",
+      preview: [
+        "Customer support reply (in tone)",
+        "Cold outreach + follow-up chain",
+        "Invoice reminder (polite + firm)",
+        "Onboarding email sequence",
+        "Pricing objection handler",
+      ],
+      file: "/skillsets/solo-ops-toolkit.skill",
+    },
+    {
+      icon: <Code2 strokeWidth={1.75} className="h-5 w-5" />,
+      role: "Builder",
+      outcome: "Codebase rules, lint prompts, design reviews.",
+      skillsetTitle: "Code Review Co-pilot",
+      skillCount: 5,
+      type: "workflow",
+      preview: [
+        "Step 1 · Analyze the diff",
+        "Step 2 · Style guide check",
+        "Step 3 · Security audit",
+        "Step 4 · Test coverage gaps",
+        "Step 5 · Final review comment",
+      ],
+      file: "/skillsets/code-review-copilot.skill",
+    },
+  ];
+
+  return (
+    <section className="relative border-t border-white/5 bg-[#0a0a0c] py-16 md:py-28">
+      <div className="mx-auto max-w-[1400px] px-5 md:px-6">
+        <div className="mb-10 grid grid-cols-1 gap-6 md:mb-16 md:grid-cols-[1fr_1fr] md:gap-16">
+          <div>
+            <p
+              className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              02 — Built for how you actually use AI
+            </p>
+            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
+              Pick the skillset that fits your life.
+            </h2>
+          </div>
+          <div className="flex items-end">
+            <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
+              Free skillsets, ready to import. Download one and see Skillset in action, no card required.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 lg:grid-cols-4">
+          {personas.map((p) => (
+            <PersonaCardView key={p.role} persona={p} />
+          ))}
+        </div>
+      </div>
+    </section>
   );
-  return href ? (
-    <a href={href} className="block">
-      {inner}
-    </a>
-  ) : (
-    <div>{inner}</div>
+}
+
+function PersonaCardView({ persona }: { persona: PersonaCard }) {
+  return (
+    <div className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0f0f12] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-all duration-300 hover:border-white/[0.14] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-30px_rgba(37,99,235,0.4)]">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -bottom-32 -right-32 h-72 w-72 rounded-full opacity-50 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(37,99,235,0.12), transparent 65%)",
+        }}
+      />
+
+      <div className="relative z-10 flex h-full flex-col p-5 md:p-6">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-white/10 bg-white/[0.03] text-[#7BA7FF]">
+            {persona.icon}
+          </span>
+          <span
+            className="text-[11px] uppercase tracking-[0.18em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            {persona.role}
+          </span>
+        </div>
+
+        <h3 className="mt-5 text-[18px] font-medium leading-[1.2] tracking-[-0.01em] text-zinc-50 md:text-[20px]">
+          {persona.skillsetTitle}
+        </h3>
+        <p className="mt-2 text-[13px] leading-[1.5] text-zinc-400">
+          {persona.outcome}
+        </p>
+
+        <div className="mt-5 flex items-center gap-2 text-[11px]">
+          <span
+            className="rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-zinc-400"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            {persona.skillCount} skills
+          </span>
+          <span
+            className={`rounded-full px-2 py-0.5 ${
+              persona.type === "workflow"
+                ? "border border-[#2563EB]/40 bg-[#2563EB]/10 text-[#7BA7FF]"
+                : "border border-white/10 bg-white/[0.02] text-zinc-400"
+            }`}
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            {persona.type}
+          </span>
+          <span
+            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            free
+          </span>
+        </div>
+
+        <div className="mt-5 flex flex-1 flex-col border-t border-white/5 pt-4">
+          <p
+            className="mb-3 text-[10px] uppercase tracking-[0.18em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            What's inside
+          </p>
+          <ul className="space-y-1.5 text-[12.5px] leading-[1.45] text-zinc-300">
+            {persona.preview.map((skill, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-600" />
+                <span>{skill}</span>
+              </li>
+            ))}
+            {persona.skillCount > persona.preview.length && (
+              <li className="flex items-start gap-2 text-zinc-500">
+                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-700" />
+                <span>+ {persona.skillCount - persona.preview.length} more</span>
+              </li>
+            )}
+          </ul>
+        </div>
+
+        <a
+          href={persona.file}
+          download
+          className="mt-5 inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-[13px] font-medium text-zinc-100 transition-all duration-200 hover:border-[#2563EB]/50 hover:bg-[#2563EB]/15 hover:text-white active:translate-y-[1px]"
+        >
+          <Download className="h-3.5 w-3.5" strokeWidth={2} />
+          Download .skill
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -425,7 +495,7 @@ function CoreFeatures() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              01 — Save once. Use everywhere.
+              03 — Save once. Use everywhere.
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Stop re-explaining yourself
@@ -435,7 +505,7 @@ function CoreFeatures() {
           </div>
           <div className="flex items-end">
             <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              A skill is a reusable prompt that travels with you across tools. A skillset refers to a curated library of pre-engineered, role-specific prompts or skills designed to instantly unlock the full capabilities of AI models Build once. Run anywhere.
+              A skill is a prompt you save once and reuse anywhere. A skillset is a folder of them — your marketing toolkit, your research stack, your code-review playbook. Build once. Run it again and again, anywhere.
             </p>
           </div>
         </div>
@@ -449,7 +519,7 @@ function CoreFeatures() {
             title="One chat. Every model."
             body={
               <>
-                Skills and chat in one place — no tab-switching. Handles chat, agentic work, and multi-model orchestration. Auto-routes to the cheapest capable model (see{" "}
+                Skills and chat in one place — no tab-switching. Ask a big question, and Skill Chat puts multiple AIs on it in parallel — each working on the part it&rsquo;s best at. Auto-picks the cheapest model per step (see{" "}
                 <a
                   href="#bento-router"
                   className="text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
@@ -470,7 +540,7 @@ function CoreFeatures() {
             title="Your style, licensed. Not stolen."
             body={
               <>
-                In the new norm of AI, we care about who gets paid. Encrypt your signature look into a skillset and set a price. <strong className="font-semibold text-zinc-100">AI can only train on your style when they buy your skillset</strong> — every sale is a royalty, not theft.
+                Artists shouldn&rsquo;t lose to AI scraping their work for free. Pack your style — palette, voice, taste — into an encrypted skillset, set a price, sell access. <strong className="font-semibold text-zinc-100">Every use becomes a royalty</strong>, not theft.
               </>
             }
             visual={<PresetVisual />}
@@ -481,8 +551,8 @@ function CoreFeatures() {
             id="bento-workflow"
             icon={<Workflow strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Flow"
-            title="Multi-step prompts, chained."
-            body="Output of step 1 feeds step 2. Run the whole sequence on demand. Save workflows. Save tokens."
+            title="Multi-step jobs, in one click."
+            body="Build a workflow: research → outline → draft → edit. Each step picks up where the last left off. Run all four in one click. Save the recipe, reuse forever."
             visual={<WorkflowVisual />}
             decor="right"
           />
@@ -491,8 +561,12 @@ function CoreFeatures() {
             id="bento-router"
             icon={<Bolt strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Router"
-            title="Route prompts to the cheapest capable model."
-            body="Routine task? Haiku. Reasoning? Sonnet. Vision? Gemini. Skillset auto-picks the right model per skill — cuts your AI bill up to 80%."
+            title="Picks the cheapest AI for each job, without dropping quality."
+            body={
+              <>
+                Quick task → a cheap, fast AI. Tricky reasoning → a top-tier one. Image work → a vision specialist. Skillset auto-picks per prompt — <strong className="font-semibold text-zinc-100">cuts your AI bill up to 80%</strong>.
+              </>
+            }
             visual={<RouterVisual />}
             decor="left"
           />
@@ -591,7 +665,7 @@ function HowItWorks() {
     {
       n: "03",
       t: "Run it — or sell it.",
-      d: "Trigger from Skill Chat, export, and license. Every sale goes to you.",
+      d: "Run it from Skill Chat. Share with your team. Or sell it — every sale goes to you.",
       visual: <StepRunVisual />,
     },
   ];
@@ -604,7 +678,7 @@ function HowItWorks() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              02 — How it works
+              04 — How it works
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               From scratch to skill in
@@ -657,45 +731,38 @@ function PowerFeatures() {
     {
       icon: <GitBranch strokeWidth={1.75} className="h-5 w-5" />,
       eyebrow: "Skill Control",
-      title: "Version control for prompts.",
-      body: "Diff prompts across model upgrades. Roll back when GPT-6 breaks the prompt that worked yesterday.",
+      title: "Save every version. Roll back anytime.",
+      body: "Every edit to your prompt is saved automatically. Compare any two versions side-by-side. Roll back instantly when a new AI model breaks the prompt that worked last week.",
     },
     {
       icon: <Boxes strokeWidth={1.75} className="h-5 w-5" />,
       eyebrow: "Skill Eval",
-      title: "Test before you ship.",
-      body: "Run a prompt against test cases. Compare outputs across models. Catch regressions before users do.",
+      title: "Tells you the best AI and approach for any prompt.",
+      body: "Built-in math benchmarks analyze your prompt and recommend the best model + reasoning approach. Get the right answer once, not after hours of trial and error.",
     },
     {
       icon: <Sparkles strokeWidth={1.75} className="h-5 w-5" />,
       eyebrow: "Skill Enhance",
-      title: "Auto-improve weak prompts.",
-      body: "Paste a draft, get a structured rewrite. Skillset adds the scaffolding (role, format, examples) you forgot.",
+      title: "Turn rough prompts into great ones.",
+      body: "Paste a rough draft, get back a sharper one. Skillset fills in what's missing — who the AI plays, what format to return, what good examples look like.",
     },
   ];
 
   return (
     <section id="power" className="relative bg-[#0a0a0c] py-16 md:py-28">
       <div className="mx-auto max-w-[1400px] px-5 md:px-6">
-        <div className="mb-10 grid grid-cols-1 gap-8 md:mb-16 md:grid-cols-[1fr_1fr] md:gap-16">
-          <div>
-            <p
-              className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
-              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-            >
-              03 — For teams shipping AI
-            </p>
-            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
-              Built for the engineers
-              <br />
-              who own the prompts.
-            </h2>
-          </div>
-          <div className="flex items-end">
-            <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              When prompts become production dependencies, you need versioning, evals, and safety nets. Skillset ships all three.
-            </p>
-          </div>
+        <div className="mb-10 md:mb-16">
+          <p
+            className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            05 — For quality nerds
+          </p>
+          <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
+            Tune your prompts
+            <br />
+            like a pro.
+          </h2>
         </div>
 
         <div className="divide-y divide-white/[0.06] border-y border-white/[0.06]">
@@ -760,7 +827,7 @@ function Testimonials() {
           className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          04 — In the wild
+          06 — In the wild
         </p>
         <h2 className="max-w-[20ch] text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
           People who stopped losing prompts.
@@ -883,7 +950,7 @@ function FaqSection() {
     },
     {
       q: "Does this replace ChatGPT / Claude / Cursor?",
-      a: "Complementary. For repeat workflows and cost-sensitive runs, Skillset handles it. Built to sit next to ChatGPT, Claude, and Cursor — same skills.md format those labs use.",
+      a: "Complementary. For repeat workflows and cost-sensitive runs, Skillset handles it. Built to sit next to ChatGPT, Claude, and Cursor — same skills.md format those labs use. One-click export: any Skillset skillset converts to a skill file you can drop into ChatGPT, Claude, or Cursor directly — button lives on every skillset.",
     },
     {
       q: "I already have a folder of prompts. Can I import?",
@@ -900,7 +967,7 @@ function FaqSection() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              05 — FAQ
+              07 — FAQ
             </p>
             <h2 className="text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
               Questions makers ask before signing up.

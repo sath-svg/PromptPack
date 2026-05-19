@@ -2,21 +2,34 @@
 
 import { SignedIn, SignedOut, SignUpButton, useUser } from "@/lib/auth-compat";
 import { useQuery } from "convex/react";
+import { Info } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 
-const FEATURES = [
+const FEATURES: { t: string; hi: boolean; tip?: string }[] = [
   { t: "Skillset desktop app", hi: false },
-  { t: "100 trial credits (one-time signup grant)", hi: true },
-  { t: "Managed mode cap: 30 credits / day", hi: false },
+  {
+    t: "100 trial credits (one-time signup grant)",
+    hi: true,
+    tip: "Credits power Managed mode. Each AI call uses 1+ credits depending on the model + answer length.",
+  },
+  {
+    t: "Managed mode cap: 30 credits / day",
+    hi: false,
+    tip: "Managed mode: Skillset covers the AI bills. You don't need an API key — just sign up and start. Daily cap resets at midnight UTC.",
+  },
   { t: "1 cloud skillset (.skill) of 5 skills", hi: true },
   { t: "Skill Chat", hi: true },
   { t: "Skill Router", hi: true },
   { t: "3 Skill Enhances / day", hi: false },
   { t: "15 AI Headers / day", hi: false },
   { t: "3 Prompt Scores / day", hi: false },
-  { t: "Fast + Balanced models only - No Opus or GPT-5 Pro in managed mode", hi: false },
-  { t: "No Bring Your Own Key (managed mode only)", hi: false },
+  { t: "Fast + Balanced models only — No Opus or GPT-5 Pro in managed mode", hi: false },
+  {
+    t: "No Bring Your Own Key (managed mode only)",
+    hi: false,
+    tip: "BYOK = Bring Your Own Key. The Free plan uses Managed mode only (we cover the AI bills). Upgrade to Pro / Studio to plug in your own ChatGPT/Claude/Gemini API key.",
+  },
 ];
 
 export function FreeCard() {
@@ -68,7 +81,23 @@ export function FreeCard() {
                 f.hi ? "bg-[#2563EB]" : "bg-zinc-500"
               }`}
             />
-            <span className={f.hi ? "text-zinc-100" : "text-zinc-300"}>{f.t}</span>
+            <span className={`flex items-start gap-1.5 ${f.hi ? "text-zinc-100" : "text-zinc-300"}`}>
+              <span>{f.t}</span>
+              {f.tip && (
+                <span className="group/tip relative inline-flex shrink-0">
+                  <Info
+                    className="mt-0.5 h-3.5 w-3.5 cursor-help text-zinc-500 transition-colors hover:text-[#7BA7FF]"
+                    strokeWidth={2}
+                  />
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-md border border-white/10 bg-[#0a0a0c] px-3 py-2 text-[12px] leading-[1.5] text-zinc-300 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.8)] group-hover/tip:block"
+                  >
+                    {f.tip}
+                  </span>
+                </span>
+              )}
+            </span>
           </li>
         ))}
       </ul>

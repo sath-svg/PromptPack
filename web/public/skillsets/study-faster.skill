@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Study Faster",
+  "icon": "🎓",
+  "description": "Lecture notes → flashcards + study plan. 5-step workflow for students.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-extract-concepts",
+      "label": "Step 1 · Extract key concepts",
+      "icon": "🧠",
+      "purpose": "Pull top 10 concepts from your lecture",
+      "template": "Extract the 10 most important concepts from the following lecture text. For each concept: 1-line definition, 1-line why it matters, 1-line common misconception.\n\nLecture text:\n{lecture_text}"
+    },
+    {
+      "id": "step2-flashcards",
+      "label": "Step 2 · Generate flashcards",
+      "icon": "🃏",
+      "purpose": "Turn concepts into 20 Anki-style Q/A cards",
+      "template": "Using the 10 concepts from step 1, generate 20 Anki-ready flashcards. Format: Q: ... / A: ... Two cards per concept — one definition, one application. Keep answers under 30 words."
+    },
+    {
+      "id": "step3-practice-quiz",
+      "label": "Step 3 · Build practice quiz",
+      "icon": "📝",
+      "purpose": "10 exam-style questions from the concepts",
+      "template": "Using the 10 concepts from step 1, build a 10-question practice quiz. Mix: 4 multiple-choice (4 options each), 3 short-answer, 2 explain-this-concept, 1 application scenario. Provide answer key after the questions."
+    },
+    {
+      "id": "step4-mind-map",
+      "label": "Step 4 · Make a mind map",
+      "icon": "🗺️",
+      "purpose": "Markdown mind map from the concepts",
+      "template": "Using the 10 concepts from step 1, output a markdown mind map. Use nested bullet structure. Root: the lecture topic. Branches: the 10 concepts. Sub-branches: key sub-ideas and connections between concepts."
+    },
+    {
+      "id": "step5-schedule",
+      "label": "Step 5 · Spaced-repetition schedule",
+      "icon": "📅",
+      "purpose": "4-week review schedule for the flashcards",
+      "template": "Build a 4-week spaced-repetition schedule for the 20 flashcards from step 2. Use intervals: day 1, 3, 7, 14, 28. Output as a table: card # / review dates / cumulative review count."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

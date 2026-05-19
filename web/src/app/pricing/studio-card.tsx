@@ -3,14 +3,18 @@
 import { useState } from "react";
 import { SignedIn, SignedOut, SignUpButton, useUser } from "@/lib/auth-compat";
 import { useQuery } from "convex/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
 
-const FEATURES = [
-  { t: "2,750 AI credits / month — managed mode", hi: true },
-  { t: "Rolls over up to 5,500 credits", hi: false },
+const FEATURES: { t: string; hi: boolean; tip?: string }[] = [
+  {
+    t: "2,750 AI credits / month — managed mode",
+    hi: true,
+    tip: "Managed mode: Skillset covers the AI bills. You pay a flat monthly fee, get a credit pool, we handle the model costs. Each AI call uses 1+ credits depending on the model + answer length.",
+  },
+  { t: "Rolls over up to 5,500 credits", hi: false, tip: "Unused credits carry over month-to-month, capped at 5,500." },
   { t: "Everything in Pro", hi: true },
   { t: "200 saved prompts · 17 cloud skillsets (.skill)", hi: true },
   { t: "Skill Control — versioning (all packs)", hi: true },
@@ -19,7 +23,11 @@ const FEATURES = [
   { t: "500 Skill Eval runs / day", hi: false },
   { t: "2,000 AI Headers / day", hi: false },
   { t: "500 Prompt Scores / day", hi: false },
-  { t: "BYOK - Bring your Own Key", hi: true },
+  {
+    t: "BYOK - Bring your Own Key",
+    hi: true,
+    tip: "BYOK: use your own ChatGPT, Claude, or Gemini API key. The AI lab bills you directly — Skillset takes nothing on top. Best for power users who want full control of model costs.",
+  },
   { t: "Priority support + first-class access to new features", hi: false },
 ];
 
@@ -74,7 +82,7 @@ export function StudioCard() {
           className="mt-1 text-[12px] uppercase tracking-[0.16em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          For prompt engineers
+          For power users + small teams
         </p>
       </div>
 
@@ -129,7 +137,23 @@ export function StudioCard() {
                 f.hi ? "bg-[#2563EB]" : "bg-zinc-500"
               }`}
             />
-            <span className={f.hi ? "text-zinc-100" : "text-zinc-300"}>{f.t}</span>
+            <span className={`flex items-start gap-1.5 ${f.hi ? "text-zinc-100" : "text-zinc-300"}`}>
+              <span>{f.t}</span>
+              {f.tip && (
+                <span className="group/tip relative inline-flex shrink-0">
+                  <Info
+                    className="mt-0.5 h-3.5 w-3.5 cursor-help text-zinc-500 transition-colors hover:text-pink-400"
+                    strokeWidth={2}
+                  />
+                  <span
+                    role="tooltip"
+                    className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-64 -translate-x-1/2 rounded-md border border-white/10 bg-[#0a0a0c] px-3 py-2 text-[12px] leading-[1.5] text-zinc-300 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.8)] group-hover/tip:block"
+                  >
+                    {f.tip}
+                  </span>
+                </span>
+              )}
+            </span>
           </li>
         ))}
       </ul>
