@@ -116,7 +116,7 @@ function Hero() {
           </h1>
 
           <p className="mt-5 max-w-[52ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
-            Save skills and prompts as skillsets. Route each skillset to the cheapest capable model. One library across every AI tool you use.
+            Stop paying GPT-5 prices Haiku can handle. Route each prompt to cheapest model that runs it. Bundle repeat prompts into one-click skillsets. Save tokens.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
@@ -435,7 +435,7 @@ function CoreFeatures() {
           </div>
           <div className="flex items-end">
             <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              A skill is a reusable prompt that travels with you across tools. Build once. Run anywhere.
+              A skill is a reusable prompt that travels with you across tools. A skillset refers to a curated library of pre-engineered, role-specific prompts or skills designed to instantly unlock the full capabilities of AI models Build once. Run anywhere.
             </p>
           </div>
         </div>
