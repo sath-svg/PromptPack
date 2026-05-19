@@ -55,10 +55,10 @@ export default function SkillsetLanding() {
         <Problem />
       </ScrollReveal>
       <ScrollReveal>
-        <Personas />
+        <CoreFeatures />
       </ScrollReveal>
       <ScrollReveal>
-        <CoreFeatures />
+        <Personas />
       </ScrollReveal>
       <ScrollReveal>
         <HowItWorks />
@@ -315,7 +315,7 @@ function Personas() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              02 — Built for how you actually use AI
+              03 — Built for how you actually use AI
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
               Pick the skillset that fits your life.
@@ -495,7 +495,7 @@ function CoreFeatures() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              03 — Save once. Use everywhere.
+              02 — Save once. Use everywhere.
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Stop re-explaining yourself
