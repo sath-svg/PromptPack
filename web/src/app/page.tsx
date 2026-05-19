@@ -950,7 +950,7 @@ function FaqSection() {
     },
     {
       q: "Does this replace ChatGPT / Claude / Cursor?",
-      a: "Complementary. For repeat workflows and cost-sensitive runs, Skillset handles it. Built to sit next to ChatGPT, Claude, and Cursor — same skills.md format those labs use. One-click export: any Skillset skillset converts to a skill file you can drop into ChatGPT, Claude, or Cursor directly — button lives on every skillset.",
+      a: "Complementary. Built to sit next to ChatGPT, Claude, and Cursor via a one-click export. Any Skillset converts to a skill.md file you can drop into ChatGPT, Claude, or Cursor directly — button lives on every skillset.",
     },
     {
       q: "I already have a folder of prompts. Can I import?",
