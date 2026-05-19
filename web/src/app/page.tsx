@@ -116,7 +116,7 @@ function Hero() {
           </h1>
 
           <p className="mt-5 max-w-[52ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
-            Stop paying GPT-5 prices Haiku can handle. Route each prompt to cheapest model that runs it. Bundle repeat prompts into one-click skillsets. Save tokens.
+            Skillset picks the cheapest model strong enough for each saved prompt. Stop overpaying for frontier model prices.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
