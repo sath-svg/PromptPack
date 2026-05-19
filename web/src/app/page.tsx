@@ -953,6 +953,19 @@ function SiteFooter() {
           <p className="mt-6 text-[12px] text-zinc-600" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
             © {new Date().getFullYear()} Skillset · skillset.so
           </p>
+          <a
+            href="https://www.producthunt.com/products/skillset?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-skillset"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-block"
+          >
+            <img
+              alt="Skillset - Skill Chat. Skill Router. Skill Preset. A skill ecosystem. | Product Hunt"
+              width={250}
+              height={54}
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1146726&theme=light&t=1779154539263"
+            />
+          </a>
         </div>
 
         <ProductTreeCol />
