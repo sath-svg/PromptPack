@@ -322,6 +322,19 @@ function Personas() {
             <PersonaCardView key={p.role} persona={p} />
           ))}
         </div>
+
+        <div className="mt-10 flex flex-col items-center gap-3 md:mt-14">
+          <Link
+            href="/skillsets"
+            className="inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-6 py-3 text-[14.5px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_10px_30px_-10px_rgba(37,99,235,0.6)] transition-all hover:bg-[#1d4ed8] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_14px_36px_-10px_rgba(37,99,235,0.75)] active:translate-y-[1px]"
+          >
+            Browse more skillsets
+            <ArrowRight className="h-4 w-4" strokeWidth={2} />
+          </Link>
+          <p className="text-[12px] text-zinc-500">
+            47 packs across 24 roles — all free.
+          </p>
+        </div>
       </div>
     </section>
   );
