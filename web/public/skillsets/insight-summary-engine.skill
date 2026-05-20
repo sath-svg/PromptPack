@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Insight Summary Engine",
+  "icon": "💡",
+  "description": "5-step workflow from a question to an executive TL;DR with methodology, findings, and recommendations.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-question",
+      "label": "Step 1 · Question framing",
+      "icon": "❓",
+      "purpose": "Sharpen the question first",
+      "template": "Rewrite this messy question {raw_question} into a sharp analytical question. Output: precise question, what decision it informs, who is the audience, what would change in their behaviour given different answers. Flag if the question is unanswerable with current data."
+    },
+    {
+      "id": "step2-method",
+      "label": "Step 2 · Methodology paragraph",
+      "icon": "🔬",
+      "purpose": "Defensible method in plain English",
+      "template": "Write a methodology paragraph for the question from step 1. Cover: data sources, time window, filters, transformations, metric definitions, known caveats. ≤180 words, plain English. End with 'why this method is right for this question'."
+    },
+    {
+      "id": "step3-findings",
+      "label": "Step 3 · Findings bullets",
+      "icon": "📊",
+      "purpose": "≤5 bullets, each a number + meaning",
+      "template": "From the analysis {analysis_output}, write ≤5 findings bullets. Each: the number, the comparison that makes it meaningful (vs last period / vs cohort / vs benchmark), one-line interpretation. No stuffing."
+    },
+    {
+      "id": "step4-sowhat",
+      "label": "Step 4 · SO-WHAT + recommendations",
+      "icon": "🎯",
+      "purpose": "Each finding → an action",
+      "template": "For each finding from step 3, write the SO-WHAT and a recommendation. Recommendation must be: behavioural (someone does X), owned (who), measurable (success metric), time-boxed (when we re-check)."
+    },
+    {
+      "id": "step5-tldr",
+      "label": "Step 5 · Executive TL;DR",
+      "icon": "📨",
+      "purpose": "5 lines an exec can scan in 30s",
+      "template": "Compose the executive TL;DR. ≤5 lines. Line 1: headline answer to the question. Line 2: the single most important number. Line 3: top recommendation. Line 4: what we don't know yet. Line 5: next step + by when."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

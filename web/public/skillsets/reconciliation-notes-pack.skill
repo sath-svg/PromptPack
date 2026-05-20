@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Reconciliation Notes",
+  "icon": "🧾",
+  "description": "Speed up month-end with structured variance explanations, anomaly flags, and clean audit trail summaries.",
+  "prompts": [
+    {
+      "id": "variance-explainer",
+      "label": "Variance explainer",
+      "icon": "📊",
+      "purpose": "Why the line moved, in plain English",
+      "template": "Explain the variance for {account} between {period_a} and {period_b}. Inputs: {ledger_excerpt}. Output: % and absolute variance, top 3 drivers with amount each, 1-line context, whether material under {materiality_threshold}."
+    },
+    {
+      "id": "anomaly-flagger",
+      "label": "Anomaly flagger",
+      "icon": "🚨",
+      "purpose": "Surface entries that don't pattern-match",
+      "template": "Scan ledger {ledger_excerpt} for anomalies vs {baseline_window}. Flag: round numbers, weekend postings, duplicate-looking entries, entries above {threshold} without memo, accounts moved unusually. For each: line ref, why it's flagged, recommended follow-up."
+    },
+    {
+      "id": "adjusting-entry",
+      "label": "Adjusting-entry justification",
+      "icon": "✏️",
+      "purpose": "Memo behind each adjusting entry",
+      "template": "Justify adjusting entry: debit {debit_account} {amount}, credit {credit_account} {amount}. Provide: GAAP / IFRS basis (cite), 1-paragraph rationale, supporting workings reference, reversal expected next period (yes/no + why)."
+    },
+    {
+      "id": "audit-trail",
+      "label": "Audit trail summary",
+      "icon": "🔍",
+      "purpose": "What an auditor needs in one place",
+      "template": "Summarise the audit trail for {account} for {period}. Output: opening balance, 5 largest movements (date, ref, counter-party, amount), closing balance, supporting docs filed (list), any items lacking docs."
+    },
+    {
+      "id": "client-recap",
+      "label": "Client-friendly recap",
+      "icon": "💬",
+      "purpose": "Plain-English close summary",
+      "template": "Write a client-friendly month-end recap. Cover: headline P&L number with directional cue, top 3 things to know (≤15 words each), one item that needs the client's input, deadline + how to respond. ≤180 words."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

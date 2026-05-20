@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Incident Postmortem",
+  "icon": "📝",
+  "description": "5-step blameless postmortem workflow: timeline, root cause, contributing factors, action items, polished doc.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-timeline",
+      "label": "Step 1 · Timeline reconstruction",
+      "icon": "🕐",
+      "purpose": "Minute-by-minute timeline",
+      "template": "Reconstruct a timeline for incident {incident_id} from {raw_inputs}. Output markdown table: timestamp (UTC), event, source (alert / log / human action), who acted. Mark the detection time, mitigation time, full-recovery time."
+    },
+    {
+      "id": "step2-root-cause",
+      "label": "Step 2 · Root-cause analysis",
+      "icon": "🔬",
+      "purpose": "Cause chain, not single villain",
+      "template": "Run a 5-whys on the incident using the timeline. Output: 5-whys chain, identified root cause (technical), distinction between trigger and root cause, supporting evidence (log / metric / commit). Blameless: people are inputs, not failures."
+    },
+    {
+      "id": "step3-contributing",
+      "label": "Step 3 · Contributing factors",
+      "icon": "🧩",
+      "purpose": "Surface conditions that made it worse",
+      "template": "List contributing factors that made this incident larger or longer than it should have been. Cover: monitoring gaps, runbook gaps, on-call experience, change-management process, automation gaps. For each: evidence, severity, whether the same factor recurs."
+    },
+    {
+      "id": "step4-actions",
+      "label": "Step 4 · Action items + owners",
+      "icon": "✅",
+      "purpose": "Specific, owned, dated, prioritised",
+      "template": "Convert root cause + contributing factors into action items. For each: action, type (prevent / detect / mitigate / recover), owner, due date, priority (P0-P3), success criterion. Limit ≤8 actions; cap P0+P1 at 3."
+    },
+    {
+      "id": "step5-doc",
+      "label": "Step 5 · Polished postmortem doc",
+      "icon": "📄",
+      "purpose": "Doc to circulate + archive",
+      "template": "Compose the postmortem doc using steps 1-4. Sections: TL;DR (3 lines: impact, root cause, headline action), Impact (user + business), Timeline, Root Cause + Contributing Factors, Action Items, What Went Well, What Went Poorly. Blameless throughout."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Client Memo Builder",
+  "icon": "📨",
+  "description": "Polished draft memos for the five client touchpoints you write every month.",
+  "prompts": [
+    {
+      "id": "engagement-letter",
+      "label": "Engagement letter draft",
+      "icon": "📜",
+      "purpose": "Scope, fees, deliverables, terms",
+      "template": "Draft an engagement letter for {client_name}. Scope: {scope}. Period: {engagement_period}. Fees: {fee_structure}. Include: deliverables, exclusions, client responsibilities, termination, liability cap, confidentiality. Tone: professional, plain English."
+    },
+    {
+      "id": "tax-position-memo",
+      "label": "Tax position memo",
+      "icon": "🧮",
+      "purpose": "Defensible position with authority",
+      "template": "Memo our position on {tax_issue} for {client_name} in {jurisdiction}. Sections: facts, applicable authority (cite), analysis, conclusion (likely / more-likely-than-not / probable), risks if challenged, recommended documentation."
+    },
+    {
+      "id": "quarter-close-summary",
+      "label": "Quarter-close summary",
+      "icon": "📊",
+      "purpose": "What changed, what to do",
+      "template": "Write a quarter-close summary for {client_name}. Sections: headline P&L vs plan, cash position, top 3 wins, top 3 watch-outs, 2 actions we recommend (with deadline + owner). 1 page."
+    },
+    {
+      "id": "recommendation-letter",
+      "label": "Recommendation letter",
+      "icon": "💡",
+      "purpose": "Specific recommendation, justified",
+      "template": "Draft a recommendation letter on {topic} for {client_name}. Sections: recommendation (one sentence), why now, options considered (3) with pros / cons / impact, our recommendation + rationale, next step + timing. ≤1.5 pages."
+    },
+    {
+      "id": "follow-up-checklist",
+      "label": "Follow-up checklist",
+      "icon": "✅",
+      "purpose": "Open items + ownership + deadlines",
+      "template": "Build a follow-up checklist after our meeting on {meeting_topic}. Each item: action, owner (us / client), deadline, what 'done' looks like. Group by us / client. End with a single 'next touchpoint' line."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Status Update OS",
+  "icon": "📡",
+  "description": "Standardise weekly status across email, dashboard, decision log, and sprint demos.",
+  "prompts": [
+    {
+      "id": "weekly-status",
+      "label": "Weekly status email",
+      "icon": "📨",
+      "purpose": "Crisp Friday email leadership actually reads",
+      "template": "Write the weekly status email for {project_name}. Sections: headline (1 sentence + RAG), shipped this week, blocked / risks, decisions needed (with deadline), next week's focus. ≤250 words. Voice: direct, no buzzwords."
+    },
+    {
+      "id": "rag-dashboard",
+      "label": "RAG dashboard summary",
+      "icon": "🚥",
+      "purpose": "Overall + per-stream RAG with reasons",
+      "template": "Compute the RAG status for {project_name}. Inputs: {scope_status}, {schedule_status}, {budget_status}, {team_status}. Output: overall RAG, per-dimension RAG, ≤15-word reason per dimension, 1 action that would move the worst dimension to green."
+    },
+    {
+      "id": "stakeholder-onepager",
+      "label": "Stakeholder one-pager",
+      "icon": "📄",
+      "purpose": "Pre-read for a steerco",
+      "template": "Build a one-pager for steerco on {project_name}. Sections: ask of the room (one sentence), where we are vs plan, top 3 risks + mitigations, decisions needed, next milestone with date. Scannable."
+    },
+    {
+      "id": "risk-entry",
+      "label": "Risk register entry",
+      "icon": "⚠️",
+      "purpose": "Single risk, properly logged",
+      "template": "Log a risk for {project_name}. Inputs: {risk_description}. Output fields: risk statement (cause → event → effect), likelihood (1-5) + reason, impact (1-5) + reason, owner, mitigation, trigger that escalates, review date."
+    },
+    {
+      "id": "decision-log",
+      "label": "Decision log entry",
+      "icon": "🗂️",
+      "purpose": "Decision captured before it's forgotten",
+      "template": "Capture decision: {decision_summary}. Output: context (≤40 words), options considered (3), criteria, decision, dissenters + their concern, what reverses this decision, owner of the consequence, date."
+    },
+    {
+      "id": "sprint-demo",
+      "label": "Sprint demo script",
+      "icon": "🎬",
+      "purpose": "15-min demo with crisp transitions",
+      "template": "Write a 15-min sprint demo script for {sprint_summary}. Output: opening (30s, what we'll cover), 3 demos (4 min each: setup → action → result → why-it-matters), Q&A prompts (3), closing ask. Tight transitions."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

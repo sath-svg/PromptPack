@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Patient Education Sheet",
+  "icon": "🎓",
+  "description": "Convert clinical instructions into plain-language patient education materials at a reading level they understand.",
+  "prompts": [
+    {
+      "id": "plain-diagnosis",
+      "label": "Plain-language diagnosis explainer",
+      "icon": "🩺",
+      "purpose": "Diagnosis in 5th-grade English",
+      "template": "Explain {diagnosis} to a patient who reads at a 5th-grade level. Sections: what it is (1 sentence), what's happening in the body (1 short paragraph), why it matters for daily life. Avoid Latin / jargon. Translate to {target_language} if specified."
+    },
+    {
+      "id": "med-instructions",
+      "label": "Medication instructions",
+      "icon": "💊",
+      "purpose": "When, how much, what to watch for",
+      "template": "Write medication instructions for {medication}. Cover: dose + timing (with examples), how to take it (with or without food, etc.), common side effects, serious side effects to call about, what to do if a dose is missed. ≤180 words, plain English."
+    },
+    {
+      "id": "warning-signs",
+      "label": "Warning signs to call back",
+      "icon": "🚨",
+      "purpose": "Clear escalation criteria",
+      "template": "List warning signs for {condition} that warrant calling the clinic or going to the ER. Two columns: 'Call the clinic' (within 24h) and 'Go to ER' (now). Each line ≤15 words, behavioural / observable. End with the number to call."
+    },
+    {
+      "id": "self-care-checklist",
+      "label": "Self-care checklist",
+      "icon": "✅",
+      "purpose": "Daily / weekly tasks at home",
+      "template": "Build a self-care checklist for {condition} or {procedure} recovery. Group by daily / weekly / as-needed. Each item is a verb-first phrase ≤12 words. End with one motivating sentence in second-person."
+    },
+    {
+      "id": "qa-prompts",
+      "label": "Q&A prompt list",
+      "icon": "❓",
+      "purpose": "Questions the patient should ask",
+      "template": "Suggest 8 questions the patient should bring to their next visit for {condition}. Mix: clarifying, lifestyle, medication, follow-up, support. Each ≤15 words. Add a line: 'Bring this list with you.'"
+    }
+  ],
+  "exportedAt": 1716120000000
+}

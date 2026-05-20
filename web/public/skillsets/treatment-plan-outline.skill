@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Treatment Plan Outline",
+  "icon": "🗂️",
+  "description": "5-step workflow that produces a defensible, measurable treatment plan.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-concerns",
+      "label": "Step 1 · Presenting concerns",
+      "icon": "📥",
+      "purpose": "Concise, evidence-grounded problem list",
+      "template": "From intake notes {intake_notes}, draft a presenting-concerns section. List 3-5 concerns ranked by client priority. For each: 1-line description in client's language, how it impairs functioning, duration, prior treatment history."
+    },
+    {
+      "id": "step2-goals",
+      "label": "Step 2 · Goals + objectives",
+      "icon": "🎯",
+      "purpose": "SMART goals + measurable objectives",
+      "template": "For each presenting concern from step 1, write one long-term goal and two short-term objectives. Each objective: specific behaviour, measurement (frequency / intensity / duration), target value, timeframe. Avoid vague verbs like 'understand'."
+    },
+    {
+      "id": "step3-interventions",
+      "label": "Step 3 · Interventions matrix",
+      "icon": "🧰",
+      "purpose": "Map evidence-based interventions to goals",
+      "template": "Build an interventions matrix: each row is one goal, columns are interventions. Use evidence-based modalities (CBT, DBT, ACT, EMDR, MI, IPT, supportive). For each: brief mechanism, dosage (sessions / cadence), expected response timeline."
+    },
+    {
+      "id": "step4-measurement",
+      "label": "Step 4 · Measurement plan",
+      "icon": "📐",
+      "purpose": "Validated tools per goal",
+      "template": "For each goal from step 2, choose a validated measure (PHQ-9, GAD-7, PCL-5, OQ-45, custom behavioural count, etc.). Specify: instrument, cadence (intake / every N sessions / discharge), response benchmark, deterioration threshold that triggers plan revision."
+    },
+    {
+      "id": "step5-doc",
+      "label": "Step 5 · Polished plan doc",
+      "icon": "📄",
+      "purpose": "Insurance-ready, client-readable",
+      "template": "Compose the final treatment plan. Sections: Presenting concerns, Goals + objectives (with target dates), Interventions, Measurement plan, Anticipated discharge criteria, Risk + safety plan summary, Client + clinician signature lines. Plain language for client side."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

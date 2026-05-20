@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Sourcing Boolean Builder",
+  "icon": "🔍",
+  "description": "Translate role briefs into searchable Boolean strings for LinkedIn, GitHub, and ATS searches, with a quality audit.",
+  "prompts": [
+    {
+      "id": "boolean-from-brief",
+      "label": "Boolean from role brief",
+      "icon": "🧠",
+      "purpose": "Single sourcing Boolean",
+      "template": "Build a sourcing Boolean string from {role_brief}. Inputs: title synonyms, must-have skills, nice-to-have skills, location radius, exclusions. Output: one combined Boolean with grouping + a per-clause comment explaining why each group exists."
+    },
+    {
+      "id": "linkedin-variant",
+      "label": "LinkedIn search variant",
+      "icon": "💼",
+      "purpose": "Tuned to LinkedIn syntax + limits",
+      "template": "Adapt the Boolean from above for LinkedIn Recruiter syntax. Apply LinkedIn limits (no nested parens depth >5, no proximity), title-field operator usage. Output: cleaned string + a 1-line note on what was lost vs the base Boolean."
+    },
+    {
+      "id": "github-variant",
+      "label": "GitHub search variant",
+      "icon": "🐙",
+      "purpose": "Find engineers by code, not titles",
+      "template": "Translate the role brief into a GitHub code-search Boolean. Use: language:, path:, filename:, repo size, recent push date, stars range. Output: search string + an example URL, what a great match looks like in the results."
+    },
+    {
+      "id": "diversity-broaden",
+      "label": "Diversity-broadening rewrite",
+      "icon": "🌍",
+      "purpose": "Expand the funnel without lowering the bar",
+      "template": "Rewrite the Boolean to broaden the candidate pool without lowering must-haves. Specifically: replace pedigree filters (school / company tiers) with skill proxies, add bootcamp / open-source / community-contribution signals, swap synonyms used across non-traditional resumes."
+    },
+    {
+      "id": "search-audit",
+      "label": "Search-quality audit",
+      "icon": "🔬",
+      "purpose": "Is this Boolean returning the right shape?",
+      "template": "Audit search quality given sample {top_50_results}. Output: % match to must-haves (visual estimate), top false-positive pattern, top false-negative pattern (where strong candidates are missing), 3 concrete refinements to try."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

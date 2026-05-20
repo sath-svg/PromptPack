@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Job Spec Forge",
+  "icon": "📋",
+  "description": "Turn a hiring manager's brief into a polished job spec, scoring rubric, and ready-to-send outreach.",
+  "prompts": [
+    {
+      "id": "role-brief",
+      "label": "Role brief intake",
+      "icon": "🎤",
+      "purpose": "Structured brief from a messy conversation",
+      "template": "Turn this hiring manager input into a structured role brief: {raw_input}\n\nSections: mission (one sentence), top 3 outcomes the hire owns in year 1, must-have skills, nice-to-have skills, internal title + level, dealbreakers, ideal start date."
+    },
+    {
+      "id": "jd-draft",
+      "label": "Job description draft",
+      "icon": "📝",
+      "purpose": "JD that doesn't read like a JD",
+      "template": "Write a JD from the brief above. Format: 2-sentence intro (mission), 'what you'll do' (5 bullets), 'what you need' (5 bullets), 'nice to have' (3 bullets), comp + benefits, 'how to apply'. Voice: warm, specific, no buzzwords."
+    },
+    {
+      "id": "must-vs-nice",
+      "label": "Must-have vs nice-to-have audit",
+      "icon": "🪜",
+      "purpose": "Trim the wishlist to what's real",
+      "template": "Audit the must-have list from the brief. For each item: is this truly required day 1 or is it nice-to-have? Be ruthless. Suggest moving items to nice-to-have with a 1-line reason. Aim to reduce must-haves to ≤6."
+    },
+    {
+      "id": "salary-justifier",
+      "label": "Salary range justifier",
+      "icon": "💰",
+      "purpose": "Defend the band internally",
+      "template": "Justify a {currency}{low}-{high} band for this role in {market}. Cover: market data comp ranges (cite sources), why our band sits where it does (top quartile / median / bottom), trade-offs of moving it. ≤200 words."
+    },
+    {
+      "id": "interview-rubric",
+      "label": "Interview rubric",
+      "icon": "📊",
+      "purpose": "Calibrated scorecard from must-haves",
+      "template": "Build an interview scorecard from the must-haves. For each: what signal to look for, behavioural question that surfaces it, scoring anchors for 1/3/5. Output markdown table."
+    },
+    {
+      "id": "outreach-blurb",
+      "label": "Outreach blurb",
+      "icon": "✉️",
+      "purpose": "Recruiter outreach intro",
+      "template": "Write a recruiter outreach blurb (≤90 words) to a strong candidate for this role. Open with one specific reason we're reaching out to them, the most compelling line of the role, one easy call-to-action. No bait, no fake compliments."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

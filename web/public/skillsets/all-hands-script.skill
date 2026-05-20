@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "All-Hands Script",
+  "icon": "🎙️",
+  "description": "Run the quarterly all-hands without the usual flatness: recap, story, Q&A, Slack TL;DR.",
+  "prompts": [
+    {
+      "id": "quarterly-recap",
+      "label": "Quarterly recap",
+      "icon": "📅",
+      "purpose": "What we said we'd do vs did",
+      "template": "Draft the quarterly recap for {company_name}. Reference last quarter's commitments {prior_commitments}. For each: did / didn't / partly, what we learned. Add 2 unexpected wins and 1 unexpected loss. ≤300 words spoken."
+    },
+    {
+      "id": "numbers-plain",
+      "label": "Numbers in plain English",
+      "icon": "🧮",
+      "purpose": "Make metrics feel human",
+      "template": "Translate {key_metrics} into plain-English narration the whole team understands. Each metric: one sentence on what it is, one sentence on what it means for the team's day-to-day. No 'directionally', no 'flat YoY'."
+    },
+    {
+      "id": "story-quarter",
+      "label": "Story of the quarter",
+      "icon": "📖",
+      "purpose": "One story everyone remembers",
+      "template": "Write the story of the quarter. Inputs: {moment_options}. Pick one moment. Structure: stakes, the team's choice, what almost broke, what carried, what it tells us about who we are. ≤250 words."
+    },
+    {
+      "id": "qa-prep",
+      "label": "Q&A prep",
+      "icon": "🥊",
+      "purpose": "Surface the hard questions early",
+      "template": "Predict the 5 hardest questions the team will ask given recent context {recent_context}. For each: the question, what they really mean by asking it, the honest answer, what not to say."
+    },
+    {
+      "id": "slack-tldr",
+      "label": "Slack TL;DR follow-up",
+      "icon": "💬",
+      "purpose": "Recap pinned to #general within 1h",
+      "template": "Write the Slack TL;DR after the all-hands. ≤150 words. Sections: top 3 things to remember, what changes for you, what we're still figuring out, link to deck + recording. Reply-friendly tone."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

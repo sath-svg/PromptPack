@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Shift Handoff OS",
+  "icon": "🔁",
+  "description": "Standardise shift handoff with SBAR / I-PASS, patient priority lists, and family-update phrasing.",
+  "prompts": [
+    {
+      "id": "sbar",
+      "label": "SBAR template",
+      "icon": "📋",
+      "purpose": "Structured Situation / Background / Assessment / Recommendation",
+      "template": "Draft SBAR handoff for {patient_id} based on cues {shift_notes}.\n\nSituation: who, where, vitals snapshot, why they're under our care now.\nBackground: relevant history, allergies, lines / drains / airways.\nAssessment: current status by system, trends since last shift.\nRecommendation: what needs to happen this shift, escalation criteria."
+    },
+    {
+      "id": "i-pass",
+      "label": "I-PASS rundown",
+      "icon": "🛬",
+      "purpose": "Illness severity / Patient summary / Action list / Situation awareness / Synthesis by receiver",
+      "template": "Run I-PASS for {patient_id} using {shift_notes}.\n\nIllness severity: stable / watcher / unstable.\nPatient summary: 1-paragraph case + course so far.\nAction list (to-do this shift with timing).\nSituation awareness + contingency planning.\nSynthesis by receiver: prompts for the oncoming nurse to read back."
+    },
+    {
+      "id": "priority-list",
+      "label": "Patient priority list",
+      "icon": "🎯",
+      "purpose": "Rank patients by who needs attention first",
+      "template": "From census {census}, rank patients for the next 4 hours. For each: priority rank, key risk, next clinical task with time, escalation trigger. Sort so the highest-risk patient is first."
+    },
+    {
+      "id": "pending-tasks",
+      "label": "Pending tasks tracker",
+      "icon": "✅",
+      "purpose": "Clean, by-time task list",
+      "template": "Convert these scattered tasks {tasks_input} into a time-ordered tracker. For each: time window, patient, task, dependency (lab back, MD order pending, etc.), 'mine vs pass'."
+    },
+    {
+      "id": "family-update",
+      "label": "Family-update phrasing",
+      "icon": "🤝",
+      "purpose": "Honest, calm phrasing for tough updates",
+      "template": "Draft a family-update script for {patient_id}. Inputs: current clinical state, prognosis hint level (cautious / guarded / favourable), what changed, what's next. Tone: clear, calm, no medical jargon, leaves room for questions. ≤120 words spoken."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

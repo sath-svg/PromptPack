@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Design Critique",
+  "icon": "🎯",
+  "description": "Layered design critique: heuristics, hierarchy, accessibility, microcopy, and stakeholder-ready summary.",
+  "prompts": [
+    {
+      "id": "heuristic-eval",
+      "label": "Heuristic eval (Nielsen 10)",
+      "icon": "📐",
+      "purpose": "Score against the 10 usability heuristics",
+      "template": "Review the attached screen against Nielsen's 10 usability heuristics. For each heuristic: score 1-5, 1-sentence rationale, 1 concrete fix. Skip heuristics that don't apply with a note. Output: markdown table.\n\nScreen description / image:\n{screen}"
+    },
+    {
+      "id": "hierarchy-audit",
+      "label": "Visual hierarchy audit",
+      "icon": "🪜",
+      "purpose": "Spot rank-of-importance breaks",
+      "template": "Analyze the visual hierarchy of {screen}. List: the user's likely scan order, which 3 elements get most weight, any element competing for attention with the primary CTA. Suggest 3 changes that strengthen the intended hierarchy."
+    },
+    {
+      "id": "a11y-check",
+      "label": "Accessibility check",
+      "icon": "♿",
+      "purpose": "WCAG 2.2 pass against the design",
+      "template": "Check {screen} against WCAG 2.2 AA. Cover: color contrast, focus order, touch-target size, motion preferences, error identification, heading structure. For each finding: severity, location, recommended fix."
+    },
+    {
+      "id": "microcopy-review",
+      "label": "Microcopy review",
+      "icon": "✍️",
+      "purpose": "Voice + clarity pass on every label",
+      "template": "Audit every piece of microcopy in {screen} (labels, errors, empty states, tooltips). For each: current text, issue (jargon / vague / cold / inconsistent), rewrite that matches voice: {voice}. Limit to ≤25 changes."
+    },
+    {
+      "id": "naming-pass",
+      "label": "Component naming pass",
+      "icon": "🏷️",
+      "purpose": "Names that survive the design system",
+      "template": "Rename the components in {screen} so they slot into a design system. For each: current name, proposed name (PascalCase), reason it generalises better. Flag any that should be variants of an existing component."
+    },
+    {
+      "id": "persona-stress",
+      "label": "Persona stress-test",
+      "icon": "👥",
+      "purpose": "Walk through with 3 personas",
+      "template": "Walk three personas through {screen}: {persona_1}, {persona_2}, {persona_3}. For each: what they do first, where they pause, where they bounce, the one change that would convert them."
+    },
+    {
+      "id": "before-after",
+      "label": "Before/after rationale",
+      "icon": "🔁",
+      "purpose": "Defend the redesign in one slide",
+      "template": "Write a before/after rationale slide for {screen}. Output: top 3 problems (one line each), the change made for each, expected impact (qualitative + metric), risk of the change. Audience: skeptical PM."
+    },
+    {
+      "id": "stakeholder-tldr",
+      "label": "Stakeholder TL;DR",
+      "icon": "📨",
+      "purpose": "5-line summary for execs",
+      "template": "Summarise {screen} for a busy exec. 5 lines max: what changed, why, who benefits, success metric, what we need from them. No design jargon."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

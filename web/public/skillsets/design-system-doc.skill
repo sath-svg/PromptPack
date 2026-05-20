@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Design System Docs",
+  "icon": "📖",
+  "description": "Generate maintainable documentation for any design system component: spec, tokens, examples, migration notes.",
+  "prompts": [
+    {
+      "id": "token-table",
+      "label": "Token table generator",
+      "icon": "🎨",
+      "purpose": "Extract every token a component touches",
+      "template": "List every design token referenced by {component_name}. Group by category: color, spacing, typography, radius, shadow, motion. Output markdown table: token, value (default theme), where it's used in the component."
+    },
+    {
+      "id": "component-spec",
+      "label": "Component spec",
+      "icon": "📐",
+      "purpose": "Engineering-ready spec",
+      "template": "Write an engineering spec for {component_name}. Sections: anatomy (parts with names), props (name, type, default, options), states (default/hover/active/focus/disabled/loading), variants, accessibility requirements (ARIA, keyboard)."
+    },
+    {
+      "id": "usage-examples",
+      "label": "Usage examples",
+      "icon": "🧪",
+      "purpose": "Three realistic uses, not 'foo/bar'",
+      "template": "Show 3 realistic usages of {component_name}: one minimum-viable, one common, one advanced. For each: JSX-style snippet, screenshot prompt, the user goal it serves."
+    },
+    {
+      "id": "dos-donts",
+      "label": "Do's & don'ts list",
+      "icon": "✅",
+      "purpose": "5 do, 5 don't — concrete",
+      "template": "Write 5 do's and 5 don'ts for using {component_name}. Each one ≤15 words, specific (no platitudes like 'be consistent'). Pair every don't with a do that fixes the situation."
+    },
+    {
+      "id": "migration-notes",
+      "label": "Migration notes",
+      "icon": "🔁",
+      "purpose": "Upgrade guide between versions",
+      "template": "Compare {component_name} between {old_version} and {new_version}. Output: breaking prop changes, deprecated states, accessibility changes, a 3-step migration recipe, code-mod regex snippets where possible."
+    },
+    {
+      "id": "changelog-drafter",
+      "label": "Changelog drafter",
+      "icon": "📜",
+      "purpose": "Release notes that ship with the version",
+      "template": "Draft a changelog entry for {component_name} {new_version}. Sections: Added, Changed, Fixed, Deprecated, Removed. Each item ≤20 words. Mark breaking changes with ⚠️."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

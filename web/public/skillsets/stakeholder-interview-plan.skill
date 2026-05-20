@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Stakeholder Interview Plan",
+  "icon": "🎤",
+  "description": "Plan a discovery sprint: who to interview, what to ask, how to synthesise, what to read back.",
+  "prompts": [
+    {
+      "id": "interview-matrix",
+      "label": "Interview matrix",
+      "icon": "🗺️",
+      "purpose": "Who, why, and in what order",
+      "template": "From {project_brief} and {org_chart}, design an interview matrix. Output: 8-12 stakeholders, role, what we want to learn from them, why this person uniquely knows it, sequencing (and why that order)."
+    },
+    {
+      "id": "discovery-questions",
+      "label": "Discovery questions",
+      "icon": "❓",
+      "purpose": "Question banks per stakeholder type",
+      "template": "For each stakeholder type in {stakeholder_types}, write 10 discovery questions. Mix: opening (low-stakes), context, behaviour, opinion, and one provocative question. Avoid leading questions; encourage stories."
+    },
+    {
+      "id": "synthesis-grid",
+      "label": "Synthesis grid",
+      "icon": "🧩",
+      "purpose": "From quotes to themes",
+      "template": "Build a synthesis grid template. Columns: stakeholder, quote (≤30 words), tag (theme), confidence (low/med/high), conflicting evidence. Add a sample row using {sample_quote}."
+    },
+    {
+      "id": "themes-writeup",
+      "label": "Themes write-up",
+      "icon": "📝",
+      "purpose": "Top 5 themes, defensible",
+      "template": "Write up the top 5 themes from synthesis {synthesis_notes}. For each: theme, 3 supporting quotes (anonymised), strength of evidence, what it implies, what we still don't know."
+    },
+    {
+      "id": "readback-outline",
+      "label": "Readback deck outline",
+      "icon": "📊",
+      "purpose": "Outline that runs the room",
+      "template": "Outline a 25-min readback deck. Sections: ground rules (anonymity), method (5 lines), top 5 themes (1 slide each), the surprise (something they don't expect to hear), recommendations (3), next decisions (with deadline)."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

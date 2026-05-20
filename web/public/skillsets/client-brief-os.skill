@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Client Brief OS",
+  "icon": "📁",
+  "description": "Run client conversations end-to-end: discovery questions, plan-on-page, tax-impact callouts, and recap.",
+  "prompts": [
+    {
+      "id": "discovery-questions",
+      "label": "Discovery questions",
+      "icon": "🔎",
+      "purpose": "First-meeting question set",
+      "template": "Build a first-meeting discovery question set for {client_segment}. Cover: life stage + dependents, income + expenses, goals + horizons, risk tolerance, prior bad experiences with money, what success looks like in 5 years. ≤15 questions, sequence them naturally."
+    },
+    {
+      "id": "goals-actions",
+      "label": "Goals-into-actions",
+      "icon": "🪜",
+      "purpose": "Turn vague goals into measurable actions",
+      "template": "Convert client goals {client_goals} into actionable plan items. For each goal: clarified version (specific + measurable + dated), 2 actions, primary metric to track, review cadence."
+    },
+    {
+      "id": "risk-profile",
+      "label": "Risk profile summary",
+      "icon": "⚖️",
+      "purpose": "Calibrated risk read-out",
+      "template": "From these client answers {risk_answers}, write a risk profile summary. Output: stated tolerance, capacity (based on horizon + dependents + buffer), need (return required to hit goals), inferred behavioural risk, recommended portfolio risk band."
+    },
+    {
+      "id": "plan-on-page",
+      "label": "Plan-on-page",
+      "icon": "📄",
+      "purpose": "One-page plan the client keeps",
+      "template": "Compose a one-page plan for {client_name}. Sections: top 3 goals (with target + date), allocation (with rationale), cashflow guardrails, tax considerations, what we'll review each quarter, what we change only on triggers (list). Plain English."
+    },
+    {
+      "id": "tax-impact",
+      "label": "Tax-impact callout",
+      "icon": "🧮",
+      "purpose": "Surface tax in any recommendation",
+      "template": "For the recommendation {recommendation} in {jurisdiction}, write the tax-impact callout. Output: immediate tax effect, long-term tax effect, brackets / thresholds that change behaviour, 1 action that mitigates downside."
+    },
+    {
+      "id": "meeting-recap",
+      "label": "Meeting recap",
+      "icon": "📨",
+      "purpose": "Calm, specific recap email",
+      "template": "Write a recap email after a planning meeting with {client_name}. Sections: what we covered (3 bullets), what we agreed to do (us + client, with deadlines), what stays the same, next meeting date. Tone: calm, no jargon. ≤220 words."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

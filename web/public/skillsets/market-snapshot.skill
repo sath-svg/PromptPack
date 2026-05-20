@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Market Snapshot",
+  "icon": "📊",
+  "description": "Hand a stack of comps over and walk out with pricing recommendations, buyer-ready packets, and negotiation prep.",
+  "prompts": [
+    {
+      "id": "comparables",
+      "label": "Comparable-properties summary",
+      "icon": "🧮",
+      "purpose": "Comp set in one readable table",
+      "template": "Summarise comps {comps_data} for {subject_property}. Output markdown table: address, beds/baths/sqft, list / sold / DOM, $/sqft, 1-line note (recent sale, withdrawn, special condition). Add a 2-line takeaway at the bottom."
+    },
+    {
+      "id": "pricing-recommendation",
+      "label": "Pricing recommendation memo",
+      "icon": "💲",
+      "purpose": "Price band + rationale",
+      "template": "Write a pricing recommendation memo for {subject_property}. Output: recommended list band, where in the band you'd start, rationale (cite comps), risk if priced higher / lower, expected DOM at that price."
+    },
+    {
+      "id": "buyer-packet",
+      "label": "Buyer-ready packet",
+      "icon": "🛒",
+      "purpose": "One-pager for serious buyers",
+      "template": "Compose a buyer-ready packet for {subject_property}. Sections: property snapshot, why it's priced where it is, comp set short-list, neighborhood blurb, viewing + offer process, deadline calendar. ≤2 pages, scannable."
+    },
+    {
+      "id": "seller-update",
+      "label": "Seller-update email",
+      "icon": "📨",
+      "purpose": "Weekly update sellers actually want",
+      "template": "Write a weekly seller-update email for {seller_name}. Sections: showings this week, feedback themes, market shifts that affect their listing, what we'll change this week, one ask of them. Calm, specific, ≤200 words."
+    },
+    {
+      "id": "negotiation-prep",
+      "label": "Negotiation prep",
+      "icon": "🎯",
+      "purpose": "Walk into the call with a plan",
+      "template": "Prep the negotiation on {subject_property} given offer {offer_terms} and seller priorities {seller_priorities}. Output: counter strategy (top + backup), 3 concessions we'd accept, 3 we won't, deal-killer language to avoid, 1 question to ask the other agent before responding."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

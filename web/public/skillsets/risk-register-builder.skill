@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Risk Register Builder",
+  "icon": "⚠️",
+  "description": "Run a structured risk workshop in five prompts: discover, grade, mitigate, escalate, review.",
+  "prompts": [
+    {
+      "id": "discovery",
+      "label": "Risk discovery prompts",
+      "icon": "🔭",
+      "purpose": "Surface the risks people whisper about",
+      "template": "Generate 12 risk-discovery prompts for {project_name}. Mix categories: scope, schedule, budget, team, vendor, external, regulatory. Each prompt should make someone say 'oh yeah, that…'. 1 line each."
+    },
+    {
+      "id": "grading",
+      "label": "Likelihood + impact grading",
+      "icon": "📊",
+      "purpose": "Calibrated scoring with anchors",
+      "template": "Grade each risk from {risk_list} with likelihood (1-5) + impact (1-5). For each: score, the anchor description that matched (define the scale once at the top), composite score, top-N flag if ≥ {threshold}."
+    },
+    {
+      "id": "mitigation-plan",
+      "label": "Mitigation plan",
+      "icon": "🛡️",
+      "purpose": "Avoid / reduce / transfer / accept",
+      "template": "For each top-N risk from grading, draft a mitigation plan. Output: strategy (avoid / reduce / transfer / accept), 2 actions with owner + due date, residual risk after, cost / time to mitigate."
+    },
+    {
+      "id": "escalation",
+      "label": "Escalation triggers",
+      "icon": "🚨",
+      "purpose": "When does this risk leave the team",
+      "template": "Define escalation triggers for each top-N risk. For each: leading indicator (specific, measurable), threshold that triggers escalation, who gets escalated to, message template (≤40 words)."
+    },
+    {
+      "id": "review-framing",
+      "label": "Quarterly review framing",
+      "icon": "🗓️",
+      "purpose": "Run the next risk review well",
+      "template": "Outline a 45-min quarterly risk review for {project_name}. Output: agenda with time-boxing, the 3 questions that drive value, the 2 questions that waste time (don't ask them), pre-read, decisions to leave the room with."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

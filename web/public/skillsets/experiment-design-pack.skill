@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Experiment Design Pack",
+  "icon": "🧪",
+  "description": "5-step workflow for designing an experiment that survives review: hypothesis, power, guardrails, risks, stakeholder summary.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-hypothesis",
+      "label": "Step 1 · Hypothesis spec",
+      "icon": "🎯",
+      "purpose": "Falsifiable hypothesis with success metric",
+      "template": "Turn this idea {idea} into a hypothesis spec. Output: hypothesis (if-then, falsifiable), primary metric + direction + minimum detectable effect, unit of randomisation, population, expected mechanism in 1 paragraph."
+    },
+    {
+      "id": "step2-power",
+      "label": "Step 2 · Power-analysis brief",
+      "icon": "🔌",
+      "purpose": "Sample size + runtime with assumptions",
+      "template": "Run a power-analysis brief given step 1's hypothesis. Assume baseline {baseline_rate}, target lift {target_lift}, α=0.05, power=0.8. Output: required sample size per arm, expected runtime given traffic {daily_traffic}, sensitivities table (vary lift ±50%)."
+    },
+    {
+      "id": "step3-guardrails",
+      "label": "Step 3 · Guardrail metrics",
+      "icon": "🛡️",
+      "purpose": "Metrics that must not move",
+      "template": "Define ≤5 guardrail metrics for this experiment. For each: metric, allowed deviation, why it matters, action if it breaches. Cover north-star, revenue, latency, error rate, retention."
+    },
+    {
+      "id": "step4-risk-readout",
+      "label": "Step 4 · Risk + readout plan",
+      "icon": "📅",
+      "purpose": "When + how we check + when we stop",
+      "template": "Write the risk and readout plan. Cover: peeking policy (sequential / fixed-horizon), interim checks if any, novelty / primacy windows, stop-loss criteria, what to do on null result. Plain English."
+    },
+    {
+      "id": "step5-stakeholder",
+      "label": "Step 5 · Stakeholder summary",
+      "icon": "📨",
+      "purpose": "One-pager for sign-off",
+      "template": "Write a one-page stakeholder summary. Sections: what we're testing, expected runtime, primary + guardrail metrics, what success vs null vs negative means, decision rule. ≤300 words. End with the date we'll meet to read out."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

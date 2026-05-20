@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Model Card Builder",
+  "icon": "🪪",
+  "description": "Generate a model card that doesn't hide trade-offs: intended use, data, eval, limitations, maintenance.",
+  "prompts": [
+    {
+      "id": "intended-use",
+      "label": "Intended-use section",
+      "icon": "🎯",
+      "purpose": "Bound the right uses + the wrong ones",
+      "template": "Draft the intended-use section for {model_name}. Sections: primary users, primary use cases, secondary use cases (allowed), uses we explicitly don't support, decisions this model should not be the sole input to. Plain language."
+    },
+    {
+      "id": "training-data",
+      "label": "Training-data summary",
+      "icon": "📚",
+      "purpose": "Where the model learned from",
+      "template": "Summarise the training-data composition for {model_name}. Cover: source(s), date range, sample size, key features, sensitive attributes (if any) and how handled, sampling decisions, known coverage gaps. No hand-waving on gaps."
+    },
+    {
+      "id": "eval-table",
+      "label": "Eval-metrics table",
+      "icon": "📊",
+      "purpose": "Metrics across slices, not just overall",
+      "template": "Build the eval-metrics table for {model_name}. Columns: metric, overall, top slice, bottom slice, gap. Include performance metric, fairness metric, calibration metric, robustness metric (perturbation). Add a row for the production baseline."
+    },
+    {
+      "id": "limitations",
+      "label": "Limitations + risks",
+      "icon": "⚠️",
+      "purpose": "Honest, specific limitations",
+      "template": "List limitations and risks for {model_name}. Each: limitation (1 sentence), where it bites (specific scenario), evidence, mitigation in place, residual risk. Cover at least: data drift, sub-group performance, adversarial inputs, downstream misuse."
+    },
+    {
+      "id": "maintenance-plan",
+      "label": "Maintenance plan",
+      "icon": "🛠️",
+      "purpose": "Who watches and when",
+      "template": "Write the maintenance plan for {model_name}. Cover: monitoring metrics + thresholds, alert routing, retraining cadence + trigger, deprecation criteria, escalation contacts. Include the question: 'When would we kill this model?'"
+    }
+  ],
+  "exportedAt": 1716120000000
+}

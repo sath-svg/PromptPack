@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "SQL Coach",
+  "icon": "🧮",
+  "description": "Convert questions into SQL, explain plans, debug joins, refactor slow queries, scaffold dbt models.",
+  "prompts": [
+    {
+      "id": "english-to-sql",
+      "label": "Query from English",
+      "icon": "🗣️",
+      "purpose": "Question to query, with caveats",
+      "template": "Write a SQL query that answers: {question}. Dialect: {dialect}. Schema:\n\n{schema}\n\nOutput: the query, 1-line note on edge cases (NULLs, dupes, time zones), 1 assumption I made explicit."
+    },
+    {
+      "id": "explain-plan",
+      "label": "EXPLAIN-plan reviewer",
+      "icon": "🔬",
+      "purpose": "What the plan tells us + what to change",
+      "template": "Review this EXPLAIN plan {explain_output} for query {query}. Output: how it executes (steps in plain English), the most expensive node, why it's expensive, 2 concrete refactors to try (index / rewrite / partition)."
+    },
+    {
+      "id": "window-helper",
+      "label": "Window function helper",
+      "icon": "🪟",
+      "purpose": "Pick the right window for the question",
+      "template": "I want to compute {metric} grouped by {group_by} ordered by {order_by}. Suggest a window function that does it. Output: query, why ROW_NUMBER vs RANK vs LAG vs SUM OVER fits, common mistakes for this shape."
+    },
+    {
+      "id": "anti-join-debug",
+      "label": "Anti-join debugger",
+      "icon": "🐛",
+      "purpose": "Why is my LEFT JOIN dropping rows?",
+      "template": "Here's my query {query} and unexpected result {unexpected_result}. Diagnose why rows are missing or duplicated. Likely causes: silent inner-join filter in WHERE, NULL match logic, duplicate keys, dialect quirks. Output: cause + fix + a small reproducible example."
+    },
+    {
+      "id": "perf-refactor",
+      "label": "Performance refactor",
+      "icon": "⚡",
+      "purpose": "Slow query → faster equivalent",
+      "template": "Refactor this query for performance on {dialect}: {query}. Constraints: same output, ≤5 changes. Output: refactored query, what each change does, expected impact (orders of magnitude or %), the change to make first."
+    },
+    {
+      "id": "dbt-scaffold",
+      "label": "dbt model scaffold",
+      "icon": "🏗️",
+      "purpose": "From description to a clean dbt model",
+      "template": "Scaffold a dbt model for: {model_description}. Output: SQL with CTEs (sources, transforms, final), suggested tests (unique + not_null on PK, accepted_values where relevant), tags, materialisation choice (view / table / incremental) with reason."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

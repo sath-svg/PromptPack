@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Runbook Generator",
+  "icon": "📕",
+  "description": "Produce a service runbook covering overview, alerts → actions, restart, rollback, escalation, and postmortem links.",
+  "prompts": [
+    {
+      "id": "service-overview",
+      "label": "Service overview",
+      "icon": "📋",
+      "purpose": "Anchor for everything else",
+      "template": "Write a service overview for {service_name}. Sections: purpose (1 paragraph), upstream + downstream dependencies, SLOs, owners, where the code lives, where the dashboards live. ≤300 words."
+    },
+    {
+      "id": "alerts-actions",
+      "label": "Common alerts → actions",
+      "icon": "🚨",
+      "purpose": "Alert name → exact action",
+      "template": "For each alert in {alert_list}, document the action. Output markdown table: alert name, what it means in plain English, first action (≤30s), second action (if first fails), when to page humans. Concrete, not 'investigate'."
+    },
+    {
+      "id": "restart-procedure",
+      "label": "Restart procedure",
+      "icon": "🔁",
+      "purpose": "Restart without data loss",
+      "template": "Document the safe restart procedure for {service_name}. Output ordered steps: pre-checks (queue drained? in-flight requests?), the restart command(s), post-checks, expected duration, what to do on each failure mode. Include the rollback if restart fails."
+    },
+    {
+      "id": "rollback-procedure",
+      "label": "Rollback procedure",
+      "icon": "↩️",
+      "purpose": "Roll back fast and correctly",
+      "template": "Write the rollback procedure for {service_name} from {current_version} to {previous_version}. Cover: schema migrations (forward-compatible? reversal needed?), feature flags, traffic shifting, data integrity check, customer-impact window communication."
+    },
+    {
+      "id": "escalation",
+      "label": "On-call escalation",
+      "icon": "📞",
+      "purpose": "Who gets paged when",
+      "template": "Define the on-call escalation policy for {service_name}. Tiers: primary, secondary, manager, executive. For each: response SLO, what triggers escalation, contact channel, expected first action. Include a public-status-page criterion."
+    },
+    {
+      "id": "postmortem-link",
+      "label": "Postmortem template link",
+      "icon": "📜",
+      "purpose": "Embed the postmortem expectation",
+      "template": "Add a 'Postmortem' section to the runbook. Include: incident severity definitions, who writes the postmortem (always not the IC), template link, blameless review timeline, where action items get tracked."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

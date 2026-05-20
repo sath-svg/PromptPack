@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Interview Question Bank",
+  "icon": "🎤",
+  "description": "Generate behavioural, technical, and culture-fit questions plus a take-home brief and scorecard.",
+  "prompts": [
+    {
+      "id": "behavioural",
+      "label": "Behavioural generator",
+      "icon": "🧠",
+      "purpose": "STAR-friendly questions per competency",
+      "template": "For competency '{competency}' at level {level}, write 6 behavioural questions. Each: the prompt (10-15 words), the signal we're listening for (1 line), an example excellent answer (≤40 words)."
+    },
+    {
+      "id": "technical-screener",
+      "label": "Technical screener",
+      "icon": "🛠️",
+      "purpose": "30-min screening questions",
+      "template": "Build a 30-min technical screen for {role}. Output: 1 warm-up (5 min), 2 core probes (10 min each), 1 stretch (5 min). For each: question, what 'good' looks like, common red flags, a follow-up if they breeze through."
+    },
+    {
+      "id": "culture-fit",
+      "label": "Culture-fit prompts",
+      "icon": "🤝",
+      "purpose": "Values-aligned questions without bias",
+      "template": "Write 5 culture-fit questions aligned to these values: {values}. Each must probe behaviour, not personality. Add a note on what biases to watch for (affinity, similarity, halo) when interpreting answers."
+    },
+    {
+      "id": "reference-check",
+      "label": "Reference-check script",
+      "icon": "📞",
+      "purpose": "Tight 20-min reference call",
+      "template": "Write a 20-min reference-check script. Open with framing + consent, ask: how they worked together, top 2 strengths with examples, area that improved over time, would-rehire question, anything we should ask the candidate. Close with thanks + confidentiality."
+    },
+    {
+      "id": "take-home",
+      "label": "Take-home brief",
+      "icon": "📄",
+      "purpose": "≤4-hour assignment with rubric",
+      "template": "Write a take-home brief for {role}. Time cap: 4 hours. Sections: context, exact task, deliverable format, success criteria (3-5 bullets), rubric (1-5 with anchors), what we won't grade on. Tone: respectful of their time."
+    },
+    {
+      "id": "scorecard",
+      "label": "Scorecard template",
+      "icon": "📊",
+      "purpose": "Per-interview structured feedback",
+      "template": "Build a per-interview scorecard. Sections: competencies scored (from rubric), 'specific moments' field (2-3 quotes), 'unanswered questions' field, hire / no-hire / strong-no-hire vote with 1-line rationale. Calibrated language only."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

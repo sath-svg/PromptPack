@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Performance Review Draft",
+  "icon": "📈",
+  "description": "5-step workflow from raw inputs (goals vs actuals, behaviours, recognition) to a polished, calibrated review.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-goals",
+      "label": "Step 1 · Goal-vs-actual diff",
+      "icon": "🎯",
+      "purpose": "Crisp gap analysis for each goal",
+      "template": "For each goal {goals_list}, compare to actuals {actuals_list}. Output markdown table: goal, target, actual, % achieved, ≤15-word explanation, drove-it (self / team / circumstances)."
+    },
+    {
+      "id": "step2-behaviours",
+      "label": "Step 2 · Behaviours snapshot",
+      "icon": "🧭",
+      "purpose": "Values-aligned behaviour bullets",
+      "template": "Using these peer notes {peer_notes} and manager notes {manager_notes}, surface 3 behaviours that strengthened the team and 3 that need calibration. Each: 1 specific moment, value it maps to, observed impact."
+    },
+    {
+      "id": "step3-growth",
+      "label": "Step 3 · Growth-area framing",
+      "icon": "🌱",
+      "purpose": "Constructive, action-oriented",
+      "template": "Reframe the calibration behaviours from step 2 into growth areas. For each: what to keep doing, what to stop, one concrete experiment for next cycle, success indicator. Voice: candid, hopeful, no euphemism."
+    },
+    {
+      "id": "step4-recognition",
+      "label": "Step 4 · Recognition specifics",
+      "icon": "🌟",
+      "purpose": "Praise that lands because it's specific",
+      "template": "Write the recognition section. For each of the top 3 wins from step 1 + the 3 strength behaviours from step 2: name the moment, the impact (numbers if any), the value/skill it showcased. No vague compliments."
+    },
+    {
+      "id": "step5-doc",
+      "label": "Step 5 · Polished review doc",
+      "icon": "📄",
+      "purpose": "Calibrated final document",
+      "template": "Compose the review using steps 1-4. Sections: Headline (1 sentence rating + reason), Wins, Growth Areas + Plan, Recognition, Goals for Next Cycle, Self-Reflection Questions for 1:1. ≤2 pages."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

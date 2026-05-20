@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Session Note Helper",
+  "icon": "📝",
+  "description": "Draft session notes in SOAP or DAP format, flag risk, justify diagnosis, link to treatment plan.",
+  "prompts": [
+    {
+      "id": "soap-draft",
+      "label": "SOAP-format draft",
+      "icon": "🧼",
+      "purpose": "Subjective / Objective / Assessment / Plan",
+      "template": "Draft a SOAP note from these session memory cues: {session_cues}.\n\nSubjective: client's stated experience, presenting concerns, mood.\nObjective: observable behaviours, MSE, affect.\nAssessment: clinical impressions, risk, progress vs goals.\nPlan: interventions used, between-session tasks, next session focus.\n\nFactual, no inferences not supported by cues."
+    },
+    {
+      "id": "dap-draft",
+      "label": "DAP-format draft",
+      "icon": "📋",
+      "purpose": "Data / Assessment / Plan",
+      "template": "Draft a DAP note from these session memory cues: {session_cues}.\n\nData: what was said, what was observed (factual).\nAssessment: clinical interpretation tied to treatment goals.\nPlan: interventions, homework, next session focus.\n\nKeep clinical reasoning visible in Assessment; do not bury it in Data."
+    },
+    {
+      "id": "risk-flag",
+      "label": "Risk assessment flag",
+      "icon": "🚨",
+      "purpose": "Surface SI / HI / abuse / impairment",
+      "template": "From session cues {session_cues}, flag any risk indicators. Cover: suicidal ideation (frequency / plan / means / intent), homicidal ideation, child or vulnerable-adult safety concerns, substance impairment, functional decline. For each: severity, evidence, action taken or planned per practice protocol."
+    },
+    {
+      "id": "diagnosis-rationale",
+      "label": "Diagnosis rationale",
+      "icon": "🧠",
+      "purpose": "Defensible Dx with criteria mapped",
+      "template": "Draft a diagnosis rationale paragraph for {diagnosis_under_consideration}. Map presenting symptoms to {DSM_or_ICD} criteria. Note duration, distress / impairment, rule-outs considered, differential differentiations. Include 1-line note on cultural / contextual factors."
+    },
+    {
+      "id": "treatment-link",
+      "label": "Treatment-plan link",
+      "icon": "🔗",
+      "purpose": "Tie session content to plan goals",
+      "template": "For each treatment goal in {treatment_goals}, link today's session content. Output: goal, what happened today that advanced or stalled it, evidence, suggested next-session focus to keep momentum."
+    },
+    {
+      "id": "insurance-safe",
+      "label": "Insurance-safe wording",
+      "icon": "🛡️",
+      "purpose": "Justifies medical necessity",
+      "template": "Review draft note {draft_note} and rewrite passages for insurance review. Ensure: medical necessity language, functional impairment described, intervention justified by symptoms, no gratuitous detail. Output: rewritten note + 3-bullet diff."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

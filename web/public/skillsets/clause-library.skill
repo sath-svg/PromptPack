@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Clause Library",
+  "icon": "📚",
+  "description": "Generate well-drafted boilerplate for the six clauses you negotiate every week, tuned to your jurisdiction and risk posture.",
+  "prompts": [
+    {
+      "id": "indemnification",
+      "label": "Indemnification clause",
+      "icon": "🛡️",
+      "purpose": "Mutual or one-way indemnification",
+      "template": "Draft an indemnification clause. Jurisdiction: {jurisdiction}. Posture: {posture} (e.g. mutual / vendor-favourable / buyer-favourable). Scope: {scope}. Caps + carve-outs to include: {carve_outs}. Output the clause + a 3-bullet drafting-note section."
+    },
+    {
+      "id": "lol",
+      "label": "Limitation of liability",
+      "icon": "⛔",
+      "purpose": "Cap + carve-outs aligned to deal",
+      "template": "Draft a limitation of liability clause. Cap: {cap}. Exclusions: {exclusions}. Super-cap for: {supercap}. Jurisdiction: {jurisdiction}. Output: clause + 1-line rationale per exclusion."
+    },
+    {
+      "id": "termination",
+      "label": "Termination clause",
+      "icon": "🚪",
+      "purpose": "For convenience + for cause",
+      "template": "Draft a termination clause covering: termination for convenience ({convenience_period}), termination for cause ({cause_grounds}), effect of termination (return of materials, surviving clauses, final fees). Jurisdiction: {jurisdiction}."
+    },
+    {
+      "id": "ip-assignment",
+      "label": "IP assignment",
+      "icon": "🧠",
+      "purpose": "Work-product IP language",
+      "template": "Draft an IP assignment clause for work product under {agreement_type}. Cover: assignment of all rights, moral-rights waiver if allowed in {jurisdiction}, prior-IP exclusions list, licence-back if needed. Output: clause + drafting notes."
+    },
+    {
+      "id": "confidentiality",
+      "label": "Confidentiality clause",
+      "icon": "🔒",
+      "purpose": "Mutual or one-way NDA",
+      "template": "Draft a confidentiality clause. Type: {type}. Term: {term}. Exclusions: standard 5 + any of {extra_exclusions}. Permitted disclosures: {permitted}. Output: clause + 2-line drafting notes."
+    },
+    {
+      "id": "governing-law",
+      "label": "Governing law + venue",
+      "icon": "🏛️",
+      "purpose": "Choice-of-law + forum selection",
+      "template": "Draft governing law and venue clauses for {agreement_type}. Default to {jurisdiction}. Include forum selection (exclusive / non-exclusive), waiver of jury trial if appropriate, prevailing-party fees if {prevailing_party_fees}. Output: clause + when each option fits."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

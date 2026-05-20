@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Quarterly Letter Forge",
+  "icon": "📜",
+  "description": "5-step workflow that turns market data, portfolio commentary, and outlook into a polished quarterly letter.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-market",
+      "label": "Step 1 · Market recap",
+      "icon": "📈",
+      "purpose": "Quarter-in-numbers, not jargon",
+      "template": "Summarise {quarter} market action using {market_data}. Output: 4 bullets (equities, fixed income, rates, currencies / commodities) with the number that mattered + one-line cause. No analyst jargon."
+    },
+    {
+      "id": "step2-portfolio",
+      "label": "Step 2 · Portfolio commentary",
+      "icon": "💼",
+      "purpose": "What worked and what didn't",
+      "template": "Using returns + holdings {portfolio_data}, write portfolio commentary. Cover: 2 largest contributors, 2 largest detractors, what we did or didn't do in response, how it sits vs benchmark. Honest tone, no spin."
+    },
+    {
+      "id": "step3-allocation",
+      "label": "Step 3 · Allocation rationale",
+      "icon": "🥧",
+      "purpose": "Why our weights look the way they do",
+      "template": "Justify current allocation {current_allocation} vs target {target_allocation}. For each over- or under-weight: thesis (≤25 words), trigger that would change our mind, expected duration of the tilt."
+    },
+    {
+      "id": "step4-outlook",
+      "label": "Step 4 · Forward outlook",
+      "icon": "🔮",
+      "purpose": "Calibrated, not bold",
+      "template": "Write a forward-looking section. Cover: 3 things we're watching, what would change our positioning, what we won't react to (even if it makes news). End with: 'What this means for you'. Avoid bold calls; emphasise process."
+    },
+    {
+      "id": "step5-letter",
+      "label": "Step 5 · Polished client letter",
+      "icon": "✍️",
+      "purpose": "Letter the client wants to read",
+      "template": "Compose the quarterly letter. Sections: opening (3 sentences, conversational), Quarter recap, Portfolio commentary, Allocation, Outlook, Closing (one personal sentence + how to reach us). ≤1100 words. Plain English, 1 metaphor max."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Exec Summary Engine",
+  "icon": "📑",
+  "description": "5-step workflow that converts raw findings into an exec-grade summary with a defensible recommendation.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-intake",
+      "label": "Step 1 · Findings intake",
+      "icon": "📥",
+      "purpose": "Sort raw findings into evidence buckets",
+      "template": "From these raw findings {raw_findings}, group into ≤6 evidence buckets. For each: bucket name, 3 supporting data points, the question it answers, confidence level (low / med / high)."
+    },
+    {
+      "id": "step2-sowhat",
+      "label": "Step 2 · SO-WHAT extractor",
+      "icon": "💡",
+      "purpose": "Each bucket → one implication",
+      "template": "For each evidence bucket from step 1, write the SO-WHAT in one sentence. Then a second sentence: who acts on it, what they do, when. Skip implications that wouldn't change a decision."
+    },
+    {
+      "id": "step3-narrative",
+      "label": "Step 3 · 3-act narrative",
+      "icon": "🎭",
+      "purpose": "Setup → tension → resolution",
+      "template": "Compose the narrative across 3 acts. Act 1 (setup): the situation in 2 sentences. Act 2 (tension): the conflict surfaced by step 2's SO-WHATs. Act 3 (resolution): the change we propose. ≤350 words."
+    },
+    {
+      "id": "step4-recommendation",
+      "label": "Step 4 · Recommendation slide",
+      "icon": "✅",
+      "purpose": "One slide they remember",
+      "template": "Draft the recommendation slide. Headline (≤12 words: action verb + outcome), 3 supporting points (each ≤20 words), expected impact (qualitative + metric range), cost (effort + risk). 1-line objection + response."
+    },
+    {
+      "id": "step5-90day",
+      "label": "Step 5 · 90-day plan",
+      "icon": "🗓️",
+      "purpose": "What happens day 1, 30, 60, 90",
+      "template": "Build a 90-day plan from the recommendation. For each milestone (day 1, 30, 60, 90): outcome, owner, success indicator. End with a 'kill criteria' line: what would tell us to stop."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

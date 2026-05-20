@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Contract Redline OS",
+  "icon": "⚖️",
+  "description": "Extract clauses, flag risks, draft counter-proposal language, and brief the business in plain English.",
+  "prompts": [
+    {
+      "id": "clause-extractor",
+      "label": "Clause extractor",
+      "icon": "🔖",
+      "purpose": "Index every clause for fast review",
+      "template": "Extract every clause from the contract below. Output markdown table: clause name, section ref, 1-line summary, defined terms used. Include schedules.\n\nContract:\n{contract_text}"
+    },
+    {
+      "id": "risk-flagger",
+      "label": "Risk flagger",
+      "icon": "🚩",
+      "purpose": "Surface deal-breakers and outliers",
+      "template": "Review the contract against the priority list: {priority_list}. Flag every clause that materially differs from market or our position. For each: clause ref, why it's risky (1 line), severity (low/med/high/critical)."
+    },
+    {
+      "id": "counter-proposal",
+      "label": "Counter-proposal language",
+      "icon": "✏️",
+      "purpose": "Replacement language for flagged clauses",
+      "template": "For each flagged clause from risk-flagger, draft counter-proposal language. Output: original text, proposed text, 1-line rationale, fallback if rejected. Voice: firm but neutral, no aggressive phrasing."
+    },
+    {
+      "id": "plain-english",
+      "label": "Plain-English summary",
+      "icon": "🗣️",
+      "purpose": "Brief the business owner",
+      "template": "Summarise the contract for a non-lawyer business owner. 1-page max. Sections: what we're agreeing to, key obligations, key risks, key dates, who signs. No legalese. Add a 'questions to ask before signing' section."
+    },
+    {
+      "id": "template-compare",
+      "label": "Comparison vs template",
+      "icon": "📊",
+      "purpose": "Diff this contract against our template",
+      "template": "Compare the contract against our template: {template_text}. Output: clauses only in theirs, clauses only in ours, clauses with material differences (table: clause / our text / their text / impact)."
+    },
+    {
+      "id": "negotiation-talking-points",
+      "label": "Negotiation talking points",
+      "icon": "💬",
+      "purpose": "What to say in the call",
+      "template": "Build a talking-points sheet for the negotiation call. For each flagged issue: how to open, two fallback positions, the worst position we'll accept, the trade we'll offer. Aim for ≤8 issues."
+    },
+    {
+      "id": "internal-cover-memo",
+      "label": "Internal cover memo",
+      "icon": "📨",
+      "purpose": "Cover memo for sign-off",
+      "template": "Write an internal cover memo for the deal owner. Sections: bottom line (≤30 words), what's still open, risks remaining, recommendation (sign / negotiate / decline) with 1-line reason. Half-page max."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

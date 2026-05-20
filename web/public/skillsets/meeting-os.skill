@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Meeting OS",
+  "icon": "🗓️",
+  "description": "5-step workflow that converts a meeting goal into a tight agenda, live notes, decisions, and a recap.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-agenda",
+      "label": "Step 1 · Agenda from goal",
+      "icon": "🎯",
+      "purpose": "Goal-shaped agenda, time-boxed",
+      "template": "Turn this goal into a meeting agenda: {goal}. Output: meeting outcome (1 sentence), pre-read, agenda items with owner + duration, question that drives each item, what is out of scope."
+    },
+    {
+      "id": "step2-preread",
+      "label": "Step 2 · Pre-read brief",
+      "icon": "📚",
+      "purpose": "Single-page pre-read",
+      "template": "Write a pre-read for the agenda from step 1. Sections: context (≤80 words), data the room needs to see (table or chart description), the decision we're seeking, the 'no' positions we already know."
+    },
+    {
+      "id": "step3-notes",
+      "label": "Step 3 · Live notes capture",
+      "icon": "🗒️",
+      "purpose": "Notes structure to fill live",
+      "template": "Build a live-notes template structured to match the agenda. For each item: discussion (bulleted), decision, action items (owner / by-when), parked items. Make it grep-friendly."
+    },
+    {
+      "id": "step4-actions",
+      "label": "Step 4 · Decisions + actions",
+      "icon": "✅",
+      "purpose": "Extract decisions and actions cleanly",
+      "template": "From these raw notes {raw_notes}, extract decisions (each: decision, dissenters, owner of consequence) and action items (each: action, owner, due date, definition of done). Drop chatter."
+    },
+    {
+      "id": "step5-recap",
+      "label": "Step 5 · Post-meeting recap",
+      "icon": "📨",
+      "purpose": "Same-day recap email",
+      "template": "Compose the recap email using outputs from steps 3-4. Sections: TL;DR (3 lines), decisions, actions (markdown table), parked items, next touchpoint. Send within 24h. ≤280 words."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

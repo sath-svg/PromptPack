@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Legal Memo Drafter",
+  "icon": "📝",
+  "description": "5-step IRAC workflow that turns rough facts into a polished legal memo.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-intake",
+      "label": "Step 1 · Issue + facts intake",
+      "icon": "🎯",
+      "purpose": "Crisp issue statement + relevant facts",
+      "template": "From the rough brief below, extract: the precise legal issue (one sentence), facts material to that issue (bulleted), facts likely immaterial (bulleted, to set aside). Flag any missing facts you'd need to answer well.\n\nBrief:\n{brief}"
+    },
+    {
+      "id": "step2-rule",
+      "label": "Step 2 · Rule research outline",
+      "icon": "📚",
+      "purpose": "Statutes, cases, secondary sources",
+      "template": "Outline the rule for the issue from step 1 in {jurisdiction}. List: governing statute (cite), top 3 cases with 1-line holdings, any persuasive authority worth citing. Note splits or unsettled areas with one line each."
+    },
+    {
+      "id": "step3-apply",
+      "label": "Step 3 · Apply rule to facts",
+      "icon": "🔗",
+      "purpose": "Apply each rule element to our facts",
+      "template": "Apply the rule from step 2 to the material facts from step 1. For each rule element: cite the authority, state how our facts satisfy or fail it, identify factual gaps. Be honest about weaknesses."
+    },
+    {
+      "id": "step4-counter",
+      "label": "Step 4 · Counter-arguments",
+      "icon": "⚔️",
+      "purpose": "Steelman the opposing view",
+      "template": "Steelman the strongest counter-arguments against our position. For each: the argument, supporting authority, our response (with cite). End with a 1-line predicted outcome and confidence (low/med/high)."
+    },
+    {
+      "id": "step5-memo",
+      "label": "Step 5 · Final memo draft",
+      "icon": "📜",
+      "purpose": "IRAC memo, ready to circulate",
+      "template": "Compose the final legal memo using steps 1-4. Format: Question Presented, Brief Answer (2-3 sentences), Statement of Facts, Discussion (IRAC), Conclusion. Tone: confident, hedged where honest. ≤2 pages."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

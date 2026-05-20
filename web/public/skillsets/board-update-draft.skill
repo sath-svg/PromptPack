@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Board Update Draft",
+  "icon": "🪑",
+  "description": "6-step workflow that produces a defensible board update with metrics, narrative, risks, asks, and a Q&A drill.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-metrics",
+      "label": "Step 1 · Headline metrics block",
+      "icon": "📊",
+      "purpose": "Top metrics with vs-plan + vs-prior",
+      "template": "From {metrics_input}, build the headline metrics block. Choose ≤8 metrics that match the company stage. For each: value, % vs plan, % vs prior period, color (green / amber / red), one-line cause."
+    },
+    {
+      "id": "step2-narrative",
+      "label": "Step 2 · Narrative wins / losses",
+      "icon": "📖",
+      "purpose": "Two short stories: one win, one loss",
+      "template": "Write the narrative section. One ≤120-word win story (what happened, why it worked, what we'll do more of) and one ≤120-word loss story (what happened, root cause we're confident about, what we're changing). No vague language."
+    },
+    {
+      "id": "step3-risks",
+      "label": "Step 3 · Risks + mitigations",
+      "icon": "⚠️",
+      "purpose": "The board's true value: surface risks",
+      "template": "List 3 risks the board needs to know about. For each: risk statement (one sentence), our current confidence on cause, mitigation in flight, what we'd ask the board to help with if it worsens. Resist temptation to hide."
+    },
+    {
+      "id": "step4-asks",
+      "label": "Step 4 · Strategic asks",
+      "icon": "🎯",
+      "purpose": "Crisp asks, ordered by leverage",
+      "template": "Draft 3 strategic asks for the board. For each: ask (one sentence), why this group is uniquely able to help, what 'help' looks like (intro / decision / capital / experience), follow-up cadence."
+    },
+    {
+      "id": "step5-qa",
+      "label": "Step 5 · Q&A drill",
+      "icon": "🥊",
+      "purpose": "Pre-mortem the hardest questions",
+      "template": "Predict the 8 hardest questions the board will ask based on the metrics + narrative. For each: the question (in their voice), the worst-case framing, a 60-second answer that doesn't dodge."
+    },
+    {
+      "id": "step6-cover-email",
+      "label": "Step 6 · Cover email",
+      "icon": "📨",
+      "purpose": "Make them want to read the deck",
+      "template": "Write the cover email that goes with the board pack. ≤140 words. Open with the single most important thing they should remember. Reference one ask explicitly. Provide the meeting date and what to pre-read first."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

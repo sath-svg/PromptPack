@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Listing Copy Studio",
+  "icon": "🏠",
+  "description": "Spin one property's facts into MLS-safe listing copy, social captions, open-house invites, and a hero line that sells.",
+  "prompts": [
+    {
+      "id": "hero-line",
+      "label": "Hero line",
+      "icon": "✨",
+      "purpose": "One sentence that earns the click",
+      "template": "Write 5 hero line options for the listing below. Each ≤15 words, emotive but factual, no clichés ('charming', 'must see'). Output as numbered list with a 1-line rationale for the strongest.\n\nListing facts:\n{listing_facts}"
+    },
+    {
+      "id": "feature-bullets",
+      "label": "Feature bullets",
+      "icon": "🔑",
+      "purpose": "Top 8 features, ranked by buyer pull",
+      "template": "From the listing facts {listing_facts}, write 8 feature bullets. Rank by likely buyer appeal for {target_buyer}. Each ≤15 words, specific (numbers, materials, brands). Mark the top 3 with a star."
+    },
+    {
+      "id": "neighborhood-blurb",
+      "label": "Neighborhood blurb",
+      "icon": "🌳",
+      "purpose": "Surroundings without filler",
+      "template": "Write a 120-word neighborhood blurb for {neighborhood}. Cover: walkability, schools (cite), commute, two specific landmarks, the buyer this neighborhood fits. No realtor clichés."
+    },
+    {
+      "id": "open-house-invite",
+      "label": "Open house invite",
+      "icon": "🚪",
+      "purpose": "Email + social invite, ready to send",
+      "template": "Write an open house invite for {address} on {date_time}. Output: subject line, 80-word email body, 30-word Instagram caption, 1-line text-message blurb. Include parking + RSVP details."
+    },
+    {
+      "id": "social-caption",
+      "label": "Social caption",
+      "icon": "📸",
+      "purpose": "Caption + 8 tags per platform",
+      "template": "Write social captions for {listing_address}. Output for each: Instagram (≤150 words + 8 tags), Facebook (≤100 words), LinkedIn (≤80 words). Adjust voice per platform; emojis only on Instagram."
+    },
+    {
+      "id": "mls-safe",
+      "label": "MLS-safe rewrite",
+      "icon": "⚖️",
+      "purpose": "Fair-housing compliant rewrite",
+      "template": "Rewrite this listing description to be fair-housing-compliant in {jurisdiction}. Strip discriminatory cues (school references, demographic language, family-type wording). Keep factual selling points. Output: rewritten copy + a 3-bullet diff.\n\nOriginal:\n{original_copy}"
+    }
+  ],
+  "exportedAt": 1716120000000
+}
