@@ -1037,7 +1037,7 @@ function SiteFooter() {
 
         <ProductTreeCol />
         <FooterCol
-          title="For Teams"
+          title="Content"
           links={[
             { label: "Skill Control", href: "#power" },
             { label: "Skill Eval", href: "#power" },
