@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AppSettings, UserSession, UserTier } from '../types';
 import { DEFAULT_MANAGED_SELECTIONS, type ManagedTier } from '../lib/managed-models';
+import { readSettingsFile, writeSettingsFile } from '../lib/settingsFile';
 
 // Helper to apply theme to document
 const applyTheme = (theme: 'light' | 'dark' | 'system') => {
@@ -15,29 +16,28 @@ const applyTheme = (theme: 'light' | 'dark' | 'system') => {
 };
 
 /**
- * AWS Bedrock requires SigV4-signed requests (access key + secret + region),
- * not a single bearer token. Stored as a sub-object so the simple-bearer
- * `setApiKey(provider, string)` path doesn't have to handle multi-field input.
+ * AWS Bedrock auth — two supported modes:
  *
- * `useInferenceProfile` flips the resolver to derive a cross-region
- * inference-profile ID from the region prefix (`us-*` → `us.`, `eu-*` →
- * `eu.`, `ap-*` → `apac.`). Off by default — many users have direct
- * model-invoke access and don't need the rerouting layer.
+ *  1. **Bearer API key (default, simpler).** Generate a long-lived Bedrock
+ *     API key in the IAM console, paste into `apiKey`. The runtime sends
+ *     `Authorization: Bearer ${apiKey}` to the Bedrock runtime endpoint.
+ *     No SigV4 signing. No IAM credentials required.
  *
- * `modelIdOverrides` is the power-user escape hatch when AWS rolls a new
- * profile naming scheme or a region uses a non-default profile. A non-empty
- * value wins over the auto-prefix toggle for that tier.
+ *  2. **IAM SigV4 (legacy, optional fallback).** For users who already
+ *     have programmatic IAM credentials and don't want to mint a Bedrock
+ *     API key. Provide `accessKeyId` + `secretAccessKey`; requests are
+ *     signed with `aws4fetch`. Used only when `apiKey` is empty.
+ *
+ * `region` is always required — it goes into the host
+ * (`bedrock-runtime.{region}.amazonaws.com`) regardless of auth mode.
  */
 export interface BedrockConfig {
-  accessKeyId: string;
-  secretAccessKey: string;
+  /** Bedrock API key (bearer). Preferred. */
+  apiKey?: string;
+  /** Legacy IAM credentials. Used only when `apiKey` is empty. */
+  accessKeyId?: string;
+  secretAccessKey?: string;
   region: string;
-  useInferenceProfile?: boolean;
-  modelIdOverrides?: {
-    haiku?: string;
-    sonnet?: string;
-    opus?: string;
-  };
 }
 
 export interface ApiKeys {
@@ -130,6 +130,11 @@ interface SettingsState extends AppSettings {
   setSession: (session: UserSession | null) => void;
   setApiKey: (provider: StringApiKeyProvider, key: string) => void;
   setBedrockConfig: (config: BedrockConfig | null) => void;
+  /** Hydrate `apiKeys` from `{appConfigDir}/settings.json`. Called once
+   *  at app start. File takes priority over the localStorage-persisted
+   *  values — gives users a stable on-disk source of truth they can
+   *  edit by hand. */
+  hydrateApiKeysFromFile: () => Promise<void>;
   setBillingTier: (tier: 'free' | 'pro' | 'studio') => void;
   incrementServerChatCount: () => void;
   /// Increment the daily inbuilt-server counter. Resets when the local
@@ -204,18 +209,41 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setStorageLocation: (path) => set({ storageLocation: path }),
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
-      setApiKey: (provider, key) =>
-        set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key || undefined } })),
-      setBedrockConfig: (config) =>
+      setApiKey: (provider, key) => {
+        set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key || undefined } }));
+        // Best-effort mirror to disk so {appConfigDir}/settings.json
+        // stays in sync. Fire-and-forget — the in-memory store stays
+        // authoritative even if the write fails.
+        void writeSettingsFile(get().apiKeys);
+      },
+      setBedrockConfig: (config) => {
+        // Valid config requires `region` plus at least one auth path —
+        // bearer API key OR IAM access key + secret. An empty config
+        // wipes the entry.
+        const isValid =
+          config &&
+          config.region &&
+          (
+            (config.apiKey && config.apiKey.length > 0) ||
+            (config.accessKeyId && config.secretAccessKey)
+          );
         set((state) => ({
           apiKeys: {
             ...state.apiKeys,
-            bedrock:
-              config && config.accessKeyId && config.secretAccessKey && config.region
-                ? config
-                : undefined,
+            bedrock: isValid ? config : undefined,
           },
-        })),
+        }));
+        void writeSettingsFile(get().apiKeys);
+      },
+      hydrateApiKeysFromFile: async () => {
+        const fileKeys = await readSettingsFile();
+        if (!fileKeys) return;
+        // File wins over the localStorage-persisted store so a user
+        // can rotate keys by editing settings.json without launching
+        // the app twice. Merge instead of replace so other persisted
+        // fields (theme, tier, etc.) survive.
+        set((state) => ({ apiKeys: { ...state.apiKeys, ...fileKeys } }));
+      },
       setSession: (session) => set({ session }),
       setBillingTier: (tier) => set({ billingTier: tier }),
       incrementServerChatCount: () => set((s) => ({ serverChatCount: s.serverChatCount + 1 })),

@@ -36,10 +36,14 @@ function currentByokProviders(): EvalByokProvider[] {
   const apiKeys = useSettingsStore.getState().apiKeys;
   return BYOK_PROVIDERS.filter((p) => {
     const v = apiKeys[p];
-    // Bedrock is an object (access key + secret + region); every other
-    // provider is a bearer-string. Both shapes are gated by "configured".
+    // Bedrock is an object — needs `region` plus either a bearer
+    // `apiKey` OR IAM `accessKeyId`+`secretAccessKey`. Every other
+    // provider is a bearer-string.
     if (p === 'bedrock') {
-      return !!(v && typeof v === 'object' && 'accessKeyId' in v && v.accessKeyId && v.secretAccessKey && v.region);
+      if (!v || typeof v !== 'object' || !('region' in v) || !v.region) return false;
+      const hasBearer = 'apiKey' in v && typeof v.apiKey === 'string' && v.apiKey.length > 0;
+      const hasIam = 'accessKeyId' in v && 'secretAccessKey' in v && !!v.accessKeyId && !!v.secretAccessKey;
+      return hasBearer || hasIam;
     }
     return typeof v === 'string' && v.length > 0;
   });

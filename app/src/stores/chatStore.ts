@@ -384,14 +384,17 @@ function getAvailableProviders(apiKeys: Record<string, string | undefined>): Set
   return providers;
 }
 
-/** True when all three Bedrock SigV4 fields are filled. Bedrock requires
- *  access key + secret + region; missing any one breaks the signing call.
- *  Read directly from settingsStore so we don't have to widen the
+/** True when Bedrock has a region plus at least one valid auth path —
+ *  either a bearer API key or IAM access-key+secret. Read directly from
+ *  settingsStore so we don't have to widen the
  *  `apiKeys: Record<string,string|undefined>` signature through every
  *  caller. */
 function hasBedrockConfig(): boolean {
   const bedrock = useSettingsStore.getState().apiKeys?.bedrock;
-  return !!(bedrock && bedrock.accessKeyId && bedrock.secretAccessKey && bedrock.region);
+  if (!bedrock?.region) return false;
+  const hasBearer = !!bedrock.apiKey && bedrock.apiKey.length > 0;
+  const hasIam = !!(bedrock.accessKeyId && bedrock.secretAccessKey);
+  return hasBearer || hasIam;
 }
 
 /// Fresh reachability probe — uncached. Picker uses this each send so a
@@ -511,43 +514,20 @@ function pickToolCapableModel(
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve the actual Bedrock model identifier to invoke. Order:
- *   1. Manual override for this tier (haiku/sonnet/opus) — wins absolutely
- *      so users can punch through to any profile name AWS introduces.
- *   2. Auto-prefix toggle — derive a cross-region inference profile from
- *      the region (`us-*` → `us.`, `eu-*` → `eu.`, `ap-*` → `apac.`).
- *   3. Raw canonical model ID from the preset.
- */
-function resolveBedrockModelId(
-  canonical: string,
-  config: { region: string; useInferenceProfile?: boolean; modelIdOverrides?: { haiku?: string; sonnet?: string; opus?: string } },
-): string {
-  const overrides = config.modelIdOverrides;
-  if (overrides) {
-    if (canonical.includes('claude-haiku') && overrides.haiku?.trim()) return overrides.haiku.trim();
-    if (canonical.includes('claude-sonnet') && overrides.sonnet?.trim()) return overrides.sonnet.trim();
-    if (canonical.includes('claude-opus') && overrides.opus?.trim()) return overrides.opus.trim();
-  }
-  if (config.useInferenceProfile) {
-    const r = config.region.toLowerCase();
-    const prefix = r.startsWith('us-') ? 'us.'
-      : r.startsWith('eu-') ? 'eu.'
-      : r.startsWith('ap-') ? 'apac.'
-      : null;
-    if (prefix && !canonical.startsWith(prefix)) return `${prefix}${canonical}`;
-  }
-  return canonical;
-}
-
-/**
- * Bedrock plain chat. Bedrock speaks the Anthropic Messages API but signs
- * requests with AWS SigV4 instead of `x-api-key`. Body uses the same shape
- * as `callAnthropicPlain` minus the top-level `model` field (encoded in
- * the URL path) plus an explicit `anthropic_version: 'bedrock-2023-05-31'`.
+ * Bedrock plain chat. Bedrock speaks the Anthropic Messages API; the body
+ * shape mirrors `callAnthropicPlain` minus the top-level `model` field
+ * (encoded in the URL path) plus an explicit
+ * `anthropic_version: 'bedrock-2023-05-31'`.
  *
- * We sign with `aws4fetch.AwsClient.sign()` to get the signed Headers,
- * then dispatch via `tauriFetch` so the request goes through the Rust
- * HTTP client (CORS-free, same path as every other BYOK provider).
+ * Two auth modes, picked by which fields are present in `BedrockConfig`:
+ *   1. **Bearer API key** (preferred — `Authorization: Bearer ${apiKey}`).
+ *      The simpler 2025+ path; users mint a long-lived Bedrock API key in
+ *      the IAM console and paste it into Settings.
+ *   2. **IAM SigV4** fallback when `apiKey` is empty but `accessKeyId` +
+ *      `secretAccessKey` are present. Uses `aws4fetch.AwsClient.sign()`.
+ *
+ * Either way the request is dispatched via `tauriFetch` so it goes through
+ * the Rust HTTP client (CORS-free, same path as every other BYOK provider).
  */
 async function callBedrockPlain(
   preset: ModelPreset,
@@ -556,9 +536,15 @@ async function callBedrockPlain(
   effort?: EffortLevel | null,
 ): Promise<string> {
   const bedrock = useSettingsStore.getState().apiKeys?.bedrock;
-  if (!bedrock?.accessKeyId || !bedrock.secretAccessKey || !bedrock.region) {
-    throw new Error('Bedrock not configured — set access key, secret, and region in Settings.');
+  if (!bedrock?.region) {
+    throw new Error('Bedrock not configured — set a region in Settings.');
   }
+  const hasBearer = !!bedrock.apiKey && bedrock.apiKey.length > 0;
+  const hasIam = !!(bedrock.accessKeyId && bedrock.secretAccessKey);
+  if (!hasBearer && !hasIam) {
+    throw new Error('Bedrock not configured — set a Bedrock API key (or IAM credentials) in Settings.');
+  }
+
   let payload: Record<string, unknown> = {
     anthropic_version: 'bedrock-2023-05-31',
     max_tokens: 4096,
@@ -567,27 +553,36 @@ async function callBedrockPlain(
   if (system) payload.system = system;
   payload = applyReasoning(preset, effort ?? null, payload);
 
-  const resolvedModelId = resolveBedrockModelId(preset.modelId, bedrock);
-  const url = `https://bedrock-runtime.${bedrock.region}.amazonaws.com/model/${encodeURIComponent(resolvedModelId)}/invoke`;
+  const url = `https://bedrock-runtime.${bedrock.region}.amazonaws.com/model/${encodeURIComponent(preset.modelId)}/invoke`;
   const body = JSON.stringify(payload);
-  const aws = new AwsClient({
-    accessKeyId: bedrock.accessKeyId,
-    secretAccessKey: bedrock.secretAccessKey,
-    region: bedrock.region,
-    service: 'bedrock',
-  });
-  // `.sign()` returns a Request with the SigV4 auth headers attached.
-  // We pull the headers off and re-issue via tauriFetch so the call uses
-  // the same network path (and CORS workaround) as every other provider.
-  const signed = await aws.sign(url, {
-    method: 'POST',
-    body,
-    headers: { 'content-type': 'application/json' },
-  });
-  const headers: Record<string, string> = {};
-  signed.headers.forEach((value, key) => {
-    headers[key] = value;
-  });
+
+  let headers: Record<string, string>;
+  if (hasBearer) {
+    headers = {
+      authorization: `Bearer ${bedrock.apiKey}`,
+      'content-type': 'application/json',
+    };
+  } else {
+    const aws = new AwsClient({
+      accessKeyId: bedrock.accessKeyId!,
+      secretAccessKey: bedrock.secretAccessKey!,
+      region: bedrock.region,
+      service: 'bedrock',
+    });
+    // `.sign()` returns a Request with the SigV4 auth headers attached.
+    // We pull the headers off and re-issue via tauriFetch so the call
+    // uses the same network path as every other provider.
+    const signed = await aws.sign(url, {
+      method: 'POST',
+      body,
+      headers: { 'content-type': 'application/json' },
+    });
+    headers = {};
+    signed.headers.forEach((value, key) => {
+      headers[key] = value;
+    });
+  }
+
   const response = await tauriFetch(url, { method: 'POST', headers, body });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
