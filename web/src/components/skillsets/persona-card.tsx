@@ -142,15 +142,15 @@ export function PersonaCardView({ persona, onPreview }: Props) {
           {persona.outcome}
         </p>
 
-        <div className="mt-5 flex items-center gap-2 text-[11px]">
+        <div className="mt-5 flex flex-wrap items-center gap-2 text-[11px]">
           <span
-            className="rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-zinc-400"
+            className="whitespace-nowrap rounded-full border border-white/10 bg-white/[0.02] px-2 py-0.5 text-zinc-400"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
             {persona.skillCount} skills
           </span>
           <span
-            className={`rounded-full px-2 py-0.5 ${
+            className={`whitespace-nowrap rounded-full px-2 py-0.5 ${
               persona.type === "workflow"
                 ? "border border-[#2563EB]/40 bg-[#2563EB]/10 text-[#7BA7FF]"
                 : "border border-white/10 bg-white/[0.02] text-zinc-400"
@@ -160,7 +160,7 @@ export function PersonaCardView({ persona, onPreview }: Props) {
             {persona.type}
           </span>
           <span
-            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300"
+            className="whitespace-nowrap rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
             free
