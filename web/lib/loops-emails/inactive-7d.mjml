@@ -1,0 +1,107 @@
+<mjml>
+  <mj-head>
+    <mj-title>One Pack tutorial in 60 seconds</mj-title>
+    <mj-preview>The fastest way to feel why Skillset exists.</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Ubuntu, 'Helvetica Neue', Arial, sans-serif" />
+      <mj-text color="#d4d4d8" font-size="16px" line-height="1.6" />
+      <mj-body background-color="#0a0a0c" />
+    </mj-attributes>
+    <mj-style>
+      a { color: #7BA7FF; }
+      .pill {
+        display: inline-block;
+        padding: 4px 10px;
+        border: 1px solid rgba(37,99,235,0.35);
+        background-color: rgba(37,99,235,0.10);
+        border-radius: 999px;
+        color: #7BA7FF;
+        font-family: 'SF Mono', Consolas, 'Liberation Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .step {
+        background-color: #131318;
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 12px;
+        padding: 16px 18px;
+      }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#0a0a0c" width="600px">
+    <mj-section padding="16px 24px 24px">
+      <mj-column>
+        <mj-table padding="0">
+          <tr>
+            <td width="48" style="padding:0 14px 0 0;vertical-align:middle;">
+              <img src="https://image.skillset.so/img/icon-192.png" alt="Skillset" width="40" height="40" style="display:block;border-radius:10px;border:0;" />
+            </td>
+            <td style="font-size:18px;font-weight:600;color:#fafafa;letter-spacing:-0.01em;vertical-align:middle;">
+              Skillset
+            </td>
+          </tr>
+        </mj-table>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="24px 24px 8px">
+      <mj-column>
+        <mj-text font-size="30px" line-height="1.15" letter-spacing="-0.02em" color="#fafafa" font-weight="600" padding="0">
+          The 60-second Pack tour.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="8px 24px 8px">
+      <mj-column>
+        <mj-text padding="0 0 14px">
+          You signed up but haven't built a Pack yet. Here's the shortest possible path to the "ah, that's why" moment.
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="0 24px 8px">
+      <mj-column>
+        <mj-text padding="0">
+          <div class="step" style="margin-bottom:10px;">
+            <strong style="color:#fafafa;">1. Save a prompt you re-type</strong><br />
+            <span style="color:#a1a1aa;font-size:14px;">Open Skillset, click + Save, paste a prompt you keep retyping.</span>
+          </div>
+          <div class="step" style="margin-bottom:10px;">
+            <strong style="color:#fafafa;">2. Group it into a Pack</strong><br />
+            <span style="color:#a1a1aa;font-size:14px;">A Pack is a folder of related prompts: your marketing toolkit, code-review playbook.</span>
+          </div>
+          <div class="step">
+            <strong style="color:#fafafa;">3. Run it across ChatGPT, Claude, Gemini</strong><br />
+            <span style="color:#a1a1aa;font-size:14px;">Same Pack, every tool. Switch models without losing context.</span>
+          </div>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 24px 24px">
+      <mj-column>
+        <mj-button background-color="#2563EB" color="#ffffff" border-radius="8px" font-weight="600" font-size="15px" padding="0" inner-padding="13px 28px" href="https://skillset.so/skillset">
+          Build your first Pack →
+        </mj-button>
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="0 24px">
+      <mj-column>
+        <mj-divider border-color="rgba(255,255,255,0.06)" border-width="1px" padding="0" />
+      </mj-column>
+    </mj-section>
+
+    <mj-section padding="20px 24px 32px">
+      <mj-column>
+        <mj-text font-family="'SF Mono', Consolas, 'Liberation Mono', monospace" font-size="11px" color="#71717a" line-height="1.6" letter-spacing="0.03em" padding="0">
+          Skillset · save your prompts once, use them everywhere<br />
+          <a href="https://skillset.so">skillset.so</a> · <a href="{unsubscribe_link}">unsubscribe</a>
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

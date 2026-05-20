@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Download, Lock, Check, Package, Search } from 'lucide-react';
 import { useSyncStore, encodePmtpk, encryptPmtpk, type CloudPrompt, type LoadedUserPack } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { track as trackEvent } from '../../lib/posthog-events';
 
 interface ExportablePrompt {
   id: string;
@@ -155,6 +156,10 @@ export function ExportPage() {
       URL.revokeObjectURL(url);
 
       setSuccess(true);
+      trackEvent('pack_exported', {
+        prompt_count: cloudPrompts.length,
+        encrypted: !!password,
+      });
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Export failed:', err);

@@ -1141,6 +1141,7 @@ function humanizeRunFailure(raw: string): string {
 }
 import { useRunStore } from './runStore';
 import type { ManagedTier } from '../lib/managed-models';
+import { track as trackEvent } from '../lib/posthog-events';
 
 // `patchSubtaskHeader` removed — orchestrator no longer pushes
 // subtask_header blocks to chat. Per-subtask routing/status renders
@@ -1833,6 +1834,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const settings = useSettingsStore.getState();
     const { apiKeys, billingTier } = settings;
     const incrementServerChatCount = settings.incrementServerChatCount;
+
+    // PostHog: chat_sent fires once per user-initiated send. Properties
+    // capture the routing context so dashboards can split orchestrator vs
+    // single-shot, managed vs BYOK.
+    trackEvent('chat_sent', {
+      orchestrator_enabled: settings.orchestratorEnabled,
+      managed_mode: settings.managedModeEnabled,
+      byok: !settings.managedModeEnabled,
+    });
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
@@ -1998,6 +2008,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       !wantsAgent;
     if (shouldOrchestrate) {
       const ws = useAgentStore.getState().workspace;
+      trackEvent('orchestrator_dispatched', {
+        decision: route,
+      });
       set({
         pendingRouteLabel: `Routing → Skill Flow workflow · planner + subtasks`,
       });
@@ -2035,6 +2048,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ error: `Unknown managed model: ${modelId}` });
         return;
       }
+      trackEvent('single_shot_dispatched', { route_class: route });
+      trackEvent('model_used', {
+        tier,
+        model_id: modelId,
+        managed_mode: true,
+      });
       // If we got here with SkillFlow on, the route head said this
       // message was `chat`/`agent`, OR it said `workflow` but with
       // low confidence — both cases auto-bypass the orchestrator's

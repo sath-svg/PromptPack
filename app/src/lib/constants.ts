@@ -55,6 +55,12 @@ export const WEB_APP_URL = 'https://skillset.so';
  */
 export const DESKTOP_AUTH_URL = `${WEB_APP_URL}/desktop-auth`;
 
+/**
+ * Public feedback board (self-hosted Fider). Opened in system browser
+ * from Settings, never embedded in the Tauri webview.
+ */
+export const FEEDBACK_URL = 'https://feedback.skillset.so';
+
 // ============================================================================
 // TAURI ORIGIN NOTES (for backend CORS configuration)
 // ============================================================================

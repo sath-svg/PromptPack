@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Check, X, AlertTriangle } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { diffLines, diffStats } from '../../lib/diff';
+import { track as trackEvent } from '../../lib/posthog-events';
 
 interface DiffPanelProps {
   pendingEditId: string;
@@ -17,6 +18,13 @@ export function DiffPanel({ pendingEditId }: DiffPanelProps) {
     [edit],
   );
   const stats = useMemo(() => diffStats(diff), [diff]);
+
+  useEffect(() => {
+    if (edit) trackEvent('skill_control_opened', {});
+    // Fire once per mounted DiffPanel with a real edit. ID-keyed so a new
+    // pendingEditId opens a fresh recording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingEditId]);
 
   if (!edit) return null;
 
@@ -45,13 +53,19 @@ export function DiffPanel({ pendingEditId }: DiffPanelProps) {
           {edit.accepted === null ? (
             <>
               <button
-                onClick={() => acceptEdit(edit.id)}
+                onClick={() => {
+                  trackEvent('skill_control_accepted', {});
+                  acceptEdit(edit.id);
+                }}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-500 text-white text-[13px] font-semibold shadow-sm hover:bg-emerald-600 transition-colors"
               >
                 <Check size={14} /> Accept
               </button>
               <button
-                onClick={() => rejectEdit(edit.id)}
+                onClick={() => {
+                  trackEvent('skill_control_rejected', {});
+                  rejectEdit(edit.id);
+                }}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-md border border-red-500/40 text-red-500 text-[13px] font-medium hover:bg-red-500/10 transition-colors"
               >
                 <X size={14} /> Reject

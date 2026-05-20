@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import type { AppSettings, UserSession, UserTier } from '../types';
 import { DEFAULT_MANAGED_SELECTIONS, type ManagedTier } from '../lib/managed-models';
 import { readSettingsFile, writeSettingsFile } from '../lib/settingsFile';
+import { track as trackEvent } from '../lib/posthog-events';
+import type { DesktopEventMap } from '../lib/posthog-events';
 
 // Helper to apply theme to document
 const applyTheme = (theme: 'light' | 'dark' | 'system') => {
@@ -109,6 +111,11 @@ interface SettingsState extends AppSettings {
    * shared-memory snapshot, planner JSON, etc. Toggle in Settings.
    */
   developerMode: boolean;
+  /**
+   * Whether anonymous product usage is sent to PostHog. Defaults to true.
+   * Toggled from Settings > Privacy.
+   */
+  telemetryOptIn: boolean;
   advancedSettingsExpanded: boolean;
   // User-chosen model per tier. Auto-routing picks one of these based on
   // prompt complexity. Defaults to recommended pick per tier.
@@ -146,6 +153,7 @@ interface SettingsState extends AppSettings {
   setManagedModeEnabled: (enabled: boolean) => void;
   setOrchestratorEnabled: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
+  setTelemetryOptIn: (enabled: boolean) => void;
   setAdvancedExpanded: (expanded: boolean) => void;
   setSelectedManagedModelForTier: (tier: ManagedTier, modelId: string) => void;
   setCreditBalance: (balance: CreditBalance | null) => void;
@@ -196,6 +204,7 @@ export const useSettingsStore = create<SettingsState>()(
       // each assistant message.
       orchestratorEnabled: true,
       developerMode: false,
+      telemetryOptIn: true,
       advancedSettingsExpanded: false,
       selectedManagedModels: { ...DEFAULT_MANAGED_SELECTIONS },
       creditBalance: null,
@@ -210,11 +219,19 @@ export const useSettingsStore = create<SettingsState>()(
       setStorageLocation: (path) => set({ storageLocation: path }),
       setSyncEnabled: (enabled) => set({ syncEnabled: enabled }),
       setApiKey: (provider, key) => {
+        const prevKey = get().apiKeys?.[provider];
         set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key || undefined } }));
         // Best-effort mirror to disk so {appConfigDir}/settings.json
         // stays in sync. Fire-and-forget — the in-memory store stays
         // authoritative even if the write fails.
         void writeSettingsFile(get().apiKeys);
+        // PostHog: fire only on the empty → non-empty transition so editing
+        // an existing key (or clearing it) doesn't spam events.
+        if (!prevKey && key && key.trim().length > 0) {
+          trackEvent('byok_added', {
+            provider: provider as DesktopEventMap['byok_added']['provider'],
+          });
+        }
       },
       setBedrockConfig: (config) => {
         // Valid config requires `region` plus at least one auth path —
@@ -269,9 +286,13 @@ export const useSettingsStore = create<SettingsState>()(
         }
         return s.serverDailyCount;
       },
-      setManagedModeEnabled: (enabled) => set({ managedModeEnabled: enabled }),
+      setManagedModeEnabled: (enabled) => {
+        set({ managedModeEnabled: enabled });
+        trackEvent('managed_mode_toggled', { enabled });
+      },
       setOrchestratorEnabled: (enabled) => set({ orchestratorEnabled: enabled }),
       setDeveloperMode: (enabled) => set({ developerMode: enabled }),
+      setTelemetryOptIn: (enabled) => set({ telemetryOptIn: enabled }),
       setAdvancedExpanded: (expanded) => set({ advancedSettingsExpanded: expanded }),
       setSelectedManagedModelForTier: (tier, modelId) =>
         set((s) => ({ selectedManagedModels: { ...s.selectedManagedModels, [tier]: modelId } })),
@@ -317,7 +338,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'promptpack-settings',
-      version: 2,
+      version: 3,
       migrate: (persisted: unknown, version: number) => {
         const s = (persisted ?? {}) as Record<string, unknown>;
         if (version < 2) {
@@ -325,6 +346,10 @@ export const useSettingsStore = create<SettingsState>()(
           if (!s.selectedManagedModels) {
             s.selectedManagedModels = { ...DEFAULT_MANAGED_SELECTIONS };
           }
+        }
+        if (version < 3) {
+          // Default existing users to opted-in, matching the new install default.
+          if (typeof s.telemetryOptIn !== 'boolean') s.telemetryOptIn = true;
         }
         return s as unknown as SettingsState;
       },

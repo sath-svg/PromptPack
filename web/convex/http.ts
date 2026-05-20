@@ -266,6 +266,22 @@ registerRoutes(http, components.stripe, {
         plan,
         planVariant,
       });
+
+      // PostHog server-side event — survives ad-blockers / lost client
+      // redirects. Errors swallowed by captureServer; webhook continues.
+      const billingInterval =
+        invoice.lines?.data?.[0]?.price?.recurring?.interval ?? "month";
+      await ctx.runAction(internal.posthog.captureServer, {
+        distinctId: userId,
+        event: "checkout_completed",
+        properties: {
+          plan,
+          interval: billingInterval === "year" ? "annual" : "monthly",
+          amount_cents: invoice.amount_paid ?? 0,
+          stripe_session_id: invoice.id ?? `${event.id}_no_invoice_id`,
+          billing_reason: invoice.billing_reason ?? "",
+        },
+      });
     },
     "checkout.session.completed": async (
       ctx,
@@ -287,6 +303,28 @@ registerRoutes(http, components.stripe, {
         credits,
         stripeEventId: event.id,
         sessionId: session.id,
+      });
+
+      // PostHog server-side event for confirmed topup.
+      const packKey: "small" | "medium" | "large" | "xl" | "unknown" =
+        credits === 200
+          ? "small"
+          : credits === 500
+            ? "medium"
+            : credits === 1500
+              ? "large"
+              : credits === 5000
+                ? "xl"
+                : "unknown";
+      await ctx.runAction(internal.posthog.captureServer, {
+        distinctId: userId,
+        event: "topup_completed",
+        properties: {
+          pack: packKey,
+          credits,
+          amount_cents: session.amount_total ?? 0,
+          stripe_session_id: session.id,
+        },
       });
     },
   },

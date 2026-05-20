@@ -1,4 +1,5 @@
 import { trackEvent, trackLinkedInConversionAndFlush } from "@/lib/analytics";
+import { track } from "@/lib/posthog-events";
 
 type CheckoutInterval = "month" | "annual";
 type CheckoutPlan = "pro" | "studio";
@@ -17,6 +18,10 @@ export async function startStripeCheckout(
   plan: CheckoutPlan = "pro"
 ): Promise<void> {
   trackEvent("checkout-started", { plan, interval });
+  track("checkout_started", {
+    plan,
+    interval: interval === "month" ? "monthly" : "annual",
+  });
   await trackLinkedInConversionAndFlush(24381836);
 
   const response = await fetch("/api/stripe/checkout", {

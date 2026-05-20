@@ -1135,3 +1135,132 @@ export const debugUserByEmail = internalQuery({
     };
   },
 });
+
+// ---------------------------------------------------------------------------
+// Lifecycle / activity tracking — feeds the Loops.so inactivity drips.
+// ---------------------------------------------------------------------------
+
+const ACTIVE_DEBOUNCE_MS = 60 * 60 * 1000; // 1 hour
+
+// Internal variant — called from BetterAuth session-create hook via Convex
+// HTTP client. Patches lastActive with a 1h debounce so hot-write churn stays
+// bounded even if the caller forgets to throttle client-side.
+export const touchLastActiveInternal = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
+    if (!user) return { touched: false };
+    const now = Date.now();
+    if (user.lastActive && now - user.lastActive < ACTIVE_DEBOUNCE_MS) {
+      return { touched: false };
+    }
+    await ctx.db.patch(user._id, { lastActive: now });
+    return { touched: true };
+  },
+});
+
+// Public mutation — called from the web `/api/users/touch-active` route and
+// from the Tauri app via the same endpoint. Same debounce.
+export const touchLastActive = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await findUserByAnyId(ctx.db, userId);
+    if (!user) return { touched: false };
+    const now = Date.now();
+    if (user.lastActive && now - user.lastActive < ACTIVE_DEBOUNCE_MS) {
+      return { touched: false };
+    }
+    await ctx.db.patch(user._id, { lastActive: now });
+    return { touched: true };
+  },
+});
+
+// Inactivity windows in ms. A user lands in window N when their lastActive is
+// older than DAYS[N] but younger than DAYS[N+1]. We only fire when the
+// corresponding `inactiveXdSentAt` is null, so each user receives each nudge
+// at most once.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const INACTIVITY_BUCKETS = [
+  { days: 3, eventName: "inactive3d", flag: "inactive3dSentAt" as const },
+  { days: 7, eventName: "inactive7d", flag: "inactive7dSentAt" as const },
+  { days: 14, eventName: "inactive14d", flag: "inactive14dSentAt" as const },
+];
+
+/**
+ * Daily scan: for each inactivity bucket, find users whose lastActive crossed
+ * that threshold and haven't been sent the corresponding event. Fire a Loops
+ * event, then patch the dedup flag.
+ *
+ * Skips users with `lastActive == null` (legacy rows that never pinged) so
+ * the first run doesn't carpet-bomb everyone with 14d nudges.
+ */
+export const scanInactiveAndFireLoops = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{
+    scanned: number;
+    fired: Record<string, number>;
+  }> => {
+    const users = await ctx.runQuery(
+      internal.users.listUsersForInactivityScan,
+      {},
+    );
+
+    const now = Date.now();
+    const fired: Record<string, number> = {
+      inactive3d: 0,
+      inactive7d: 0,
+      inactive14d: 0,
+    };
+
+    for (const user of users) {
+      if (!user.lastActive) continue; // skip legacy rows
+      const idleMs = now - user.lastActive;
+
+      for (const bucket of INACTIVITY_BUCKETS) {
+        if (idleMs < bucket.days * DAY_MS) continue;
+        if (user[bucket.flag]) continue; // already sent
+
+        await ctx.runAction(internal.loops.sendEvent, {
+          email: user.email,
+          eventName: bucket.eventName,
+          userId: user._id,
+          properties: {
+            plan: user.plan,
+            daysInactive: Math.floor(idleMs / DAY_MS),
+          },
+        });
+        await ctx.runMutation(internal.users.markInactiveEventSent, {
+          userId: user._id,
+          flag: bucket.flag,
+        });
+        fired[bucket.eventName] += 1;
+      }
+    }
+
+    console.log(
+      `[inactivity-nudge] scanned=${users.length} fired=${JSON.stringify(fired)}`,
+    );
+    return { scanned: users.length, fired };
+  },
+});
+
+export const listUsersForInactivityScan = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("users").collect();
+  },
+});
+
+export const markInactiveEventSent = internalMutation({
+  args: {
+    userId: v.id("users"),
+    flag: v.union(
+      v.literal("inactive3dSentAt"),
+      v.literal("inactive7dSentAt"),
+      v.literal("inactive14dSentAt"),
+    ),
+  },
+  handler: async (ctx, { userId, flag }) => {
+    await ctx.db.patch(userId, { [flag]: Date.now() });
+  },
+});

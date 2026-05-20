@@ -7,7 +7,8 @@
     "prebuild": "npx convex codegen",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "zip:loops": "pwsh -NoProfile -File scripts/zip-loops-emails.ps1"
   },
   "dependencies": {
     "@better-auth/infra": "^0.2.6",
@@ -25,6 +26,7 @@
     "next": "^15.3.4",
     "next-plausible": "^3.12.5",
     "pg": "^8.20.0",
+    "posthog-js": "^1.374.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "resend": "^6.6.0",

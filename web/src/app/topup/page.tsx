@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, CheckCircle2, XCircle } from "lucide-react";
 import { reportError } from "@/lib/errors/notify";
+import { track } from "@/lib/posthog-events";
 
 // Mirror of TOPUP_PACKS in web/convex/credits.ts. Kept in sync manually —
 // changing pricing requires updating both this file AND the Convex const.
@@ -47,6 +48,14 @@ export default function TopupPage() {
     if (loadingKey) return;
     setError(null);
     setLoadingKey(key);
+    const pack = PACKS.find((p) => p.key === key);
+    if (pack) {
+      track("topup_clicked", {
+        pack: pack.key,
+        credits: pack.credits,
+        price_cents: pack.priceCents,
+      });
+    }
     try {
       const res = await fetch("/api/stripe/topup", {
         method: "POST",

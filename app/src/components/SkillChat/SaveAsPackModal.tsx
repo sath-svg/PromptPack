@@ -3,6 +3,7 @@ import { Loader2, Save } from 'lucide-react';
 import { useSyncStore, type CloudPrompt } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { InfoModal } from '../Common/InfoModal';
+import { track as trackEvent } from '../../lib/posthog-events';
 
 interface SaveAsPackModalProps {
   open: boolean;
@@ -44,6 +45,7 @@ export function SaveAsPackModal({ open, promptText, onClose }: SaveAsPackModalPr
         setError('Failed to save. Pack limit reached?');
         return;
       }
+      trackEvent('prompt_saved', { cloud: true });
       setTitle('');
       setHeader('');
       onClose();

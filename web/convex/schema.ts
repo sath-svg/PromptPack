@@ -39,6 +39,14 @@ export default defineSchema({
     // Settlement-shortfall counter — flags repeat over-burn accounts.
     shortfallCount: v.optional(v.number()),
     lastShortfallAt: v.optional(v.number()),
+    // Last activity ping — drives Loops.so inactivity drips. Written via
+    // users.touchLastActive (debounced 1h server-side).
+    lastActive: v.optional(v.number()),
+    // Dedup flags for the inactivity cron. Each is the timestamp the event
+    // was fired so we never re-fire the same nudge to the same user.
+    inactive3dSentAt: v.optional(v.number()),
+    inactive7dSentAt: v.optional(v.number()),
+    inactive14dSentAt: v.optional(v.number()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_better_auth_id", ["betterAuthId"])

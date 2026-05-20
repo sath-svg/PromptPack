@@ -14,6 +14,9 @@ const convex = process.env.NEXT_PUBLIC_CONVEX_URL
   ? new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL)
   : null;
 
+// Welcome email via Resend — keeps the rich HTML template (clips, brand,
+// CTAs) intact. Loops handles inactivity drips only; signup welcome stays
+// here.
 async function sendWelcomeEmail(email: string) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return;
@@ -37,6 +40,43 @@ async function sendWelcomeEmail(email: string) {
     }
   } catch (err) {
     console.error("[auth] welcome email error:", err);
+  }
+}
+
+async function touchLastActive(userId: string) {
+  if (!convex) return;
+  try {
+    await convex.mutation(api.users.touchLastActive, { userId });
+  } catch (err) {
+    console.error("[auth] touchLastActive failed", err);
+  }
+}
+
+// Fire a PostHog event from the BetterAuth Node hooks. Direct HTTP call to
+// PostHog Capture API (no SDK dep). distinctId must equal the client-side
+// `posthog.identify(...)` id (BetterAuth user id) or PostHog creates a
+// duplicate person profile. Errors swallowed — auth flow must never block.
+async function firePostHog(
+  distinctId: string,
+  event: string,
+  properties: Record<string, string | number | boolean | null | undefined>,
+) {
+  const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  if (!apiKey) return;
+  try {
+    await fetch("https://us.i.posthog.com/capture/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        event,
+        distinct_id: distinctId,
+        properties: { ...properties, $lib: "betterauth", surface: "server" },
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (err) {
+    console.error(`[auth] posthog ${event} failed`, err);
   }
 }
 
@@ -120,6 +160,11 @@ export const auth = betterAuth({
         after: async (user) => {
           await syncToConvex(user);
           if (user.email) sendWelcomeEmail(user.email).catch(() => {});
+          // PostHog signup event — server-side so ad-blockers can't drop it.
+          firePostHog(user.id, "signed_up", {
+            email: user.email,
+            name: user.name ?? null,
+          }).catch(() => {});
         },
       },
     },
@@ -139,6 +184,10 @@ export const auth = betterAuth({
             }>(`SELECT id, email, name, image FROM "user" WHERE id = $1`, [session.userId]);
             const user = result.rows[0];
             if (user) await syncToConvex(user);
+            // Bump lastActive on every login — feeds the inactivity drips.
+            touchLastActive(session.userId).catch(() => {});
+            // PostHog signin event.
+            firePostHog(session.userId, "signed_in", {}).catch(() => {});
           } catch (err) {
             console.error("[auth] session-hook user lookup failed", err);
           }

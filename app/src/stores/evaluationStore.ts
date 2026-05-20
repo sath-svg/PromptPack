@@ -5,6 +5,7 @@ import { classifyPrompt, type EffortLevel } from '../lib/classifier';
 import { useSettingsStore } from './settingsStore';
 import { classifierTierToManagedTier, type EvalByokProvider } from '../lib/managed-models';
 import type { PromptEvaluation } from '../types';
+import { track as trackEvent } from '../lib/posthog-events';
 
 // Helper to compute SHA-256 hash of prompt text
 async function sha256(text: string): Promise<string> {
@@ -86,6 +87,7 @@ export const useEvaluationStore = create<EvaluationState>((set, get) => ({
     if (cached) return cached;
 
     set({ loadingHash: promptHash, error: null });
+    trackEvent('eval_run', { trial_count: Object.keys(get().evaluations).length });
 
     try {
       const { tier: classifierTierRaw, effort: classifierEffort } = classifyPrompt(promptText);

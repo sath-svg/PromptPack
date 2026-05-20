@@ -65,7 +65,7 @@ export default function PrivacyPolicy() {
 
             <h3>2.2 Automatically Collected Information</h3>
             <ul>
-              <li><strong>Usage Data:</strong> We collect information about how you interact with our services, including the features you use and actions you take.</li>
+              <li><strong>Usage Data:</strong> We collect information about how you interact with our services, including the features you use and actions you take. We use Plausible (cookieless, EU-hosted) for landing-page traffic and PostHog (US-hosted, identified-only profiles) for product analytics inside the logged-in web app and desktop app. PostHog can be disabled from Settings &gt; Privacy in the desktop app.</li>
               <li><strong>Credit Ledger:</strong> For managed-mode users, we record each reserved / settled / refunded credit transaction with model id, input/output token counts, and the actual OpenRouter cost. This is shown to you in Settings &gt; Credits.</li>
               <li><strong>Device Information:</strong> We may collect information about your device, including browser type, operating system, and extension / app version.</li>
               <li><strong>Extension Activity:</strong> We track which LLM platforms (ChatGPT, Claude, Gemini, Grok, DeepSeek, Perplexity, Kimi) you save prompts from to improve our service.</li>

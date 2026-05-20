@@ -33,4 +33,14 @@ crons.interval(
   internal.credits.summarizeShortfallsLast24h
 );
 
+// Daily inactivity-nudge scan — fires Loops events for users who crossed
+// the 3d / 7d / 14d inactivity thresholds. Each user gets each nudge at most
+// once (dedup via inactiveXdSentAt flags on the users table).
+// 14:00 UTC = 09:00 EST / 06:00 PST baseline. Convex cron has no per-user TZ.
+crons.cron(
+  "inactivity-nudge",
+  "0 14 * * *",
+  internal.users.scanInactiveAndFireLoops
+);
+
 export default crons;

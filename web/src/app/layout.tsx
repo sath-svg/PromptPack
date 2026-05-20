@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/lib/auth-compat";
 import { ConvexClientProvider } from "@/components/providers/convex-provider";
+import { PostHogProvider } from "@/components/posthog-provider";
 import { SupportButton } from "@/components/support-button";
 import { PWARegister } from "@/components/pwa-register";
 import { assetUrl } from "@/lib/constants";
@@ -124,7 +125,9 @@ export default function RootLayout({
         </head>
         <body>
           <main className="main">
-            <ConvexClientProvider>{children}</ConvexClientProvider>
+            <ConvexClientProvider>
+              <PostHogProvider>{children}</PostHogProvider>
+            </ConvexClientProvider>
           </main>
           <SupportButton />
           <PWARegister />

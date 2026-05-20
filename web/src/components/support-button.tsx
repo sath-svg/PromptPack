@@ -280,10 +280,25 @@ export function SupportButton() {
                   >
                     <option value="General Question" style={{ background: "#0f0f12", color: "#fafafa" }}>General Question</option>
                     <option value="Bug/Technical Issue" style={{ background: "#0f0f12", color: "#fafafa" }}>Bug/Technical Issue</option>
-                    <option value="Feature Request" style={{ background: "#0f0f12", color: "#fafafa" }}>Feature Request</option>
                     <option value="Billing Issue" style={{ background: "#0f0f12", color: "#fafafa" }}>Billing Issue</option>
                     <option value="Other" style={{ background: "#0f0f12", color: "#fafafa" }}>Other</option>
                   </select>
+                  <p
+                    style={{
+                      marginTop: "0.5rem",
+                      fontSize: "0.75rem",
+                      color: "#a1a1aa",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Suggesting a feature?{" "}
+                    <a
+                      href="/feedback"
+                      style={{ color: "#60a5fa", textDecoration: "underline" }}
+                    >
+                      Vote on the public roadmap →
+                    </a>
+                  </p>
                 </div>
 
                 {/* Message */}

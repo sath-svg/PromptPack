@@ -5,6 +5,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { useNotificationStore } from '../../stores/notificationStore';
 import { ENHANCE_API_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
+import { track as trackEvent } from '../../lib/posthog-events';
 
 type EnhanceMode = 'structured' | 'clarity' | 'concise' | 'strict';
 
@@ -204,6 +205,7 @@ export function DraftPage() {
 
     setIsEnhancing(true);
     setEnhanceError(null);
+    trackEvent('enhance_used', { mode: enhanceMode });
 
     try {
       const response = await tauriFetch(ENHANCE_API_URL, {
@@ -278,7 +280,10 @@ export function DraftPage() {
         {drafts.map((draft, index) => (
           <button
             key={index}
-            onClick={() => setActiveTab(index)}
+            onClick={() => {
+              setActiveTab(index);
+              trackEvent('draft_tab_clicked', { tab_index: index });
+            }}
             className={`relative px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === index
                 ? 'text-[var(--primary)] border-b-2 border-[var(--primary)] -mb-[2px]'

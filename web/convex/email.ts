@@ -281,6 +281,10 @@ function buildWelcomeEmailHtml(): string {
 </html>`;
 }
 
+// DEPRECATED: Loops.so now owns the welcome series via the userCreated event
+// fired from web/lib/auth.ts. This action stays as a rollback path — wire it
+// back in by replacing fireUserCreated() in auth.ts if Loops needs to be
+// disabled.
 export const sendWelcomeEmail = internalAction({
   args: {
     email: v.string(),

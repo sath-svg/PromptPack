@@ -1050,6 +1050,7 @@ function SiteFooter() {
           links={[
             { label: "Prompt library", href: "/prompts" },
             { label: "Comparisons", href: "/compare" },
+            { label: "Feedback", href: "https://feedback.skillset.so" },
             { label: "Privacy", href: "/privacy" },
           ]}
         />

@@ -864,4 +864,53 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
       }
     }),
   });
+
+  // Touch lastActive — called from the Tauri desktop app on focus + periodic
+  // tick. Feeds the Loops.so inactivity drips. Server-side debounce keeps
+  // writes bounded even when callers spam.
+  http.route({
+    path: "/api/extension/touch-active",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  http.route({
+    path: "/api/extension/touch-active",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { userId } = body as { userId?: string };
+        if (!userId) {
+          return new Response(JSON.stringify({ error: "Missing userId" }), {
+            status: 400,
+            headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const result = await ctx.runMutation(api.users.touchLastActive, { userId });
+        return new Response(JSON.stringify(result), {
+          status: 200,
+          headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({
+            error: error instanceof Error ? error.message : "touch-active failed",
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
 }

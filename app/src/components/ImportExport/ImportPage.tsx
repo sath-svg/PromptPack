@@ -3,6 +3,7 @@ import { Upload, FileUp, AlertCircle, Check, Package, RefreshCw, Plus, Lock } fr
 import { useSyncStore, type CloudPrompt } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
+import { track as trackEvent } from '../../lib/posthog-events';
 
 // XOR key for obfuscation (matches web/extension)
 const OBFUSCATE_KEY = new Uint8Array([0x50, 0x72, 0x6F, 0x6D, 0x70, 0x74, 0x50, 0x61, 0x63, 0x6B]); // "PromptPack"
@@ -191,7 +192,11 @@ export function ImportPage() {
     setIsDragging(false);
   }, []);
 
-  const processFile = async (file: File, pwd?: string) => {
+  const processFile = async (
+    file: File,
+    pwd?: string,
+    source: 'drop' | 'file_picker' = 'file_picker',
+  ) => {
     setImporting(true);
     setError(null);
     setSuccess(null);
@@ -247,6 +252,11 @@ export function ImportPage() {
       setParsedPrompts(prompts);
       setShowPackSelector(true);
       setSuccess(`Found ${prompts.length} prompt${prompts.length !== 1 ? 's' : ''} in "${file.name}". Select a pack to import into.`);
+      trackEvent('pack_imported', {
+        prompt_count: prompts.length,
+        encrypted: !!pwd || isBinary,
+        source,
+      });
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import file');
@@ -337,7 +347,7 @@ export function ImportPage() {
 
     const file = e.dataTransfer.files[0];
     if (file && (file.name.endsWith('.skill') || file.name.endsWith('.pmtpk'))) {
-      processFile(file);
+      processFile(file, undefined, 'drop');
     } else {
       setError('Please drop a .skill file');
     }
@@ -346,7 +356,7 @@ export function ImportPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processFile(file);
+      processFile(file, undefined, 'file_picker');
     }
   };
 

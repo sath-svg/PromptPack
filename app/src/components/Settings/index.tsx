@@ -5,9 +5,10 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
 import { useSettingsStore, getTierLimits, type StringApiKeyProvider, type BedrockConfig } from '../../stores/settingsStore';
 import { useAuthStore } from '../../stores/authStore';
+import { setTelemetryOptIn as applyPostHogOptIn } from '../../lib/posthog';
 import { PROVIDER_LABELS } from '../../lib/classifier';
 import { MANAGED_MODELS, MANAGED_TIER_LABELS, formatCreditRate } from '../../lib/managed-models';
-import { CONVEX_URL, WEB_APP_URL } from '../../lib/constants';
+import { CONVEX_URL, WEB_APP_URL, FEEDBACK_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
 import { formatShortcut } from '../../lib/platform';
 import { useNotificationStore } from '../../stores/notificationStore';
@@ -32,6 +33,7 @@ export function SettingsPage() {
     tokenUsage, resetTokenUsage,
     defaultDownloadFolder, setDefaultDownloadFolder,
     skipDownloadDialog, setSkipDownloadDialog,
+    telemetryOptIn, setTelemetryOptIn,
   } = useSettingsStore();
   const { session } = useAuthStore();
   const [appVersion, setAppVersion] = useState('');
@@ -847,6 +849,50 @@ export function SettingsPage() {
           </div>
           )}
           </div>
+        </section>
+
+        {/* Feedback */}
+        <section id="settings-feedback" className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)] scroll-mt-16">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
+            Feedback & Feature Requests
+          </h3>
+          <p className="text-sm text-[var(--muted-foreground)] mb-3">
+            Suggest features, vote on the public roadmap, and follow what's shipping next.
+          </p>
+          <button
+            type="button"
+            onClick={() => openShell(FEEDBACK_URL).catch(console.error)}
+            className="inline-flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-sm text-[var(--foreground)] transition hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)]"
+          >
+            Open public roadmap
+          </button>
+        </section>
+
+        {/* Privacy */}
+        <section id="settings-privacy" className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)] scroll-mt-16">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">
+            Privacy
+          </h3>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={telemetryOptIn}
+              onChange={(e) => {
+                const next = e.target.checked;
+                setTelemetryOptIn(next);
+                applyPostHogOptIn(next);
+              }}
+              className="mt-1 h-4 w-4 rounded border-[var(--border)] bg-[var(--background)] accent-[var(--primary)]"
+            />
+            <span>
+              <span className="block text-sm text-[var(--foreground)]">
+                Send anonymous usage data
+              </span>
+              <span className="block text-xs text-[var(--muted-foreground)] mt-0.5">
+                Helps us improve Skillset. Click & navigation events only. Never your prompts.
+              </span>
+            </span>
+          </label>
         </section>
 
         {/* About */}
