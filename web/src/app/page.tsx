@@ -1048,6 +1048,7 @@ function SiteFooter() {
         <FooterCol
           title="Resources"
           links={[
+            { label: "Skillsets by role", href: "/skillsets" },
             { label: "Prompt library", href: "/prompts" },
             { label: "Comparisons", href: "/compare" },
             { label: "Feedback", href: "https://feedback.skillset.so" },
