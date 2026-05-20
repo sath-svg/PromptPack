@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Lecture → Flashcards",
+  "icon": "🗂️",
+  "description": "6-step workflow that turns dense lecture notes into a layered flashcard set with a review schedule.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-concepts",
+      "label": "Step 1 · Concept extraction",
+      "icon": "🧠",
+      "purpose": "Pin down what to actually remember",
+      "template": "Read these lecture notes:\n\n{lecture_notes}\n\nList the 12 ideas worth memorising. For each: 1-line definition, 1-line common confusion, prerequisite ideas. Skip examples and side-tangents. Markdown table."
+    },
+    {
+      "id": "step2-cloze",
+      "label": "Step 2 · Cloze deletion cards",
+      "icon": "✂️",
+      "purpose": "Cloze cards from the concept list",
+      "template": "Using the 12 ideas from step 1, write 18 cloze deletion cards. Format each as: 'Full sentence with {{c1::hidden term}}.' Aim for one critical word per card; avoid hiding articles or conjunctions."
+    },
+    {
+      "id": "step3-qa",
+      "label": "Step 3 · Q/A cards",
+      "icon": "❓",
+      "purpose": "Q/A cards for application recall",
+      "template": "Using the 12 ideas from step 1, write 12 Q/A cards focused on application not definition. Front: scenario or applied question. Back: answer in ≤30 words referencing the underlying idea."
+    },
+    {
+      "id": "step4-image",
+      "label": "Step 4 · Image-occlusion candidates",
+      "icon": "🖼️",
+      "purpose": "Spot which concepts need a diagram",
+      "template": "From step 1's 12 ideas, list which ones would benefit from an image-occlusion card (diagrams, structures, flowcharts). For each: why visual helps, what specifically to occlude, a 1-sentence prompt for the image generator."
+    },
+    {
+      "id": "step5-schedule",
+      "label": "Step 5 · Spaced rep schedule",
+      "icon": "📅",
+      "purpose": "4-week schedule across all cards",
+      "template": "Build a 4-week spaced-repetition schedule for the cards from steps 2-3. Intervals: day 1, 3, 7, 14, 28. Each row: card id, review dates, expected cumulative count. Markdown table. Note: never schedule >40 reviews in any single day."
+    },
+    {
+      "id": "step6-quiz",
+      "label": "Step 6 · Self-quiz",
+      "icon": "📝",
+      "purpose": "Mock exam from the same cards",
+      "template": "Build a 10-question self-quiz from steps 2-3 cards. Mix: 4 MCQ (4 options each), 3 short-answer, 2 explain-this, 1 application scenario. Provide answer key with which card maps to which question."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

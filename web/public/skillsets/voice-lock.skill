@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Voice Lock",
+  "icon": "🔒",
+  "description": "Capture your writing voice from samples, then draft + audit + retune every new piece against it.",
+  "prompts": [
+    {
+      "id": "voice-audit",
+      "label": "Voice sample audit",
+      "icon": "🎤",
+      "purpose": "Distill your style into a usable spec",
+      "template": "Read these writing samples and produce a voice spec.\n\nSamples:\n{voice_samples}\n\nOutput: 3 tone descriptors, 5 favorite sentence patterns (with examples), 10 words this writer uses often, 5 words they avoid, average sentence length, paragraph rhythm. Markdown."
+    },
+    {
+      "id": "first-draft",
+      "label": "First-draft generator",
+      "icon": "✍️",
+      "purpose": "Draft anything in your locked voice",
+      "template": "Using the voice spec from voice-audit, write a {piece_type} about {topic}. Match every spec element: tone, sentence patterns, favored words, avoided words, sentence-length variance. Target {word_count} words."
+    },
+    {
+      "id": "tone-shift",
+      "label": "Tone-shift rewriter",
+      "icon": "🎚️",
+      "purpose": "Same content, calibrated tone",
+      "template": "Rewrite the following piece, shifting tone from {current_tone} to {target_tone} while keeping the underlying meaning, structure, and voice spec. Show: rewritten draft, then a 3-bullet diff of what changed.\n\nPiece:\n{piece}"
+    },
+    {
+      "id": "word-bank-guard",
+      "label": "Word-bank guard",
+      "icon": "🛡️",
+      "purpose": "Flag avoided words + overused crutches",
+      "template": "Scan the draft below against the voice spec's avoided-words list. Flag every instance with: line snippet, the flagged word, suggested replacement that stays in voice. Then flag any word used >3 times that isn't on the favored list.\n\nDraft:\n{draft}"
+    },
+    {
+      "id": "sentence-variance",
+      "label": "Sentence-length variance check",
+      "icon": "📏",
+      "purpose": "Spot monotone rhythm before it ships",
+      "template": "Analyze sentence-length rhythm in the draft below. Output: avg length, stdev, longest 3 sentences, shortest 3 sentences, any 3+ in a row with identical opening structure. Suggest 3 concrete edits to improve variance.\n\nDraft:\n{draft}"
+    },
+    {
+      "id": "hook-variants",
+      "label": "Hook variants (×5)",
+      "icon": "🪝",
+      "purpose": "Five competing opening sentences",
+      "template": "Write 5 alternative opening hooks for the piece about {topic}. Patterns: (1) provocative claim, (2) micro-story, (3) surprising stat, (4) direct address question, (5) confession. Each ≤25 words. Stay in voice."
+    },
+    {
+      "id": "closing-variants",
+      "label": "Closing variants (×5)",
+      "icon": "🎬",
+      "purpose": "Five different last lines",
+      "template": "Write 5 alternative closing lines for the piece about {topic}. Patterns: (1) callback to opening, (2) one-line CTA, (3) cliffhanger to next piece, (4) reader question, (5) micro-summary. Each ≤25 words. Stay in voice."
+    },
+    {
+      "id": "title-generator",
+      "label": "Title generator (×8)",
+      "icon": "🏷️",
+      "purpose": "Eight titles, each a different angle",
+      "template": "Generate 8 title options for the piece below. Patterns: (1) how-to, (2) number list, (3) question, (4) confession, (5) contrarian, (6) curiosity-gap, (7) outcome promise, (8) audience-named. Each ≤9 words. Stay in voice.\n\nPiece:\n{piece}"
+    }
+  ],
+  "exportedAt": 1716120000000
+}

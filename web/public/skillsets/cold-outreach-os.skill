@@ -1,0 +1,59 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Cold Outreach OS",
+  "icon": "✉️",
+  "description": "End-to-end cold outreach system: ICP intake, prospect research, four-touch sequence, reply triage.",
+  "prompts": [
+    {
+      "id": "icp-intake",
+      "label": "ICP intake",
+      "icon": "🎯",
+      "purpose": "Codify your ICP from rough notes",
+      "template": "Turn these notes into a structured ICP:\n\n{rough_notes}\n\nOutput: title, company size, funding stage, top 3 pains, top 3 triggers to reach out, top 3 disqualifiers, channels they trust. ≤300 words."
+    },
+    {
+      "id": "prospect-research",
+      "label": "Prospect researcher (URL → signals)",
+      "icon": "🔬",
+      "purpose": "Pull personalisation hooks from a URL",
+      "template": "Research the prospect at {prospect_url}. Surface: 3 specific things to compliment without flattery, 1 likely pain consistent with our ICP, 1 recent change (hire, launch, fundraise), 1 conversation opener that references the change without being weird."
+    },
+    {
+      "id": "first-touch",
+      "label": "First-touch email (personalized)",
+      "icon": "✉️",
+      "purpose": "Cold email that doesn't feel cold",
+      "template": "Write the first cold email using the research above. Structure: 1-sentence specific observation, 1-sentence value prop ({value_prop}), 1-sentence proof (case study / metric), 1 low-friction ask (no calendar link in first touch). ≤80 words."
+    },
+    {
+      "id": "bump-1",
+      "label": "Bump #1 (day 3)",
+      "icon": "🔁",
+      "purpose": "Short nudge with new value",
+      "template": "Write a day-3 follow-up to my first email. Acknowledge inbox load in 1 phrase. Add new value: link to {resource_url} with a 1-line reason it's relevant given the research. Re-pose the original ask. ≤55 words."
+    },
+    {
+      "id": "bump-2",
+      "label": "Bump #2 (day 7, new angle)",
+      "icon": "🎲",
+      "purpose": "Reframe the value prop entirely",
+      "template": "Write a day-7 follow-up that drops the original angle. New angle: {alternate_value_prop}. Open with a 1-sentence question that's easy to react to. Offer one specific time slot for a 15-min call. ≤60 words."
+    },
+    {
+      "id": "break-up",
+      "label": "Break-up email (day 14)",
+      "icon": "👋",
+      "purpose": "Polite close that often gets replies",
+      "template": "Write a break-up email. Acknowledge they may not be a fit right now. Leave the door open. Mention one freely usable resource ({resource_url}). No calendar links. ≤50 words."
+    },
+    {
+      "id": "reply-handler",
+      "label": "Reply handler (5 archetypes)",
+      "icon": "💬",
+      "purpose": "Templated responses to common replies",
+      "template": "Write 5 reply templates for the archetypes below. For each: a 1-line classification cue, a ≤60-word response that moves toward a call without pressure.\n\nArchetypes: 1) Not now, 2) Not the right person, 3) Skeptical of value, 4) Already use competitor, 5) Interested, send info."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

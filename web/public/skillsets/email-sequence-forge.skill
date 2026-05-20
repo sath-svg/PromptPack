@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Email Sequence Forge",
+  "icon": "🔥",
+  "description": "Build a 5-email nurture or sales sequence with funnel-stage mapping and subject A/Bs. 5-step workflow.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-brief",
+      "label": "Step 1 · Audience + goal brief",
+      "icon": "🎯",
+      "purpose": "Lock the audience + outcome before writing",
+      "template": "Turn this raw input into a tight 1-page email brief:\n\n{raw_input}\n\nSections: audience (who, what they want), goal (single conversion event), current friction, voice (3 adjectives), success metric. ≤300 words."
+    },
+    {
+      "id": "step2-stage-map",
+      "label": "Step 2 · Funnel stage map",
+      "icon": "🗺️",
+      "purpose": "Map each email to a funnel stage",
+      "template": "Using the brief from step 1, map a 5-email sequence to funnel stages: awareness → interest → consideration → decision → retention. For each email: stage, single job-to-be-done, what to leave unsaid until the next email. Markdown table."
+    },
+    {
+      "id": "step3-drafts",
+      "label": "Step 3 · Draft 5-email sequence",
+      "icon": "✍️",
+      "purpose": "Write all five emails",
+      "template": "Using the stage map from step 2, draft 5 emails. Each: subject line (placeholder, we'll A/B next), 1-sentence preview text, body (≤150 words), 1 CTA. Voice from step 1. Number them E1–E5."
+    },
+    {
+      "id": "step4-subjects",
+      "label": "Step 4 · Subject A/B variants",
+      "icon": "🧪",
+      "purpose": "Two competing subject lines per email",
+      "template": "For each email from step 3, write 2 subject lines: variant A (curiosity-led, ≤50 chars), variant B (benefit-led, ≤50 chars). Add a one-line note on which audience segment each likely wins with."
+    },
+    {
+      "id": "step5-cta-tracking",
+      "label": "Step 5 · CTA + tracking plan",
+      "icon": "📊",
+      "purpose": "Tracking links + KPI per email",
+      "template": "Build the CTA + tracking plan. For each email: final CTA copy, UTM-tagged link template (campaign={campaign_slug}, source=email, medium=newsletter, content=E[n]_[variant]), primary KPI to watch, success threshold. Markdown table."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

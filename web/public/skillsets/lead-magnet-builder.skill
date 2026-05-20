@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Lead Magnet Builder",
+  "icon": "🧲",
+  "description": "From ICP to download-ready lead magnet plus its opt-in funnel.",
+  "prompts": [
+    {
+      "id": "icp-onepager",
+      "label": "ICP one-pager",
+      "icon": "🎯",
+      "purpose": "Define one ideal customer in one page",
+      "template": "Write a 1-page Ideal Customer Profile for: {product_or_service}. Include: role, company size, top 3 pains, top 3 desired outcomes, where they hang out (channels), one objection they always raise. Output as markdown with H3 sections."
+    },
+    {
+      "id": "idea-storm",
+      "label": "Lead magnet idea storm (×5)",
+      "icon": "💡",
+      "purpose": "Five distinct lead magnet concepts for one ICP",
+      "template": "Given the ICP above, brainstorm 5 lead magnet ideas. For each: format (PDF / checklist / calculator / template / video), one-line value prop, why this ICP would download it. Rank by likely opt-in rate. Use markdown table."
+    },
+    {
+      "id": "outline",
+      "label": "Outline for the chosen idea",
+      "icon": "📋",
+      "purpose": "Structure the chosen magnet before drafting",
+      "template": "Outline a {format} lead magnet titled '{title}' for the ICP. Use H2 sections + 2-4 bullet sub-points per section. Length target: {length}. Keep every section answering a specific ICP pain."
+    },
+    {
+      "id": "draft",
+      "label": "First-draft expansion",
+      "icon": "✍️",
+      "purpose": "Expand outline into a usable first draft",
+      "template": "Expand the outline into a first draft. Each section: 2-3 short paragraphs, one concrete example or stat, one actionable takeaway. Tone: {tone}. No filler. Aim for {word_count} words total."
+    },
+    {
+      "id": "landing-copy",
+      "label": "Landing page copy",
+      "icon": "🪧",
+      "purpose": "Opt-in landing page copy block",
+      "template": "Write opt-in landing page copy for '{title}'. Output: H1 (≤10 words), subhead (≤25 words), 3-bullet 'what you'll get', 1 social-proof line ({social_proof_data}), CTA button (≤4 words). Tone: confident, no marketing fluff."
+    },
+    {
+      "id": "optin-sequence",
+      "label": "Opt-in email sequence (×3)",
+      "icon": "📧",
+      "purpose": "3-email drip after they download",
+      "template": "Write 3 emails sent after someone downloads '{title}'.\n\nEmail 1 (immediate): deliver + frame the win\nEmail 2 (day 2): 1 advanced tip from the magnet\nEmail 3 (day 5): related case study + soft CTA to {product_or_service}\n\nEach ≤120 words."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Lesson Plan Forge",
+  "icon": "👩‍🏫",
+  "description": "Build a standards-aligned 90-minute lesson with hooks, instruction script, differentiation, and formative assessment.",
+  "prompts": [
+    {
+      "id": "standards",
+      "label": "Standards mapping",
+      "icon": "🧭",
+      "purpose": "Link the lesson to standards",
+      "template": "Map a lesson on {topic} (grade {grade}) to standards from {standards_set}. Output 3 primary standards (codes + plain-English) and 2 cross-curricular ties. 1-line per standard explaining the alignment."
+    },
+    {
+      "id": "outline",
+      "label": "Lesson outline (90-min)",
+      "icon": "📋",
+      "purpose": "Time-boxed 90-minute plan",
+      "template": "Using the standards from above, outline a 90-minute lesson on {topic}. Blocks: hook (10), instruction (25), guided practice (20), independent work (20), share + close (15). Each block: objective, activity, materials."
+    },
+    {
+      "id": "hook",
+      "label": "Hook activity",
+      "icon": "🪝",
+      "purpose": "10-minute opener that earns attention",
+      "template": "Design a 10-minute hook for a {topic} lesson (grade {grade}). It must surface a misconception students typically hold, be doable with classroom materials, and end with one question that motivates the day's instruction. Include teacher script + student-facing prompt."
+    },
+    {
+      "id": "instruction-script",
+      "label": "Direct instruction script",
+      "icon": "🎙️",
+      "purpose": "Teacher script for the 25-min block",
+      "template": "Write a 25-minute direct instruction script on {topic}. Use the I-do/we-do/you-do pattern. Include: 3 worked examples (increasing difficulty), 2 turn-and-talk prompts, 1 quick check-for-understanding poll. Speaker-friendly cadence."
+    },
+    {
+      "id": "differentiation",
+      "label": "Differentiation tiers",
+      "icon": "🪜",
+      "purpose": "Same lesson, three tiers",
+      "template": "Differentiate the lesson into 3 tiers: scaffolded (struggling learners), on-level, extension (advanced). For each tier: what changes in the independent-work block, what scaffolds or extensions to provide, success criteria. Markdown table."
+    },
+    {
+      "id": "formative",
+      "label": "Formative assessment",
+      "icon": "✅",
+      "purpose": "Exit ticket aligned to standards",
+      "template": "Write a 5-question exit ticket for a {topic} lesson. Map each question to one standard from the standards-mapping step. Mix: 3 quick MCQ, 1 short response, 1 self-rating with sentence-starters. Provide rubric."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

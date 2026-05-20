@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "API Doc Generator",
+  "icon": "📚",
+  "description": "Turn raw endpoint code into developer-ready documentation: spec, examples, error reference, curl snippets, migration notes.",
+  "prompts": [
+    {
+      "id": "endpoint-spec",
+      "label": "Endpoint spec from code",
+      "icon": "📐",
+      "purpose": "OpenAPI-style spec from source",
+      "template": "Extract an OpenAPI 3.1-style spec entry from this source code. Include: method, path, summary, description, parameters (name, in, type, required, description), request body schema, response schemas per status code. Use YAML.\n\nSource:\n{source_code}"
+    },
+    {
+      "id": "examples",
+      "label": "Request / response examples",
+      "icon": "📨",
+      "purpose": "Realistic example payloads",
+      "template": "Given this endpoint spec:\n\n{endpoint_spec}\n\nProduce: 1 happy-path request + response example, 1 validation-error example, 1 auth-error example. Realistic field values, not 'foo/bar'. Show both JSON bodies and key headers."
+    },
+    {
+      "id": "error-reference",
+      "label": "Error code reference",
+      "icon": "🚨",
+      "purpose": "Every error code documented",
+      "template": "Enumerate every error this endpoint can return based on the source below. For each: status code, internal error code, human message, cause, recommended client action. Markdown table.\n\nSource:\n{source_code}"
+    },
+    {
+      "id": "auth-flow",
+      "label": "Auth flow (markdown diagram)",
+      "icon": "🔐",
+      "purpose": "How a caller authenticates",
+      "template": "Describe the auth flow for this endpoint. Auth scheme: {auth_scheme}. Output:\n\n1. ASCII sequence diagram (client → auth → API → client)\n2. Step-by-step list with the exact header/cookie names\n3. Token lifetime + refresh rules\n4. Common failure modes"
+    },
+    {
+      "id": "curl-snippets",
+      "label": "Curl snippet collection",
+      "icon": "🌀",
+      "purpose": "Copy-paste curl for every example",
+      "template": "Turn each example from step 2 into a runnable curl command. Replace tokens with `$API_TOKEN`. Use line continuations for readability. Add a 1-line comment above each."
+    },
+    {
+      "id": "migration-notes",
+      "label": "Migration notes (vN → vN+1)",
+      "icon": "🔁",
+      "purpose": "Changelog entry for consumers",
+      "template": "Compare this endpoint between versions:\n\nOLD:\n{old_version}\n\nNEW:\n{new_version}\n\nOutput: breaking changes (callout), non-breaking changes, deprecated fields, migration steps (numbered), example before/after."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "YouTube Title Lab",
+  "icon": "▶️",
+  "description": "Generate, refine, and align YouTube titles, thumbnail copy, descriptions, and tags around one core video.",
+  "prompts": [
+    {
+      "id": "title-storm",
+      "label": "10-title brainstorm",
+      "icon": "🌪️",
+      "purpose": "Ten distinct title angles",
+      "template": "From this video script, generate 10 YouTube titles using 10 different patterns: number list, how-to, contrarian, curiosity-gap, named-target, time-bound, before/after, story, question, plain-result. Each ≤60 chars. Mark the strongest with a 1-line reason.\n\nScript:\n{script}"
+    },
+    {
+      "id": "ctr-refiner",
+      "label": "CTR-pattern refiner",
+      "icon": "📈",
+      "purpose": "Rewrite the winner for higher CTR",
+      "template": "Take the chosen title: '{chosen_title}'. Generate 5 refinements that each apply one CTR lever: add a specific number, add a stakes word, add a named persona, add a time constraint, add a contrarian frame. Each ≤60 chars. Note which lever each uses."
+    },
+    {
+      "id": "thumb-copy",
+      "label": "Thumbnail copy match",
+      "icon": "🖼️",
+      "purpose": "Thumbnail text that echoes the title",
+      "template": "For the title '{final_title}', write 3 thumbnail copy options. Each ≤5 words, all caps friendly, no overlap with the title's exact phrasing. Suggest a visual hook for each (no design jargon)."
+    },
+    {
+      "id": "desc-firstline",
+      "label": "Description first-line",
+      "icon": "📝",
+      "purpose": "The line YouTube cuts the preview at",
+      "template": "Write 3 alternative first lines for the YouTube description of '{final_title}'. Each ≤120 chars. Each: a tease, not a recap. Avoid 'In this video…'."
+    },
+    {
+      "id": "tag-set",
+      "label": "Tag set generator",
+      "icon": "🏷️",
+      "purpose": "Tag set without keyword stuffing",
+      "template": "Build a YouTube tag set for '{final_title}' based on the script. Output 10 tags: 3 broad topic tags, 4 specific long-tail tags, 3 entity tags (names, brands, places mentioned). Comma-separated, lowercase, no duplicates with the title."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

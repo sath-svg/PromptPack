@@ -9,6 +9,8 @@ import { SkillsetShell } from "@/components/skillset-shell";
 import { SkillsetCta } from "@/components/skillset-cta";
 import { RoleStatsStrip } from "@/components/skillsets/role-stats-strip";
 import { RoleKeyTasks } from "@/components/skillsets/role-key-tasks";
+import { RolePackGrid } from "@/components/skillsets/role-pack-grid";
+import { getPacksForRole } from "@/lib/pseo/skillset-packs";
 import { RoleVsConsultant } from "@/components/skillsets/role-vs-consultant";
 import { RoleHowTo } from "@/components/skillsets/role-how-to";
 import { RoleFaq } from "@/components/skillsets/role-faq";
@@ -226,6 +228,8 @@ export default async function SkillsetForRolePage({ params }: Props) {
         {role.keyTasks && role.keyTasks.length > 0 && (
           <RoleKeyTasks tasks={role.keyTasks} role={role.role} />
         )}
+
+        <RolePackGrid roleLabel={role.role} packs={getPacksForRole(role.slug)} />
 
         <section className="mt-16">
           <h2

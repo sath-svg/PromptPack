@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Hook + Outline",
+  "icon": "🪝",
+  "description": "5-step workflow that turns a raw topic into a finished short-form piece via hook ideation and beat-by-beat drafting.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-brief",
+      "label": "Step 1 · Topic + audience brief",
+      "icon": "🎯",
+      "purpose": "Lock the audience + promise",
+      "template": "Brief a short piece on {topic}. Output: target audience (1 line), single promise (1 line), the question this piece answers (1 line), why now (1 line), tone (3 adjectives). ≤120 words."
+    },
+    {
+      "id": "step2-hooks",
+      "label": "Step 2 · 10 hook openings",
+      "icon": "🪝",
+      "purpose": "Ten openings, each a different pattern",
+      "template": "Using the brief, write 10 opening hooks. One per pattern: provocative claim, mini-story, surprising stat, direct question, confession, contrarian, named target, before/after, scene, definition. Each ≤25 words."
+    },
+    {
+      "id": "step3-outline",
+      "label": "Step 3 · Pick winner + outline 5 beats",
+      "icon": "🪜",
+      "purpose": "Structure the rest of the piece",
+      "template": "Pick the strongest hook from step 2 (state which + why in 1 line). Outline 5 beats from there. Each beat: 1-line job, 1-line evidence/example, 1-line transition to next."
+    },
+    {
+      "id": "step4-expand",
+      "label": "Step 4 · Expand each beat",
+      "icon": "✍️",
+      "purpose": "Turn beats into paragraphs",
+      "template": "Expand each of the 5 beats into a 60-90 word paragraph. Match the tone from step 1. Use one concrete example per beat. No padding, no transitional fluff (the beat outline already handles transitions)."
+    },
+    {
+      "id": "step5-polish",
+      "label": "Step 5 · Polish + CTA",
+      "icon": "💎",
+      "purpose": "Tighten + add the close",
+      "template": "Polish the full draft. Tighten any sentence >25 words. Vary sentence length across paragraphs. Add a closing CTA (≤25 words) that does one of: ask a question, suggest an action, tease the next piece."
+    }
+  ],
+  "exportedAt": 1716120000000
+}

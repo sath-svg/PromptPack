@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "prebuild": "npx convex codegen",
+    "prebuild": "npx convex codegen && npm run build:skillsets",
+    "build:skillsets": "npx tsx scripts/build-skillset-files.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

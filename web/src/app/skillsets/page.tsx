@@ -3,6 +3,11 @@ import Link from "next/link";
 import { rolePages } from "@/lib/pseo/roles";
 import { SkillsetShell } from "@/components/skillset-shell";
 import { SkillsetCta } from "@/components/skillset-cta";
+import { PersonaCardView, type PersonaCard, type PersonaIconName } from "@/components/skillsets/persona-card";
+import {
+  getFeaturedPacks,
+  getPacksForRole,
+} from "@/lib/pseo/skillset-packs";
 
 const TITLE = "Skillsets for every role — ChatGPT, Claude, Gemini & IDE prompts";
 const DESCRIPTION =
@@ -138,6 +143,8 @@ export default function SkillsetsPillarPage() {
           </Link>
         </div>
 
+        <FeaturedSkillsetsRail />
+
         <section className="mt-16 grid grid-cols-2 gap-4 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 md:grid-cols-4">
           {[
             { label: "Roles covered", value: `${rolePages.length}+` },
@@ -173,35 +180,43 @@ export default function SkillsetsPillarPage() {
                 {group.label}
               </h2>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {groupRoles.map((r) => (
-                  <Link
-                    key={r.slug}
-                    href={`/skillsets/for/${r.slug}`}
-                    className="group flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all hover:border-white/[0.14] hover:bg-white/[0.025]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-[28px]">{r.icon}</span>
-                      <span className="text-[16px] font-medium text-zinc-50 group-hover:text-white">
-                        Skillset for {r.role}
-                      </span>
-                    </div>
-                    <p className="text-[13.5px] leading-[1.55] text-zinc-400 line-clamp-2">
-                      {r.skillsetSubhead ?? r.description}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
-                      {r.aiAdoptionPct !== undefined && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-0.5">
-                          {r.aiAdoptionPct}% use AI
+                {groupRoles.map((r) => {
+                  const packCount = getPacksForRole(r.slug).length;
+                  return (
+                    <Link
+                      key={r.slug}
+                      href={`/skillsets/for/${r.slug}`}
+                      className="group flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all hover:border-white/[0.14] hover:bg-white/[0.025]"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-[28px]">{r.icon}</span>
+                        <span className="text-[16px] font-medium text-zinc-50 group-hover:text-white">
+                          Skillset for {r.role}
                         </span>
-                      )}
-                      {r.hoursSavedPerWeek && (
-                        <span className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-0.5">
-                          {r.hoursSavedPerWeek}h saved/wk
-                        </span>
-                      )}
-                    </div>
-                  </Link>
-                ))}
+                      </div>
+                      <p className="text-[13.5px] leading-[1.55] text-zinc-400 line-clamp-2">
+                        {r.skillsetSubhead ?? r.description}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+                        {packCount > 0 && (
+                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-emerald-300">
+                            {packCount} pack{packCount === 1 ? "" : "s"}
+                          </span>
+                        )}
+                        {r.aiAdoptionPct !== undefined && (
+                          <span className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-0.5">
+                            {r.aiAdoptionPct}% use AI
+                          </span>
+                        )}
+                        {r.hoursSavedPerWeek && (
+                          <span className="rounded-full border border-white/10 bg-white/[0.02] px-2.5 py-0.5">
+                            {r.hoursSavedPerWeek}h saved/wk
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </section>
           );
@@ -214,5 +229,46 @@ export default function SkillsetsPillarPage() {
         />
       </main>
     </SkillsetShell>
+  );
+}
+
+function FeaturedSkillsetsRail() {
+  const featured = getFeaturedPacks().slice(0, 4);
+  if (featured.length === 0) return null;
+
+  return (
+    <section className="mt-14">
+      <header className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <p
+            className="mb-2 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
+            Featured Skillsets
+          </p>
+          <h2 className="text-[22px] font-medium leading-[1.15] tracking-[-0.015em] text-zinc-50 md:text-[28px]">
+            Pick one and see Skillset in action.
+          </h2>
+        </div>
+        <span className="hidden text-[12.5px] text-zinc-500 md:inline">
+          Free · no card required
+        </span>
+      </header>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {featured.map((pack) => {
+          const persona: PersonaCard = {
+            icon: pack.personaIcon as PersonaIconName,
+            role: pack.persona,
+            outcome: pack.outcome,
+            skillsetTitle: pack.title,
+            skillCount: pack.prompts.length,
+            type: pack.type,
+            preview: pack.preview ?? pack.prompts.slice(0, 5).map((p) => p.label),
+            file: `/skillsets/${pack.id}.skill`,
+          };
+          return <PersonaCardView key={pack.id} persona={persona} />;
+        })}
+      </div>
+    </section>
   );
 }

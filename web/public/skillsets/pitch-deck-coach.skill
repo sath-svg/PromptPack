@@ -1,0 +1,53 @@
+{
+  "version": "1.0",
+  "type": "skillset",
+  "title": "Pitch Deck Coach",
+  "icon": "🎤",
+  "description": "6-step workflow from one-liner to investor-ready deck plus a Q&A simulator.",
+  "isWorkflow": true,
+  "prompts": [
+    {
+      "id": "step1-oneliner",
+      "label": "Step 1 · One-line pitch",
+      "icon": "🎯",
+      "purpose": "Lock the elevator line",
+      "template": "Turn this messy founder brief into a tight one-line pitch:\n\n{brief}\n\nFormat: '{Company} helps {audience} {do thing} by {mechanism}.' ≤25 words. Output 3 variants, then pick the strongest with a 1-line reason."
+    },
+    {
+      "id": "step2-problem",
+      "label": "Step 2 · Problem slide",
+      "icon": "🩹",
+      "purpose": "Slide copy + speaker notes for the pain",
+      "template": "Using the pitch from step 1, write the problem slide. Output:\n\nSlide headline (≤8 words)\n3 bullet pain points (≤12 words each)\nSpeaker notes (60-second version, conversational)\n1 stat to cite with source placeholder"
+    },
+    {
+      "id": "step3-solution",
+      "label": "Step 3 · Solution + demo storyboard",
+      "icon": "🛠️",
+      "purpose": "Slide + 60-second demo script",
+      "template": "Write the solution slide and a 60-second demo storyboard.\n\nSlide: headline + 3 bullets (what / how / proof)\nStoryboard: 6 frames, each: 1-line visual description + 1-line spoken script. Total ≤60 seconds. Hand off to a designer or screen recorder."
+    },
+    {
+      "id": "step4-traction",
+      "label": "Step 4 · Traction + GTM",
+      "icon": "📈",
+      "purpose": "Slide that proves momentum + plan",
+      "template": "Write the traction + GTM slide.\n\nTraction inputs: {traction_data}\n\nOutput: 1 headline number, 3 supporting numbers (each ≤10 words), GTM channel mix (top 3 channels with predicted CAC payback), 1-line risk + mitigation. Speaker notes (45-second version)."
+    },
+    {
+      "id": "step5-ask",
+      "label": "Step 5 · Ask + use of funds",
+      "icon": "💰",
+      "purpose": "Crisp ask without underselling",
+      "template": "Write the ask slide for a {round_size} round.\n\nOutput: headline (the ask), 3 use-of-funds buckets with % each, 18-month milestone targets (3 bullets), why now (1 sentence), why us (1 sentence). Speaker notes (45-second version)."
+    },
+    {
+      "id": "step6-qa",
+      "label": "Step 6 · Q&A drill (top 10 questions)",
+      "icon": "🎯",
+      "purpose": "Pre-mortem the toughest investor questions",
+      "template": "Based on steps 1-5, predict the 10 hardest questions an investor would ask. For each: the question, the steelmanned worst-case, a 60-second answer that doesn't dodge. Order by likelihood. Markdown."
+    }
+  ],
+  "exportedAt": 1716120000000
+}
