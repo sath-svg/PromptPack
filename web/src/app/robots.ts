@@ -17,6 +17,9 @@ export default function robots(): MetadataRoute.Robots {
         '/_next/',
       ],
     },
-    sitemap: 'https://skillset.so/sitemap.xml',
+    sitemap: [
+      'https://skillset.so/sitemap.xml',
+      'https://skillset.so/sitemap-skillsets.xml',
+    ],
   }
 }

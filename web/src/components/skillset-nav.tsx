@@ -10,7 +10,7 @@ type NavLink = { label: string; href: string };
 const DEFAULT_LINKS: NavLink[] = [
   { label: "Features", href: "/#features" },
   { label: "How it works", href: "/#how" },
-  { label: "Power tools", href: "/#power" },
+  { label: "Skillsets", href: "/skillsets" },
   { label: "Pricing", href: "/pricing" },
 ];
 

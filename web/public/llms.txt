@@ -1,0 +1,61 @@
+# Skillset
+
+> Skillset is a portable bundle of prompts that runs identically across ChatGPT, Claude, Gemini, Cursor, Copilot, and any LLM. Save prompts once; reuse them in every AI tool. Skill Router automatically picks the cheapest capable model per prompt, cutting LLM spend by 60–80%.
+
+A Skillset for a role is a role-tuned pack of prompts — for example, the Developer Skillset includes code review, debugging, refactoring, and API design prompts; the Marketer Skillset includes ad copy, content calendar, SEO brief, and email sequence prompts. The same Skillset works in your IDE, your browser AI, and your CMS.
+
+## Skillsets by role
+
+- [Skillset for Developers](https://skillset.so/skillsets/for/developers): Code review, debugging, refactoring, API design, testing, docs.
+- [Skillset for Data Scientists](https://skillset.so/skillsets/for/data-scientists): Feature engineering, experiment design, model eval, paper summaries.
+- [Skillset for Data Analysts](https://skillset.so/skillsets/for/data-analysts): SQL, Python, visualization, statistical analysis, executive narratives.
+- [Skillset for DevOps Engineers](https://skillset.so/skillsets/for/devops-engineers): Terraform, Kubernetes, CI/CD, runbooks, incident response.
+- [Skillset for Designers](https://skillset.so/skillsets/for/designers): UX research, microcopy, design system docs, WCAG audits, image direction.
+- [Skillset for Marketers](https://skillset.so/skillsets/for/marketers): Ad copy, content calendars, SEO briefs, email sequences, brand voice.
+- [Skillset for Salespeople](https://skillset.so/skillsets/for/salespeople): Cold outreach, discovery prep, objection handling, proposals, follow-ups.
+- [Skillset for Content Creators](https://skillset.so/skillsets/for/content-creators): Video scripts, hooks, titles, thumbnails, content calendars.
+- [Skillset for Recruiters](https://skillset.so/skillsets/for/recruiters): Sourcing, candidate outreach, JDs, interview scorecards.
+- [Skillset for HR Professionals](https://skillset.so/skillsets/for/hr-professionals): JDs, interview kits, performance reviews, policy drafts, onboarding.
+- [Skillset for Executives](https://skillset.so/skillsets/for/executives): Strategy, board decks, all-hands comms, decision memos.
+- [Skillset for Founders](https://skillset.so/skillsets/for/founders): Pitch decks, market sizing, investor updates, GTM plans, hiring.
+- [Skillset for Consultants](https://skillset.so/skillsets/for/consultants): Frameworks (SWOT, Porter, Wardley), exec summaries, deliverables, workshops.
+- [Skillset for Project Managers](https://skillset.so/skillsets/for/project-managers): Sprint plans, retros, status updates, risk registers, briefs.
+- [Skillset for Freelancers](https://skillset.so/skillsets/for/freelancers): Proposals, scoping, pricing, client comms, invoicing.
+- [Skillset for Lawyers](https://skillset.so/skillsets/for/lawyers): Contract drafting, case summaries, memos, compliance, client comms.
+- [Skillset for Accountants](https://skillset.so/skillsets/for/accountants): Journal entries, tax research, audit work papers, advisory.
+- [Skillset for Financial Advisors](https://skillset.so/skillsets/for/financial-advisors): Client reviews, financial plans, plain-language explainers.
+- [Skillset for Realtors](https://skillset.so/skillsets/for/realtors): Listings, neighborhood guides, past-client outreach, social posts.
+- [Skillset for Teachers](https://skillset.so/skillsets/for/teachers): Lesson plans, quizzes, rubrics, student feedback, differentiation.
+- [Skillset for Students](https://skillset.so/skillsets/for/students): Study guides, essay outlines, research summaries, practice quizzes.
+- [Skillset for Therapists](https://skillset.so/skillsets/for/therapists): Session notes, treatment plans, psychoeducation handouts.
+- [Skillset for Nurses](https://skillset.so/skillsets/for/nurses): SBAR handoffs, care plans, patient education, cert study.
+- [Skillset for Writers](https://skillset.so/skillsets/for/writers): Blog drafting, editing, tone rewriting, fiction outlining.
+
+## Product
+
+- [Skillsets overview](https://skillset.so/skillsets): Pillar page listing every role-tuned Skillset.
+- [Pricing](https://skillset.so/pricing): Free, Pro ($9/mo, 7 custom packs), Studio (17 packs + team marketplace).
+- [Downloads](https://skillset.so/downloads): Desktop app for macOS and Windows; Chrome extension; MCP server.
+- [Prompts library](https://skillset.so/prompts): Browse free prompt templates by category, platform, or role.
+
+## How Skillset works
+
+- Skillsets are portable bundles of prompts saved as .pmtpk files.
+- Free, encrypted, and signed packs are supported.
+- Skill Router automatically selects the cheapest capable model (Haiku, Gemini Flash, DeepSeek, GPT-4o, Sonnet, Opus) per prompt based on task complexity.
+- Skill Preset locks brand voice, coding conventions, or clinical phrasing across every output.
+- The Chrome extension overlays ChatGPT, Claude, Gemini, Grok, and any web text input.
+- The desktop app integrates with Cursor, Copilot, JetBrains IDEs, and stores all prompts on-device.
+- Skillsets work with BYOK (bring your own key) for Anthropic, OpenAI, Google, Mistral, Cohere, AWS Bedrock, Together, Fireworks, and Cerebras.
+
+## Differentiators
+
+- Portable across every major LLM and IDE — unlike custom GPTs (locked to OpenAI) or Claude Projects (locked to Anthropic).
+- Local-first: prompts stored on-device for HIPAA-sensitive workflows.
+- Token routing: cuts spend 60–80% vs always using a frontier model.
+- Marketplace: verified creators sell role-tuned Skillsets and brand-voice packs.
+
+## Compare
+
+- [Skillset vs custom GPTs](https://skillset.so/compare): Portability, model choice, cost.
+- [All competitor comparisons](https://skillset.so/compare): Detailed feature-by-feature breakdowns.

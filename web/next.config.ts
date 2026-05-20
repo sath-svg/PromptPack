@@ -1,6 +1,33 @@
 import type { NextConfig } from "next";
 import { withPlausibleProxy } from "next-plausible";
 
+const ROLE_SLUGS = [
+  "developers",
+  "marketers",
+  "writers",
+  "teachers",
+  "students",
+  "designers",
+  "hr-professionals",
+  "salespeople",
+  "lawyers",
+  "recruiters",
+  "founders",
+  "freelancers",
+  "financial-advisors",
+  "realtors",
+  "project-managers",
+  "executives",
+  "consultants",
+  "therapists",
+  "content-creators",
+  "data-analysts",
+  "data-scientists",
+  "devops-engineers",
+  "accountants",
+  "nurses",
+];
+
 const nextConfig: NextConfig = {
   // SEO: Ensure consistent URLs (no trailing slashes)
   trailingSlash: false,
@@ -44,6 +71,13 @@ const nextConfig: NextConfig = {
         hostname: "image.skillset.so",
       },
     ],
+  },
+  async redirects() {
+    return ROLE_SLUGS.map((slug) => ({
+      source: `/prompts/for/${slug}`,
+      destination: `/skillsets/for/${slug}`,
+      permanent: true,
+    }));
   },
 };
 

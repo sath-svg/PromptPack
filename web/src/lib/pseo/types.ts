@@ -55,6 +55,23 @@ export interface PlatformPage {
   icon: string;
 }
 
+export interface RoleHowToStep {
+  name: string;
+  text: string;
+}
+
+export interface RoleComparisonRow {
+  feature: string;
+  skillset: string;
+  consultant: string;
+  winner: "skillset" | "consultant" | "tie";
+}
+
+export interface RoleCitation {
+  label: string;
+  url: string;
+}
+
 export interface RolePage {
   slug: string;
   role: string;
@@ -65,6 +82,19 @@ export interface RolePage {
   icon: string;
   relevantCategories: string[];
   relevantTags: string[];
+  skillsetHeadline?: string;
+  skillsetSubhead?: string;
+  medianSalary?: number;
+  employmentCount?: number;
+  aiAdoptionPct?: number;
+  hoursSavedPerWeek?: number;
+  oNetCode?: string;
+  keyTasks?: string[];
+  faqs?: FAQ[];
+  vsConsultant?: RoleComparisonRow[];
+  howToSteps?: RoleHowToStep[];
+  lastUpdated?: string;
+  citations?: RoleCitation[];
 }
 
 export interface ComparisonPoint {

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { promptCategories } from "@/lib/pseo/prompts";
 import { platformPages, getPlatformPage } from "@/lib/pseo/platforms";
 import { rolePages, getRolePage } from "@/lib/pseo/roles";
+import { getTemplatesForRole } from "@/lib/pseo/role-templates";
 import { TemplateCard } from "@/components/pseo/template-card";
 import { CategoryCard } from "@/components/pseo/category-card";
 import { SkillsetShell } from "@/components/skillset-shell";
@@ -15,10 +16,7 @@ interface Props {
 }
 
 function getAllSlugs() {
-  return [
-    ...platformPages.map((p) => p.slug),
-    ...rolePages.map((r) => r.slug),
-  ];
+  return platformPages.map((p) => p.slug);
 }
 
 export async function generateStaticParams() {
@@ -29,30 +27,6 @@ function getTemplatesForPlatform(platformSlug: string): PromptTemplate[] {
   return promptCategories.flatMap((c) =>
     c.templates.filter((t) => t.platforms.includes(platformSlug as any)),
   );
-}
-
-function getTemplatesForRole(role: {
-  relevantCategories: string[];
-  relevantTags: string[];
-}): PromptTemplate[] {
-  const categoryTemplates = promptCategories
-    .filter((c) => role.relevantCategories.includes(c.slug))
-    .flatMap((c) => c.templates);
-
-  const tagTemplates = promptCategories
-    .flatMap((c) => c.templates)
-    .filter(
-      (t) =>
-        t.tags.some((tag) =>
-          role.relevantTags.some(
-            (rt) =>
-              tag.toLowerCase().includes(rt.toLowerCase()) ||
-              rt.toLowerCase().includes(tag.toLowerCase()),
-          ),
-        ) && !categoryTemplates.includes(t),
-    );
-
-  return [...categoryTemplates, ...tagTemplates];
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

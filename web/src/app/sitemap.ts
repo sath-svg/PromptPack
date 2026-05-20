@@ -37,12 +37,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }))
 
-  const roleEntries: MetadataRoute.Sitemap = rolePages.map((page) => ({
-    url: `${baseUrl}/prompts/for/${page.slug}`,
+  const skillsetRoleEntries: MetadataRoute.Sitemap = rolePages.map((page) => ({
+    url: `${baseUrl}/skillsets/for/${page.slug}`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
-    priority: 0.7,
+    priority: 0.8,
   }))
+
+  const skillsetsPillar: MetadataRoute.Sitemap = [
+    {
+      url: `${baseUrl}/skillsets`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+  ]
 
   const compareEntries: MetadataRoute.Sitemap = [
     {
@@ -78,9 +87,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.9,
     },
+    ...skillsetsPillar,
+    ...skillsetRoleEntries,
     ...promptEntries,
     ...platformEntries,
-    ...roleEntries,
     ...compareEntries,
     {
       url: `${baseUrl}/skillset/brand`,
