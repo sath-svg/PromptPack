@@ -32,6 +32,8 @@ const publicRoutes = [
   "/manifest.json",
   "/sitemap.xml",
   "/sitemap-skillsets.xml",
+  "/sitemap-prompts.xml",
+  "/sitemap-compare.xml",
   "/robots.txt",
   "/llms.txt",
   "/sign-in",

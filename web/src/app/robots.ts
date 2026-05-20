@@ -20,6 +20,8 @@ export default function robots(): MetadataRoute.Robots {
     sitemap: [
       'https://skillset.so/sitemap.xml',
       'https://skillset.so/sitemap-skillsets.xml',
+      'https://skillset.so/sitemap-prompts.xml',
+      'https://skillset.so/sitemap-compare.xml',
     ],
   }
 }
