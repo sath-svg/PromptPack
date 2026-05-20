@@ -195,18 +195,18 @@ export function PersonaCardView({ persona, onPreview }: Props) {
             <button
               type="button"
               onClick={onPreview}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.02] px-4 py-2.5 text-[13px] font-medium text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.06] hover:text-white active:translate-y-[1px]"
+              className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.02] px-3 py-2.5 text-[13px] font-medium text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.06] hover:text-white active:translate-y-[1px]"
             >
-              <Eye className="h-3.5 w-3.5" strokeWidth={2} />
+              <Eye className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
               Preview
             </button>
           )}
           <a
             href={persona.file}
             download
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-[13px] font-medium text-zinc-100 transition-all duration-200 hover:border-[#2563EB]/50 hover:bg-[#2563EB]/15 hover:text-white active:translate-y-[1px]"
+            className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[13px] font-medium text-zinc-100 transition-all duration-200 hover:border-[#2563EB]/50 hover:bg-[#2563EB]/15 hover:text-white active:translate-y-[1px]"
           >
-            <Download className="h-3.5 w-3.5" strokeWidth={2} />
+            <Download className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
             Download .skill
           </a>
         </div>
