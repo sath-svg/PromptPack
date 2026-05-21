@@ -27,9 +27,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset — AI is getting expensive. Spend less on it.",
+  title: "Skillset, the only AI companion you need.",
   description:
-    "Save your best prompts once, reuse them in every workflow. Skillset auto-picks the cheapest AI that nails each job — up to 80% off your AI bill. Works in ChatGPT, Claude, Gemini, and your IDE.",
+    "Claude this. ChatGPT that. The AI race never stops. Let Skillset run it for you. Always the smartest model, always the cheapest price. Cut token spend up to 80% without losing quality.",
 };
 
 export default function SkillsetLanding() {
@@ -111,16 +111,19 @@ function Hero() {
           </div>
 
           <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[60px] lg:text-[68px]">
-            AI is getting expensive.
+            Skillset.
             <br />
             <span className="block mt-2 text-[24px] font-normal leading-[1.15] text-zinc-300 sm:text-[28px] md:text-[36px] lg:text-[40px]">
-              Skillset helps you <span className="text-zinc-100 font-medium">spend less</span> on it.
+              The only <span className="text-zinc-100 font-medium">AI companion</span> you need.
             </span>
           </h1>
 
           <p className="mt-5 max-w-[56ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
-            Save your best prompts once, reuse them in every workflow. Get top-tier answers for{" "}
-            <span className="font-medium text-emerald-400">up to 80% less</span> - Skillset auto-picks the right, cheapest AI for each job.
+            Claude this. ChatGPT that. The AI race never stops. Let Skillset run it for you.
+          </p>
+          <p className="mt-3 max-w-[56ch] text-[13px] leading-[1.5] text-zinc-500 md:text-[14px]">
+            Always the smartest model, always the cheapest price. Save prompts, rerun workflows, version your work. Cut token spend{" "}
+            <span className="font-medium text-emerald-400">up to 80%</span>, never lose quality.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
@@ -129,7 +132,7 @@ function Hero() {
               style={{ padding: "10px 22px" }}
               className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
             >
-              Save your first prompt
+              Meet Skillset
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
             </Link>
             <a
@@ -185,11 +188,69 @@ function Stat({ value, label }: { value: string; label: string }) {
 /* ────────────────────────────────────────────────────────────── PROBLEM */
 
 function Problem() {
-  const pains = [
-    "You re-type the same prompt every day.",
-    "Your best prompts are scattered across all conversations and documents.",
-    "ChatGPT works better today, Claude tomorrow, but your prompts and conversations don't follow.",
-    "One plan = one company's models. ChatGPT, Claude, Gemini each charges separately.",
+  const pains: { saves: string; pain: string; fix: React.ReactNode }[] = [
+    {
+      saves: "saves time",
+      pain: "Hand-running the same prompts every day, when they could run themselves.",
+      fix: (
+        <>
+          <a
+            href="#bento-workflow"
+            className="font-medium text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
+          >
+            Skill Flow
+          </a>{" "}
+          runs your repeat tasks on autopilot.
+        </>
+      ),
+    },
+    {
+      saves: "saves brainpower",
+      pain: "You don't need to understand AI.",
+      fix: (
+        <>
+          <a
+            href="#bento-router"
+            className="font-medium text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
+          >
+            Skill Router
+          </a>{" "}
+          picks the best and cheapest model for every task. Always.
+        </>
+      ),
+    },
+    {
+      saves: "saves your IP",
+      pain: "Conversations, memory, valuable prompts scattered everywhere.",
+      fix: (
+        <>
+          Notion-style sets and folders, with version control (
+          <a
+            href="#power"
+            className="font-medium text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
+          >
+            Skill Control
+          </a>
+          ) and built-in evals (
+          <a
+            href="#power"
+            className="font-medium text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
+          >
+            Skill Eval
+          </a>
+          ).
+        </>
+      ),
+    },
+    {
+      saves: "saves money",
+      pain: "Four separate AI subscriptions?",
+      fix: (
+        <>
+          One <strong className="font-medium text-zinc-100">Skillset membership</strong> covers them all.
+        </>
+      ),
+    },
   ];
 
   return (
@@ -199,24 +260,30 @@ function Problem() {
           className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          01 — The problem
+          01 · What an AI companion saves you
         </p>
         <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
           Sound familiar?
         </h2>
-        <ul className="mt-8 grid grid-cols-1 gap-3 md:mt-12 md:grid-cols-2 md:gap-4">
+        <ul className="mt-8 grid grid-cols-1 gap-4 md:mt-12 md:grid-cols-2 md:gap-5">
           {pains.map((p, i) => (
             <li
               key={i}
-              className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-4 text-[15px] leading-[1.55] text-zinc-300 md:text-[17px] md:p-5"
+              className="flex flex-col gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-5 md:p-6"
             >
               <span
-                className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-[10px] font-medium text-zinc-500"
+                className="inline-flex w-fit items-center rounded-full border border-[#2563EB]/25 bg-[#2563EB]/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#7BA7FF]"
                 style={{ fontFamily: "var(--font-geist-mono), monospace" }}
               >
-                {String(i + 1).padStart(2, "0")}
+                {p.saves}
               </span>
-              <span>{p}</span>
+              <p className="text-[16px] leading-[1.45] text-zinc-200 md:text-[18px]">
+                {p.pain}
+              </p>
+              <p className="mt-auto flex items-start gap-2 text-[13.5px] leading-[1.55] text-zinc-400 md:text-[14px]">
+                <span className="mt-[7px] inline-block h-1 w-1 shrink-0 rounded-full bg-[#7BA7FF]" />
+                <span>{p.fix}</span>
+              </p>
             </li>
           ))}
         </ul>
@@ -404,17 +471,17 @@ function CoreFeatures() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              02 — Save once. Use everywhere.
+              02 · A whole skill ecosystem
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
-              Stop re-explaining yourself
+              Main features in
               <br />
-              to every new chat.
+              your companion app.
             </h2>
           </div>
           <div className="flex items-end">
             <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
-              A skill is a prompt you save once and reuse anywhere. A skillset is a folder of them — your marketing toolkit, your research stack, your code-review playbook. Build once. Run it again and again, anywhere.
+              A whole skill ecosystem. Each tool curated to make your time with AI as valuable as possible. Sharper prompts, cheaper runs, work you can repeat and own.
             </p>
           </div>
         </div>
@@ -446,10 +513,10 @@ function CoreFeatures() {
             id="bento-preset"
             icon={<Palette strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Preset"
-            title="Your style, licensed. Not stolen."
+            title="Royalties for artists. Not theft."
             body={
               <>
-                Artists shouldn&rsquo;t lose to AI scraping their work for free. Pack your style — palette, voice, taste — into an encrypted skillset, set a price, sell access. <strong className="font-semibold text-zinc-100">Every use becomes a royalty</strong>, not theft.
+                AI gets trained on stolen art. Artists get nothing. Skill Preset fights back: pack your style (palette, voice, taste) into an encrypted preset, set a price, and earn royalties every time it generates images or video. <strong className="font-semibold text-zinc-100">Join our petition to ban training on stolen work.</strong>
               </>
             }
             visual={<PresetVisual />}
@@ -587,13 +654,18 @@ function HowItWorks() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              04 — How it works
+              04 · How to create a skillset
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               From scratch to skill in
               <br />
               under a minute.
             </h2>
+          </div>
+          <div className="flex items-end">
+            <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
+              Capture a prompt, pack it into a skillset, run it from anywhere. Ready in under a minute.
+            </p>
           </div>
         </div>
 
@@ -660,18 +732,25 @@ function PowerFeatures() {
   return (
     <section id="power" className="relative bg-[#0a0a0c] py-16 md:py-28">
       <div className="mx-auto max-w-[1400px] px-5 md:px-6">
-        <div className="mb-10 md:mb-16">
-          <p
-            className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            05 — For quality nerds
-          </p>
-          <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
-            Tune your prompts
-            <br />
-            like a pro.
-          </h2>
+        <div className="mb-10 grid grid-cols-1 gap-8 md:mb-16 md:grid-cols-[1fr_1fr] md:gap-16">
+          <div>
+            <p
+              className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              05 · For quality nerds
+            </p>
+            <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
+              Tune your prompts
+              <br />
+              like a pro.
+            </h2>
+          </div>
+          <div className="flex items-end">
+            <p className="max-w-[48ch] text-[16px] leading-[1.6] text-zinc-400">
+              Every tool you need to make your skillsets valuable. These are your ideas, your IP. Don&rsquo;t give them away for free.
+            </p>
+          </div>
         </div>
 
         <div className="divide-y divide-white/[0.06] border-y border-white/[0.06]">
