@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { api, components, internal } from "./_generated/api";
 import { registerRoutes } from "@convex-dev/stripe";
+import StripeSDK from "stripe";
 import type Stripe from "stripe";
 import { registerDesktopRoutes } from "./httpDesktop";
 import { registerExtensionRoutes } from "./httpExtension";
@@ -305,9 +306,7 @@ registerRoutes(http, components.stripe, {
             : session.setup_intent?.id;
         if (!userId || !setupIntentId) return;
 
-        const stripe = new (await import("stripe")).default(
-          process.env.STRIPE_SECRET_KEY!,
-        );
+        const stripe = new StripeSDK(process.env.STRIPE_SECRET_KEY!);
         const si = await stripe.setupIntents.retrieve(setupIntentId);
         const paymentMethodId =
           typeof si.payment_method === "string"

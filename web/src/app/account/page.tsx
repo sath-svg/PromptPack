@@ -146,9 +146,9 @@ export default function AccountPage() {
           <Card>
             <CardHeader icon={Wallet} title="Credits" />
             <p className="text-[28px] font-medium tracking-tight text-zinc-50">
-              {totalCredits.toLocaleString()}{" "}
+              {totalCredits.toLocaleString()}
               <span
-                className="text-[13px] font-normal text-zinc-500"
+                className="ml-2 text-[13px] font-normal text-zinc-500"
                 style={{ fontFamily: "var(--font-geist-mono), monospace" }}
               >
                 credits
@@ -193,10 +193,9 @@ export default function AccountPage() {
             <p className="text-[28px] font-medium tracking-tight text-zinc-50">
               {listingsCount}
               <span
-                className="text-[13px] font-normal text-zinc-500"
+                className="ml-2 text-[13px] font-normal text-zinc-500"
                 style={{ fontFamily: "var(--font-geist-mono), monospace" }}
               >
-                {" "}
                 listing{listingsCount === 1 ? "" : "s"}
               </span>
             </p>
