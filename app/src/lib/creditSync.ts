@@ -12,6 +12,7 @@
  * silently no-op.
  */
 import { useSettingsStore } from '../stores/settingsStore';
+import { useAuthStore } from '../stores/authStore';
 import { tauriFetch } from './tauriFetch';
 import { CONVEX_URL } from './constants';
 
@@ -21,7 +22,24 @@ export function syncCreditsFromHeaders(res: Response | { headers: Headers }): vo
   const monthly = parseInt(h.get('X-Credits-Monthly') ?? '', 10);
   const topup = parseInt(h.get('X-Credits-Topup') ?? '', 10);
   if (Number.isFinite(monthly) && Number.isFinite(topup)) {
-    useSettingsStore.getState().setCreditBalance({ monthly, topup });
+    // Preserve existing autoTopup + resetAt — header sync only carries the
+    // two balance pools, never the auto-topup config. Without the merge
+    // we'd wipe the desktop's autoTopup view on every chat round-trip.
+    const prev = useSettingsStore.getState().creditBalance;
+    useSettingsStore.getState().setCreditBalance({
+      monthly,
+      topup,
+      resetAt: prev?.resetAt,
+      autoTopup: prev?.autoTopup,
+    });
+    // If topup pool just jumped vs the previous snapshot, an auto-topup
+    // likely fired server-side. Pull fresh autoTopup metadata (lastChargeAt,
+    // monthlySpentUsd, failure flags) so the Settings panel reflects it
+    // without forcing the user to click Refresh.
+    if (prev && topup > prev.topup && prev.autoTopup?.hasPaymentMethod) {
+      const userId = useAuthStore.getState().session?.user_id;
+      if (userId) void refreshCreditBalance(userId);
+    }
   }
   // Token totals — worker emits these on every settled managed-proxy
   // response. No-op on direct provider URLs (anthropic / openai etc.)
@@ -54,18 +72,35 @@ export async function refreshCreditBalance(userId: string): Promise<boolean> {
     const res = await tauriFetch(`${CONVEX_URL}/api/extension/credit-balance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
+      // Endpoint reads `clerkId` (legacy field name) — server-side
+      // findUserByAnyId resolves it whether the id is Clerk or BetterAuth.
+      // Send both for safety + forward compat.
+      body: JSON.stringify({ clerkId: userId, userId }),
     });
     if (!res.ok) return false;
     const data = (await res.json()) as {
       monthly?: number;
       topup?: number;
       monthlyResetAt?: number;
+      autoTopup?: {
+        enabled: boolean;
+        thresholdCredits: number;
+        packKey: 'small' | 'medium' | 'large' | 'xl';
+        cardBrand?: string;
+        cardLast4?: string;
+        hasPaymentMethod: boolean;
+        lastChargeAt?: number;
+        lastFailureReason?: string;
+        consecutiveFailures?: number;
+        monthlyCapUsd?: number;
+        monthlySpentUsd?: number;
+      };
     };
     useSettingsStore.getState().setCreditBalance({
       monthly: data.monthly ?? 0,
       topup: data.topup ?? 0,
       resetAt: data.monthlyResetAt,
+      autoTopup: data.autoTopup,
     });
     return true;
   } catch (e) {

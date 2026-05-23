@@ -1,7 +1,21 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+
+/**
+ * Convex wraps mutation/action throws as
+ * `"Uncaught Error: <msg> at handler (./convex/foo.ts:N:M)"`.
+ * Strip that wrapper so the user-facing message reads cleanly.
+ */
+function cleanErrorMessage(e: unknown, fallback = "Failed"): string {
+  if (!(e instanceof Error)) return fallback;
+  let m = e.message ?? "";
+  m = m.replace(/^Uncaught\s+(?:Convex)?Error:\s*/i, "");
+  m = m.replace(/\s*at\s+handler\s*\([^)]*\)\.?\s*$/, "");
+  m = m.replace(/\s*\(\.\/convex\/[^)]*\)\.?\s*$/, "");
+  return m.trim() || fallback;
+}
 
 // CORS headers for desktop and extension requests
 export function corsHeaders(origin: string | null): HeadersInit {
@@ -2066,4 +2080,456 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
       }
     }),
   });
+
+  // =======================================
+  // Marketplace
+  // =======================================
+
+  const marketplaceOpts = (path: string) => {
+    http.route({
+      path,
+      method: "OPTIONS",
+      handler: httpAction(async (_, request) => {
+        const origin = request.headers.get("Origin");
+        return new Response(null, { status: 204, headers: corsHeaders(origin) });
+      }),
+    });
+  };
+
+  marketplaceOpts("/api/desktop/marketplace/list");
+  http.route({
+    path: "/api/desktop/marketplace/list",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const { kind, tag, query, sort, cursor, limit } = body as {
+          kind?: "flow" | "folder" | "preset";
+          tag?: string;
+          query?: string;
+          sort?: "newest" | "downloads" | "price_asc" | "price_desc";
+          cursor?: number;
+          limit?: number;
+        };
+        const result = await ctx.runQuery(api.marketplace.listListings, {
+          kind, tag, query, sort, cursor, limit,
+        });
+        return new Response(JSON.stringify({ success: true, ...result }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to list listings" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/get");
+  http.route({
+    path: "/api/desktop/marketplace/get",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!listingId) {
+          return new Response(JSON.stringify({ error: "Missing listingId" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const listing = await ctx.runQuery(api.marketplace.getListing, {
+          listingId: listingId as Id<"marketplaceListings">,
+          userId,
+        });
+        if (!listing) {
+          return new Response(JSON.stringify({ error: "Listing not found" }), {
+            status: 404, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ success: true, listing }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/my-listings");
+  http.route({
+    path: "/api/desktop/marketplace/my-listings",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        if (!userId) {
+          return new Response(JSON.stringify({ error: "Missing userId" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const listings = await ctx.runQuery(api.marketplace.listBySeller, { userId });
+        return new Response(JSON.stringify({ success: true, listings }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/recent-sales");
+  http.route({
+    path: "/api/desktop/marketplace/recent-sales",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { limit } = body as { limit?: number };
+        if (!userId) {
+          return new Response(JSON.stringify({ error: "Missing userId" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const sales = await ctx.runQuery(api.marketplace.listRecentSales, { userId, limit });
+        return new Response(JSON.stringify({ success: true, sales }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: cleanErrorMessage(error, "Failed to load sales") }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/my-purchases");
+  http.route({
+    path: "/api/desktop/marketplace/my-purchases",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        if (!userId) {
+          return new Response(JSON.stringify({ error: "Missing userId" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const purchases = await ctx.runQuery(api.marketplace.listMyPurchases, { userId });
+        return new Response(JSON.stringify({ success: true, purchases }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/create-listing-from-pack");
+  http.route({
+    path: "/api/desktop/marketplace/create-listing-from-pack",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const {
+          packId, kind, title, description, icon, tags, price,
+          flowPreview, folderPreview, presetPreview, presetImages,
+          promptHashes,
+        } = body as {
+          packId: string;
+          kind: "flow" | "folder" | "preset";
+          title: string;
+          description: string;
+          icon?: string;
+          tags: string[];
+          price: number;
+          flowPreview?: { stepCount: number; stepLabels: string[] };
+          folderPreview?: { promptHeaders: string[] };
+          presetPreview?: { styleSummary: string; sampleImages: string[]; palette: string[] };
+          presetImages?: Array<{ base64: string; ext: "jpg" | "jpeg" | "png" | "webp" }>;
+          promptHashes?: string[];
+        };
+        if (!userId || !packId || !kind || !title || !description || price == null) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const result = await ctx.runAction(
+          api.marketplace.createListingFromUserPack,
+          {
+            userId,
+            packId: packId as Id<"userPacks">,
+            kind, title, description, icon,
+            tags: tags ?? [],
+            price,
+            flowPreview, folderPreview, presetPreview,
+            presetImages, promptHashes,
+          },
+        );
+        return new Response(JSON.stringify({ success: true, ...result }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to create listing" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/purchase");
+  http.route({
+    path: "/api/desktop/marketplace/purchase",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const result = await ctx.runMutation(api.marketplace.purchaseWithCredits, {
+          userId,
+          listingId: listingId as Id<"marketplaceListings">,
+        });
+        return new Response(JSON.stringify({ ...result }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: cleanErrorMessage(error, "Purchase failed") }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/download");
+  http.route({
+    path: "/api/desktop/marketplace/download",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const listing = await ctx.runQuery(api.marketplace.getListing, {
+          listingId: listingId as Id<"marketplaceListings">,
+          userId,
+        });
+        if (!listing) {
+          return new Response(JSON.stringify({ error: "Listing not found" }), {
+            status: 404, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        if (!listing.purchased && !listing.isOwner) {
+          return new Response(JSON.stringify({ error: "Not purchased" }), {
+            status: 403, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const R2_API_URL = process.env.R2_API_URL || "https://api.skillset.so";
+        const r2Resp = await fetch(`${R2_API_URL}/storage/fetch`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ r2Key: listing.r2Key }),
+        });
+        if (!r2Resp.ok) {
+          throw new Error(`R2 fetch failed: ${r2Resp.status}`);
+        }
+        const { fileData } = (await r2Resp.json()) as { fileData: string };
+        return new Response(
+          JSON.stringify({
+            success: true,
+            fileData,
+            listing: {
+              id: listing.id,
+              title: listing.title,
+              kind: listing.kind,
+              promptCount: listing.promptCount,
+              icon: listing.icon,
+            },
+          }),
+          { status: 200, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to download" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/claim-free");
+  http.route({
+    path: "/api/desktop/marketplace/claim-free",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        const result = await ctx.runMutation(api.marketplace.claimFreeListing, {
+          userId,
+          listingId: listingId as Id<"marketplaceListings">,
+        });
+        return new Response(JSON.stringify({ ...result, success: true }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to claim" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/relist");
+  http.route({
+    path: "/api/desktop/marketplace/relist",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        await ctx.runMutation(api.marketplace.relistListing, {
+          userId,
+          listingId: listingId as Id<"marketplaceListings">,
+        });
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/delete");
+  http.route({
+    path: "/api/desktop/marketplace/delete",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        await ctx.runAction(api.marketplace.deleteListing, {
+          userId,
+          listingId: listingId as Id<"marketplaceListings">,
+        });
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to delete" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  marketplaceOpts("/api/desktop/marketplace/unlist");
+  http.route({
+    path: "/api/desktop/marketplace/unlist",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+      try {
+        const body = await request.json();
+        const userId = (body as any).userId ?? (body as any).clerkId;
+        const { listingId } = body as { listingId: string };
+        if (!userId || !listingId) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), {
+            status: 400, headers: { ...headers, "Content-Type": "application/json" },
+          });
+        }
+        await ctx.runMutation(api.marketplace.unlistListing, {
+          userId,
+          listingId: listingId as Id<"marketplaceListings">,
+        });
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200, headers: { ...headers, "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed" }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } }
+        );
+      }
+    }),
+  });
+
+  // touch `internal` so tree-shaker keeps the import for marketplace
+  void internal;
 }

@@ -47,10 +47,48 @@ export default defineSchema({
     inactive3dSentAt: v.optional(v.number()),
     inactive7dSentAt: v.optional(v.number()),
     inactive14dSentAt: v.optional(v.number()),
+    // Marketplace sellers receive payouts as topup credits added to their
+    // own account (1 credit ≈ $0.02 redemption value). No KYC, no Stripe
+    // Connect, no PayPal — fully internal. Below fields are deprecated
+    // (Stripe Connect approach) and left optional for safe rollback.
+    stripeConnectAccountId: v.optional(v.string()),       // deprecated
+    stripeConnectChargesEnabled: v.optional(v.boolean()), // deprecated
+    // Auto top-up config — when topupCredits drops below `thresholdCredits`,
+    // an off-session PaymentIntent fires for the chosen pack. All fields
+    // optional so existing users are unaffected (feature defaults to off).
+    autoTopup: v.optional(v.object({
+      enabled: v.boolean(),
+      thresholdCredits: v.number(),
+      packKey: v.union(
+        v.literal("small"),
+        v.literal("medium"),
+        v.literal("large"),
+        v.literal("xl"),
+      ),
+      paymentMethodId: v.string(),       // Stripe pm_xxx (off-session capable)
+      cardBrand: v.optional(v.string()), // "visa" / "mastercard" — for display
+      cardLast4: v.optional(v.string()),
+      lastChargeAt: v.optional(v.number()),
+      lastFailureAt: v.optional(v.number()),
+      lastFailureReason: v.optional(v.string()),
+      consecutiveFailures: v.optional(v.number()),
+      // Monthly safety cap — auto-topup is disabled (per-cycle) once cumulative
+      // USD this cycle exceeds the cap. monthlySpendBucketStart marks the
+      // start of the current 30-day window; rolls forward when window expires.
+      monthlyCapUsd: v.optional(v.number()),
+      monthlySpentUsd: v.optional(v.number()),
+      monthlySpendBucketStart: v.optional(v.number()),
+      // In-flight charge guard. When a PaymentIntent is created, this is set
+      // to a UUID; webhook clears it on succeed/fail. Prevents concurrent
+      // debits from firing duplicate charges.
+      pendingChargeId: v.optional(v.string()),
+      pendingChargeAt: v.optional(v.number()),
+    })),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_better_auth_id", ["betterAuthId"])
-    .index("by_stripe_customer_id", ["stripeCustomerId"]),
+    .index("by_stripe_customer_id", ["stripeCustomerId"])
+    .index("by_stripe_connect_account", ["stripeConnectAccountId"]),
 
   // Credit ledger: every grant, debit, hold, release, and expiration
   creditTransactions: defineTable({
@@ -323,6 +361,72 @@ export default defineSchema({
   })
     .index("by_user_hash", ["userId", "promptHash"])
     .index("by_hash", ["promptHash"]),
+
+  // Marketplace: peer-to-peer .skill listings sold via Stripe Connect
+  marketplaceListings: defineTable({
+    sellerId: v.id("users"),
+    kind: v.union(v.literal("flow"), v.literal("folder"), v.literal("preset")),
+    title: v.string(),
+    description: v.string(),
+    icon: v.optional(v.string()),
+    tags: v.array(v.string()),
+    price: v.number(),                    // cents
+    currency: v.literal("usd"),
+    r2Key: v.string(),                    // "marketplace/{listingId}.skill"
+    fileSize: v.number(),
+    promptCount: v.number(),
+    flowPreview: v.optional(v.object({
+      stepCount: v.number(),
+      stepLabels: v.array(v.string()),
+    })),
+    folderPreview: v.optional(v.object({
+      promptHeaders: v.array(v.string()),
+    })),
+    presetPreview: v.optional(v.object({
+      styleSummary: v.string(),
+      sampleImages: v.array(v.string()),
+      palette: v.array(v.string()),
+    })),
+    isPublic: v.boolean(),
+    isOfficial: v.optional(v.boolean()), // Skillset Team verified listing
+    /** Average recommended-tier evaluation score (0-100) across all
+     *  prompts in the source pack. Computed at publish time from the
+     *  `promptEvaluations` table by hashing each prompt's text. Undefined
+     *  if no prompt in the pack has been evaluated. */
+    avgEvalScore: v.optional(v.number()),
+    evalScoreCount: v.optional(v.number()), // how many prompts had scores
+    downloads: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_seller", ["sellerId"])
+    .index("by_kind_public", ["kind", "isPublic"])
+    .index("by_public_recent", ["isPublic", "createdAt"]),
+
+  // Marketplace purchases — one row per successful Stripe checkout.
+  // Seller is credited topup credits at purchase time via webhook.
+  marketplacePurchases: defineTable({
+    buyerId: v.id("users"),
+    listingId: v.id("marketplaceListings"),
+    sellerId: v.id("users"),
+    pricePaid: v.number(),                  // cents, frozen at purchase
+    sellerCutCents: v.optional(v.number()), // 70% of pricePaid (post-fee)
+    creditsGranted: v.optional(v.number()), // topup credits added to seller
+    stripeSessionId: v.string(),
+    stripePaymentIntentId: v.optional(v.string()),
+    purchasedAt: v.number(),
+    payoutStatus: v.optional(
+      v.union(
+        v.literal("none"),     // free / official listing, no payout owed
+        v.literal("credited"), // seller received topup credits
+        v.literal("failed"),
+      ),
+    ),
+  })
+    .index("by_buyer", ["buyerId"])
+    .index("by_buyer_listing", ["buyerId", "listingId"])
+    .index("by_stripe_session", ["stripeSessionId"])
+    .index("by_seller", ["sellerId"]),
 
   // Refresh tokens for extension authentication
   refreshTokens: defineTable({

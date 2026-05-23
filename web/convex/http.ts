@@ -288,10 +288,69 @@ registerRoutes(http, components.stripe, {
       event: Stripe.CheckoutSessionCompletedEvent
     ) => {
       const session = event.data.object;
+
+      // Auto top-up setup flow — user finished Stripe Checkout in "setup"
+      // mode. The SetupIntent has attached the card to the Customer; fetch
+      // the PaymentMethod so we can store brand/last4 for display.
+      if (
+        session.mode === "setup" &&
+        session.metadata?.type === "auto_topup_setup"
+      ) {
+        const userId = resolveUserId(
+          session.metadata as Stripe.Metadata | undefined,
+        );
+        const setupIntentId =
+          typeof session.setup_intent === "string"
+            ? session.setup_intent
+            : session.setup_intent?.id;
+        if (!userId || !setupIntentId) return;
+
+        const stripe = new (await import("stripe")).default(
+          process.env.STRIPE_SECRET_KEY!,
+        );
+        const si = await stripe.setupIntents.retrieve(setupIntentId);
+        const paymentMethodId =
+          typeof si.payment_method === "string"
+            ? si.payment_method
+            : si.payment_method?.id;
+        if (!paymentMethodId) return;
+
+        const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+        // Make this the default PM on the Customer so the Customer Portal
+        // shows it as primary and future invoices charge it by default.
+        const customerId =
+          typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id;
+        if (customerId) {
+          await stripe.customers
+            .update(customerId, {
+              invoice_settings: { default_payment_method: paymentMethodId },
+            })
+            .catch((err) =>
+              console.error(
+                "[auto-topup] failed to set default PM",
+                err instanceof Error ? err.message : String(err),
+              ),
+            );
+        }
+
+        await ctx.runMutation(internal.autoTopup.savePaymentMethod, {
+          userId,
+          paymentMethodId,
+          cardBrand: pm.card?.brand,
+          cardLast4: pm.card?.last4,
+        });
+        return;
+      }
+
       // Only one-time payments are top-ups; subscription mode is handled by
       // customer.subscription.* + invoice.paid above.
       if (session.mode !== "payment") return;
 
+      // Marketplace purchases now happen entirely in credits via the
+      // `purchaseWithCredits` mutation — no Stripe round-trip. Topups
+      // still flow through here.
       const userId = resolveUserId(session.metadata as Stripe.Metadata | undefined);
       if (!userId) return;
 
@@ -324,6 +383,83 @@ registerRoutes(http, components.stripe, {
           credits,
           amount_cents: session.amount_total ?? 0,
           stripe_session_id: session.id,
+        },
+      });
+    },
+    // Auto top-up — off-session PaymentIntent succeeded. Grants credits via
+    // the existing `grantTopup` mutation (idempotent on stripeEventId), then
+    // records success on the user's autoTopup state.
+    "payment_intent.succeeded": async (
+      ctx,
+      event: Stripe.PaymentIntentSucceededEvent,
+    ) => {
+      const pi = event.data.object;
+      if (pi.metadata?.type !== "auto_topup") return;
+
+      const userId = resolveUserId(pi.metadata as Stripe.Metadata | undefined);
+      if (!userId) return;
+
+      const credits = parseInt(pi.metadata?.credits ?? "0", 10);
+      if (!Number.isFinite(credits) || credits <= 0) return;
+
+      const chargeId = pi.metadata?.chargeId ?? pi.id;
+      const amountUsd = (pi.amount_received ?? pi.amount ?? 0) / 100;
+
+      await ctx.runMutation(internal.credits.grantTopup, {
+        userId,
+        credits,
+        stripeEventId: event.id,
+        sessionId: pi.id,
+      });
+
+      await ctx.runMutation(internal.autoTopup.recordSuccess, {
+        userId,
+        chargeId,
+        amountUsd,
+      });
+
+      await ctx.runAction(internal.posthog.captureServer, {
+        distinctId: userId,
+        event: "auto_topup_completed",
+        properties: {
+          credits,
+          amount_cents: pi.amount_received ?? pi.amount ?? 0,
+          payment_intent_id: pi.id,
+          pack: pi.metadata?.packKey ?? "unknown",
+        },
+      });
+    },
+    // Auto top-up — off-session charge failed (card declined, expired,
+    // SCA required, etc.). Records the failure; 3 consecutive disables the
+    // feature. User must re-set the card or re-enable from /account.
+    "payment_intent.payment_failed": async (
+      ctx,
+      event: Stripe.PaymentIntentPaymentFailedEvent,
+    ) => {
+      const pi = event.data.object;
+      if (pi.metadata?.type !== "auto_topup") return;
+
+      const userId = resolveUserId(pi.metadata as Stripe.Metadata | undefined);
+      if (!userId) return;
+
+      const reason =
+        pi.last_payment_error?.code ??
+        pi.last_payment_error?.message ??
+        "payment_failed";
+      const chargeId = pi.metadata?.chargeId ?? pi.id;
+
+      await ctx.runMutation(internal.autoTopup.recordFailure, {
+        userId,
+        chargeId,
+        reason: String(reason).slice(0, 200),
+      });
+
+      await ctx.runAction(internal.posthog.captureServer, {
+        distinctId: userId,
+        event: "auto_topup_failed",
+        properties: {
+          reason: String(reason),
+          payment_intent_id: pi.id,
         },
       });
     },

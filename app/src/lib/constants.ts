@@ -169,3 +169,30 @@ export function getPromptsPerPackLimit(tier: 'free' | 'pro' | 'studio'): number 
   if (tier === 'free') return FREE_PROMPTS_PER_PACK;
   return Number.POSITIVE_INFINITY;
 }
+
+// ============================================================================
+// MARKETPLACE
+// ============================================================================
+// Marketplace prices are denominated in topup credits (the same balance
+// users spend on LLM calls). 1 credit ≈ $0.02 USD per TOPUP_PACKS pricing.
+// Skillset takes 30%, seller keeps 70% as credits added to their account.
+// Example: 1000 credit sale → seller earns 700 credits (~$14 redemption).
+export const MARKETPLACE_PLATFORM_FEE_BPS = 3000;        // 30%
+export const MARKETPLACE_SELLER_PCT_BPS = 7000;          // 70%
+export const MARKETPLACE_MIN_PRICE_CREDITS = 0;          // 0 = free
+export const MARKETPLACE_MIN_PAID_PRICE_CREDITS = 50;    // ~$1.00 floor
+export const MARKETPLACE_MAX_PRICE_CREDITS = 50000;      // ~$1000
+// Legacy aliases — kept as 0 to avoid breaking previously imported code
+// that may still reference these names. New code should use the *_CREDITS
+// constants above.
+export const MARKETPLACE_MIN_PRICE_CENTS = MARKETPLACE_MIN_PRICE_CREDITS;
+export const MARKETPLACE_MAX_PRICE_CENTS = MARKETPLACE_MAX_PRICE_CREDITS;
+export const MAX_ACTIVE_LISTINGS: Record<'free' | 'pro' | 'studio', number> = {
+  free: 0,
+  pro: 5,
+  studio: 50,
+};
+
+export function getMaxActiveListings(tier: 'free' | 'pro' | 'studio'): number {
+  return MAX_ACTIVE_LISTINGS[tier] ?? 0;
+}

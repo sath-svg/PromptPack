@@ -8,7 +8,7 @@ import { InfoModal } from '../Common/InfoModal';
 import type { ErrorAction, AppError } from '../../lib/errors/classify';
 
 const PRICING_URL = 'https://skillset.so/pricing';
-const TOPUP_URL = 'https://skillset.so/dashboard?topup=open';
+const TOPUP_URL = 'https://skillset.so/account';
 
 function SeverityIcon({ severity }: { severity: AppError['severity'] }) {
   if (severity === 'error') return <AlertCircle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />;

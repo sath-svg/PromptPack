@@ -9,6 +9,7 @@ import { UserPacksPage } from './components/UserPacks';
 import { SkillControlPage } from './components/PromptControl';
 import { SkillChatPage } from './components/SkillChat';
 import { SkillPresetPage } from './components/SkillPreset';
+import { MarketplacePage } from './components/Marketplace';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
@@ -118,6 +119,8 @@ function App() {
         return <SavedPacksPage />;
       case 'user-packs':
         return <UserPacksPage />;
+      case 'marketplace':
+        return <MarketplacePage />;
       case 'prompt-control':
         return <SkillControlPage />;
       case 'import':

@@ -25,29 +25,55 @@ export interface ManagedModel {
   alwaysReasons?: boolean;
   /** Subset of efforts accepted (Grok-3 omits 'medium'). */
   reasoningEfforts?: Array<'low' | 'medium' | 'high'>;
+  /**
+   * Tool calling works but is unreliable on multi-turn agent loops
+   * (drops mid-chain, hallucinates tool results, ignores tool_choice).
+   * Fine for single-shot Q&A, risky for Skill Flow packs that chain
+   * tool calls across subtasks. UI shows "tool calls: limited" amber.
+   */
+  toolsLimited?: boolean;
 }
 
 export const MANAGED_MODELS: ReadonlyArray<ManagedModel> = [
   // ── Cheap ─────────────────────────────────────────────────────
-  { id: 'anthropic/claude-haiku-4-5',        label: 'Claude Haiku 4.5', tier: 'cheap', usdPer1MInput: 0.80, usdPer1MOutput: 4.00,  recommended: true, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
+  // Llama 4 Scout is the new default — cheapest credible agent model
+  // on OpenRouter ($0.08 / $0.30 per 1M) with 10M context. Anthropic
+  // Haiku 4.5 + GPT-5 Mini stay available for users who prefer
+  // frontier-lab cheap models with reasoning effort knobs.
+  { id: 'meta-llama/llama-4-scout',          label: 'Llama 4 Scout',    tier: 'cheap', usdPer1MInput: 0.08, usdPer1MOutput: 0.30,  recommended: true, toolsLimited: true },
+  { id: 'anthropic/claude-haiku-4-5',        label: 'Claude Haiku 4.5', tier: 'cheap', usdPer1MInput: 0.80, usdPer1MOutput: 4.00,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
   { id: 'google/gemini-2.5-flash',           label: 'Gemini 2.5 Flash', tier: 'cheap', usdPer1MInput: 0.30, usdPer1MOutput: 2.50,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
   { id: 'openai/gpt-5-mini',                 label: 'GPT-5 Mini',       tier: 'cheap', usdPer1MInput: 0.50, usdPer1MOutput: 4.00,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
+  { id: 'deepseek/deepseek-v3.2',            label: 'DeepSeek V3.2',    tier: 'cheap', usdPer1MInput: 0.25, usdPer1MOutput: 0.38 },
   { id: 'deepseek/deepseek-chat',            label: 'DeepSeek V3',      tier: 'cheap', usdPer1MInput: 0.27, usdPer1MOutput: 1.10 },
-  { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B',    tier: 'cheap', usdPer1MInput: 0.40, usdPer1MOutput: 0.40 },
+  { id: 'minimax/minimax-m2',                label: 'MiniMax M2',       tier: 'cheap', usdPer1MInput: 0.26, usdPer1MOutput: 1.00 },
+  { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B',    tier: 'cheap', usdPer1MInput: 0.40, usdPer1MOutput: 0.40, toolsLimited: true },
 
   // ── Mid ───────────────────────────────────────────────────────
-  { id: 'anthropic/claude-sonnet-4-6',       label: 'Claude Sonnet 4.6', tier: 'mid', usdPer1MInput: 3.00, usdPer1MOutput: 15.00, recommended: true, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
+  // GLM-4.6 is the new default — solid all-rounder priced ~8× below
+  // Sonnet 4.6. Sonnet / GPT-5 / Gemini 2.5 Pro stay available for
+  // users who want frontier-lab quality with reasoning effort knobs.
+  { id: 'z-ai/glm-4.6',                      label: 'GLM 4.6',           tier: 'mid', usdPer1MInput: 0.43, usdPer1MOutput: 1.74, recommended: true },
+  { id: 'anthropic/claude-sonnet-4-6',       label: 'Claude Sonnet 4.6', tier: 'mid', usdPer1MInput: 3.00, usdPer1MOutput: 15.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
   { id: 'openai/gpt-5',                      label: 'GPT-5',             tier: 'mid', usdPer1MInput: 5.00, usdPer1MOutput: 15.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
   { id: 'google/gemini-2.5-pro',             label: 'Gemini 2.5 Pro',    tier: 'mid', usdPer1MInput: 1.25, usdPer1MOutput: 5.00,  supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
-  { id: 'x-ai/grok-3',                       label: 'Grok 3',            tier: 'mid', usdPer1MInput: 3.00, usdPer1MOutput: 15.00, supportsReasoning: true, reasoningEfforts: ['low','high'] },
+  { id: 'deepseek/deepseek-chat-v3.1',       label: 'DeepSeek V3.1',     tier: 'mid', usdPer1MInput: 0.21, usdPer1MOutput: 0.79 },
   { id: 'deepseek/deepseek-reasoner',        label: 'DeepSeek R1',       tier: 'mid', usdPer1MInput: 0.55, usdPer1MOutput: 2.19,  alwaysReasons: true },
+  { id: 'x-ai/grok-3',                       label: 'Grok 3',            tier: 'mid', usdPer1MInput: 3.00, usdPer1MOutput: 15.00, supportsReasoning: true, reasoningEfforts: ['low','high'] },
 
   // ── Frontier ──────────────────────────────────────────────────
-  // GPT-5 Pro is the new default — cheaper than Opus, comparable on
-  // most tasks. Opus + o3-Pro stay available with `expensive: true`.
-  { id: 'openai/gpt-5-pro',                  label: 'GPT-5 Pro',         tier: 'frontier', usdPer1MInput: 10.00, usdPer1MOutput: 40.00, recommended: true, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
-  { id: 'openai/o3-pro',                     label: 'o3 Pro',            tier: 'frontier', usdPer1MInput: 15.00, usdPer1MOutput: 60.00, alwaysReasons: true, expensive: true },
-  { id: 'anthropic/claude-opus-4-6',         label: 'Claude Opus 4.6',   tier: 'frontier', usdPer1MInput: 15.00, usdPer1MOutput: 75.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], expensive: true },
+  // DeepSeek V4 Pro is the new default — 1.6T MoE, 1M context, native
+  // tool/function calling, matches Opus 4.6 on SWE-bench (~80.6 vs
+  // 80.8) and beats it on Terminal-Bench 2.0 (67.9 vs 65.4) and
+  // multi-step agent execution. Priced ~46× below GPT-5 Pro output.
+  // GPT-5 Pro + Kimi K2.6 stay as alternates; Opus / o3 Pro stay
+  // available with `expensive: true` so the dropdown flags cost.
+  { id: 'deepseek/deepseek-v4-pro',          label: 'DeepSeek V4 Pro',                       tier: 'frontier', usdPer1MInput: 0.44, usdPer1MOutput: 0.87, recommended: true },
+  { id: 'moonshotai/kimi-k2.6',              label: 'Kimi K2.6',                             tier: 'frontier', usdPer1MInput: 0.73, usdPer1MOutput: 3.49 },
+  { id: 'openai/gpt-5-pro',                  label: 'GPT-5 Pro',                             tier: 'frontier', usdPer1MInput: 10.00, usdPer1MOutput: 40.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'] },
+  { id: 'openai/o3-pro',                     label: "o3 Pro · ChatGPT's most powerful",       tier: 'frontier', usdPer1MInput: 15.00, usdPer1MOutput: 60.00, alwaysReasons: true, expensive: true },
+  { id: 'anthropic/claude-opus-4.7',         label: 'Claude Opus 4.7',                       tier: 'frontier', usdPer1MInput: 5.00,  usdPer1MOutput: 25.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], expensive: true },
+  { id: 'anthropic/claude-opus-4-6',         label: 'Claude Opus 4.6',                       tier: 'frontier', usdPer1MInput: 15.00, usdPer1MOutput: 75.00, supportsReasoning: true, reasoningEfforts: ['low','medium','high'], expensive: true },
 ];
 
 /** Per-credit cost basis (internal). */
@@ -199,6 +225,7 @@ export const BYOK_PROVIDER_TIER_MAP: Record<
   deepseek: {
     cheap: { modelId: 'deepseek-chat', label: 'DeepSeek V3' },
     mid: { modelId: 'deepseek-reasoner', label: 'DeepSeek R1' },
+    frontier: { modelId: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
   },
   perplexity: {
     cheap: { modelId: 'sonar', label: 'Sonar' },

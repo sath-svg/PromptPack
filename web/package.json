@@ -6,7 +6,9 @@
     "dev": "next dev -H 0.0.0.0",
     "prebuild": "npx convex codegen && npm run build:skillsets",
     "build:skillsets": "npx tsx scripts/build-skillset-files.ts",
-    "build": "next build",
+    "build": "npx convex deploy --cmd 'next build'",
+    "build:local": "next build",
+    "seed:marketplace": "npx tsx scripts/seed-marketplace.ts",
     "start": "next start",
     "lint": "next lint",
     "zip:loops": "pwsh -NoProfile -File scripts/zip-loops-emails.ps1"

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import { findUserByAnyId } from "./users";
 
 /* ────────────────────────────────────────────────────────────────────────── *
@@ -354,6 +355,19 @@ export const settleCredits = internalMutation({
         reason: shortfall > 0 ? `settlement_shortfall=${shortfall}` : "settlement",
         openRouterCostUsd: diff < 0 ? args.actualOpenRouterCostUsd : undefined,
         createdAt: now,
+      });
+    }
+
+    // Auto top-up trigger — fire-and-forget. Eligibility is gated inside
+    // `maybeFire` (enabled flag, threshold check, cooldown, monthly cap,
+    // lock). Settling is the canonical "balance just changed" hook; we
+    // schedule rather than await so chat latency is untouched. Users
+    // without autoTopup config are short-circuited by loadEligibility.
+    const resolvedUserId =
+      user.betterAuthId ?? user.clerkId;
+    if (resolvedUserId) {
+      await ctx.scheduler.runAfter(0, internal.autoTopup.maybeFire, {
+        userId: resolvedUserId,
       });
     }
 
@@ -777,16 +791,52 @@ export const getBalance = query({
       topup: v.number(),
       monthlyResetAt: v.optional(v.number()),
       plan: v.union(v.literal("free"), v.literal("pro"), v.literal("studio")),
+      autoTopup: v.optional(
+        v.object({
+          enabled: v.boolean(),
+          thresholdCredits: v.number(),
+          packKey: v.union(
+            v.literal("small"),
+            v.literal("medium"),
+            v.literal("large"),
+            v.literal("xl"),
+          ),
+          cardBrand: v.optional(v.string()),
+          cardLast4: v.optional(v.string()),
+          hasPaymentMethod: v.boolean(),
+          lastChargeAt: v.optional(v.number()),
+          lastFailureReason: v.optional(v.string()),
+          consecutiveFailures: v.optional(v.number()),
+          monthlyCapUsd: v.optional(v.number()),
+          monthlySpentUsd: v.optional(v.number()),
+        }),
+      ),
     }),
   ),
   handler: async (ctx, { userId }) => {
     const user = await findUserByAnyId(ctx.db, userId);
     if (!user) return null;
+    const at = user.autoTopup;
     return {
       monthly: user.monthlyCredits ?? 0,
       topup: user.topupCredits ?? 0,
       monthlyResetAt: user.monthlyCreditsResetAt,
       plan: user.plan,
+      autoTopup: at
+        ? {
+            enabled: at.enabled,
+            thresholdCredits: at.thresholdCredits,
+            packKey: at.packKey,
+            cardBrand: at.cardBrand,
+            cardLast4: at.cardLast4,
+            hasPaymentMethod: Boolean(at.paymentMethodId),
+            lastChargeAt: at.lastChargeAt,
+            lastFailureReason: at.lastFailureReason,
+            consecutiveFailures: at.consecutiveFailures,
+            monthlyCapUsd: at.monthlyCapUsd,
+            monthlySpentUsd: at.monthlySpentUsd,
+          }
+        : undefined,
     };
   },
 });

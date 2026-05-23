@@ -143,6 +143,26 @@ export default function SkillsetsPillarPage() {
           </Link>
         </div>
 
+        <aside
+          className="mt-10 flex items-start gap-3 rounded-2xl border border-[#2563EB]/30 bg-[#2563EB]/[0.06] px-5 py-4 text-[13.5px] leading-[1.55] text-zinc-200"
+          aria-label="Marketplace availability notice"
+        >
+          <span aria-hidden className="mt-0.5 text-[16px]">🛍️</span>
+          <p>
+            All Skillsets on this page are also available inside the{" "}
+            <Link
+              href="/downloads"
+              className="font-medium text-white underline decoration-[#2563EB]/60 underline-offset-2 hover:decoration-white"
+            >
+              app
+            </Link>{" "}
+            — open the <span className="font-medium text-white">Marketplace</span>{" "}
+            tab to browse, preview, and import them in one click. Verified{" "}
+            <span className="font-medium text-white">Skillset Team</span>{" "}
+            listings are free.
+          </p>
+        </aside>
+
         <FeaturedSkillsetsRail />
 
         <section className="mt-16 grid grid-cols-2 gap-4 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 md:grid-cols-4">

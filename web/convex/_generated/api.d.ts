@@ -9,6 +9,7 @@
  */
 
 import type * as authStatus from "../authStatus.js";
+import type * as autoTopup from "../autoTopup.js";
 import type * as credits from "../credits.js";
 import type * as crons from "../crons.js";
 import type * as email from "../email.js";
@@ -19,6 +20,7 @@ import type * as httpExtension from "../httpExtension.js";
 import type * as httpInternal from "../httpInternal.js";
 import type * as jwt from "../jwt.js";
 import type * as loops from "../loops.js";
+import type * as marketplace from "../marketplace.js";
 import type * as packVersions from "../packVersions.js";
 import type * as packs from "../packs.js";
 import type * as posthog from "../posthog.js";
@@ -38,6 +40,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authStatus: typeof authStatus;
+  autoTopup: typeof autoTopup;
   credits: typeof credits;
   crons: typeof crons;
   email: typeof email;
@@ -48,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   httpInternal: typeof httpInternal;
   jwt: typeof jwt;
   loops: typeof loops;
+  marketplace: typeof marketplace;
   packVersions: typeof packVersions;
   packs: typeof packs;
   posthog: typeof posthog;

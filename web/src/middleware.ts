@@ -42,6 +42,7 @@ const publicRoutes = [
   "/auth",
   "/desktop-auth",
   "/extension-auth",
+  "/updater",
 ];
 
 function isPublicRoute(pathname: string): boolean {

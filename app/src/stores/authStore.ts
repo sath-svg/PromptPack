@@ -127,13 +127,35 @@ export const useAuthStore = create<AuthState>()(
           // Create session directly from callback data
           const userId = data.user_id || '';
 
-          // Clear sync store cache + reset chat count if user changed
+          // Clear per-user caches if user changed. Stale data leaking
+          // across accounts is a privacy issue (credit balance, marketplace
+          // listings, saved filters, etc.) — wipe everything user-bound.
           const currentSession = get().session;
           const userChanged = currentSession?.user_id && currentSession.user_id !== userId;
           if (userChanged) {
             useSyncStore.getState().clearCache();
-            // Reset chat count for new user (their own free quota)
-            useSettingsStore.setState({ serverChatCount: 0 });
+            useSettingsStore.setState({
+              serverChatCount: 0,
+              creditBalance: null,
+              tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
+            });
+            // Marketplace store: drop in-memory listings / purchases / saved
+            // filters from the previous account.
+            try {
+              const { useMarketplaceStore } = await import('./marketplaceStore');
+              useMarketplaceStore.setState({
+                listings: [],
+                cursor: 0,
+                total: 0,
+                purchases: [],
+                myListings: [],
+                savedTagFilters: [],
+                filters: { kind: 'all', query: '', tag: '', sort: 'newest' },
+                error: null,
+              });
+            } catch {
+              /* store may not exist yet in some builds */
+            }
           }
 
           // Fetch user's tier from the backend
@@ -236,6 +258,22 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({ session, isLoading: false });
+
+          // Pull fresh credit balance for the newly-signed-in user. Without
+          // this, the UI keeps showing the previous account's balance until
+          // the user visits Settings (which has its own useEffect) or
+          // manually hits Refresh in Skill Chat. Background; failures are
+          // swallowed inside refreshCreditBalance.
+          if (userId) {
+            void (async () => {
+              try {
+                const { refreshCreditBalance } = await import('../lib/creditSync');
+                await refreshCreditBalance(userId);
+              } catch (e) {
+                console.warn('[auth] credit refresh after sign-in failed:', e);
+              }
+            })();
+          }
         } catch (error) {
           set({
             error: error instanceof Error ? error.message : String(error),
@@ -263,8 +301,30 @@ export const useAuthStore = create<AuthState>()(
             }
           }
           await invoke('logout');
-          // Clear sync store cache on logout to prevent showing old user's packs
+          // Wipe all per-user caches. Critical for shared-machine + account-
+          // switch flows where the next sign-in must see fresh data, not
+          // the previous account's credit balance / packs / listings.
           useSyncStore.getState().clearCache();
+          useSettingsStore.setState({
+            serverChatCount: 0,
+            creditBalance: null,
+            tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
+          });
+          try {
+            const { useMarketplaceStore } = await import('./marketplaceStore');
+            useMarketplaceStore.setState({
+              listings: [],
+              cursor: 0,
+              total: 0,
+              purchases: [],
+              myListings: [],
+              savedTagFilters: [],
+              filters: { kind: 'all', query: '', tag: '', sort: 'newest' },
+              error: null,
+            });
+          } catch {
+            /* ignore */
+          }
           set({ session: null, isLoading: false, error: null });
         } catch (error) {
           set({

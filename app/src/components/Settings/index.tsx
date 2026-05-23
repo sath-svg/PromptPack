@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, Code2, FolderOpen, Download } from 'lucide-react';
+import { Moon, Sun, Monitor, Keyboard, User, LogOut, CheckCircle2, XCircle, Loader2, Key, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, Code2, FolderOpen, Download, RefreshCw, Check } from 'lucide-react';
 import { getVersion } from '@tauri-apps/api/app';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { open as openShell } from '@tauri-apps/plugin-shell';
@@ -10,6 +10,7 @@ import { PROVIDER_LABELS } from '../../lib/classifier';
 import { MANAGED_MODELS, MANAGED_TIER_LABELS, formatCreditRate } from '../../lib/managed-models';
 import { CONVEX_URL, WEB_APP_URL, FEEDBACK_URL } from '../../lib/constants';
 import { tauriFetch } from '../../lib/tauriFetch';
+import { refreshCreditBalance } from '../../lib/creditSync';
 import { formatShortcut } from '../../lib/platform';
 import { useNotificationStore } from '../../stores/notificationStore';
 
@@ -53,18 +54,33 @@ export function SettingsPage() {
         const r = await tauriFetch(`${CONVEX_URL}/api/extension/credit-balance`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: session.user_id }),
+          // Endpoint reads `clerkId` (legacy name) — send both for safety.
+          body: JSON.stringify({ clerkId: session.user_id, userId: session.user_id }),
         });
         if (!r.ok) return;
         const data = await r.json() as {
           monthly?: number;
           topup?: number;
           monthlyResetAt?: number;
+          autoTopup?: {
+            enabled: boolean;
+            thresholdCredits: number;
+            packKey: 'small' | 'medium' | 'large' | 'xl';
+            cardBrand?: string;
+            cardLast4?: string;
+            hasPaymentMethod: boolean;
+            lastChargeAt?: number;
+            lastFailureReason?: string;
+            consecutiveFailures?: number;
+            monthlyCapUsd?: number;
+            monthlySpentUsd?: number;
+          };
         };
         setCreditBalance({
           monthly: data.monthly ?? 0,
           topup: data.topup ?? 0,
           resetAt: data.monthlyResetAt,
+          autoTopup: data.autoTopup,
         });
       } catch (err) {
         console.error('credit balance fetch failed:', err);
@@ -84,7 +100,21 @@ export function SettingsPage() {
   }, [session?.user_id]);
 
   const openTopupPage = () => {
-    openShell('https://skillset.so/dashboard?topup=open').catch(console.error);
+    openShell('https://skillset.so/account').catch(console.error);
+  };
+
+  // Refresh-credit button state. Flashes a check on success then resets.
+  const [creditRefreshState, setCreditRefreshState] = useState<
+    'idle' | 'loading' | 'ok'
+  >('idle');
+  const handleRefreshCredits = async () => {
+    if (!session?.user_id || creditRefreshState === 'loading') return;
+    setCreditRefreshState('loading');
+    const ok = await refreshCreditBalance(session.user_id);
+    setCreditRefreshState(ok ? 'ok' : 'idle');
+    if (ok) {
+      setTimeout(() => setCreditRefreshState('idle'), 1200);
+    }
   };
 
   const totalCredits = creditBalance
@@ -410,15 +440,92 @@ export function SettingsPage() {
                     : 'Loading…'}
                 </p>
               </div>
-              <button
-                onClick={openTopupPage}
-                className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90"
-              >
-                Buy more
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefreshCredits}
+                  disabled={creditRefreshState === 'loading'}
+                  title="Refresh balance"
+                  aria-label="Refresh credit balance"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] disabled:opacity-50"
+                >
+                  {creditRefreshState === 'loading' ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : creditRefreshState === 'ok' ? (
+                    <Check size={14} className="text-green-500" />
+                  ) : (
+                    <RefreshCw size={14} />
+                  )}
+                </button>
+                <button
+                  onClick={openTopupPage}
+                  className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90"
+                >
+                  Buy more
+                </button>
+              </div>
             </div>
           ) : (
             <p className="text-xs text-[var(--muted-foreground)] mb-3">Sign in to see your credit balance.</p>
+          )}
+
+          {/* Auto top-up — config lives on web. Card collection happens via
+              Stripe Checkout on skillset.so/account; toggle/threshold/pack
+              also editable there. Desktop shows read-only summary + link. */}
+          {session && (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2.5 mb-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium text-[var(--foreground)]">
+                      Auto top-up
+                    </p>
+                    {creditBalance?.autoTopup?.enabled ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-emerald-500/15 text-emerald-500">
+                        On
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider bg-[var(--muted)] text-[var(--muted-foreground)]">
+                        Off
+                      </span>
+                    )}
+                  </div>
+                  {creditBalance?.autoTopup?.hasPaymentMethod ? (
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-[var(--muted-foreground)]">
+                        {creditBalance.autoTopup.enabled
+                          ? `Tops up at ${creditBalance.autoTopup.thresholdCredits} cr · pack: ${creditBalance.autoTopup.packKey}`
+                          : "Card on file. Enable to start topping up automatically."}
+                      </p>
+                      <p className="text-[10px] text-[var(--muted-foreground)] font-mono">
+                        {creditBalance.autoTopup.cardBrand
+                          ? `${creditBalance.autoTopup.cardBrand} •••• ${creditBalance.autoTopup.cardLast4 ?? "????"}`
+                          : "Card saved"}
+                        {creditBalance.autoTopup.monthlyCapUsd
+                          ? ` · cap $${creditBalance.autoTopup.monthlyCapUsd}/mo`
+                          : ""}
+                      </p>
+                      {creditBalance.autoTopup.lastFailureReason &&
+                        (creditBalance.autoTopup.consecutiveFailures ?? 0) > 0 && (
+                          <p className="text-[10px] text-amber-500">
+                            Last charge failed: {creditBalance.autoTopup.lastFailureReason}
+                          </p>
+                        )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      Never run out of credits. Save a card and we'll top you up
+                      automatically when your balance gets low.
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => openShell('https://skillset.so/account').catch(console.error)}
+                  className="shrink-0 px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs hover:bg-[var(--accent)]"
+                >
+                  {creditBalance?.autoTopup?.hasPaymentMethod ? "Manage" : "Set up"}
+                </button>
+              </div>
+            </div>
           )}
 
           {/* Token usage — pulled from worker headers on every settled
@@ -503,10 +610,20 @@ export function SettingsPage() {
                       // option style attributes when the listbox is
                       // open. The selected-row colour is OS-themed and
                       // can't be overridden — that's expected.
-                      style={m.expensive ? { color: '#f97316' } : undefined}
+                      // `recommended` wins over `expensive` if both set
+                      // (none currently are, but the order is explicit).
+                      style={
+                        m.recommended
+                          ? { color: '#22c55e' }
+                          : m.expensive
+                          ? { color: '#f97316' }
+                          : undefined
+                      }
                     >
                       {m.label}
-                      {m.expensive ? ' · expensive — burns credits fast' : ''}
+                      {m.recommended ? ' · recommended' : ''}
+                      {m.expensive ? ' · expensive (burns credits fast)' : ''}
+                      {m.toolsLimited ? ' · tool calls: limited' : ''}
                       {' · '}
                       {formatCreditRate(m)}
                     </option>

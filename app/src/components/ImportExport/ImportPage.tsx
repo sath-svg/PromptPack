@@ -4,146 +4,7 @@ import { useSyncStore, type CloudPrompt } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
 import { track as trackEvent } from '../../lib/posthog-events';
-
-// XOR key for obfuscation (matches web/extension)
-const OBFUSCATE_KEY = new Uint8Array([0x50, 0x72, 0x6F, 0x6D, 0x70, 0x74, 0x50, 0x61, 0x63, 0x6B]); // "PromptPack"
-const HEADER_SIZE = 37; // magic (4) + version (1) + hash (32)
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-
-// XOR de-obfuscate
-function xorDeobfuscate(data: Uint8Array): Uint8Array {
-  const result = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    result[i] = data[i] ^ OBFUSCATE_KEY[i % OBFUSCATE_KEY.length];
-  }
-  return result;
-}
-
-// Gzip decompress using native APIs
-async function gzipDecompress(data: Uint8Array): Promise<Uint8Array> {
-  const buffer = new ArrayBuffer(data.length);
-  new Uint8Array(buffer).set(data);
-  const stream = new Blob([buffer]).stream();
-  const decompressed = stream.pipeThrough(new DecompressionStream('gzip'));
-  const reader = decompressed.getReader();
-  const chunks: Uint8Array[] = [];
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-  }
-
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-  return result;
-}
-
-// Derive AES key from password
-async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits', 'deriveKey']
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: salt.buffer as ArrayBuffer,
-      iterations: 100000,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['decrypt']
-  );
-}
-
-// Decode obfuscated .skill file
-/**
- * Normalize prompts from imported file. Handles both:
- *   - Pack format: {text, header, ...} (CloudPrompt)
- *   - Skillset format: {id, label, template, ...} (SkillPrompt)
- *     Maps template→text, label/icon/purpose→header so they fit pack schema.
- */
-function normalizeImportedPrompts(data: any): CloudPrompt[] {
-  if (!data.prompts || !Array.isArray(data.prompts)) {
-    throw new Error('Invalid pack format');
-  }
-  const isSkillset =
-    data.type === 'skillset' ||
-    data.prompts.some((p: any) => typeof p.template === 'string' && typeof p.text !== 'string');
-
-  if (isSkillset) {
-    return data.prompts.map((p: any, idx: number) => ({
-      text: p.template ?? p.text ?? '',
-      header: `${p.icon ? p.icon + ' ' : ''}${p.label ?? 'Prompt'}${p.purpose ? ' — ' + p.purpose : ''}`,
-      url: '',
-      createdAt: Date.now() + idx,
-    })) as CloudPrompt[];
-  }
-  return data.prompts as CloudPrompt[];
-}
-
-async function decodeObfuscated(bytes: Uint8Array): Promise<CloudPrompt[]> {
-  if (bytes.length < HEADER_SIZE) {
-    throw new Error('File is too small or corrupted');
-  }
-
-  const obfuscated = bytes.slice(HEADER_SIZE);
-  const compressed = xorDeobfuscate(obfuscated);
-  const jsonBytes = await gzipDecompress(compressed);
-
-  const decoder = new TextDecoder();
-  const jsonString = decoder.decode(jsonBytes);
-  const data = JSON.parse(jsonString);
-
-  return normalizeImportedPrompts(data);
-}
-
-// Decrypt encrypted .skill file
-async function decryptPmtpk(bytes: Uint8Array, password: string): Promise<CloudPrompt[]> {
-  const encryptedHeaderSize = HEADER_SIZE + SALT_LENGTH + IV_LENGTH;
-
-  if (bytes.length < encryptedHeaderSize) {
-    throw new Error('File is too small or corrupted');
-  }
-
-  const salt = bytes.slice(HEADER_SIZE, HEADER_SIZE + SALT_LENGTH);
-  const iv = bytes.slice(HEADER_SIZE + SALT_LENGTH, encryptedHeaderSize);
-  const encrypted = bytes.slice(encryptedHeaderSize);
-
-  const key = await deriveKey(password, salt);
-
-  try {
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encrypted
-    );
-
-    const decompressed = await gzipDecompress(new Uint8Array(decrypted));
-    const decoder = new TextDecoder();
-    const jsonString = decoder.decode(decompressed);
-    const data = JSON.parse(jsonString);
-
-    return normalizeImportedPrompts(data);
-  } catch (e) {
-    if (e instanceof Error && e.message === 'Invalid pack format') throw e;
-    throw new Error('Wrong password');
-  }
-}
+import { decodeSkillFile, PasswordRequiredError } from '../../lib/skillsetDecoder';
 
 export function ImportPage() {
   const { session, refreshTier } = useAuthStore();
@@ -206,47 +67,25 @@ export function ImportPage() {
       const buffer = await file.arrayBuffer();
       const data = new Uint8Array(buffer);
 
-      // Detect format. Binary .pmtpk/.skill files start with "PPK" magic
-      // bytes. Plain JSON .skill files start with "{" (123) and contain the
-      // expected schema. Try JSON path first when the byte signature matches.
-      const isBinary = data[0] === 80 && data[1] === 80 && data[2] === 75;
-      const isJson =
-        !isBinary && (data[0] === 123 || (data[0] === 0xef && data[1] === 0xbb && data[2] === 0xbf && data[3] === 123));
-
-      if (!isBinary && !isJson) {
-        throw new Error('Invalid Skillset file format');
-      }
-
       let prompts: CloudPrompt[];
-
-      if (isJson) {
-        // Plain JSON .skill file: {type:"skillset", prompts:[{template,label,...}]}
-        const decoder = new TextDecoder();
-        const offset = data[0] === 0xef ? 3 : 0;
-        const jsonString = decoder.decode(data.slice(offset));
-        const parsed = JSON.parse(jsonString);
-        prompts = normalizeImportedPrompts(parsed);
-      } else {
-        const version = data[3];
-        const isEncrypted = version === 1;
-
-        if (isEncrypted && !pwd) {
+      try {
+        const decoded = await decodeSkillFile(data, pwd);
+        prompts = decoded.prompts;
+      } catch (err) {
+        if (err instanceof PasswordRequiredError) {
           setNeedsPassword(true);
           setPendingFile(file);
           setImporting(false);
           return;
         }
-
-        if (isEncrypted) {
-          prompts = await decryptPmtpk(data, pwd!);
-        } else {
-          prompts = await decodeObfuscated(data);
-        }
+        throw err;
       }
 
       if (prompts.length === 0) {
         throw new Error('No prompts found in file');
       }
+
+      const isEncryptedFile = data[0] === 0x50 && data[1] === 0x50 && data[2] === 0x4b && data[3] === 0x01;
 
       // Store parsed prompts and show pack selector
       setParsedPrompts(prompts);
@@ -254,7 +93,7 @@ export function ImportPage() {
       setSuccess(`Found ${prompts.length} prompt${prompts.length !== 1 ? 's' : ''} in "${file.name}". Select a pack to import into.`);
       trackEvent('pack_imported', {
         prompt_count: prompts.length,
-        encrypted: !!pwd || isBinary,
+        encrypted: !!pwd || isEncryptedFile,
         source,
       });
 

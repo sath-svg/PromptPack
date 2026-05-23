@@ -710,7 +710,7 @@ export function SkillChatPage() {
                 {/* Balance pill → opens dashboard top-up */}
                 <button
                   type="button"
-                  onClick={() => open('https://skillset.so/dashboard?topup=open').catch(console.error)}
+                  onClick={() => open('https://skillset.so/account').catch(console.error)}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20 transition-colors"
                   title="Buy more credits"
                 >
@@ -1280,7 +1280,7 @@ export function SkillChatPage() {
               </p>
               <div className="flex items-center gap-2 pt-1 flex-wrap">
                 <button
-                  onClick={() => open('https://skillset.so/dashboard?topup=open')}
+                  onClick={() => open('https://skillset.so/account')}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
                 >
                   <Sparkles size={13} />
@@ -1309,7 +1309,7 @@ export function SkillChatPage() {
               </p>
               <div className="flex items-center gap-2 pt-1">
                 <button
-                  onClick={() => open('https://skillset.so/dashboard?topup=open')}
+                  onClick={() => open('https://skillset.so/account')}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] text-sm hover:opacity-90 transition-opacity"
                 >
                   <Sparkles size={13} />

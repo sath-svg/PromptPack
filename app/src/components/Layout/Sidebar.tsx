@@ -11,6 +11,7 @@ import {
   History,
   MessageSquare,
   Palette,
+  Store,
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
@@ -153,6 +154,22 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
             <Package size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
               Your Skillsets
+            </span>
+          </button>
+
+          <button
+            onClick={() => onNavigate('marketplace')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentPage === 'marketplace'
+                ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
+                : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+            }`}
+            title={isCollapsed ? 'Marketplace' : undefined}
+            data-tutorial="marketplace"
+          >
+            <Store size={18} className="flex-shrink-0" />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Marketplace
             </span>
           </button>
         </div>

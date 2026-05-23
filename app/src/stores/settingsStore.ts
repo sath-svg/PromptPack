@@ -5,6 +5,7 @@ import { DEFAULT_MANAGED_SELECTIONS, type ManagedTier } from '../lib/managed-mod
 import { readSettingsFile, writeSettingsFile } from '../lib/settingsFile';
 import { track as trackEvent } from '../lib/posthog-events';
 import type { DesktopEventMap } from '../lib/posthog-events';
+import { getCustomPackLimit, getPromptLimit } from '../lib/constants';
 
 // Helper to apply theme to document
 const applyTheme = (theme: 'light' | 'dark' | 'system') => {
@@ -65,10 +66,32 @@ export interface ApiKeys {
  *  multi-field input loop. */
 export type StringApiKeyProvider = Exclude<keyof ApiKeys, 'bedrock'>;
 
+/**
+ * Auto top-up state snapshot. Populated from the credit-balance endpoint
+ * so the desktop Settings panel can display the current configuration
+ * without a separate round trip. All updates to this state happen via
+ * the web /account page (Stripe Checkout for card collection, Convex
+ * mutation for threshold/pack changes).
+ */
+export interface AutoTopupState {
+  enabled: boolean;
+  thresholdCredits: number;
+  packKey: 'small' | 'medium' | 'large' | 'xl';
+  cardBrand?: string;
+  cardLast4?: string;
+  hasPaymentMethod: boolean;
+  lastChargeAt?: number;
+  lastFailureReason?: string;
+  consecutiveFailures?: number;
+  monthlyCapUsd?: number;
+  monthlySpentUsd?: number;
+}
+
 export interface CreditBalance {
   monthly: number;
   topup: number;
   resetAt?: number;
+  autoTopup?: AutoTopupState;
 }
 
 /**
@@ -364,14 +387,9 @@ export const useSettingsStore = create<SettingsState>()(
   )
 );
 
-// Helper to check user tier limits
-export const getTierLimits = (tier: UserTier) => {
-  switch (tier) {
-    case 'studio':
-      return { promptLimit: 200, packLimit: 10 };
-    case 'pro':
-      return { promptLimit: 40, packLimit: 5 };
-    default:
-      return { promptLimit: 10, packLimit: 2 };
-  }
-};
+// Helper to surface tier limits. Single source of truth: `lib/constants.ts`.
+// Free=1 pack/5 prompts, Pro=7 packs/56 prompts, Studio=17 packs/200 prompts.
+export const getTierLimits = (tier: UserTier) => ({
+  promptLimit: getPromptLimit(tier),
+  packLimit: getCustomPackLimit(tier),
+});

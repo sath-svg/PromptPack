@@ -2184,10 +2184,17 @@ How they want AI responses formatted. Constraints, formatting preferences.
         }
 
         // Security: Verify the r2Key pattern for packs
-        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk (or /versions/v{n}.pmtpk) OR users/{userId}/saved/{source}.pmtpk
+        // users/{userId}/userpacks/pack_{timestamp}_{random}.pmtpk (or /versions/v{n}.pmtpk)
+        // users/{userId}/saved/{source}.pmtpk
+        // marketplace/{listingId}.skill (paid + free listings)
+        // marketplace/official/{slug}.skill (Skillset Team official listings)
+        // marketplace/pending-{ts}-{rand}.skill (placeholder before action patches the key)
+        // marketplace/{listingId}/preview/{0-4}.(jpg|jpeg|png|webp) — preset listing photos
         const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
-        if (!isValidUserPack && !isValidSavedPack) {
+        const isValidMarketplace = body.r2Key.match(/^marketplace\/(official\/)?[A-Za-z0-9_\-]+\.skill$/);
+        const isValidMarketplacePreview = body.r2Key.match(/^marketplace\/[A-Za-z0-9_\-]+\/preview\/[0-4]\.(jpe?g|png|webp)$/i);
+        if (!isValidUserPack && !isValidSavedPack && !isValidMarketplace && !isValidMarketplacePreview) {
           console.error("Invalid r2Key format for pack:", body.r2Key);
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format for pack", r2Key: body.r2Key }), {
             status: 400,
@@ -2198,10 +2205,17 @@ How they want AI responses formatted. Constraints, formatting preferences.
         // Decode base64 and upload to R2
         const fileBuffer = Uint8Array.from(atob(body.fileData), c => c.charCodeAt(0));
 
+        // Pick content-type from file extension so the public R2 URL serves
+        // images with proper MIME (otherwise <img src=...> won't render).
+        const ext = body.r2Key.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+        const contentType =
+          ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+          ext === "png" ? "image/png" :
+          ext === "webp" ? "image/webp" :
+          "application/octet-stream";
+
         await env.BUCKET.put(body.r2Key, fileBuffer, {
-          httpMetadata: {
-            contentType: "application/octet-stream",
-          },
+          httpMetadata: { contentType },
           customMetadata: {
             uploadedAt: new Date().toISOString(),
             ...body.metadata,
@@ -2217,6 +2231,34 @@ How they want AI responses formatted. Constraints, formatting preferences.
         }));
       }
 
+      // GET /storage/public/marketplace/{listingId}/preview/{0-4}.(jpg|jpeg|png|webp)
+      // Public proxy for marketplace preview images. The R2 bucket itself
+      // stays private — only this whitelisted prefix is exposed, and only
+      // for the allowed image extensions. Everything else is 404.
+      if (path.startsWith("/storage/public/") && method === "GET") {
+        const r2Key = path.slice("/storage/public/".length);
+        const allowed = r2Key.match(/^marketplace\/[A-Za-z0-9_\-]+\/preview\/[0-4]\.(jpe?g|png|webp)$/i);
+        if (!allowed) {
+          return addCors(new Response("Not found", { status: 404 }));
+        }
+        const object = await env.BUCKET.get(r2Key);
+        if (!object) {
+          return addCors(new Response("Not found", { status: 404 }));
+        }
+        const ext = r2Key.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+        const contentType =
+          ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+          ext === "png" ? "image/png" :
+          ext === "webp" ? "image/webp" :
+          "application/octet-stream";
+        const headers = new Headers({
+          "Content-Type": object.httpMetadata?.contentType ?? contentType,
+          "Cache-Control": "public, max-age=31536000, immutable",
+          ETag: object.httpEtag,
+        });
+        return addCors(new Response(object.body, { headers }));
+      }
+
       // Download file by R2 key (for web dashboard)
       // POST /storage/fetch - uses POST to send r2Key in body
       if (path === "/storage/fetch" && method === "POST") {
@@ -2230,12 +2272,11 @@ How they want AI responses formatted. Constraints, formatting preferences.
         }
 
         // Security: Verify the r2Key pattern matches expected formats
-        // users/{userId}/saved/{source}.pmtpk OR users/{userId}/userpacks/pack_{id}.pmtpk
         const isValidSavedPack = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
-        // userPacks: pack_<timestamp>_<random> where random is base36 (lowercase + digits), optionally with /versions/v{n}
         const isValidUserPack = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
+        const isValidMarketplace = body.r2Key.match(/^marketplace\/(official\/)?[A-Za-z0-9_\-]+\.skill$/);
 
-        if (!isValidSavedPack && !isValidUserPack) {
+        if (!isValidSavedPack && !isValidUserPack && !isValidMarketplace) {
           console.error("Invalid r2Key format:", body.r2Key);
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format", r2Key: body.r2Key }), {
             status: 400,
@@ -2276,10 +2317,12 @@ How they want AI responses formatted. Constraints, formatting preferences.
           }));
         }
 
-        // Security: Verify the r2Key pattern matches expected format (saved packs or user packs incl. versions)
+        // Security: Verify the r2Key pattern matches expected format (saved packs, user packs incl. versions, marketplace listings, or preview images)
         const isValidSavedKey = body.r2Key.match(/^users\/[^/]+\/saved\/(chatgpt|claude|gemini|perplexity|grok|deepseek|kimi)\.pmtpk$/);
         const isValidUserPackKey = body.r2Key.match(/^users\/[^/]+\/userpacks\/pack_[0-9]+_[a-z0-9]+(\/versions\/v[0-9]+)?\.pmtpk$/i);
-        if (!isValidSavedKey && !isValidUserPackKey) {
+        const isValidMarketplaceKey = body.r2Key.match(/^marketplace\/(official\/)?[A-Za-z0-9_\-]+\.skill$/);
+        const isValidMarketplacePreviewKey = body.r2Key.match(/^marketplace\/[A-Za-z0-9_\-]+\/preview\/[0-4]\.(jpe?g|png|webp)$/i);
+        if (!isValidSavedKey && !isValidUserPackKey && !isValidMarketplaceKey && !isValidMarketplacePreviewKey) {
           return addCors(new Response(JSON.stringify({ error: "Invalid r2Key format" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },

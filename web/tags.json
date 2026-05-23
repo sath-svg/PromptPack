@@ -1,0 +1,6 @@
+[
+  { "name": "mobile", "color": "3B82F6", "isPublic": true },
+  { "name": "creator-economy", "color": "8B5CF6", "isPublic": true },
+  { "name": "routing", "color": "10B981", "isPublic": true },
+  { "name": "desktop", "color": "64748B", "isPublic": true }
+]
