@@ -171,13 +171,16 @@ export function registerExtensionRoutes(http: ReturnType<typeof httpRouter>) {
             );
           }
 
-          // Create a user on the fly in dev when webhook hasn't populated Convex yet
+          // Create a user on the fly in dev when webhook hasn't populated Convex yet.
+          // Do NOT pass `plan` — `users.upsert` defaults new rows to "free"
+          // via `plan ?? "free"` on insert. Passing it explicitly would
+          // wipe Pro/Studio tiers on existing rows that match via the
+          // email fallback (same bug pattern as web/lib/auth.ts syncToConvex).
           await ctx.runMutation(api.users.upsert, {
             userId: authData.userId,
             email: authData.email,
             name: authData.name,
             imageUrl: authData.imageUrl,
-            plan: "free",
           });
 
           user = await ctx.runQuery(api.users.getByUserId, {

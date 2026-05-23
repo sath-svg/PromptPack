@@ -40,7 +40,6 @@ web/public/downloads•*
 web/public/downloads�*
 
 # Customer / PII — never commit
-web/scripts/users.csv
-web/scripts/*-emails.csv
+web/scripts/*.csv
 support-reply-*.html
 web/scripts/send-*-reply.ts

@@ -586,6 +586,40 @@ export function UserButton({
             </div>
           </div>
 
+          {/* Account link — opens full /account page (credits, auto top-up,
+              marketplace, etc.). Dropdown is summary-only; full management
+              lives on the page. */}
+          <a
+            href="/account"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "8px 12px",
+              background: "none",
+              border: "none",
+              borderRadius: 8,
+              color: "#fafafa",
+              fontSize: 14,
+              cursor: "pointer",
+              textAlign: "left",
+              textDecoration: "none",
+              marginBottom: 4,
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span style={{ flex: 1 }}>Manage account</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </a>
+
           {/* Sign out */}
           <button
             onClick={async () => {

@@ -7,7 +7,6 @@ import {
   ShoppingBag,
   Package,
   Crown,
-  Mail,
   ArrowRight,
   ExternalLink,
 } from "lucide-react";
@@ -51,19 +50,19 @@ export default function AccountPage() {
 
   if (!isLoaded) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-neutral-50 text-neutral-500">
+      <main className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-zinc-500">
         Loading…
       </main>
     );
   }
   if (!isSignedIn || !user) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-neutral-50">
+      <main className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
         <div className="text-center">
-          <p className="text-neutral-600 mb-4">Sign in to view your account.</p>
+          <p className="text-zinc-400 mb-4">Sign in to view your account.</p>
           <Link
             href="/sign-in?return=/account"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700"
+            className="inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-4 py-2 text-sm font-medium text-white hover:bg-[#1d4ed8]"
           >
             Sign in <ArrowRight size={14} />
           </Link>
@@ -88,40 +87,54 @@ export default function AccountPage() {
   );
 
   return (
-    <main className="min-h-screen bg-neutral-50 py-12 px-6">
-      <div className="max-w-3xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold text-neutral-900">Account</h1>
-          <p className="text-neutral-600 mt-1 text-sm flex items-center gap-1.5">
-            <Mail size={14} />
+    <div className="min-h-screen bg-[#0a0a0a] text-zinc-100">
+      <main className="mx-auto max-w-5xl px-6 py-16">
+        <div className="mb-10">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            ← Skillset
+          </Link>
+          <h1 className="mt-6 text-[34px] font-semibold tracking-tight">
+            Account
+          </h1>
+          <p
+            className="mt-3 text-[13px] uppercase tracking-[0.18em] text-zinc-500"
+            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+          >
             {user.primaryEmailAddress.emailAddress}
           </p>
-        </header>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Plan */}
           <Card>
             <CardHeader icon={Crown} title="Plan" />
-            <p className="text-2xl font-semibold text-neutral-900">
+            <p className="text-[28px] font-medium tracking-tight text-zinc-50">
               {planLabel(plan, planVariant)}
             </p>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="mt-1 text-[13px] text-zinc-500">
               {plan === "free"
                 ? "Limited packs and prompts."
                 : `${packCap} custom packs · ${promptCap} prompts total`}
             </p>
-            <div className="flex gap-2 mt-4">
+            <div className="mt-5 flex gap-2">
               {plan === "free" ? (
                 <Link
                   href="/pricing"
-                  className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md bg-neutral-900 text-white hover:bg-neutral-700"
+                  className="group inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#1d4ed8] transition-all"
                 >
-                  Upgrade <ArrowRight size={12} />
+                  Upgrade
+                  <ArrowRight
+                    size={12}
+                    className="transition-transform group-hover:translate-x-0.5"
+                  />
                 </Link>
               ) : (
                 <Link
                   href="/pricing"
-                  className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md border border-neutral-200 text-neutral-700 hover:border-neutral-400"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-4 py-1.5 text-[13px] text-zinc-200 hover:border-white/20 hover:bg-white/[0.05] transition-all"
                 >
                   Manage <ExternalLink size={11} />
                 </Link>
@@ -132,20 +145,29 @@ export default function AccountPage() {
           {/* Credits */}
           <Card>
             <CardHeader icon={Wallet} title="Credits" />
-            <p className="text-2xl font-semibold text-neutral-900">
+            <p className="text-[28px] font-medium tracking-tight text-zinc-50">
               {totalCredits.toLocaleString()}{" "}
-              <span className="text-sm font-normal text-neutral-500">credits</span>
+              <span
+                className="text-[13px] font-normal text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                credits
+              </span>
             </p>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="mt-1 text-[13px] text-zinc-500">
               {monthlyCredits.toLocaleString()} monthly +{" "}
               {topupCredits.toLocaleString()} topup. 1 credit ≈ $0.02.
             </p>
-            <div className="flex gap-2 mt-4">
+            <div className="mt-5 flex gap-2">
               <Link
                 href="/topup"
-                className="inline-flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                className="group inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-4 py-1.5 text-[13px] font-medium text-white hover:bg-[#1d4ed8] transition-all"
               >
-                Top up <ArrowRight size={12} />
+                Top up
+                <ArrowRight
+                  size={12}
+                  className="transition-transform group-hover:translate-x-0.5"
+                />
               </Link>
             </div>
           </Card>
@@ -153,12 +175,12 @@ export default function AccountPage() {
           {/* Pack limit */}
           <Card>
             <CardHeader icon={Package} title="Skillset limit" />
-            <p className="text-2xl font-semibold text-neutral-900">
+            <p className="text-[28px] font-medium tracking-tight text-zinc-50">
               {packCap === 0
                 ? "—"
                 : `${packCap} pack${packCap === 1 ? "" : "s"}`}
             </p>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="mt-1 text-[13px] text-zinc-500">
               {plan === "free"
                 ? "Free plan can't create custom packs. Upgrade to unlock."
                 : `Up to ${promptCap} prompts across all packs.`}
@@ -168,18 +190,21 @@ export default function AccountPage() {
           {/* Marketplace */}
           <Card>
             <CardHeader icon={ShoppingBag} title="Marketplace" />
-            <p className="text-2xl font-semibold text-neutral-900">
+            <p className="text-[28px] font-medium tracking-tight text-zinc-50">
               {listingsCount}
-              <span className="text-sm font-normal text-neutral-500">
+              <span
+                className="text-[13px] font-normal text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
                 {" "}
                 listing{listingsCount === 1 ? "" : "s"}
               </span>
             </p>
-            <p className="text-xs text-neutral-500 mt-1">
+            <p className="mt-1 text-[13px] text-zinc-500">
               {purchasesCount} purchase{purchasesCount === 1 ? "" : "s"} ·{" "}
               {totalEarnedCredits.toLocaleString()} credits earned (lifetime)
             </p>
-            <p className="text-xs text-neutral-400 mt-2">
+            <p className="mt-3 text-[12px] text-zinc-600">
               Open the desktop app's Marketplace tab to list, browse, or import
               packs.
             </p>
@@ -188,17 +213,21 @@ export default function AccountPage() {
           {userId ? <AutoTopupCard userId={userId} /> : null}
         </div>
 
-        <footer className="mt-8 text-xs text-neutral-400">
-          Need help? <Link href="/feedback" className="underline">Send feedback</Link>.
+        <footer className="mt-10 text-[12px] text-zinc-600">
+          Need help?{" "}
+          <Link href="/feedback" className="underline hover:text-zinc-400">
+            Send feedback
+          </Link>
+          .
         </footer>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
 
 function Card({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all duration-200 hover:border-white/[0.14]">
       {children}
     </div>
   );
@@ -212,7 +241,10 @@ function CardHeader({
   title: string;
 }) {
   return (
-    <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-[0.18em] text-neutral-500">
+    <div
+      className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
+      style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+    >
       <Icon size={13} />
       {title}
     </div>

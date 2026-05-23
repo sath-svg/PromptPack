@@ -83,12 +83,18 @@ async function firePostHog(
 async function syncToConvex(user: { id: string; email: string; name?: string | null; image?: string | null }) {
   if (!convex) return;
   try {
+    // IMPORTANT: never pass `plan` here. Plan state is owned by Stripe
+    // webhooks (customer.subscription.* + invoice.paid). Passing
+    // `plan: "free"` from a session-create hook wipes Pro/Studio users
+    // every time BetterAuth sessions invalidate — e.g. after
+    // `convex deploy` rebuilds Next.js. The `users.upsert` mutation
+    // skips the `plan` patch when undefined, so existing tiers persist
+    // until the next Stripe webhook event corrects them anyway.
     await convex.mutation(api.users.upsert, {
       userId: user.id,
       email: user.email,
       name: user.name ?? undefined,
       imageUrl: user.image ?? undefined,
-      plan: "free",
       betterAuthId: user.id,
     });
   } catch (err) {

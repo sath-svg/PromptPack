@@ -6,13 +6,14 @@ import { Zap, CreditCard, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 
 /**
- * Auto top-up card on /account. Visible whenever a user is signed in.
+ * Auto top-up card on /account. Dark theme matching the rest of skillset.so
+ * (`#0a0a0a` bg, `#0f0f12` card, geist-mono eyebrow, #2563EB primary CTA).
  *
  * States:
  *   - No card on file → "Set up auto top-up" button → /api/stripe/auto-topup-setup
  *   - Card on file, disabled → toggle + threshold + pack pickers
  *   - Card on file, enabled → same controls + last-charge meta
- *   - Charge failed recently → red banner with reason
+ *   - Charge failed recently → amber banner with reason
  */
 
 type PackKey = "small" | "medium" | "large" | "xl";
@@ -133,9 +134,9 @@ export function AutoTopupCard({ userId }: Props) {
   if (config === undefined) {
     // Loading state
     return (
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+      <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 md:col-span-2">
         <CardHeader />
-        <p className="text-sm text-neutral-400">Loading…</p>
+        <p className="text-[13px] text-zinc-600">Loading…</p>
       </div>
     );
   }
@@ -147,28 +148,34 @@ export function AutoTopupCard({ userId }: Props) {
     config.lastFailureReason;
 
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 md:col-span-2">
+    <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all duration-200 hover:border-white/[0.14] md:col-span-2">
       <CardHeader />
 
       {postSetupBanner === "saved" && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-          <Check size={14} className="mt-0.5 shrink-0" />
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-300">
+          <Check size={14} className="mt-0.5 shrink-0" strokeWidth={2.5} />
           <span>Card saved. Toggle auto top-up on below.</span>
         </div>
       )}
       {postSetupBanner === "cancelled" && (
-        <div className="mb-3 text-xs text-neutral-500">
+        <div className="mb-4 text-[12px] text-zinc-500">
           Card setup cancelled.
         </div>
       )}
 
       {recentlyFailed && (
-        <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+        <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-200">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <div>
             <p className="font-medium">Last charge failed</p>
             <p className="mt-0.5">
-              Reason: <span className="font-mono">{config?.lastFailureReason}</span>
+              Reason:{" "}
+              <span
+                className="font-mono text-amber-300"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                {config?.lastFailureReason}
+              </span>
               {(config?.consecutiveFailures ?? 0) >= 3
                 ? " · Auto top-up has been disabled. Re-enable below after fixing your card."
                 : ""}
@@ -179,15 +186,15 @@ export function AutoTopupCard({ userId }: Props) {
 
       {!hasCard ? (
         <div>
-          <p className="text-sm text-neutral-600 mb-4">
+          <p className="text-[14px] leading-[1.6] text-zinc-400 mb-5 max-w-[60ch]">
             Save a card and we'll automatically top up your credits when your
-            balance drops below your chosen threshold. You can change the
-            threshold or turn it off at any time.
+            balance drops below your chosen threshold. Change the threshold or
+            turn it off at any time.
           </p>
           <button
             onClick={startSetup}
             disabled={setupLoading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-5 py-2 text-[13px] font-medium text-white whitespace-nowrap transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {setupLoading ? (
               <>
@@ -199,31 +206,34 @@ export function AutoTopupCard({ userId }: Props) {
               </>
             )}
           </button>
-          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-[12px] text-red-400">{error}</p>}
         </div>
       ) : (
         <div className="space-y-4">
           {/* Saved card row */}
-          <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-            <div className="flex items-center gap-2 text-sm text-neutral-700">
-              <CreditCard size={14} className="text-neutral-500" />
+          <div className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+            <div className="flex items-center gap-2 text-[13px] text-zinc-300">
+              <CreditCard size={14} className="text-zinc-500" />
               <span className="capitalize">{config?.cardBrand ?? "card"}</span>
-              <span className="font-mono text-neutral-500">
+              <span
+                className="font-mono text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
                 •••• {config?.cardLast4 ?? "????"}
               </span>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 onClick={startSetup}
                 disabled={setupLoading || saving}
-                className="text-xs text-neutral-600 underline hover:text-neutral-900 disabled:opacity-50"
+                className="text-[12px] text-zinc-400 underline-offset-2 hover:text-zinc-100 hover:underline disabled:opacity-50"
               >
                 {setupLoading ? "…" : "Change card"}
               </button>
               <button
                 onClick={handleDisconnect}
                 disabled={saving}
-                className="text-xs text-red-600 underline hover:text-red-700 disabled:opacity-50"
+                className="text-[12px] text-red-400 underline-offset-2 hover:text-red-300 hover:underline disabled:opacity-50"
               >
                 Remove
               </button>
@@ -231,12 +241,12 @@ export function AutoTopupCard({ userId }: Props) {
           </div>
 
           {/* Enable toggle */}
-          <label className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2 cursor-pointer">
+          <label className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 cursor-pointer hover:border-white/[0.12] transition-colors">
             <div>
-              <p className="text-sm font-medium text-neutral-900">
+              <p className="text-[13px] font-medium text-zinc-100">
                 Enable auto top-up
               </p>
-              <p className="text-xs text-neutral-500">
+              <p className="text-[12px] text-zinc-500">
                 Charges your card when balance dips below the threshold.
               </p>
             </div>
@@ -244,15 +254,18 @@ export function AutoTopupCard({ userId }: Props) {
               type="checkbox"
               checked={enabled}
               onChange={(e) => setEnabled(e.target.checked)}
-              className="w-5 h-5 accent-emerald-600"
+              className="h-5 w-5 accent-[#2563EB]"
             />
           </label>
 
           {/* Threshold + pack */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">
-                Top up when topup credits fall below
+              <label
+                className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
+                Top up when topup below
               </label>
               <select
                 value={threshold}
@@ -260,27 +273,30 @@ export function AutoTopupCard({ userId }: Props) {
                   setThreshold(parseInt(e.target.value, 10) as ThresholdPreset)
                 }
                 disabled={!enabled}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm text-neutral-900 disabled:opacity-50"
+                className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] px-3 py-2 text-[13px] text-zinc-100 focus:outline-none focus:border-white/[0.2] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {THRESHOLDS.map((t) => (
-                  <option key={t} value={t}>
+                  <option key={t} value={t} className="bg-[#0a0a0a]">
                     {t.toLocaleString()} credits
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">
+              <label
+                className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
                 Top up with
               </label>
               <select
                 value={packKey}
                 onChange={(e) => setPackKey(e.target.value as PackKey)}
                 disabled={!enabled}
-                className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm text-neutral-900 disabled:opacity-50"
+                className="w-full rounded-xl border border-white/[0.08] bg-[#0a0a0a] px-3 py-2 text-[13px] text-zinc-100 focus:outline-none focus:border-white/[0.2] disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {PACKS.map((p) => (
-                  <option key={p.key} value={p.key}>
+                  <option key={p.key} value={p.key} className="bg-[#0a0a0a]">
                     {p.label}
                   </option>
                 ))}
@@ -290,21 +306,36 @@ export function AutoTopupCard({ userId }: Props) {
 
           {/* Monthly cap */}
           <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">
-              Monthly spend cap (USD) — safety limit
+            <label
+              className="mb-1.5 block text-[11px] uppercase tracking-[0.16em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              Monthly cap (USD) · safety limit
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={5}
-                max={500}
-                step={5}
-                value={monthlyCap}
-                onChange={(e) => setMonthlyCap(parseInt(e.target.value, 10) || 0)}
-                disabled={!enabled}
-                className="w-32 px-3 py-2 rounded-lg border border-neutral-200 bg-white text-sm text-neutral-900 disabled:opacity-50"
-              />
-              <span className="text-xs text-neutral-500">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <span
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] text-zinc-500"
+                  style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+                >
+                  $
+                </span>
+                <input
+                  type="number"
+                  min={5}
+                  max={500}
+                  step={5}
+                  value={monthlyCap}
+                  onChange={(e) => setMonthlyCap(parseInt(e.target.value, 10) || 0)}
+                  disabled={!enabled}
+                  className="w-32 rounded-xl border border-white/[0.08] bg-[#0a0a0a] py-2 pl-7 pr-3 text-[13px] text-zinc-100 focus:outline-none focus:border-white/[0.2] disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+                />
+              </div>
+              <span
+                className="text-[12px] text-zinc-500"
+                style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+              >
                 {config?.monthlySpentUsd
                   ? `$${config.monthlySpentUsd.toFixed(2)} spent this cycle`
                   : "$0.00 spent this cycle"}
@@ -314,19 +345,22 @@ export function AutoTopupCard({ userId }: Props) {
 
           {/* Last charge meta */}
           {config?.lastChargeAt ? (
-            <p className="text-xs text-neutral-500">
+            <p
+              className="text-[12px] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
               Last charged{" "}
               {new Date(config.lastChargeAt).toLocaleDateString()} at{" "}
-              {new Date(config.lastChargeAt).toLocaleTimeString()}.
+              {new Date(config.lastChargeAt).toLocaleTimeString()}
             </p>
           ) : null}
 
           {/* Save button */}
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-3 pt-1">
             <button
               onClick={save}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-neutral-900 text-white text-sm font-medium hover:bg-neutral-700 disabled:opacity-50"
+              className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] px-5 py-2 text-[13px] font-medium text-white transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>
@@ -337,13 +371,13 @@ export function AutoTopupCard({ userId }: Props) {
               )}
             </button>
             {savedFlash && (
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
-                <Check size={13} /> Saved
+              <span className="inline-flex items-center gap-1 text-[12px] text-emerald-400">
+                <Check size={13} strokeWidth={2.5} /> Saved
               </span>
             )}
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-[12px] text-red-400">{error}</p>}
         </div>
       )}
     </div>
@@ -352,7 +386,10 @@ export function AutoTopupCard({ userId }: Props) {
 
 function CardHeader() {
   return (
-    <div className="flex items-center gap-2 mb-3 text-xs uppercase tracking-[0.18em] text-neutral-500">
+    <div
+      className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500"
+      style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+    >
       <Zap size={13} />
       Auto top-up
     </div>
