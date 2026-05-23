@@ -34,11 +34,8 @@ import {
   type SortKey,
 } from '../../stores/marketplaceStore';
 import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
-import {
-  MARKETPLACE_MIN_PRICE_CENTS,
-  MARKETPLACE_MAX_PRICE_CENTS,
-} from '../../lib/constants';
-import { decodeSkillFile } from '../../lib/skillsetDecoder';
+import { MARKETPLACE_MAX_PRICE_CENTS } from '../../lib/constants';
+import { decodeSkillFile, PasswordRequiredError } from '../../lib/skillsetDecoder';
 import { FlowPreviewPanel } from './previews/FlowPreview';
 import { FolderPreviewPanel } from './previews/FolderPreview';
 import { PresetPreviewPanel } from './previews/PresetPreview';
