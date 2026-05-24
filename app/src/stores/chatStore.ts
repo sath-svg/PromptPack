@@ -431,9 +431,23 @@ async function probeOllama(): Promise<boolean> {
 
 async function getAvailableProvidersAsync(
   apiKeys: Record<string, string | undefined>,
+  managedModeEnabled = false,
 ): Promise<Set<Provider>> {
   const sync = getAvailableProviders(apiKeys);
   if (await probeOllama()) sync.add('ollama');
+  // Managed mode is exclusive: when on, drop every BYOK cloud provider
+  // so the picker can't pre-empt the managed proxy by routing to
+  // Anthropic / OpenAI / Bedrock / etc. Local providers (server,
+  // ollama) stay — managed users can still get a free inbuilt or
+  // local-Ollama answer for fast-tier prompts. Without this, a user
+  // who has both managed mode AND Bedrock keys configured would have
+  // every send go to Bedrock (cheapest BYOK in tier), bypassing the
+  // managed proxy + tripping Tauri's HTTP allowlist.
+  if (managedModeEnabled) {
+    for (const p of Array.from(sync)) {
+      if (!LOCAL_PROVIDERS.has(p)) sync.delete(p);
+    }
+  }
   return sync;
 }
 
@@ -1882,6 +1896,7 @@ export function createChatStore(convoId: string): UseBoundStore<StoreApi<ChatSta
     });
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
+      settings.managedModeEnabled,
     );
     // Three-head LR classifier:
     //   - tier  → which managed model serves the prompt
@@ -2622,6 +2637,7 @@ export function createChatStore(convoId: string): UseBoundStore<StoreApi<ChatSta
     const { apiKeys, billingTier } = settings;
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
+      settings.managedModeEnabled,
     );
     const workspace = agentStoreOf().getState().workspace;
     set({ error: null });
@@ -2670,6 +2686,7 @@ export function createChatStore(convoId: string): UseBoundStore<StoreApi<ChatSta
 
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
+      settings.managedModeEnabled,
     );
     const workspace = agentStoreOf().getState().workspace;
 
