@@ -3,9 +3,23 @@
  * `chatStore.ts`. The Run Trace UI subscribes here. Persistence flushes
  * happen via `persist.ts` Tauri commands; this store is the synchronous
  * source of truth while a run is in flight.
+ *
+ * Per-conversation (Phase 2): each Skill Chat conversation gets its own
+ * runStore instance via `createRunStore(convoId)`. The exported
+ * `useRunStore` is an active-conversation router; cross-store code with
+ * a known convoId should use `getStoresFor(convoId).run` from
+ * `./registry.ts` directly.
  */
 
 import { create } from 'zustand';
+import type { StoreApi, UseBoundStore } from 'zustand';
+import { useConversationsStore } from './conversationsStore';
+import {
+  BOOT_CONVO_ID,
+  getActiveConvoId,
+  getStoresFor,
+  registerRunFactory,
+} from './registry';
 import {
   runCancel as runCancelCmd,
   runUpdate as runUpdateCmd,
@@ -42,7 +56,10 @@ export interface SubtaskToolCall {
   ts: number;
 }
 
-interface RunState {
+export interface RunState {
+  /** Read-only — set at factory construction. Used by chatStore to stamp
+   *  Run.conversation_id when calling run_create. */
+  convoId: string;
   // ─── Live run ─────────────────────────────────────────────────────────
   run: Run | null;
   subtasks: Subtask[];
@@ -112,7 +129,9 @@ interface RunState {
   reset: () => void;
 }
 
-export const useRunStore = create<RunState>((set, get) => ({
+export function createRunStore(convoId: string): UseBoundStore<StoreApi<RunState>> {
+  return create<RunState>((set, get) => ({
+  convoId,
   run: null,
   subtasks: [],
   taskState: null,
@@ -270,7 +289,42 @@ export const useRunStore = create<RunState>((set, get) => ({
       abort: null,
     });
   },
-}));
+  }));
+}
+
+registerRunFactory(createRunStore);
+
+function activeRunStore(): UseBoundStore<StoreApi<RunState>> {
+  return getStoresFor(getActiveConvoId()).run as UseBoundStore<StoreApi<RunState>>;
+}
+
+/**
+ * Active-conversation router for runStore. See agentStore.ts for the
+ * same pattern + rationale.
+ */
+export const useRunStore: UseBoundStore<StoreApi<RunState>> = (
+  <T,>(selector?: (s: RunState) => T): T => {
+    const activeId = useConversationsStore((s) => s.activeId) ?? BOOT_CONVO_ID;
+    const store = getStoresFor(activeId).run as UseBoundStore<StoreApi<RunState>>;
+    return selector ? store(selector) : (store.getState() as T);
+  }
+) as unknown as UseBoundStore<StoreApi<RunState>>;
+
+useRunStore.getState = (): RunState => activeRunStore().getState();
+useRunStore.setState = ((
+  partial: Partial<RunState> | RunState | ((s: RunState) => Partial<RunState> | RunState),
+  replace?: boolean,
+): void => {
+  const store = activeRunStore();
+  if (replace === true) {
+    (store.setState as unknown as (p: RunState, replace: true) => void)(partial as RunState, true);
+  } else {
+    (store.setState as unknown as (p: Partial<RunState>) => void)(partial as Partial<RunState>);
+  }
+}) as StoreApi<RunState>['setState'];
+useRunStore.subscribe = ((listener: (s: RunState, prev: RunState) => void) =>
+  activeRunStore().subscribe(listener)) as StoreApi<RunState>['subscribe'];
+useRunStore.getInitialState = (): RunState => activeRunStore().getInitialState();
 
 /** Sub-status helpers used by the UI to render colors / badges. */
 export const SUBTASK_STATUS_COLORS: Record<SubtaskStatus, string> = {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StoreApi, UseBoundStore } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { AwsClient } from 'aws4fetch';
 import { tauriFetch } from '../lib/tauriFetch';
@@ -18,13 +19,21 @@ import { llmRouteFallback, FALLBACK_THRESHOLD } from '../lib/routeFallback';
 import { logRoute, settleRoute } from '../lib/telemetry';
 import { applyReasoning, capEffortForAgentLoop, managedProxyReasoning } from '../lib/reasoningParams';
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
-import { useAgentStore } from './agentStore';
 import { useAuthStore } from './authStore';
 import { useNotificationStore } from './notificationStore';
 import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel, estimateCreditsForCall } from '../lib/managed-models';
 import { syncCreditsFromHeaders } from '../lib/creditSync';
 import { friendlyApiError, safeParseErrorBody } from '../lib/apiErrors';
+import {
+  BOOT_CONVO_ID,
+  getActiveConvoId,
+  getStoresFor,
+  registerChatFactory,
+} from './registry';
+import { useConversationsStore } from './conversationsStore';
+import type { AgentState } from './agentStore';
+import type { RunState } from './runStore';
 
 // ---------------------------------------------------------------------------
 // Managed-mode (credit-metered OpenRouter via Cloudflare Workers proxy)
@@ -241,7 +250,10 @@ export interface PackStep {
   text: string;
 }
 
-interface ChatState {
+export interface ChatState {
+  /** Read-only — set at factory construction. Methods use it to stamp
+   *  Run.conversation_id and persist messages under the right convo. */
+  convoId: string;
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
@@ -858,6 +870,7 @@ async function runAnthropicAgent(
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
   onBeforeRound?: () => void,
   effort?: EffortLevel | null,
+  convoId?: string,
 ): Promise<void> {
   const apiMessages: AnthropicMessage[] = [];
 
@@ -947,7 +960,7 @@ async function runAnthropicAgent(
     for (const block of apiContent) {
       if (block.type !== 'tool_use' || !block.id || !block.name) continue;
       try {
-        const res = await dispatchTool({ workspace }, block.name, block.input ?? {});
+        const res = await dispatchTool({ workspace, convoId }, block.name, block.input ?? {});
         assistantBlocks.push({
           kind: 'tool_result',
           toolUseId: block.id,
@@ -988,6 +1001,7 @@ async function runOpenAIAgent(
   patchAssistant: (id: string, blocks: MessageBlock[]) => void,
   onBeforeRound?: () => void,
   effort?: EffortLevel | null,
+  convoId?: string,
 ): Promise<void> {
   const apiMessages: OpenAIMessage[] = [
     { role: 'system', content: AGENT_SYSTEM_PROMPT },
@@ -1091,7 +1105,7 @@ async function runOpenAIAgent(
         parsed = {};
       }
       try {
-        const res = await dispatchTool({ workspace }, tc.function.name, parsed);
+        const res = await dispatchTool({ workspace, convoId }, tc.function.name, parsed);
         assistantBlocks.push({
           kind: 'tool_result',
           toolUseId: tc.id,
@@ -1139,7 +1153,6 @@ function humanizeRunFailure(raw: string): string {
   if (!Number.isFinite(status)) return raw;
   return friendlyApiError(status, null, 'agent');
 }
-import { useRunStore } from './runStore';
 import type { ManagedTier } from '../lib/managed-models';
 import { track as trackEvent } from '../lib/posthog-events';
 
@@ -1201,6 +1214,11 @@ interface OrchestratorMessageDeps {
    */
   projectInstructions?: string;
   set: (partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>)) => void;
+  /** Phase 2: scopes every agentStore/runStore mutation produced by this
+   *  orchestrator pass to the originating conversation, so a backgrounded
+   *  pack run keeps writing to its own slice while the user works in
+   *  another chat. */
+  convoId: string;
 }
 
 async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<void> {
@@ -1221,7 +1239,13 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     projectInstructions,
     resumeTaskState,
     set,
+    convoId,
   } = deps;
+
+  const agentStoreOf = (): UseBoundStore<StoreApi<AgentState>> =>
+    getStoresFor(convoId).agent as UseBoundStore<StoreApi<AgentState>>;
+  const runStoreOf = (): UseBoundStore<StoreApi<RunState>> =>
+    getStoresFor(convoId).run as UseBoundStore<StoreApi<RunState>>;
 
   // Auto-enable Skill Flow ONLY for Set runs (packs with predefinedPlan).
   // Set runs are inherently a Skill Flow chain regardless of toggle; the
@@ -1241,13 +1265,13 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
   // user manually toggled mid-run, respect their choice.
   let autoAcceptRestore: (() => void) | null = null;
   if (predefinedPlan) {
-    const agentStore = useAgentStore.getState();
+    const agentStore = agentStoreOf().getState();
     agentStore.setSetRunActive(true);
     if (!agentStore.autoAcceptEdits) {
       agentStore.setAutoAcceptEdits(true);
       autoAcceptRestore = () => {
-        if (useAgentStore.getState().autoAcceptEdits === true) {
-          useAgentStore.getState().setAutoAcceptEdits(false);
+        if (agentStoreOf().getState().autoAcceptEdits === true) {
+          agentStoreOf().getState().setAutoAcceptEdits(false);
         }
       };
     }
@@ -1292,9 +1316,9 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
   // Create the Run row + bootstrap the run store.
   let runId: string | null = null;
   try {
-    const run = await runCreate({ goal: text });
+    const run = await runCreate({ goal: text, conversationId: convoId });
     runId = run.id;
-    const abort = useRunStore.getState().startRun(run);
+    const abort = runStoreOf().getState().startRun(run);
 
     // Phase 5 — resume: skip emptyTaskState and reuse the snapshot the
     // caller passed in. Done subtasks short-circuit in the executor;
@@ -1315,7 +1339,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
       // buildSystemPrompt() for the placement strategy.
       taskState.projectInstructions = projectInstructions.trim();
     }
-    await useRunStore.getState().setTaskState(taskState);
+    await runStoreOf().getState().setTaskState(taskState);
 
     // Per-subtask runner. Three paths in priority order:
     //   1. workspace connected → agent tool loop (BYOK or server-Llama).
@@ -1382,6 +1406,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 subtaskId,
                 getJwt,
                 cheapModelId: selections.cheap,
+                convoId,
               });
             }
             if (toolPreset) {
@@ -1404,6 +1429,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
                 subtaskId,
                 getJwt,
                 cheapModelId: selections.cheap,
+                convoId,
               });
             }
             // No tool-capable preset survived (rare — server is always
@@ -1553,19 +1579,20 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
       // payoff is real fan-out on prompts like "compare A, B, C, then
       // summarise". Skill-level `plannerModelId` overrides this when set.
       defaultPlannerModelId: selections.cheap,
+      convoId,
     });
     await orch.run(text, taskState, {
       onPlan: async (plan, info) => {
-        await useRunStore.getState().patchTaskState((s) => {
+        await runStoreOf().getState().patchTaskState((s) => {
           s.plan = plan;
         });
-        await useRunStore.getState().patchRun({ status: 'running' });
+        await runStoreOf().getState().patchRun({ status: 'running' });
         const plannerLabel = predefinedPlan
           ? `Pack-defined plan (no planner LLM)`
           : info.source === 'server'
             ? 'Llama 3.1 8B (free)'
             : `${info.modelId} (managed fallback)`;
-        useRunStore.getState().setPlannerInfo({
+        runStoreOf().getState().setPlannerInfo({
           source: info.source,
           modelId: info.modelId,
           label: plannerLabel,
@@ -1580,7 +1607,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         // model chips, effort chips, and subtask outputs from there.
         // Chat bubble stays clean; final merged answer is the only
         // inline text the user sees.
-        await useRunStore.getState().upsertSubtask({
+        await runStoreOf().getState().upsertSubtask({
           id: s.id,
           runId: runId!,
           parentId: null,
@@ -1606,14 +1633,14 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         // Mirror taskState mutation into runStore so the Memory Snapshot
         // panel sees subtask counts. Orchestrator mutates the same
         // TaskState ref but Zustand needs a fresh reference to re-emit.
-        await useRunStore.getState().patchTaskState((st) => {
+        await runStoreOf().getState().patchTaskState((st) => {
           st.subtasks[s.id] = {
             ...(taskState.subtasks[s.id] ?? { status: 'running', instruction: s.instruction }),
           };
         });
       },
       onSubtaskDone: async (s, out) => {
-        await useRunStore.getState().patchSubtask(s.id, {
+        await runStoreOf().getState().patchSubtask(s.id, {
           status: 'done',
           output: out.text,
           reasoningTokens: out.reasoningTokens ?? null,
@@ -1622,7 +1649,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           retries: out.retries ?? 0,
           endedAt: Date.now(),
         });
-        await useRunStore.getState().patchTaskState((st) => {
+        await runStoreOf().getState().patchTaskState((st) => {
           st.subtasks[s.id] = { ...taskState.subtasks[s.id] };
           st.summaries = { ...taskState.summaries };
           st.facts = [...taskState.facts];
@@ -1633,7 +1660,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         // Phase 6 — escalation. Confidence heuristic flagged a low score,
         // bump (tier, effort) on the chip in real time so the user sees
         // the retry happen instead of staring at a stuck row.
-        await useRunStore.getState().patchSubtask(s.id, {
+        await runStoreOf().getState().patchSubtask(s.id, {
           presetJson: JSON.stringify(next.decision.preset),
           effort: next.decision.effort ?? null,
           retries: next.retries,
@@ -1641,11 +1668,11 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
         });
       },
       onSubtaskFailed: async (s, err) => {
-        const existing = useRunStore
+        const existing = runStoreOf()
           .getState()
           .subtasks.find((x) => x.id === s.id);
         if (existing) {
-          await useRunStore.getState().patchSubtask(s.id, {
+          await runStoreOf().getState().patchSubtask(s.id, {
             status: 'failed',
             error: err,
             endedAt: Date.now(),
@@ -1655,7 +1682,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
           // when a dep failed, never firing onSubtaskStart. Upsert the row
           // so the Run Trace shows step 3 of N as "failed: dependency
           // failed" instead of dropping it from the panel entirely.
-          await useRunStore.getState().upsertSubtask({
+          await runStoreOf().getState().upsertSubtask({
             id: s.id,
             runId: runId!,
             parentId: null,
@@ -1679,7 +1706,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
             endedAt: Date.now(),
           });
         }
-        await useRunStore.getState().patchTaskState((st) => {
+        await runStoreOf().getState().patchTaskState((st) => {
           st.subtasks[s.id] = { ...taskState.subtasks[s.id] };
         });
       },
@@ -1691,7 +1718,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
             actualRoute: 'workflow',
           });
         }
-        await useRunStore.getState().endRun('done');
+        await runStoreOf().getState().endRun('done');
         // Chat bubble shows ONLY the final synthesized answer. Plan,
         // per-subtask routing, model picks, and intermediate outputs
         // all live in the Run Trace panel — chat is the response
@@ -1716,7 +1743,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
             actualRoute: 'workflow',
           });
         }
-        await useRunStore.getState().endRun('failed', err.message);
+        await runStoreOf().getState().endRun('failed', err.message);
         // Phase 5 — credit-exhausted runs get a sentinel error so the UI
         // can render a "Top up & resume" button instead of a raw toast.
         // Detection is loose: the message can come from the friendly
@@ -1780,12 +1807,12 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // Outer catch: only surfaces if Orchestrator.run() rejected synchronously
     // (e.g. before the planner LLM call). On cancel we expect a silent return,
     // so guard against `signal.aborted` first.
-    if (useRunStore.getState().abort?.signal.aborted) {
+    if (runStoreOf().getState().abort?.signal.aborted) {
       set({ isLoading: false, error: null });
       return;
     }
     const msg = err instanceof Error ? err.message : String(err);
-    if (runId) await useRunStore.getState().endRun('failed', msg);
+    if (runId) await runStoreOf().getState().endRun('failed', msg);
     set({ error: msg, isLoading: false });
   } finally {
     // Restore the user's auto-accept preference + clear the Set-Run
@@ -1795,7 +1822,7 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
     // fires cleanly again with no leak.
     autoAcceptRestore?.();
     if (predefinedPlan) {
-      useAgentStore.getState().setSetRunActive(false);
+      agentStoreOf().getState().setSetRunActive(false);
     }
   }
 }
@@ -1804,7 +1831,17 @@ async function runOrchestratorMessage(deps: OrchestratorMessageDeps): Promise<vo
 // Store
 // ---------------------------------------------------------------------------
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export function createChatStore(convoId: string): UseBoundStore<StoreApi<ChatState>> {
+  // Helpers that resolve to THIS convo's sister stores rather than the
+  // currently-active one. Critical for true-parallel: a backgrounded
+  // chat must mutate its OWN runStore/agentStore even while the user is
+  // staring at a different conversation.
+  const agentStoreOf = (): UseBoundStore<StoreApi<AgentState>> =>
+    getStoresFor(convoId).agent as UseBoundStore<StoreApi<AgentState>>;
+  const runStoreOf = (): UseBoundStore<StoreApi<RunState>> =>
+    getStoresFor(convoId).run as UseBoundStore<StoreApi<RunState>>;
+  const store = create<ChatState>((set, get) => ({
+  convoId,
   messages: [],
   isLoading: false,
   error: null,
@@ -1826,7 +1863,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   stopGeneration: () => {
     // Run-store holds the AbortController for any orchestrator pass.
     // Aborting it propagates into in-flight tauriFetch + agent loops.
-    void useRunStore.getState().cancelRun();
+    void runStoreOf().getState().cancelRun();
     set({ isLoading: false });
   },
 
@@ -1956,7 +1993,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // The combined gate means the orchestrator only runs for free-form
     // multi-step prompts when no workspace is connected and no pack is
     // driving the message.
-    const workspace = useAgentStore.getState().workspace;
+    const workspace = agentStoreOf().getState().workspace;
     // Dispatch decision now driven by the LR `route` head.
     //   - `agent`    → tool loop, but only if a workspace is connected
     //                  (otherwise model can't actually act → degrades to chat)
@@ -2007,7 +2044,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       !packName &&
       !wantsAgent;
     if (shouldOrchestrate) {
-      const ws = useAgentStore.getState().workspace;
+      const ws = agentStoreOf().getState().workspace;
       trackEvent('orchestrator_dispatched', {
         decision: route,
       });
@@ -2027,6 +2064,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         billingTier,
         telemetryId,
         set,
+        convoId,
       });
       return;
     }
@@ -2316,6 +2354,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             patchAssistant,
             onBeforeRound,
             loopEffort,
+            convoId,
           );
         } else {
           // Managed-proxy agent path: pack runs without BYOK route here.
@@ -2366,6 +2405,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             patchAssistant,
             onBeforeRound,
             loopEffort,
+            convoId,
           );
         }
         // Record preset + telemetryId on the last assistant message
@@ -2542,7 +2582,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  clearMessages: () => set({ messages: [], error: null }),
+  clearMessages: () => {
+    // Wipe messages only — title left intact. User can rename
+    // manually via the sidebar pencil if needed. Rationale: clearing
+    // is "start a fresh thread in this slot", not "destroy identity";
+    // auto-renaming on every clear caused flashy title churn and
+    // overrode user-edited names. The persist subscriber detects
+    // deleted message ids and removes the SQLite rows.
+    set({ messages: [], error: null });
+  },
   clearError: () => set({ error: null }),
 
   /**
@@ -2555,7 +2603,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // re-run the orchestrator with `predefinedPlan`. The executor's
     // done-skip short-circuit means subtasks that already succeeded
     // don't repeat; only pending/failed ones run.
-    const runState = useRunStore.getState();
+    const runState = runStoreOf().getState();
     const ts = runState.taskState;
     const run = runState.run;
     if (!ts?.plan || !run) {
@@ -2575,7 +2623,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
-    const workspace = useAgentStore.getState().workspace;
+    const workspace = agentStoreOf().getState().workspace;
     set({ error: null });
     // Reset done counts on the runStore-side row so the UI flips
     // pending subtasks back into the queue. Done rows stay green.
@@ -2596,6 +2644,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // done-skip path sees prior outputs.
       resumeTaskState: ts,
       set,
+      convoId,
     });
   },
 
@@ -2622,7 +2671,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const available = await getAvailableProvidersAsync(
       (apiKeys ?? {}) as Record<string, string | undefined>,
     );
-    const workspace = useAgentStore.getState().workspace;
+    const workspace = agentStoreOf().getState().workspace;
 
     // Optional skillset.md — project rules the user drops into the
     // workspace root that every subtask in the pack must follow. The
@@ -2742,7 +2791,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Publish the execution decision to runStore so the Run Trace panel
     // can show the mode + reason. Done before runOrchestratorMessage so
     // the chip appears as soon as the run starts.
-    useRunStore.getState().setExecutionDecision(execDecision);
+    runStoreOf().getState().setExecutionDecision(execDecision);
 
     // Telemetry — log the pack as one workflow event so retraining
     // sees pack runs as `workflow` ground truth.
@@ -2777,6 +2826,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       extraContext,
       projectInstructions,
       set,
+      convoId,
     });
   },
 
@@ -2816,4 +2866,123 @@ export const useChatStore = create<ChatState>((set, get) => ({
       userMsg.attachments,
     );
   },
-}));
+  }));
+
+  // Auto-title: when the first user message lands in a convo whose
+  // title is still a default placeholder ("Chat N" / "New chat"),
+  // rename it to a slugged preview of that message so the dropdown
+  // shows what the chat is about. Idempotent — only fires once per
+  // convo (subsequent messages skip via the title check).
+  const DEFAULT_TITLE_RE = /^(Chat( \d+)?|New chat|Untitled chat)$/;
+  const autoTitle = (text: string): void => {
+    if (convoId === BOOT_CONVO_ID) return;
+    void import('./conversationsStore').then(({ useConversationsStore }) => {
+      const convo = useConversationsStore
+        .getState()
+        .conversations.find((c) => c.id === convoId);
+      if (!convo) return;
+      if (!DEFAULT_TITLE_RE.test(convo.title)) return;
+      const cleaned = text.replace(/\s+/g, ' ').trim();
+      if (!cleaned) return;
+      const next = cleaned.slice(0, 48) + (cleaned.length > 48 ? '…' : '');
+      void useConversationsStore.getState().rename(convoId, next);
+    }).catch(() => {});
+  };
+
+  // Persist message inserts/updates to SQLite under this convo.
+  // Skip the BOOT sentinel (no real row exists for it). Cheap diff:
+  // every state tick, persist any message whose id is new or whose
+  // serialized form changed since the last persist. ON CONFLICT UPDATE
+  // in chat_message_insert makes re-persists idempotent.
+  if (convoId !== BOOT_CONVO_ID) {
+    const persisted = new Map<string, string>();
+    const serialize = (m: ChatMessage): string =>
+      JSON.stringify({
+        c: m.content,
+        b: m.blocks ?? null,
+        mi: m.modelId ?? null,
+        t: m.tier ?? null,
+        e: m.effort ?? null,
+        us: m.userSignal ?? null,
+      });
+    store.subscribe((s, prev) => {
+      if (s.messages === prev.messages) return;
+      // Auto-title on first user message of the convo.
+      const prevHadUser = prev.messages.some((m) => m.role === 'user');
+      if (!prevHadUser) {
+        const firstUser = s.messages.find((m) => m.role === 'user');
+        if (firstUser) autoTitle(firstUser.content);
+      }
+      for (const msg of s.messages) {
+        const sig = serialize(msg);
+        if (persisted.get(msg.id) === sig) continue;
+        persisted.set(msg.id, sig);
+        void import('./conversationsStore').then(({ useConversationsStore }) => {
+          void useConversationsStore.getState().persistMessage({
+            conversationId: convoId,
+            id: msg.id,
+            role: msg.role,
+            content: msg.content,
+            blocksJson: msg.blocks ? JSON.stringify(msg.blocks) : null,
+            modelId: msg.modelId ?? null,
+            tier: msg.tier ?? null,
+            effort: msg.effort ?? null,
+            packName: msg.packName ?? null,
+            attachmentsJson: msg.attachments ? JSON.stringify(msg.attachments) : null,
+            telemetryId: msg.telemetryId ?? null,
+            userSignal: msg.userSignal ?? null,
+            createdAt: msg.createdAt,
+          });
+        }).catch(() => {});
+      }
+      // Detect deletions (retryFromAssistant drops failed assistant rows).
+      const liveIds = new Set(s.messages.map((m) => m.id));
+      for (const id of persisted.keys()) {
+        if (!liveIds.has(id)) {
+          persisted.delete(id);
+          void import('@tauri-apps/api/core').then(({ invoke }) =>
+            invoke('chat_message_delete', { id }).catch(() => {}),
+          );
+        }
+      }
+    });
+  }
+
+  return store;
+}
+
+registerChatFactory(createChatStore);
+
+function activeChatStore(): UseBoundStore<StoreApi<ChatState>> {
+  return getStoresFor(getActiveConvoId()).chat as UseBoundStore<StoreApi<ChatState>>;
+}
+
+/**
+ * Active-conversation router for chatStore. See agentStore.ts for the
+ * same pattern. Components subscribing via this hook automatically
+ * re-render when the active conversation changes — zustand re-binds
+ * because the underlying store reference flips.
+ */
+export const useChatStore: UseBoundStore<StoreApi<ChatState>> = (
+  <T,>(selector?: (s: ChatState) => T): T => {
+    const activeId = useConversationsStore((s) => s.activeId) ?? BOOT_CONVO_ID;
+    const store = getStoresFor(activeId).chat as UseBoundStore<StoreApi<ChatState>>;
+    return selector ? store(selector) : (store.getState() as T);
+  }
+) as unknown as UseBoundStore<StoreApi<ChatState>>;
+
+useChatStore.getState = (): ChatState => activeChatStore().getState();
+useChatStore.setState = ((
+  partial: Partial<ChatState> | ChatState | ((s: ChatState) => Partial<ChatState> | ChatState),
+  replace?: boolean,
+): void => {
+  const store = activeChatStore();
+  if (replace === true) {
+    (store.setState as unknown as (p: ChatState, replace: true) => void)(partial as ChatState, true);
+  } else {
+    (store.setState as unknown as (p: Partial<ChatState>) => void)(partial as Partial<ChatState>);
+  }
+}) as StoreApi<ChatState>['setState'];
+useChatStore.subscribe = ((listener: (s: ChatState, prev: ChatState) => void) =>
+  activeChatStore().subscribe(listener)) as StoreApi<ChatState>['subscribe'];
+useChatStore.getInitialState = (): ChatState => activeChatStore().getInitialState();

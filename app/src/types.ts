@@ -149,6 +149,20 @@ export interface PromptVersion {
   savedAt: number;
 }
 
+// Skill Chat conversations (max 3 active, parallel runs).
+// Each row in SQLite `conversations` table maps to one slice of
+// chatStore/runStore/agentStore on the frontend.
+export interface Conversation {
+  id: string;
+  title: string;
+  workspace: string | null;
+  selectedPackId: string | null;
+  agentMode: boolean;
+  autoAcceptEdits: boolean;
+  lastActiveAt: number;
+  createdAt: number;
+}
+
 // Source metadata for UI
 export const SOURCE_META: Record<PromptSource, { label: string; color: string; icon: string }> = {
   chatgpt: { label: 'ChatGPT', color: '#10a37f', icon: '🤖' },

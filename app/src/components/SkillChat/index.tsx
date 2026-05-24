@@ -13,19 +13,21 @@ import { GitBar } from './GitBar';
 import { AttachmentBar } from './AttachmentBar';
 import { ToolBlock } from './ToolBlock';
 import { CopyButton } from '../Common/CopyButton';
-import { InfoModal } from '../Common/InfoModal';
 import { MarkdownText } from '../Common/MarkdownText';
 import { LoadingTips } from './LoadingTips';
 import { useRunStore } from '../../stores/runStore';
 import { SaveAsPackModal } from './SaveAsPackModal';
 import { Bookmark } from 'lucide-react';
-import type { MessageBlock } from '../../stores/chatStore';
+import type { MessageBlock, ChatMessage } from '../../stores/chatStore';
 import { getManagedModel, formatCreditRate } from '../../lib/managed-models';
 import { RunTracePanel } from './RunTrace/RunTracePanel';
 import { extractPackContext } from '../../lib/packExtractor';
 import { refreshCreditBalance } from '../../lib/creditSync';
 import { predictRouteWithConfidence } from '../../lib/classifierModel';
 import { detectWriteFileIntent } from '../../lib/agentTools';
+import { useConversationsStore } from '../../stores/conversationsStore';
+import { getStoresFor } from '../../stores/registry';
+import type { ChatState } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
   const matches = new Set<string>();
@@ -255,10 +257,99 @@ export function SkillChatPage() {
     initWorkspace();
   }, [initWorkspace]);
 
+  // Boot: load conversations from SQLite, lazy-create "Chat 1" if empty.
+  // Loads only once per session — list updates flow through the store
+  // afterwards. Failures fall back to the legacy in-memory single-thread
+  // behavior so the UI keeps working even if the conversations table is
+  // unreachable.
+  const conversations = useConversationsStore((s) => s.conversations);
+  const activeConvoId = useConversationsStore((s) => s.activeId);
+  const loadConversations = useConversationsStore((s) => s.load);
+  const createConversation = useConversationsStore((s) => s.create);
+  const loadConversationMessages = useConversationsStore((s) => s.loadMessages);
+  const conversationsBooted = useRef(false);
+
+  useEffect(() => {
+    if (conversationsBooted.current) return;
+    conversationsBooted.current = true;
+    void (async () => {
+      await loadConversations();
+      if (useConversationsStore.getState().conversations.length === 0) {
+        try {
+          await createConversation({ title: 'Chat 1' });
+        } catch (err) {
+          console.warn('[SkillChat] auto-create initial conversation failed', err);
+        }
+      }
+    })();
+  }, [loadConversations, createConversation]);
+
+  // Per-convo cold load — Phase 2 of multi-conversation.
+  // Each conversation has its own zustand instances (via factory registry),
+  // so switching doesn't snapshot/restore — the prior convo's stores keep
+  // running in the background. We only need to (a) cold-load messages from
+  // SQLite the first time a convo becomes active this session, and (b)
+  // hydrate its workspace from the conversation row.
+  const hydratedConvos = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeConvoId) return;
+    if (hydratedConvos.current.has(activeConvoId)) return;
+    hydratedConvos.current.add(activeConvoId);
+
+    // Hydrate workspace from the convo row into this convo's agentStore.
+    const convo = useConversationsStore
+      .getState()
+      .conversations.find((c) => c.id === activeConvoId);
+    if (convo?.workspace) {
+      useAgentStore.getState().setWorkspace(convo.workspace);
+    }
+    if (convo?.autoAcceptEdits) {
+      useAgentStore.getState().setAutoAcceptEdits(true);
+    }
+    // Hydrate selected pack from the convo row. setSelectedPackId
+    // writes back through conversationsStore.patch, so guard against
+    // an immediate re-write loop by comparing to the live value first.
+    if (convo?.selectedPackId) {
+      const syncState = useSyncStore.getState();
+      if (syncState.selectedPackId !== convo.selectedPackId) {
+        syncState.setSelectedPackId(convo.selectedPackId);
+      }
+    }
+
+    // Cold-load messages from SQLite.
+    void loadConversationMessages(activeConvoId).then((rows) => {
+      // Only apply if user hasn't closed this convo in the meantime.
+      const stillExists = useConversationsStore
+        .getState()
+        .conversations.some((c) => c.id === activeConvoId);
+      if (!stillExists) return;
+      const messages: ChatMessage[] = rows.map((r) => ({
+        id: r.id,
+        role: r.role,
+        content: r.content,
+        blocks: r.blocks_json ? JSON.parse(r.blocks_json) : undefined,
+        modelId: r.model_id ?? undefined,
+        tier: (r.tier ?? undefined) as never,
+        effort: (r.effort ?? undefined) as never,
+        packName: r.pack_name ?? undefined,
+        attachments: r.attachments_json ? JSON.parse(r.attachments_json) : undefined,
+        telemetryId: r.telemetry_id ?? undefined,
+        userSignal: (r.user_signal ?? undefined) as never,
+        createdAt: r.created_at,
+      }));
+      // Write into this specific convo's chatStore via registry to avoid
+      // racing with another switch.
+      const target = getStoresFor(activeConvoId).chat as unknown as {
+        setState: (p: Partial<ChatState>) => void;
+      };
+      target.setState({ messages });
+    });
+  }, [activeConvoId, loadConversationMessages]);
+  void conversations; // referenced via getState() above — keep dep cheap
+
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [showPackPicker, setShowPackPicker] = useState(false);
-  const [showWhyOneChat, setShowWhyOneChat] = useState(false);
   const [varGuardError, setVarGuardError] = useState<string | null>(null);
   const [saveAsPackText, setSaveAsPackText] = useState<string | null>(null);
 
@@ -654,25 +745,12 @@ export function SkillChatPage() {
         <div className={`flex items-center justify-between ${messages.length === 0 ? 'mb-6' : 'mb-2'}`}>
           {messages.length === 0 ? (
             <div>
-              <p
-                className="mb-2 text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Skill Chat
-              </p>
               <h2 className="text-[28px] font-medium tracking-[-0.02em] leading-none text-[var(--foreground)]">
                 One chat. Every model.
               </h2>
               <p className="mt-2 text-[13px] text-[var(--muted-foreground)] max-w-[58ch]">
                 Auto-routes each message to the cheapest capable model.
               </p>
-              <button
-                type="button"
-                onClick={() => setShowWhyOneChat(true)}
-                className="mt-1 inline-flex items-center gap-1 text-[12px] text-[var(--primary)] hover:underline focus:outline-none"
-              >
-                <Info size={11} /> Why one chat?
-              </button>
             </div>
           ) : (
             <div />
@@ -1685,27 +1763,6 @@ export function SkillChatPage() {
         onClose={() => setShowRunTrace(false)}
       />
 
-      <InfoModal
-        open={showWhyOneChat}
-        title="Why one chat?"
-        secondaryLabel="Got it"
-        onClose={() => setShowWhyOneChat(false)}
-      >
-        <p className="mb-2">
-          One chat, every model. <span className="text-[var(--foreground)]">Skill Chat</span> picks
-          the cheapest model that can actually answer — Fast for lookups, Balanced for normal
-          back-and-forth, Powerful when the question is hard.
-        </p>
-        <p className="mb-2">
-          No more tab-juggling between providers. Old turns roll out of context automatically, so a
-          long thread doesn't get more expensive every reply.
-        </p>
-        <p className="mb-2">
-          Catch yourself retyping a prompt? Bookmark it and{' '}
-          <span className="text-[var(--foreground)]">save it as a Skill</span>. Skills run with one
-          click and accept variables, so the workflow lives outside the chat — not buried in it.
-        </p>
-      </InfoModal>
 
       <SaveAsPackModal
         open={saveAsPackText !== null}

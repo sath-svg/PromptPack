@@ -28,7 +28,8 @@ import {
   extractDepOutputsFromPrompt,
   type ToolIntent,
 } from './toolIntent';
-import { useRunStore } from '../../stores/runStore';
+import { getActiveConvoId, getStoresFor } from '../../stores/registry';
+import type { RunState } from '../../stores/runStore';
 
 // Hard cap on tool-loop rounds per subtask. 8 used to be the value but
 // observability traces showed a Tesla / Rivian / Lucid run where a
@@ -196,6 +197,14 @@ interface AgentSubtaskInput {
    * dependencies*, preserving DAG fan-out for independent subtasks.
    */
   subtaskId?: string;
+  /**
+   * Phase 2 multi-conversation: routes runStore mutations (intent cache,
+   * task-state diffs) to the OWNING conversation's slice. Falls back to
+   * the currently-active convo for legacy paths. dispatchTool inherits
+   * the same id via the agent loop's ctx so cross-store writes stay
+   * pinned to the originating chat.
+   */
+  convoId?: string;
 }
 
 /**
@@ -285,7 +294,7 @@ async function resolveSubtaskIntent(input: AgentSubtaskInput): Promise<ToolInten
   // fires read_file("fundamentals") → "parent dir not found".
   let priorArtifactPaths: string[] = [];
   try {
-    const ts = useRunStore.getState().taskState;
+    const ts = (getStoresFor(input.convoId ?? getActiveConvoId()).run.getState() as RunState).taskState;
     if (ts) priorArtifactPaths = ts.artifacts.map((a) => a.path);
   } catch {
     /* best-effort — empty list = resolver has no prior-files context */
@@ -304,7 +313,7 @@ async function resolveSubtaskIntent(input: AgentSubtaskInput): Promise<ToolInten
   // Publish to runStore so the Run Trace panel can render the contract.
   if (input.subtaskId) {
     try {
-      useRunStore.getState().setSubtaskIntent(input.subtaskId, intent);
+      (getStoresFor(input.convoId ?? getActiveConvoId()).run.getState() as RunState).setSubtaskIntent(input.subtaskId, intent);
     } catch {
       /* store update is best-effort */
     }
@@ -512,7 +521,7 @@ async function runAnthropicSubtask(
       if (block.type !== 'tool_use' || !block.id || !block.name) continue;
       try {
         const r = await dispatchTool(
-          { workspace: input.workspace, subtaskId: input.subtaskId },
+          { workspace: input.workspace, subtaskId: input.subtaskId, convoId: input.convoId },
           block.name,
           block.input ?? {},
         );
@@ -616,7 +625,7 @@ async function runAnthropicSubtask(
             }
             try {
               await dispatchTool(
-                { workspace: input.workspace, subtaskId: input.subtaskId },
+                { workspace: input.workspace, subtaskId: input.subtaskId, convoId: input.convoId },
                 block.name,
                 blockInput,
               );
@@ -782,7 +791,7 @@ async function runOpenAICompatSubtask(
       }
       try {
         const r = await dispatchTool(
-          { workspace: input.workspace, subtaskId: input.subtaskId },
+          { workspace: input.workspace, subtaskId: input.subtaskId, convoId: input.convoId },
           tc.function.name,
           parsed,
         );
@@ -891,7 +900,7 @@ async function runOpenAICompatSubtask(
           }
           try {
             await dispatchTool(
-              { workspace: input.workspace, subtaskId: input.subtaskId },
+              { workspace: input.workspace, subtaskId: input.subtaskId, convoId: input.convoId },
               tc.function.name,
               parsed,
             );

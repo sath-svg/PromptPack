@@ -179,6 +179,11 @@ pub struct Run {
     pub error: Option<String>,
     pub created_at: i64,
     pub ended_at: Option<i64>,
+    /// FK to conversations.id (SET NULL via app layer on conversation_delete).
+    /// Required to route runStore updates to the correct conversation slice
+    /// when multiple chats run in parallel. Optional for backwards-compat
+    /// with rows written before the migration.
+    pub conversation_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -186,6 +191,7 @@ pub struct CreateRunInput {
     pub skill_id: Option<String>,
     pub workspace: Option<String>,
     pub goal: String,
+    pub conversation_id: Option<String>,
 }
 
 #[tauri::command]
@@ -195,9 +201,9 @@ pub async fn run_create(app_handle: AppHandle, input: CreateRunInput) -> Result<
     let id = format!("run_{}_{}", ts, uuid::Uuid::new_v4().simple());
 
     conn.execute(
-        "INSERT INTO runs (id, skill_id, workspace, goal, status, total_credits, created_at)
-         VALUES (?1, ?2, ?3, ?4, 'queued', 0, ?5)",
-        params![&id, &input.skill_id, &input.workspace, &input.goal, ts],
+        "INSERT INTO runs (id, skill_id, workspace, goal, status, total_credits, created_at, conversation_id)
+         VALUES (?1, ?2, ?3, ?4, 'queued', 0, ?5, ?6)",
+        params![&id, &input.skill_id, &input.workspace, &input.goal, ts, &input.conversation_id],
     )
     .map_err(|e| e.to_string())?;
 
@@ -212,6 +218,7 @@ pub async fn run_create(app_handle: AppHandle, input: CreateRunInput) -> Result<
         error: None,
         created_at: ts,
         ended_at: None,
+        conversation_id: input.conversation_id,
     })
 }
 
@@ -257,7 +264,7 @@ pub async fn run_get(app_handle: AppHandle, id: String) -> Result<Option<Run>, S
     let row = conn
         .query_row(
             "SELECT id, skill_id, workspace, goal, status, total_credits,
-                    reserve_id, error, created_at, ended_at
+                    reserve_id, error, created_at, ended_at, conversation_id
              FROM runs WHERE id = ?1",
             params![&id],
             |r| {
@@ -272,6 +279,7 @@ pub async fn run_get(app_handle: AppHandle, id: String) -> Result<Option<Run>, S
                     error: r.get(7)?,
                     created_at: r.get(8)?,
                     ended_at: r.get(9)?,
+                    conversation_id: r.get(10)?,
                 })
             },
         )

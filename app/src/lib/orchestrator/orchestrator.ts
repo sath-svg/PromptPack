@@ -117,6 +117,10 @@ export interface OrchestratorDeps {
    * run.
    */
   defaultPlannerModelId?: string;
+  /** Phase 2 multi-conversation: identifies the originating chat so
+   *  per-subtask runStore/agentStore mutations land in the correct
+   *  slice. Forwarded to the executor and into every runSubtask call. */
+  convoId?: string;
 }
 
 export class Orchestrator {
@@ -201,6 +205,7 @@ export class Orchestrator {
           signal: haltController.signal,
           runSubtask: this.deps.runSubtask,
           runAbort: (_reason) => haltController.abort(),
+          convoId: this.deps.convoId,
           onSubtaskStart: async (id, decision) => {
             const s = byId.get(id);
             if (s) await ev.onSubtaskStart(s, decision);

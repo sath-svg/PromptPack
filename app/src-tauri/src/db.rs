@@ -214,8 +214,75 @@ pub async fn init_database(app_handle: &AppHandle) -> Result<(), DbError> {
         );
         CREATE INDEX IF NOT EXISTS idx_route_telemetry_created ON route_telemetry(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_route_telemetry_route ON route_telemetry(predicted_route);
+
+        -- Multi-conversation Skill Chat (max 3 concurrent, parallel runs).
+        -- Each row keys an independent slice of chatStore/runStore/agentStore.
+        CREATE TABLE IF NOT EXISTS conversations (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            workspace TEXT,
+            selected_pack_id TEXT,
+            agent_mode INTEGER DEFAULT 0,
+            auto_accept_edits INTEGER DEFAULT 0,
+            last_active_at INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_conversations_last_active ON conversations(last_active_at DESC);
+
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            blocks_json TEXT,
+            model_id TEXT,
+            tier TEXT,
+            effort TEXT,
+            pack_name TEXT,
+            attachments_json TEXT,
+            telemetry_id TEXT,
+            user_signal TEXT,
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_chat_messages_convo ON chat_messages(conversation_id, created_at);
         "#,
     )?;
+
+    // Migration v1: add runs.conversation_id (FK SET NULL so historical runs
+    // survive when their conversation is deleted). ADD COLUMN has no
+    // IF NOT EXISTS, so gate via PRAGMA user_version.
+    let user_version: i64 = conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap_or(0);
+    if user_version < 1 {
+        // SQLite ALTER ADD COLUMN does not support REFERENCES inline reliably
+        // across versions; add the column plain + create an index. FK is
+        // logical (enforced at application layer).
+        let already_present: bool = conn
+            .prepare("PRAGMA table_info(runs)")
+            .and_then(|mut stmt| {
+                let rows = stmt.query_map([], |r| r.get::<_, String>(1))?;
+                let mut found = false;
+                for name in rows.flatten() {
+                    if name == "conversation_id" {
+                        found = true;
+                        break;
+                    }
+                }
+                Ok(found)
+            })
+            .unwrap_or(false);
+        if !already_present {
+            conn.execute("ALTER TABLE runs ADD COLUMN conversation_id TEXT", [])?;
+        }
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_runs_convo ON runs(conversation_id, created_at DESC)",
+            [],
+        )?;
+        conn.execute("PRAGMA user_version = 1", [])?;
+        log::info!("DB migration applied: user_version = 1 (runs.conversation_id)");
+    }
 
     log::info!("Database initialized at {:?}", db_path);
     Ok(())

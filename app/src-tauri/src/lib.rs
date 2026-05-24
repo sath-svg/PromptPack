@@ -1,6 +1,7 @@
 mod agent;
 mod auth;
 mod commands;
+mod conversations;
 mod crypto;
 mod db;
 mod orchestrator;
@@ -188,6 +189,15 @@ pub fn run() {
             telemetry::telemetry_export_route,
             telemetry::telemetry_get_route,
             telemetry::telemetry_clear_route,
+            conversations::conversation_list,
+            conversations::conversation_create,
+            conversations::conversation_update,
+            conversations::conversation_delete,
+            conversations::conversation_get,
+            conversations::chat_message_insert,
+            conversations::chat_message_list,
+            conversations::chat_message_delete,
+            conversations::chat_message_update_signal,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

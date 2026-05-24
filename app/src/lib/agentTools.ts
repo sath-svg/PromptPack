@@ -4,7 +4,21 @@
 // provider lives in chatStore.
 
 import { invoke } from '@tauri-apps/api/core';
-import { useAgentStore } from '../stores/agentStore';
+import type { StoreApi, UseBoundStore } from 'zustand';
+import { getActiveConvoId, getStoresFor } from '../stores/registry';
+import type { AgentState } from '../stores/agentStore';
+import type { RunState } from '../stores/runStore';
+
+// Phase 2 multi-conversation resolvers: route every tool-call mutation
+// to the OWNING conversation's stores (passed via ctx.convoId), not
+// whichever convo the user happens to be staring at. Falls back to the
+// active id for legacy single-thread paths.
+function agentStoreFor(ctx: { convoId?: string }): UseBoundStore<StoreApi<AgentState>> {
+  return getStoresFor(ctx.convoId ?? getActiveConvoId()).agent as UseBoundStore<StoreApi<AgentState>>;
+}
+function runStoreFor(ctx: { convoId?: string }): UseBoundStore<StoreApi<RunState>> {
+  return getStoresFor(ctx.convoId ?? getActiveConvoId()).run as UseBoundStore<StoreApi<RunState>>;
+}
 import { lspOpenFile, lspGetDiagnostics } from './lspClient';
 
 export interface ToolSpec {
@@ -297,6 +311,15 @@ interface ToolContext {
    * Undefined for ad-hoc agent turns outside a Set Run.
    */
   subtaskId?: string;
+  /**
+   * Phase 2 multi-conversation: scopes every agentStore/runStore
+   * mutation produced by this dispatch (pendingEdits, fetch cache,
+   * audit log) to the originating chat conversation. Without it a
+   * backgrounded chat's tool call would land in whatever convo the
+   * user is currently viewing. Default fallback is the active convo
+   * (legacy single-thread paths still work).
+   */
+  convoId?: string;
 }
 
 export interface ToolDispatchResult {
@@ -408,21 +431,17 @@ export async function dispatchTool(
   const auditStart = Date.now();
   const recordAudit = (ok: boolean, preview?: string) => {
     if (!ctx.subtaskId) return;
-    // Lazy import to avoid a circular dep between agentTools (used at
-    // module top) and runStore (which imports orchestrator types).
-    import('../stores/runStore')
-      .then(({ useRunStore }) => {
-        useRunStore.getState().appendSubtaskToolCall(ctx.subtaskId!, {
-          name,
-          arg: pickToolArg(name, input),
-          ok,
-          preview: preview?.slice(0, 120),
-          ts: auditStart,
-        });
-      })
-      .catch(() => {
-        /* recording is best-effort; never break a tool call on audit failure */
+    try {
+      runStoreFor(ctx).getState().appendSubtaskToolCall(ctx.subtaskId!, {
+        name,
+        arg: pickToolArg(name, input),
+        ok,
+        preview: preview?.slice(0, 120),
+        ts: auditStart,
       });
+    } catch {
+      /* recording is best-effort; never break a tool call on audit failure */
+    }
   };
 
   try {
@@ -443,22 +462,20 @@ export async function dispatchTool(
       if (writePaths?.path) {
         const { path, kind } = writePaths;
         const subtaskId = ctx.subtaskId;
-        import('../stores/runStore')
-          .then(({ useRunStore }) => {
-            void useRunStore.getState().patchTaskState((s) => {
-              // De-dup by (path, subtaskId) — repeat edit_file calls on
-              // the same file in one subtask shouldn't grow the list.
-              const exists = s.artifacts.some(
-                (a) => a.path === path && a.subtaskId === subtaskId,
-              );
-              if (!exists) {
-                s.artifacts.push({ kind, path, subtaskId });
-              }
-            });
-          })
-          .catch(() => {
-            /* best-effort */
+        try {
+          void runStoreFor(ctx).getState().patchTaskState((s) => {
+            // De-dup by (path, subtaskId) — repeat edit_file calls on
+            // the same file in one subtask shouldn't grow the list.
+            const exists = s.artifacts.some(
+              (a) => a.path === path && a.subtaskId === subtaskId,
+            );
+            if (!exists) {
+              s.artifacts.push({ kind, path, subtaskId });
+            }
           });
+        } catch {
+          /* best-effort */
+        }
       }
     }
     return result;
@@ -524,7 +541,7 @@ async function dispatchToolInner(
       } catch {
         // new file
       }
-      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+      const autoAccept = agentStoreFor(ctx).getState().autoAcceptEdits;
       // Auto-accept mode writes eagerly so `acceptEdit` only has to
       // push to the LSP. Ask mode stages — the user's click in the
       // DiffPanel is what triggers the actual `agent_write`. This
@@ -538,7 +555,7 @@ async function dispatchToolInner(
         });
       }
       const editId = makeId();
-      useAgentStore.getState().addPendingEdit({
+      agentStoreFor(ctx).getState().addPendingEdit({
         id: editId,
         path,
         before,
@@ -550,18 +567,18 @@ async function dispatchToolInner(
       // disk. Staged edits defer LSP work to `acceptEdit`.
       if (autoAccept) {
         try {
-          const probe = await useAgentStore.getState().probeLspForFile(path);
+          const probe = await agentStoreFor(ctx).getState().probeLspForFile(path);
           if (probe && (probe.kind === 'ready' || probe.kind === 'npx')) {
             await lspOpenFile(ctx.workspace, path, content);
             const diags = await lspGetDiagnostics(path);
             if (diags.length > 0) {
-              useAgentStore.getState().setEditDiagnostics(editId, diags);
+              agentStoreFor(ctx).getState().setEditDiagnostics(editId, diags);
             }
           }
         } catch {
           // ignore
         }
-        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+        agentStoreFor(ctx).getState().acceptEdit(editId).catch(() => {});
       }
       return {
         output: autoAccept
@@ -576,7 +593,7 @@ async function dispatchToolInner(
       const oldString = String(input.old_string);
       const newString = String(input.new_string);
       const replaceAll = Boolean(input.replace_all);
-      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+      const autoAccept = agentStoreFor(ctx).getState().autoAcceptEdits;
 
       // In ask mode we can't call `agent_edit` (Rust writes eagerly).
       // Read current content, compute `after` client-side, stage. The
@@ -597,7 +614,7 @@ async function dispatchToolInner(
           },
         );
         const editId = makeId();
-        useAgentStore.getState().addPendingEdit({
+        agentStoreFor(ctx).getState().addPendingEdit({
           id: editId,
           path,
           before: res.before,
@@ -609,12 +626,12 @@ async function dispatchToolInner(
           await lspOpenFile(ctx.workspace, path, res.after);
           const diags = await lspGetDiagnostics(path);
           if (diags.length > 0) {
-            useAgentStore.getState().setEditDiagnostics(editId, diags);
+            agentStoreFor(ctx).getState().setEditDiagnostics(editId, diags);
           }
         } catch {
           // ignore
         }
-        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+        agentStoreFor(ctx).getState().acceptEdit(editId).catch(() => {});
         return {
           output: `Replaced ${res.replaced} occurrence(s) in ${path}.`,
           pendingEditId: editId,
@@ -661,7 +678,7 @@ async function dispatchToolInner(
         };
       }
       const editId = makeId();
-      useAgentStore.getState().addPendingEdit({
+      agentStoreFor(ctx).getState().addPendingEdit({
         id: editId,
         path,
         before,
@@ -743,7 +760,7 @@ async function dispatchToolInner(
 
     case 'lsp_diagnostics': {
       const path = normalizeToolPath(input.path);
-      const probe = await useAgentStore.getState().probeLspForFile(path);
+      const probe = await agentStoreFor(ctx).getState().probeLspForFile(path);
       if (!probe) return { output: 'No LSP configured for this file type.' };
       if (probe.kind === 'installable') {
         return {
@@ -784,8 +801,7 @@ async function dispatchToolInner(
       // ~4K input tokens on the next round; cache hit is free.
       const cacheKey = `GET ${url}`;
       try {
-        const { useRunStore } = await import('../stores/runStore');
-        const cached = useRunStore.getState().getCachedFetch(cacheKey);
+        const cached = runStoreFor(ctx).getState().getCachedFetch(cacheKey);
         if (cached) {
           return { output: `[cache] ${cached}` };
         }
@@ -803,8 +819,7 @@ async function dispatchToolInner(
       const output = `${header}\n\n${truncate(res.body, 12000)}`;
       if (res.status >= 200 && res.status < 300) {
         try {
-          const { useRunStore } = await import('../stores/runStore');
-          useRunStore.getState().setCachedFetch(cacheKey, output);
+          runStoreFor(ctx).getState().setCachedFetch(cacheKey, output);
         } catch {
           /* best-effort cache populate */
         }
@@ -823,8 +838,7 @@ async function dispatchToolInner(
       const cacheKey = isCacheable ? `${method} ${url}` : null;
       if (cacheKey) {
         try {
-          const { useRunStore } = await import('../stores/runStore');
-          const cached = useRunStore.getState().getCachedFetch(cacheKey);
+          const cached = runStoreFor(ctx).getState().getCachedFetch(cacheKey);
           if (cached) {
             return { output: `[cache] ${cached}` };
           }
@@ -848,8 +862,7 @@ async function dispatchToolInner(
       const output = `${header}\n${headerLines}\n\n${truncate(res.body, 12000)}`;
       if (cacheKey && res.status >= 200 && res.status < 300) {
         try {
-          const { useRunStore } = await import('../stores/runStore');
-          useRunStore.getState().setCachedFetch(cacheKey, output);
+          runStoreFor(ctx).getState().setCachedFetch(cacheKey, output);
         } catch {
           /* best-effort */
         }
@@ -861,7 +874,7 @@ async function dispatchToolInner(
       const path = normalizeToolPath(input.path);
       const content = String(input.content ?? '');
       const title = input.title !== undefined ? String(input.title) : undefined;
-      const autoAccept = useAgentStore.getState().autoAcceptEdits;
+      const autoAccept = agentStoreFor(ctx).getState().autoAcceptEdits;
 
       if (autoAccept) {
         const res = await invoke<{ path: string; bytes: number; pages: number }>(
@@ -872,7 +885,7 @@ async function dispatchToolInner(
         // accept/reject UX as text edits. Auto-accept marks it
         // immediately so the badge clears in one tick.
         const editId = makeId();
-        useAgentStore.getState().addPendingEdit({
+        agentStoreFor(ctx).getState().addPendingEdit({
           id: editId,
           path,
           before: '',
@@ -881,7 +894,7 @@ async function dispatchToolInner(
           pdfPayload: { content, title },
           sourceSubtaskId: ctx.subtaskId,
         });
-        useAgentStore.getState().acceptEdit(editId).catch(() => {});
+        agentStoreFor(ctx).getState().acceptEdit(editId).catch(() => {});
         return {
           output: `Wrote PDF to ${res.path} (${res.pages} page${res.pages === 1 ? '' : 's'}, ${res.bytes} bytes).`,
           pendingEditId: editId,
@@ -891,7 +904,7 @@ async function dispatchToolInner(
       // Ask mode — stage. The Rust handler runs only after the user
       // clicks Accept in the DiffPanel.
       const editId = makeId();
-      useAgentStore.getState().addPendingEdit({
+      agentStoreFor(ctx).getState().addPendingEdit({
         id: editId,
         path,
         before: '',
@@ -913,7 +926,7 @@ async function dispatchToolInner(
       // model knows what surface to call when it needs a user-supplied
       // doc rather than a file it wrote earlier in the run.
       const path = normalizeToolPath(input.path);
-      const known = useAgentStore.getState().attachments;
+      const known = agentStoreFor(ctx).getState().attachments;
       if (known.length > 0 && !known.includes(path)) {
         const list = known.map((p) => `- ${p}`).join('\n');
         return {

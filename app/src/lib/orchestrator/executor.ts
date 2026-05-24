@@ -20,7 +20,7 @@ import { evaluateConfidence } from './confidence';
 import type { PlannerOutput, PlannerSubtask, TaskState } from './types';
 import type { ManagedTier } from '../managed-models';
 import type { ModelTier } from '../classifier';
-import { useAgentStore } from '../../stores/agentStore';
+import { getActiveConvoId, getStoresFor } from '../../stores/registry';
 
 const DEP_EDIT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -45,10 +45,12 @@ const DEP_EDIT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 async function waitForDepEditsResolved(
   depSubtaskIds: string[],
   signal?: AbortSignal,
+  convoId?: string,
 ): Promise<void> {
   if (depSubtaskIds.length === 0) return;
+  const agent = getStoresFor(convoId ?? getActiveConvoId()).agent;
   const isResolved = (): boolean => {
-    const edits = useAgentStore.getState().pendingEdits;
+    const edits = (agent.getState() as { pendingEdits: Record<string, { sourceSubtaskId?: string; accepted: boolean | null }> }).pendingEdits;
     return Object.values(edits)
       .filter(
         (e) => e.sourceSubtaskId && depSubtaskIds.includes(e.sourceSubtaskId),
@@ -82,8 +84,10 @@ async function waitForDepEditsResolved(
       );
       resolve();
     }, DEP_EDIT_WAIT_TIMEOUT_MS);
-    const unsub = useAgentStore.subscribe((s, prev) => {
-      if (s.pendingEdits === prev.pendingEdits) return;
+    const unsub = agent.subscribe((s, prev) => {
+      const sa = s as { pendingEdits: unknown };
+      const pa = prev as { pendingEdits: unknown };
+      if (sa.pendingEdits === pa.pendingEdits) return;
       if (!isResolved()) return;
       if (settled) return;
       cleanup();
@@ -120,6 +124,10 @@ export interface ExecutorDeps {
   jwt: string;
   selections: Record<ManagedTier, string>;
   signal?: AbortSignal;
+  /** Phase 2 multi-conversation: scopes agentStore subscriptions (the
+   *  dep-edit barrier) to the OWNING convo so a backgrounded pack run
+   *  doesn't deadlock on the user's currently-active chat. */
+  convoId?: string;
   /**
    * Hard ceiling on the routed tier for every subtask in this run.
    * Forwarded to `router.decide()`. Set Runs (predefinedPlan) use
@@ -253,7 +261,7 @@ export async function execute(
         // top of stale state. Independent subtasks (`depends_on: []`)
         // skip the wait entirely so DAG fan-out is preserved.
         if (subtask.depends_on.length > 0) {
-          await waitForDepEditsResolved(subtask.depends_on, deps.signal);
+          await waitForDepEditsResolved(subtask.depends_on, deps.signal, deps.convoId);
         }
 
         // Phase 5 — resume support. If the prior run already completed

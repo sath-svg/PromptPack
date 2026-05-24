@@ -124,12 +124,18 @@ export async function runCreate(input: {
   skillId?: string;
   workspace?: string;
   goal: string;
+  /** Phase 2 multi-conversation: scopes the run to the originating chat
+   *  conversation so the Run Trace UI and runs.conversation_id FK both
+   *  resolve to the right slice. Optional for legacy single-thread paths
+   *  during migration. */
+  conversationId?: string;
 }): Promise<Run> {
   const rust = await invoke<RustRun>('run_create', {
     input: {
       skill_id: input.skillId ?? null,
       workspace: input.workspace ?? null,
       goal: input.goal,
+      conversation_id: input.conversationId ?? null,
     },
   });
   return fromRustRun(rust);

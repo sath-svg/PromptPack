@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { ConversationSwitcher } from '../SkillChat/ConversationSwitcher';
 import logoIcon from '../../assets/skillset-logo.png';
 
 interface SidebarProps {
@@ -106,6 +107,15 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
               Chat
             </span>
           </button>
+
+          {/* Conversation list — inline, sidebar-native. Max 3 chats.
+              Only renders when the user is on the Chat page so the
+              sidebar nav stays compact while working in Skill Preset /
+              Marketplace / Settings. Also hidden in collapsed mode
+              (no room for titles). */}
+          {!isCollapsed && currentPage === 'chat' && (
+            <ConversationSwitcher onSwitch={() => onNavigate('chat')} />
+          )}
 
           <button
             onClick={() => onNavigate('draft')}

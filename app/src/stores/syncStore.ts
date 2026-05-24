@@ -2370,8 +2370,21 @@ export const useSyncStore = create<SyncState>()(
       // UI action to set selected pack. Also auto-syncs the pack's Skill
       // Flow workflow markdown into the connected workspace (if any) so
       // in-workspace agents can pick it up as a skill.
+      //
+      // Phase 2 multi-conversation: persist the selection on the active
+      // conversation row so a switch + restart restores the right pack.
+      // Dynamic import keeps syncStore free of a hard dep on
+      // conversationsStore (which loads after Convex auth bootstraps).
       setSelectedPackId: (packId: string | null) => {
         set({ selectedPackId: packId });
+        void import('./conversationsStore').then(({ useConversationsStore }) => {
+          const activeId = useConversationsStore.getState().activeId;
+          if (activeId) {
+            void useConversationsStore.getState().patch(activeId, {
+              selectedPackId: packId,
+            });
+          }
+        }).catch(() => {});
         // Fire-and-forget workspace sync — non-blocking
         void syncSelectedPackToWorkspace(packId, get);
       },

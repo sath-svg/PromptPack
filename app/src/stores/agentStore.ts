@@ -1,7 +1,15 @@
 // Agent state: workspace root, pending file edits awaiting accept/reject,
 // tool-call log, and LSP diagnostics surfaced into the chat panel.
+//
+// Per-conversation: each Skill Chat conversation gets its own agentStore
+// instance via `createAgentStore(convoId)`. The exported `useAgentStore`
+// is a router that delegates to the active conversation's instance — see
+// the bottom of this file for the wrapper. Cross-store code that knows
+// which convo it's operating on should call `getStoresFor(convoId).agent`
+// from `./registry.ts` instead of going through the active router.
 
 import { create } from 'zustand';
+import type { StoreApi, UseBoundStore } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import {
@@ -15,8 +23,13 @@ import {
   type LspAvailability,
   type LspDiagnostic,
 } from '../lib/lspClient';
-
-const WORKSPACE_KEY = 'skillset.agent.workspace';
+import {
+  BOOT_CONVO_ID,
+  getActiveConvoId,
+  getStoresFor,
+  registerAgentFactory,
+} from './registry';
+import { useConversationsStore } from './conversationsStore';
 
 /**
  * Fire a desktop Notification when the agent stages a write that the
@@ -102,7 +115,10 @@ export type LspInstallStatus =
   | { state: 'needs-install'; via: 'npm' | 'rustup' | 'go' | 'pip'; package: string }
   | { state: 'unavailable'; reason: string };
 
-interface AgentState {
+export interface AgentState {
+  /** Read-only — set at factory construction. Used by methods that need
+   *  to write back to the SQLite `conversations` row (workspace, etc.). */
+  convoId: string;
   workspace: string | null;
   pendingEdits: Record<string, PendingEdit>;
   toolCalls: Record<string, ToolCallRecord>;
@@ -155,7 +171,9 @@ interface AgentState {
   reset: () => void;
 }
 
-export const useAgentStore = create<AgentState>((set, get) => ({
+export function createAgentStore(convoId: string): UseBoundStore<StoreApi<AgentState>> {
+  return create<AgentState>((set, get) => ({
+  convoId,
   workspace: null,
   pendingEdits: {},
   toolCalls: {},
@@ -166,8 +184,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setRunActive: false,
 
   initWorkspace: () => {
-    const stored = localStorage.getItem(WORKSPACE_KEY);
-    if (stored) set({ workspace: stored });
+    // Phase-2 multi-conversation: workspace lives on the SQLite
+    // `conversations` row, hydrated by SkillChat/index.tsx on convo
+    // switch via setWorkspace. No-op here so the boot path doesn't
+    // double-write and accidentally clobber a freshly-restored value.
   },
 
   pickWorkspace: async () => {
@@ -194,8 +214,15 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         .catch(() => {});
     }
 
-    localStorage.setItem(WORKSPACE_KEY, path);
     set({ workspace: path });
+    // Persist back to the per-convo SQLite row so the choice survives
+    // restarts. Skipped for the BOOT sentinel — happens on app launch
+    // before any real convo exists.
+    if (convoId !== BOOT_CONVO_ID) {
+      void import('./conversationsStore').then(({ useConversationsStore }) => {
+        void useConversationsStore.getState().patch(convoId, { workspace: path });
+      }).catch(() => {});
+    }
     // Drop skillset.md into the workspace so the agent has stable
     // instructions to read on every session. Idempotent — won't
     // overwrite an existing file. Filename is lowercase to match the
@@ -217,8 +244,12 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     // Capture path BEFORE clearing state — needed for cleanup
     const oldWorkspace = get().workspace;
 
-    localStorage.removeItem(WORKSPACE_KEY);
     set({ workspace: null, attachments: [], autoAcceptEdits: false });
+    if (convoId !== BOOT_CONVO_ID) {
+      void import('./conversationsStore').then(({ useConversationsStore }) => {
+        void useConversationsStore.getState().patch(convoId, { workspace: null });
+      }).catch(() => {});
+    }
     lspShutdownAll().catch(() => {});
 
     // Remove .skillset/ + Skillset-Flow.md from the workspace. Dynamic
@@ -470,4 +501,44 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       attachments: [],
     });
   },
-}));
+  }));
+}
+
+// Register factory + boot instance so getStoresFor() / getActiveConvoId()
+// resolve cleanly before any conversation loads.
+registerAgentFactory(createAgentStore);
+
+/**
+ * Active-conversation router. Hook call subscribes to the active convo's
+ * agentStore instance; `getState` / `setState` / `subscribe` proxies
+ * forward to it too. Components/stores that have a known convoId in
+ * scope should use `getStoresFor(convoId).agent` instead — that returns
+ * the same instance directly without routing through the active id.
+ */
+function activeAgentStore(): UseBoundStore<StoreApi<AgentState>> {
+  return getStoresFor(getActiveConvoId()).agent as UseBoundStore<StoreApi<AgentState>>;
+}
+
+export const useAgentStore: UseBoundStore<StoreApi<AgentState>> = (
+  <T,>(selector?: (s: AgentState) => T): T => {
+    const activeId = useConversationsStore((s) => s.activeId) ?? BOOT_CONVO_ID;
+    const store = getStoresFor(activeId).agent as UseBoundStore<StoreApi<AgentState>>;
+    return selector ? store(selector) : (store.getState() as T);
+  }
+) as unknown as UseBoundStore<StoreApi<AgentState>>;
+
+useAgentStore.getState = (): AgentState => activeAgentStore().getState();
+useAgentStore.setState = ((
+  partial: Partial<AgentState> | AgentState | ((s: AgentState) => Partial<AgentState> | AgentState),
+  replace?: boolean,
+): void => {
+  const store = activeAgentStore();
+  if (replace === true) {
+    (store.setState as unknown as (p: AgentState, replace: true) => void)(partial as AgentState, true);
+  } else {
+    (store.setState as unknown as (p: Partial<AgentState>) => void)(partial as Partial<AgentState>);
+  }
+}) as StoreApi<AgentState>['setState'];
+useAgentStore.subscribe = ((listener: (s: AgentState, prev: AgentState) => void) =>
+  activeAgentStore().subscribe(listener)) as StoreApi<AgentState>['subscribe'];
+useAgentStore.getInitialState = (): AgentState => activeAgentStore().getInitialState();
