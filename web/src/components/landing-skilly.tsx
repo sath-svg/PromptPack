@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 
 type Mouth = "smile" | "o";
@@ -22,6 +23,11 @@ export function LandingSkilly({
   const [open, setOpen] = useState(false);
   const [mouth, setMouth] = useState<Mouth>("smile");
   const wrapRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  // Portal-positioned tooltip coords. Computed from Skilly's viewport rect
+  // so the tooltip escapes every ancestor's stacking context / overflow.
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   // Unique per-instance ID prefix — guards against two LandingSkilly mounts
   // colliding on gradient/filter IDs (browser picks the first match, which
   // ends up inside a display:none subtree and paints as empty).
@@ -29,9 +35,41 @@ export function LandingSkilly({
   const uid = rawId.replace(/:/g, "");
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Recompute tooltip position whenever it opens, on scroll, on resize.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const dialogW = window.innerWidth >= 768 ? 300 : 260;
+      const margin = 12;
+      // Tooltip uses position:fixed, so feed it viewport coords directly.
+      const top = r.bottom + margin;
+      const desired = tooltipSide === "right" ? r.left : r.right - dialogW;
+      // Keep tooltip inside viewport with 8px breathing room on each side.
+      const left = Math.max(8, Math.min(desired, window.innerWidth - dialogW - 8));
+      setPos({ top, left });
+    }
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, tooltipSide]);
+
+  useEffect(() => {
     if (!open) return;
     function onDown(e: MouseEvent) {
-      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (wrapRef.current?.contains(target)) return;
+      if (dialogRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -70,35 +108,33 @@ export function LandingSkilly({
         </span>
       </button>
 
-      {open && (
-        <div
-          role="dialog"
-          className={`absolute top-full ${
-            tooltipSide === "right" ? "left-0" : "right-0"
-          } mt-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]`}
-          style={{ animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)" }}
-        >
-          {/* Caret on top edge of tooltip, pointing up at Skilly */}
-          <span
-            aria-hidden
-            className={`absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-white/[0.08] bg-[#0f0f12] ${
-              tooltipSide === "right" ? "left-6" : "right-6"
-            }`}
-          />
-          <p className="text-[13.5px] leading-[1.5] text-zinc-200">
-            Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> — your AI buddy in Skillset.
-          </p>
-          <p className="mt-1.5 text-[12.5px] leading-[1.5] text-zinc-400">
-            Download now to meet me :)
-          </p>
-          <Link
-            href="/downloads"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3.5 py-1.5 text-[12px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-colors hover:bg-[#1d4ed8]"
+      {mounted && open && pos &&
+        createPortal(
+          <div
+            ref={dialogRef}
+            role="dialog"
+            className="pointer-events-auto fixed z-[9999] w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]"
+            style={{
+              top: pos.top,
+              left: pos.left,
+              animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)",
+            }}
           >
-            Get Skillset
-          </Link>
-        </div>
-      )}
+            <p className="text-[13.5px] leading-[1.5] text-zinc-200">
+              Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> — your AI buddy in Skillset.
+            </p>
+            <p className="mt-1.5 text-[12.5px] leading-[1.5] text-zinc-400">
+              Download now to meet me :)
+            </p>
+            <Link
+              href="/downloads"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3.5 py-1.5 text-[12px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-colors hover:bg-[#1d4ed8]"
+            >
+              Get Skillset
+            </Link>
+          </div>,
+          document.body,
+        )}
 
       <style>{`
         @keyframes skilly-float {
