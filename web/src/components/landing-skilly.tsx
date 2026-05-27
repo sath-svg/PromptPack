@@ -38,7 +38,9 @@ export function LandingSkilly({
   }, [open]);
 
   function handleClick() {
-    setOpen((v) => !v);
+    // Avoid functional-updater toggle: React StrictMode double-invokes the
+    // updater in dev, which would flip the state back to its previous value.
+    setOpen(!open);
     setMouth("o");
     window.setTimeout(() => setMouth("smile"), 450);
   }
@@ -70,7 +72,7 @@ export function LandingSkilly({
         <div
           role="dialog"
           className={`absolute top-full ${
-            tooltipSide === "right" ? "left-1/2 -translate-x-1/4" : "right-1/2 translate-x-1/4"
+            tooltipSide === "right" ? "left-0" : "right-0"
           } mt-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]`}
           style={{ animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)" }}
         >
@@ -78,7 +80,7 @@ export function LandingSkilly({
           <span
             aria-hidden
             className={`absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-white/[0.08] bg-[#0f0f12] ${
-              tooltipSide === "right" ? "left-10" : "right-10"
+              tooltipSide === "right" ? "left-6" : "right-6"
             }`}
           />
           <p className="text-[13.5px] leading-[1.5] text-zinc-200">
