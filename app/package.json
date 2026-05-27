@@ -12,7 +12,8 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "build:stickers": "node scripts/build-skilly-stickers.mjs",
-    "build:stickers:force": "node scripts/build-skilly-stickers.mjs --force"
+    "build:stickers:force": "node scripts/build-skilly-stickers.mjs --force",
+    "build:stickers:install": "npm i --no-save @ffmpeg-installer/ffmpeg @ffprobe-installer/ffprobe playwright"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.1",
@@ -49,9 +50,6 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4",
-    "@ffmpeg-installer/ffmpeg": "^1.1.0",
-    "@ffprobe-installer/ffprobe": "^2.1.2",
-    "playwright": "^1.49.0"
+    "vite": "^7.2.4"
   }
 }
