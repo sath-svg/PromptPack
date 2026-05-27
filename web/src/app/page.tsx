@@ -21,6 +21,7 @@ import {
 import type { Metadata } from "next";
 import { ChatVisual, PresetVisual, RouterVisual, WorkflowVisual, StepCaptureVisual, StepPackVisual, StepRunVisual } from "@/components/bento-visuals";
 import { AppMockupTabbed } from "@/components/app-mockup-tabbed";
+import { LandingSkilly } from "@/components/landing-skilly";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { PersonaCardView, type PersonaCard } from "@/components/skillsets/persona-card";
@@ -100,7 +101,8 @@ function Hero() {
 
       <div className="flex-1 flex items-center">
       <div className="relative w-full mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-5 py-10 md:gap-16 md:px-6 md:py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
-        <div className="flex flex-col">
+        <div className="relative flex flex-col">
+          <LandingSkilly />
           <div
             className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] text-[12px] text-zinc-400"
             style={{ fontFamily: "var(--font-geist-mono), monospace", padding: "4px 9px" }}

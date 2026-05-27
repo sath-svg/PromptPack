@@ -1,0 +1,186 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+
+type Mouth = "smile" | "o";
+
+export function LandingSkilly() {
+  const [open, setOpen] = useState(false);
+  const [mouth, setMouth] = useState<Mouth>("smile");
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function handleClick() {
+    setOpen((v) => !v);
+    setMouth("o");
+    window.setTimeout(() => setMouth("smile"), 450);
+  }
+
+  return (
+    <div
+      ref={wrapRef}
+      className="pointer-events-auto absolute z-30 select-none"
+      style={{ right: "-26px", bottom: "-18px" }}
+    >
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label="Meet Skilly"
+        className="group relative block h-[88px] w-[88px] cursor-pointer transition-transform duration-300 hover:-translate-y-1 md:h-[112px] md:w-[112px]"
+        style={{ animation: "skilly-float 4.2s ease-in-out infinite" }}
+      >
+        <SkillyFace mouth={mouth} />
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
+          style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+        >
+          tap me
+        </span>
+      </button>
+
+      {open && (
+        <div
+          role="dialog"
+          className="absolute bottom-full right-0 mb-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]"
+          style={{ animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)" }}
+        >
+          <p className="text-[13.5px] leading-[1.5] text-zinc-200">
+            Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> — your AI buddy in Skillset.
+          </p>
+          <p className="mt-1.5 text-[12.5px] leading-[1.5] text-zinc-400">
+            Download now to meet me :)
+          </p>
+          <Link
+            href="/downloads"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#2563EB] px-3.5 py-1.5 text-[12px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-colors hover:bg-[#1d4ed8]"
+          >
+            Get Skillset
+          </Link>
+          <span
+            aria-hidden
+            className="absolute -bottom-1.5 right-8 h-3 w-3 rotate-45 border-b border-r border-white/[0.08] bg-[#0f0f12]"
+          />
+        </div>
+      )}
+
+      <style>{`
+        @keyframes skilly-float {
+          0%, 100% { transform: translateY(0) rotate(-2deg); }
+          50%       { transform: translateY(-6px) rotate(2deg); }
+        }
+        @keyframes skilly-pop {
+          0%   { opacity: 0; transform: translateY(6px) scale(0.96); }
+          100% { opacity: 1; transform: translateY(0)   scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const STAR_OUTER = "58,14 78,56 106,42 88,76 98,108 58,86 18,112 30,78 10,50 40,50";
+const STAR_MID   = "58.3,21.7 75.3,57.4 99.1,45.5 83.8,74.4 92.3,101.6 58.3,82.9 24.3,105 34.5,76.1 17.5,52.3 43,52.3";
+const STAR_INNER = "58.7,31.9 71.7,59.2 89.9,50.1 78.2,72.2 84.7,93 58.7,78.7 32.7,95.6 40.5,73.5 27.5,55.3 47,55.3";
+
+function SkillyFace({ mouth }: { mouth: Mouth }) {
+  return (
+    <svg
+      viewBox="0 0 120 130"
+      xmlns="http://www.w3.org/2000/svg"
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ overflow: "visible" }}
+    >
+      <defs>
+        <radialGradient id="ls-outer" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="110">
+          <stop offset="0%" stopColor="#3658c2" />
+          <stop offset="50%" stopColor="#0d266b" />
+          <stop offset="100%" stopColor="#04143f" />
+        </radialGradient>
+        <radialGradient id="ls-mid" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="100">
+          <stop offset="0%" stopColor="#82a8ff" />
+          <stop offset="55%" stopColor="#2b6bff" />
+          <stop offset="100%" stopColor="#143fb0" />
+        </radialGradient>
+        <radialGradient id="ls-inner" gradientUnits="userSpaceOnUse" cx="40" cy="35" r="90">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="35%" stopColor="#dde9ff" />
+          <stop offset="70%" stopColor="#aac7ff" />
+          <stop offset="100%" stopColor="#8aa9dd" />
+        </radialGradient>
+        <radialGradient id="ls-shine" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="22">
+          <stop offset="0%" stopColor="white" stopOpacity="0.95" />
+          <stop offset="35%" stopColor="white" stopOpacity="0.45" />
+          <stop offset="70%" stopColor="white" stopOpacity="0.20" />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="ls-cl" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="6">
+          <stop offset="0%" stopColor="white" stopOpacity="1" />
+          <stop offset="40%" stopColor="white" stopOpacity="0.85" />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
+        </radialGradient>
+        <filter id="ls-shadow" x="-25%" y="-25%" width="150%" height="150%">
+          <feDropShadow dx="1.5" dy="3" stdDeviation="3.5" floodColor="#000000" floodOpacity="0.55" />
+        </filter>
+        <filter id="ls-wonky" x="-15%" y="-15%" width="130%" height="130%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="4" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" />
+        </filter>
+      </defs>
+
+      <g strokeLinejoin="round" strokeLinecap="round" filter="url(#ls-shadow)">
+        <polygon points={STAR_OUTER} fill="url(#ls-outer)" stroke="#0d266b" strokeWidth={22} />
+        <polygon points={STAR_MID}   fill="url(#ls-mid)"   stroke="#2b6bff" strokeWidth={16} />
+        <polygon points={STAR_INNER} fill="url(#ls-inner)" stroke="#aac7ff" strokeWidth={10} />
+      </g>
+
+      <g transform="translate(60 60)">
+        <ellipse cx="0" cy="0" rx="26" ry="20" fill="url(#ls-shine)" />
+        <ellipse cx="0" cy="0" rx="7"  ry="5"  fill="url(#ls-cl)" />
+      </g>
+
+      <ellipse cx="36" cy="74" rx="5" ry="2.8" fill="#ff8fb8" opacity="0.55" transform="rotate(-8 36 74)" />
+      <ellipse cx="84" cy="72" rx="4" ry="2.4" fill="#ff8fb8" opacity="0.5"  transform="rotate(6 84 72)" />
+
+      <g className="eye left">
+        <ellipse cx="48" cy="60" rx="6.2" ry="7" fill="#0d266b" />
+        <circle cx="49.5" cy="58" r="1.7" fill="white" />
+      </g>
+      <g className="eye right">
+        <ellipse cx="74" cy="63" rx="5.2" ry="6.2" fill="#0d266b" />
+        <circle cx="75.2" cy="61" r="1.5" fill="white" />
+      </g>
+
+      {mouth === "smile" && (
+        <path d="M 52 74 Q 60 83 70 77" stroke="#0d266b" strokeWidth={2.8} fill="none" strokeLinecap="round" />
+      )}
+      {mouth === "o" && <circle cx="60" cy="78" r="3" fill="#0d266b" />}
+
+      <g
+        fill="rgba(255,255,255,0.18)"
+        stroke="#0d266b"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        filter="url(#ls-wonky)"
+      >
+        <ellipse cx="48" cy="60" rx="11"  ry="10.5" transform="rotate(-6 48 60)" />
+        <ellipse cx="74" cy="63" rx="9.5" ry="9"    transform="rotate(4 74 63)" />
+        <path d="M 59 59 Q 62 56 66 61" fill="none" />
+        <path d="M 37 58 Q 32 56 28 55" fill="none" />
+        <path d="M 83.5 62 Q 88 60 91 59" fill="none" />
+        <path d="M 43 53 Q 46 50 51 54" stroke="white" strokeWidth="1.4" opacity="0.7" fill="none" />
+        <path d="M 69 56 Q 72 53 76 56" stroke="white" strokeWidth="1.2" opacity="0.65" fill="none" />
+      </g>
+    </svg>
+  );
+}
