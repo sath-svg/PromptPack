@@ -102,7 +102,12 @@ function Hero() {
       <div className="flex-1 flex items-center">
       <div className="relative w-full mx-auto grid max-w-[1400px] grid-cols-1 gap-10 px-5 py-10 md:gap-16 md:px-6 md:py-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-12">
         <div className="relative flex flex-col">
-          <LandingSkilly />
+          {/* Mobile: Skilly floats at top-left of hero copy */}
+          <LandingSkilly
+            className="absolute -top-2 -left-2 lg:hidden"
+            size={64}
+            tooltipSide="right"
+          />
           <div
             className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.02] text-[12px] text-zinc-400"
             style={{ fontFamily: "var(--font-geist-mono), monospace", padding: "4px 9px" }}
@@ -164,6 +169,12 @@ function Hero() {
 
         <div className="relative -mx-1 flex items-start justify-center pt-2 md:mx-0 md:justify-end md:pt-4">
           <AppMockupTabbed />
+          {/* Desktop: Skilly perches next to the Skill Chat tab pill */}
+          <LandingSkilly
+            className="absolute -left-12 top-0 hidden lg:block"
+            size={88}
+            tooltipSide="left"
+          />
         </div>
       </div>
       </div>

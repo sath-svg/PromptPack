@@ -5,7 +5,20 @@ import Link from "next/link";
 
 type Mouth = "smile" | "o";
 
-export function LandingSkilly() {
+interface LandingSkillyProps {
+  /** Outer wrapper classes — caller controls absolute/relative + offsets. */
+  className?: string;
+  /** Skilly visual size (px). Defaults to 88. */
+  size?: number;
+  /** Side the tooltip anchors to relative to Skilly. */
+  tooltipSide?: "left" | "right";
+}
+
+export function LandingSkilly({
+  className = "",
+  size = 88,
+  tooltipSide = "right",
+}: LandingSkillyProps) {
   const [open, setOpen] = useState(false);
   const [mouth, setMouth] = useState<Mouth>("smile");
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -26,22 +39,22 @@ export function LandingSkilly() {
   }
 
   return (
-    <div
-      ref={wrapRef}
-      className="pointer-events-auto absolute z-30 select-none"
-      style={{ right: "-26px", bottom: "-18px" }}
-    >
+    <div ref={wrapRef} className={`pointer-events-auto z-30 select-none ${className}`}>
       <button
         type="button"
         onClick={handleClick}
         aria-label="Meet Skilly"
-        className="group relative block h-[88px] w-[88px] cursor-pointer transition-transform duration-300 hover:-translate-y-1 md:h-[112px] md:w-[112px]"
-        style={{ animation: "skilly-float 4.2s ease-in-out infinite" }}
+        className="group relative block cursor-pointer transition-transform duration-300 hover:-translate-y-1"
+        style={{
+          width: size,
+          height: size,
+          animation: "skilly-float 4.2s ease-in-out infinite",
+        }}
       >
         <SkillyFace mouth={mouth} />
         <span
           aria-hidden
-          className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
+          className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
           tap me
@@ -51,7 +64,9 @@ export function LandingSkilly() {
       {open && (
         <div
           role="dialog"
-          className="absolute bottom-full right-0 mb-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]"
+          className={`absolute bottom-full ${
+            tooltipSide === "right" ? "left-1/2 -translate-x-1/4" : "right-1/2 translate-x-1/4"
+          } mb-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]`}
           style={{ animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)" }}
         >
           <p className="text-[13.5px] leading-[1.5] text-zinc-200">
@@ -68,7 +83,9 @@ export function LandingSkilly() {
           </Link>
           <span
             aria-hidden
-            className="absolute -bottom-1.5 right-8 h-3 w-3 rotate-45 border-b border-r border-white/[0.08] bg-[#0f0f12]"
+            className={`absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-white/[0.08] bg-[#0f0f12] ${
+              tooltipSide === "right" ? "left-10" : "right-10"
+            }`}
           />
         </div>
       )}
