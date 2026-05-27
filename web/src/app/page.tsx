@@ -116,7 +116,7 @@ function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2563EB] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
             </span>
-            <span>v1.3 — Skilly + one-click skill install</span>
+            <span>v1.3 — formerly PromptPack</span>
           </div>
 
           <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[60px] lg:text-[68px]">
@@ -169,10 +169,10 @@ function Hero() {
 
         <div className="relative -mx-1 flex items-start justify-center pt-2 md:mx-0 md:justify-end md:pt-4">
           <AppMockupTabbed />
-          {/* Desktop: Skilly perches next to the Skill Chat tab pill */}
+          {/* Desktop: Skilly perches to the left of the Skill Chat tab pill */}
           <LandingSkilly
-            className="absolute -left-12 top-0 hidden lg:block"
-            size={88}
+            className="absolute -left-32 -top-3 hidden lg:block"
+            size={104}
             tooltipSide="left"
           />
         </div>

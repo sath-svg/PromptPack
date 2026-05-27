@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 
 type Mouth = "smile" | "o";
@@ -22,6 +22,11 @@ export function LandingSkilly({
   const [open, setOpen] = useState(false);
   const [mouth, setMouth] = useState<Mouth>("smile");
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Unique per-instance ID prefix — guards against two LandingSkilly mounts
+  // colliding on gradient/filter IDs (browser picks the first match, which
+  // ends up inside a display:none subtree and paints as empty).
+  const rawId = useId();
+  const uid = rawId.replace(/:/g, "");
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +56,7 @@ export function LandingSkilly({
           animation: "skilly-float 4.2s ease-in-out infinite",
         }}
       >
-        <SkillyFace mouth={mouth} />
+        <SkillyFace mouth={mouth} uid={uid} />
         <span
           aria-hidden
           className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
@@ -64,11 +69,18 @@ export function LandingSkilly({
       {open && (
         <div
           role="dialog"
-          className={`absolute bottom-full ${
+          className={`absolute top-full ${
             tooltipSide === "right" ? "left-1/2 -translate-x-1/4" : "right-1/2 translate-x-1/4"
-          } mb-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]`}
+          } mt-3 w-[260px] rounded-2xl border border-white/[0.08] bg-[#0f0f12] p-4 shadow-[0_20px_50px_-20px_rgba(37,99,235,0.45)] md:w-[300px]`}
           style={{ animation: "skilly-pop 220ms cubic-bezier(0.16,1,0.3,1)" }}
         >
+          {/* Caret on top edge of tooltip, pointing up at Skilly */}
+          <span
+            aria-hidden
+            className={`absolute -top-1.5 h-3 w-3 rotate-45 border-l border-t border-white/[0.08] bg-[#0f0f12] ${
+              tooltipSide === "right" ? "left-10" : "right-10"
+            }`}
+          />
           <p className="text-[13.5px] leading-[1.5] text-zinc-200">
             Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> — your AI buddy in Skillset.
           </p>
@@ -81,12 +93,6 @@ export function LandingSkilly({
           >
             Get Skillset
           </Link>
-          <span
-            aria-hidden
-            className={`absolute -bottom-1.5 h-3 w-3 rotate-45 border-b border-r border-white/[0.08] bg-[#0f0f12] ${
-              tooltipSide === "right" ? "left-10" : "right-10"
-            }`}
-          />
         </div>
       )}
 
@@ -108,7 +114,14 @@ const STAR_OUTER = "58,14 78,56 106,42 88,76 98,108 58,86 18,112 30,78 10,50 40,
 const STAR_MID   = "58.3,21.7 75.3,57.4 99.1,45.5 83.8,74.4 92.3,101.6 58.3,82.9 24.3,105 34.5,76.1 17.5,52.3 43,52.3";
 const STAR_INNER = "58.7,31.9 71.7,59.2 89.9,50.1 78.2,72.2 84.7,93 58.7,78.7 32.7,95.6 40.5,73.5 27.5,55.3 47,55.3";
 
-function SkillyFace({ mouth }: { mouth: Mouth }) {
+function SkillyFace({ mouth, uid }: { mouth: Mouth; uid: string }) {
+  const idOuter = `ls-outer-${uid}`;
+  const idMid = `ls-mid-${uid}`;
+  const idInner = `ls-inner-${uid}`;
+  const idShine = `ls-shine-${uid}`;
+  const idCl = `ls-cl-${uid}`;
+  const idShadow = `ls-shadow-${uid}`;
+  const idWonky = `ls-wonky-${uid}`;
   return (
     <svg
       viewBox="0 0 120 130"
@@ -119,51 +132,51 @@ function SkillyFace({ mouth }: { mouth: Mouth }) {
       style={{ overflow: "visible" }}
     >
       <defs>
-        <radialGradient id="ls-outer" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="110">
+        <radialGradient id={idOuter} gradientUnits="userSpaceOnUse" cx="35" cy="30" r="110">
           <stop offset="0%" stopColor="#3658c2" />
           <stop offset="50%" stopColor="#0d266b" />
           <stop offset="100%" stopColor="#04143f" />
         </radialGradient>
-        <radialGradient id="ls-mid" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="100">
+        <radialGradient id={idMid} gradientUnits="userSpaceOnUse" cx="35" cy="30" r="100">
           <stop offset="0%" stopColor="#82a8ff" />
           <stop offset="55%" stopColor="#2b6bff" />
           <stop offset="100%" stopColor="#143fb0" />
         </radialGradient>
-        <radialGradient id="ls-inner" gradientUnits="userSpaceOnUse" cx="40" cy="35" r="90">
+        <radialGradient id={idInner} gradientUnits="userSpaceOnUse" cx="40" cy="35" r="90">
           <stop offset="0%" stopColor="#ffffff" />
           <stop offset="35%" stopColor="#dde9ff" />
           <stop offset="70%" stopColor="#aac7ff" />
           <stop offset="100%" stopColor="#8aa9dd" />
         </radialGradient>
-        <radialGradient id="ls-shine" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="22">
+        <radialGradient id={idShine} gradientUnits="userSpaceOnUse" cx="0" cy="0" r="22">
           <stop offset="0%" stopColor="white" stopOpacity="0.95" />
           <stop offset="35%" stopColor="white" stopOpacity="0.45" />
           <stop offset="70%" stopColor="white" stopOpacity="0.20" />
           <stop offset="100%" stopColor="white" stopOpacity="0" />
         </radialGradient>
-        <radialGradient id="ls-cl" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="6">
+        <radialGradient id={idCl} gradientUnits="userSpaceOnUse" cx="0" cy="0" r="6">
           <stop offset="0%" stopColor="white" stopOpacity="1" />
           <stop offset="40%" stopColor="white" stopOpacity="0.85" />
           <stop offset="100%" stopColor="white" stopOpacity="0" />
         </radialGradient>
-        <filter id="ls-shadow" x="-25%" y="-25%" width="150%" height="150%">
+        <filter id={idShadow} x="-25%" y="-25%" width="150%" height="150%">
           <feDropShadow dx="1.5" dy="3" stdDeviation="3.5" floodColor="#000000" floodOpacity="0.55" />
         </filter>
-        <filter id="ls-wonky" x="-15%" y="-15%" width="130%" height="130%">
+        <filter id={idWonky} x="-15%" y="-15%" width="130%" height="130%">
           <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="4" result="noise" />
           <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" />
         </filter>
       </defs>
 
-      <g strokeLinejoin="round" strokeLinecap="round" filter="url(#ls-shadow)">
-        <polygon points={STAR_OUTER} fill="url(#ls-outer)" stroke="#0d266b" strokeWidth={22} />
-        <polygon points={STAR_MID}   fill="url(#ls-mid)"   stroke="#2b6bff" strokeWidth={16} />
-        <polygon points={STAR_INNER} fill="url(#ls-inner)" stroke="#aac7ff" strokeWidth={10} />
+      <g strokeLinejoin="round" strokeLinecap="round" filter={`url(#${idShadow})`}>
+        <polygon points={STAR_OUTER} fill={`url(#${idOuter})`} stroke="#0d266b" strokeWidth={22} />
+        <polygon points={STAR_MID}   fill={`url(#${idMid})`}   stroke="#2b6bff" strokeWidth={16} />
+        <polygon points={STAR_INNER} fill={`url(#${idInner})`} stroke="#aac7ff" strokeWidth={10} />
       </g>
 
       <g transform="translate(60 60)">
-        <ellipse cx="0" cy="0" rx="26" ry="20" fill="url(#ls-shine)" />
-        <ellipse cx="0" cy="0" rx="7"  ry="5"  fill="url(#ls-cl)" />
+        <ellipse cx="0" cy="0" rx="26" ry="20" fill={`url(#${idShine})`} />
+        <ellipse cx="0" cy="0" rx="7"  ry="5"  fill={`url(#${idCl})`} />
       </g>
 
       <ellipse cx="36" cy="74" rx="5" ry="2.8" fill="#ff8fb8" opacity="0.55" transform="rotate(-8 36 74)" />
@@ -188,7 +201,7 @@ function SkillyFace({ mouth }: { mouth: Mouth }) {
         stroke="#0d266b"
         strokeWidth="2.4"
         strokeLinecap="round"
-        filter="url(#ls-wonky)"
+        filter={`url(#${idWonky})`}
       >
         <ellipse cx="48" cy="60" rx="11"  ry="10.5" transform="rotate(-6 48 60)" />
         <ellipse cx="74" cy="63" rx="9.5" ry="9"    transform="rotate(4 74 63)" />
