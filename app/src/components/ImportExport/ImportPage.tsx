@@ -118,7 +118,7 @@ export function ImportPage() {
         const newPack = await createUserPack(session.user_id, newPackTitle.trim(), parsedPrompts);
 
         if (newPack) {
-          setSuccess(`Successfully created pack "${newPack.title}" with ${parsedPrompts.length} prompts`);
+          setSuccess(`Successfully created set "${newPack.title}" with ${parsedPrompts.length} prompts`);
           setParsedPrompts([]);
           setShowPackSelector(false);
           setSelectedPackId(null);
@@ -287,12 +287,12 @@ export function ImportPage() {
             Select Destination Pack
           </h4>
           <p className="text-sm text-[var(--muted-foreground)] mb-4">
-            Choose which prompt pack to import {parsedPrompts.length} prompt{parsedPrompts.length !== 1 ? 's' : ''} into.
+            Choose which prompt set to import {parsedPrompts.length} prompt{parsedPrompts.length !== 1 ? 's' : ''} into.
           </p>
 
           {!session ? (
             <p className="text-sm text-[var(--muted-foreground)]">
-              Please sign in to import prompts into your packs.
+              Please sign in to import prompts into your sets.
             </p>
           ) : (
             <>
@@ -301,7 +301,7 @@ export function ImportPage() {
                 <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2">
                   <AlertCircle size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-amber-500">
-                    Free plan can only import into existing packs. Upgrade to Pro or Studio to create new packs.
+                    Free plan can only import into existing sets. Upgrade to Pro or Studio to create new sets.
                   </p>
                 </div>
               )}
@@ -340,12 +340,12 @@ export function ImportPage() {
                     <Lock size={20} className="text-[var(--muted-foreground)]" />
                   )}
                   <div className="flex-1 text-left">
-                    <p className="font-medium text-[var(--foreground)]">Create New Pack</p>
+                    <p className="font-medium text-[var(--foreground)]">Create New Set</p>
                     <p className="text-xs text-[var(--muted-foreground)]">
                       {canCreatePack ? (
                         maxCustomPacks === 0
                           ? 'Not available on Free plan'
-                          : `Import as a separate prompt pack (${currentUserPackCount}/${maxCustomPacks} used)`
+                          : `Import as a separate prompt set (${currentUserPackCount}/${maxCustomPacks} used)`
                       ) : (
                         getPackLimitMessage(tier, currentUserPackCount)
                       )}
@@ -388,13 +388,13 @@ export function ImportPage() {
               {createNewPack && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-[var(--foreground)] mb-2">
-                    Pack Name
+                    Set Name
                   </label>
                   <input
                     type="text"
                     value={newPackTitle}
                     onChange={(e) => setNewPackTitle(e.target.value)}
-                    placeholder="Enter pack name..."
+                    placeholder="Enter set name..."
                     className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
                   />
                 </div>
@@ -470,7 +470,7 @@ export function ImportPage() {
           <FileUp size={20} className="text-[var(--primary)]" />
           <div>
             <p className="font-medium text-[var(--foreground)]">.skill</p>
-            <p className="text-xs text-[var(--muted-foreground)]">Skillset format (also accepts legacy .pmtpk)</p>
+            <p className="text-xs text-[var(--muted-foreground)]">Skill Set format (also accepts legacy .pmtpk)</p>
           </div>
         </div>
       </div>

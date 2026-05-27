@@ -397,7 +397,7 @@ export function SkillControlPage() {
 
       {userPacks.length === 0 ? (
         <div className="text-center py-12 text-[var(--muted-foreground)]">
-          <p>No custom packs yet. Create a pack first to enable version control.</p>
+          <p>No custom sets yet. Create a set first to enable version control.</p>
         </div>
       ) : (
         <div className="space-y-2">

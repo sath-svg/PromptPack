@@ -1,7 +1,28 @@
+/**
+ * Skilly-led onboarding tour.
+ *
+ * Layout:
+ *   - Full-screen dim overlay.
+ *   - Hero-sized Skilly mascot anchored on the left.
+ *   - Speech bubble to his right contains the current step's title,
+ *     description, dot indicator, Skip / Next buttons.
+ *
+ * Animation:
+ *   - On mount: Skilly + bubble slide up from below (`intro` class).
+ *   - On final step "Let's go!" click: bubble fades out, then Skilly
+ *     translates from hero position down to the bottom-center
+ *     floating slot (matches `.skilly--floating` left/bottom in
+ *     skilly.css). When the translate finishes, `onComplete` fires —
+ *     `SkillyFloating` then mounts the real persistent Skilly there.
+ *
+ * Skipping mid-tour: same drop animation, just from whichever step
+ * the user bailed on.
+ */
+
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { SkillyFace } from '../Skilly/SkillyFace';
 
 interface TutorialStep {
-  target: string | null; // data-tutorial selector, null = centered (no highlight)
   title: string;
   description: string;
   finalAction?: string; // label for the final button instead of "Next"
@@ -9,303 +30,243 @@ interface TutorialStep {
 
 const STEPS: TutorialStep[] = [
   {
-    target: null,
-    title: 'Welcome to Skillset',
+    title: "Hi! I'm Skilly ✨",
     description:
-      "Save your prompts as portable skills, then run them across ChatGPT, Claude, Gemini — any AI tool. Quick tour to get you oriented.",
+      "I'm your AI companion — I'll show you around in 30 seconds. Save prompts as portable skills, run them across ChatGPT, Claude, Gemini — any tool. Let's go!",
   },
   {
-    target: '[data-tutorial="sign-in"]',
-    title: 'Sign in to sync',
+    title: 'Sign in so I can sync',
     description:
-      'Sign in to sync skills across devices, unlock the marketplace, and license your own skill packs.',
+      "Sign in first and I'll keep your skills synced across every device, unlock the marketplace, and track your seller earnings.",
   },
   {
-    target: '[data-tutorial="skill-chat"]',
-    title: 'Skill Chat — one chat, every model',
+    title: 'Skill Chat — one box, every model',
     description:
-      "Chat with every model from a single place. Skill Router auto-picks the cheapest capable model per turn (Haiku for routine, Sonnet for reasoning, Gemini for vision) so your bill doesn't balloon.",
+      "Talk to every model from one chat. I route each message to the cheapest capable one — Haiku for quick stuff, Sonnet for hard reasoning, Gemini when you paste images. Your bill stays tiny!",
   },
   {
-    target: '[data-tutorial="draft"]',
-    title: 'Draft & enhance prompts',
+    title: 'Draft & enhance with me',
     description:
-      'Draft prompts with auto-save. Use the enhancer to upgrade weak prompts. Save the final version into a Skillset for reuse.',
+      "Draft prompts here — I auto-save as you type. When one feels weak, hit my enhancer and I'll rewrite it. Save the final version into a Set and reuse it forever.",
   },
   {
-    target: '[data-tutorial="skill-preset"]',
-    title: 'Skill Preset — lock & license your style',
+    title: 'Lock your style into a Preset',
     description:
-      'Upload reference images. Vision LLM extracts your palette, line weight, and signature. Lock it into an encrypted preset — license it on the marketplace and earn royalties on every sale.',
+      "Drop reference images and I'll pull out your palette, line weight, and signature into an encrypted Preset. List it on the marketplace and earn royalties every time someone buys it.",
   },
   {
-    target: '[data-tutorial="your-skillsets"]',
     title: 'Your Skillsets',
     description:
-      'Bundle prompts into reusable skill packs with {variable} placeholders. Chain them as Skill Flows — output of step 1 feeds step 2. Run the whole sequence on demand.',
+      "Bundle prompts into reusable Sets with {variable} placeholders. Chain them into Skill Flows — output of step 1 feeds step 2. Run the whole pipeline with one click.",
   },
   {
-    target: '[data-tutorial="skill-control"]',
-    title: 'Skill Control — version your skills',
+    title: 'Marketplace — browse, buy, sell',
     description:
-      'Pro+ only. Every edit is versioned. Diff, branch, and roll back any skill like Git for prompts.',
+      "Browse Flows, Sets, and Presets from other creators. Buy with credits, filter by tag, save your favorite searches, and check ratings before grabbing. List your own and keep 70% of every sale — I'll handle payouts.",
   },
   {
-    target: '[data-tutorial="import"]',
-    title: 'Import skill packs',
+    title: 'Skill Control — version like Git',
     description:
-      'Import .pmtpk packs shared by others, or pull skills straight from the Chrome extension as you save them from ChatGPT, Claude, and Gemini.',
-    finalAction: 'Got it',
+      "Pro+ unlock. Every edit gets versioned. Diff, branch, and rollback any skill like Git for prompts — never lose a good revision again.",
+  },
+  {
+    title: 'Import sets from anywhere',
+    description:
+      "Import .skill files from friends, or pipe skills straight in from my Chrome extension as you save them from ChatGPT, Claude, and Gemini. See you inside!",
+    finalAction: "Let's go!",
   },
 ];
-
-interface Rect {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
 
 interface TutorialOverlayProps {
   onComplete: () => void;
 }
 
+/** Drop animation duration — must match the CSS transition below. */
+const DROP_MS = 700;
+
 export function TutorialOverlay({ onComplete }: TutorialOverlayProps) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [spotlightRect, setSpotlightRect] = useState<Rect | null>(null);
-  const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
-  const overlayRef = useRef<HTMLDivElement>(null);
+  // Animation phase: 'intro' = slide up from below on mount,
+  // 'live' = settled in hero pose, 'dropping' = sliding to floating slot.
+  const [phase, setPhase] = useState<'intro' | 'live' | 'dropping'>('intro');
+  const skillyHeroRef = useRef<HTMLDivElement>(null);
+  const dropTimeoutRef = useRef<number | null>(null);
 
-  // Compute the list of valid step indices (skip steps whose target element is missing)
-  const getValidSteps = useCallback((): number[] => {
-    const valid: number[] = [];
-    for (let i = 0; i < STEPS.length; i++) {
-      const step = STEPS[i];
-      if (!step.target) {
-        // Centered step (no target) is always valid
-        valid.push(i);
-      } else {
-        const el = document.querySelector(step.target);
-        if (el) valid.push(i);
-      }
-    }
-    return valid;
+  // Transition from intro → live after a brief settle so the slide-up
+  // animation actually plays (CSS animations only retrigger on class
+  // change, not on initial mount in some browsers).
+  useEffect(() => {
+    const id = window.setTimeout(() => setPhase('live'), 50);
+    return () => window.clearTimeout(id);
   }, []);
 
-  const [validSteps, setValidSteps] = useState<number[]>([]);
-
-  // Initialize valid steps on mount
+  // Cleanup any pending drop timeout on unmount.
   useEffect(() => {
-    const steps = getValidSteps();
-    if (steps.length === 0) {
-      // No valid steps at all, complete immediately
-      onComplete();
-      return;
-    }
-    setValidSteps(steps);
-    setCurrentStep(steps[0]);
-  }, [getValidSteps, onComplete]);
-
-  // Position the spotlight and tooltip for the current step
-  const positionElements = useCallback(() => {
-    const step = STEPS[currentStep];
-    if (!step) return;
-
-    if (!step.target) {
-      // Centered step: no spotlight
-      setSpotlightRect(null);
-      setTooltipStyle({
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      });
-      return;
-    }
-
-    const el = document.querySelector(step.target);
-    if (!el) {
-      // Element not found, skip to next valid step
-      advanceStep();
-      return;
-    }
-
-    const rect = el.getBoundingClientRect();
-    const padding = 8;
-    const spotlight: Rect = {
-      top: rect.top - padding,
-      left: rect.left - padding,
-      width: rect.width + padding * 2,
-      height: rect.height + padding * 2,
-    };
-    setSpotlightRect(spotlight);
-
-    // Calculate tooltip position: prefer below the element, fall back to above
-    const tooltipWidth = 340;
-    const tooltipHeight = 180;
-    const gap = 16;
-
-    let top: number;
-    let left: number;
-
-    const spaceBelow = window.innerHeight - (spotlight.top + spotlight.height);
-    const spaceAbove = spotlight.top;
-
-    if (spaceBelow >= tooltipHeight + gap) {
-      // Place below
-      top = spotlight.top + spotlight.height + gap;
-    } else if (spaceAbove >= tooltipHeight + gap) {
-      // Place above
-      top = spotlight.top - tooltipHeight - gap;
-    } else {
-      // Place centered vertically beside the element
-      top = Math.max(16, spotlight.top + spotlight.height / 2 - tooltipHeight / 2);
-    }
-
-    // Horizontal: center on the spotlight, clamped to viewport
-    left = spotlight.left + spotlight.width / 2 - tooltipWidth / 2;
-    left = Math.max(16, Math.min(left, window.innerWidth - tooltipWidth - 16));
-    top = Math.max(16, Math.min(top, window.innerHeight - tooltipHeight - 16));
-
-    setTooltipStyle({
-      position: 'fixed',
-      top: `${top}px`,
-      left: `${left}px`,
-      width: `${tooltipWidth}px`,
-    });
-  }, [currentStep]);
-
-  // Advance to the next valid step
-  const advanceStep = useCallback(() => {
-    const currentIndex = validSteps.indexOf(currentStep);
-    if (currentIndex === -1 || currentIndex >= validSteps.length - 1) {
-      // Last step or not found, complete
-      onComplete();
-    } else {
-      setCurrentStep(validSteps[currentIndex + 1]);
-    }
-  }, [currentStep, validSteps, onComplete]);
-
-  // Reposition on step change and window resize
-  useEffect(() => {
-    positionElements();
-
-    // Use ResizeObserver on the document body to catch layout changes
-    const resizeObserver = new ResizeObserver(() => {
-      positionElements();
-    });
-    resizeObserver.observe(document.body);
-
-    const handleResize = () => positionElements();
-    window.addEventListener('resize', handleResize);
-
     return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleResize);
+      if (dropTimeoutRef.current) window.clearTimeout(dropTimeoutRef.current);
     };
-  }, [positionElements]);
+  }, []);
 
-  // Don't render until valid steps are computed
-  if (validSteps.length === 0) return null;
+  const isLastStep = currentStep === STEPS.length - 1;
+  const nextLabel = isLastStep ? STEPS[currentStep].finalAction || 'Finish' : 'Next';
+
+  const advance = useCallback(() => {
+    if (isLastStep) {
+      finishWithDrop();
+    } else {
+      setCurrentStep((s) => s + 1);
+    }
+  }, [isLastStep]);
+
+  // Trigger the drop animation, then signal completion. Called by both
+  // Next-on-last-step and Skip.
+  const finishWithDrop = useCallback(() => {
+    setPhase('dropping');
+    dropTimeoutRef.current = window.setTimeout(() => {
+      onComplete();
+    }, DROP_MS);
+  }, [onComplete]);
 
   const step = STEPS[currentStep];
-  if (!step) return null;
 
-  const currentValidIndex = validSteps.indexOf(currentStep);
-  const isLastStep = currentValidIndex === validSteps.length - 1;
-  const nextLabel = isLastStep
-    ? step.finalAction || 'Finish'
-    : 'Next';
+  // Drop translate targets the floating slot defined in skilly.css:
+  //   .skilly--floating { left: 50%; bottom: 16px; transform: translateX(-50%); }
+  // Compute pixel offsets from the hero anchor to that slot at runtime,
+  // so the drop lands precisely regardless of viewport size.
+  const computeDropTransform = (): string => {
+    const el = skillyHeroRef.current;
+    if (!el) return 'translate(0, 0) scale(0.55)';
+    const rect = el.getBoundingClientRect();
+    const heroCenterX = rect.left + rect.width / 2;
+    const heroCenterY = rect.top + rect.height / 2;
+    // Floating slot: viewport-center horizontally, 16 + 60 (half height) up.
+    const targetX = window.innerWidth / 2;
+    const targetY = window.innerHeight - 16 - 60;
+    const dx = targetX - heroCenterX;
+    const dy = targetY - heroCenterY;
+    return `translate(${dx}px, ${dy}px) scale(0.55)`;
+  };
+
+  const heroTransform =
+    phase === 'dropping'
+      ? computeDropTransform()
+      : phase === 'intro'
+        ? 'translateY(40px) scale(0.9)'
+        : 'translate(0, 0) scale(1)';
+
+  const heroOpacity = phase === 'intro' ? 0 : 1;
+  const bubbleVisible = phase === 'live';
 
   return (
     <div
-      ref={overlayRef}
-      className="fixed inset-0"
-      style={{ zIndex: 9999 }}
+      className="fixed inset-0 flex items-center justify-center pointer-events-auto"
+      style={{
+        zIndex: 9999,
+        background: 'rgba(5, 8, 22, 0.78)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+        transition: `background ${DROP_MS}ms ease-out, backdrop-filter ${DROP_MS}ms ease-out`,
+        ...(phase === 'dropping' && {
+          background: 'rgba(5, 8, 22, 0)',
+          backdropFilter: 'blur(0)',
+          WebkitBackdropFilter: 'blur(0)',
+          pointerEvents: 'none' as const,
+        }),
+      }}
+      onClick={(e) => e.stopPropagation()}
     >
-      {/* Dark overlay with spotlight cutout */}
-      {spotlightRect ? (
-        <div
-          className="absolute rounded-lg"
-          style={{
-            top: spotlightRect.top,
-            left: spotlightRect.left,
-            width: spotlightRect.width,
-            height: spotlightRect.height,
-            boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7)',
-            zIndex: 9999,
-            pointerEvents: 'none',
-          }}
-        />
-      ) : (
-        /* No spotlight: full dark overlay */
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            zIndex: 9999,
-            pointerEvents: 'none',
-          }}
-        />
-      )}
-
-      {/* Click blocker - covers everything except the tooltip */}
       <div
-        className="absolute inset-0"
-        style={{ zIndex: 10000 }}
-        onClick={(e) => {
-          // Block clicks on the overlay itself
-          e.stopPropagation();
-        }}
-      />
-
-      {/* Tooltip card */}
-      <div
-        className="bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl p-5"
-        style={{
-          ...tooltipStyle,
-          zIndex: 10001,
-        }}
+        className="flex items-center gap-6 sm:gap-10 max-w-3xl px-6"
+        style={{ pointerEvents: 'auto' }}
       >
-        {/* Step indicator */}
-        <div className="flex items-center gap-1.5 mb-3">
-          {validSteps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i <= currentValidIndex
-                  ? 'bg-[var(--primary)] w-6'
-                  : 'bg-[var(--border)] w-3'
-              }`}
-            />
-          ))}
-          <span className="ml-auto text-xs text-[var(--muted-foreground)]">
-            {currentValidIndex + 1} / {validSteps.length}
-          </span>
+        {/* Hero Skilly — slides up on mount, drops to floating slot on finish. */}
+        <div
+          ref={skillyHeroRef}
+          style={{
+            width: 200,
+            height: 220,
+            flexShrink: 0,
+            transform: heroTransform,
+            opacity: heroOpacity,
+            transition: `transform ${
+              phase === 'dropping' ? DROP_MS : 500
+            }ms cubic-bezier(.34,1.56,.64,1), opacity 400ms ease-out`,
+          }}
+        >
+          <SkillyFace mouth="smile" eyesMode="normal" />
         </div>
 
-        {/* Content */}
-        <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-          {step.title}
-        </h3>
-        <p className="text-sm text-[var(--muted-foreground)] leading-relaxed mb-4">
-          {step.description}
-        </p>
+        {/* Speech bubble — points left toward Skilly. Hidden during drop
+            so the user's eye follows the mascot, not stale text. */}
+        <div
+          style={{
+            position: 'relative',
+            background: 'var(--card)',
+            border: '1px solid var(--border)',
+            borderRadius: 20,
+            padding: '20px 22px',
+            maxWidth: 360,
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.45)',
+            opacity: bubbleVisible ? 1 : 0,
+            transform: bubbleVisible ? 'translateX(0)' : 'translateX(-12px)',
+            transition: 'opacity 300ms ease-out, transform 300ms ease-out',
+            pointerEvents: bubbleVisible ? 'auto' : 'none',
+          }}
+        >
+          {/* Bubble tail pointing left toward Skilly */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: -10,
+              top: 40,
+              width: 0,
+              height: 0,
+              borderTop: '10px solid transparent',
+              borderBottom: '10px solid transparent',
+              borderRight: '10px solid var(--card)',
+              filter: 'drop-shadow(-1px 0 0 var(--border))',
+            }}
+          />
 
-        {/* Actions */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={onComplete}
-            className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          >
-            Skip tour
-          </button>
-          <button
-            onClick={advanceStep}
-            className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity"
-          >
-            {nextLabel}
-          </button>
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5 mb-3">
+            {STEPS.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i <= currentStep
+                    ? 'bg-[var(--primary)] w-6'
+                    : 'bg-[var(--border)] w-3'
+                }`}
+              />
+            ))}
+            <span className="ml-auto text-xs text-[var(--muted-foreground)]">
+              {currentStep + 1} / {STEPS.length}
+            </span>
+          </div>
+
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
+            {step.title}
+          </h3>
+          <p className="text-sm text-[var(--muted-foreground)] leading-relaxed mb-4">
+            {step.description}
+          </p>
+
+          <div className="flex items-center justify-between">
+            <button
+              onClick={finishWithDrop}
+              className="text-sm text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+            >
+              Skip tour
+            </button>
+            <button
+              onClick={advance}
+              className="px-4 py-2 text-sm font-medium rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity"
+            >
+              {nextLabel}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ mod commands;
 mod conversations;
 mod crypto;
 mod db;
+mod messenger;
 mod orchestrator;
 mod telemetry;
 
@@ -37,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(commands::AuthState::default())
         .manage(agent::LspState::default())
+        .manage(messenger::TelegramState::default())
         .manage(commands::HttpClient(
             reqwest::Client::builder()
                 // Reasoning-capable models can spend several minutes
@@ -198,6 +200,13 @@ pub fn run() {
             conversations::chat_message_list,
             conversations::chat_message_delete,
             conversations::chat_message_update_signal,
+            messenger::messenger_telegram_test_token,
+            messenger::messenger_telegram_start,
+            messenger::messenger_telegram_stop,
+            messenger::messenger_telegram_is_running,
+            messenger::messenger_telegram_send_reply,
+            messenger::messenger_telegram_send_sticker,
+            messenger::messenger_telegram_set_commands,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -8,8 +8,10 @@ import {
   Boxes,
   Briefcase,
   Code2,
+  Download,
   GitBranch,
   GraduationCap,
+  Heart,
   Megaphone,
   MessagesSquare,
   Palette,
@@ -107,7 +109,7 @@ function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#2563EB] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
             </span>
-            <span>v1.2 — formerly PromptPack</span>
+            <span>v1.3 — Skilly + one-click skill install</span>
           </div>
 
           <h1 className="text-[38px] font-medium leading-[1.02] tracking-[-0.025em] text-zinc-50 sm:text-[44px] md:text-[60px] lg:text-[68px]">
@@ -492,10 +494,10 @@ function CoreFeatures() {
             id="bento-chat"
             icon={<MessagesSquare strokeWidth={1.75} className="h-5 w-5" />}
             eyebrow="Skill Chat"
-            title="One chat. Every model."
+            title="One chat. Every model. Now triple-threaded."
             body={
               <>
-                Skills and chat in one place — no tab-switching. Ask a big question, and Skill Chat puts multiple AIs on it in parallel — each working on the part it&rsquo;s best at. Auto-picks the cheapest model per step (see{" "}
+                Skills and chat in one place — no tab-switching. Run <strong className="font-semibold text-zinc-100">up to 3 conversations in true parallel</strong>, each on a different model. Auto-picks the cheapest model per step (see{" "}
                 <a
                   href="#bento-router"
                   className="text-[#7BA7FF] underline decoration-[#7BA7FF]/40 underline-offset-2 transition-colors hover:text-zinc-50 hover:decoration-zinc-50"
@@ -709,6 +711,18 @@ function HowItWorks() {
 
 function PowerFeatures() {
   const items = [
+    {
+      icon: <Download strokeWidth={1.75} className="h-5 w-5" />,
+      eyebrow: "Skill Install · new in v1.3",
+      title: "Install any skillset into Claude Code, Cursor, or AGENTS.md.",
+      body: "One click writes your skillset straight into your project — SKILL.md for Claude Code, .cursor/rules for Cursor, or an AGENTS.md section for Codex. Workflows, folders, and presets all supported. Your skills become native files your coding agents already know how to read.",
+    },
+    {
+      icon: <Heart strokeWidth={1.75} className="h-5 w-5" />,
+      eyebrow: "Skilly · new in v1.3",
+      title: "Meet Skilly — your AI pet inside the app.",
+      body: "A tamagotchi-style companion that lives in the sidebar. Keep him fed, happy, and rested as you work. Drag him anywhere, send him to sleep, wake him up. Optional — toggle off in Settings if you'd rather work solo.",
+    },
     {
       icon: <GitBranch strokeWidth={1.75} className="h-5 w-5" />,
       eyebrow: "Skill Control",
@@ -938,7 +952,7 @@ function FaqSection() {
     },
     {
       q: "Does this replace ChatGPT / Claude / Cursor?",
-      a: "Complementary. Built to sit next to ChatGPT, Claude, and Cursor via a one-click export. Any Skillset converts to a skill.md file you can drop into ChatGPT, Claude, or Cursor directly — button lives on every skillset.",
+      a: "Complementary. Sits next to them. New in v1.3: one-click \"Install Skill\" writes your skillset directly into Claude Code (SKILL.md), Cursor (.cursor/rules), or AGENTS.md for Codex — works with workflows, folders, and presets. Pick a project, click install, done.",
     },
     {
       q: "I already have a folder of prompts. Can I import?",

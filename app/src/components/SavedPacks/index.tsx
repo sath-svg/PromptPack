@@ -394,7 +394,7 @@ export function SavedPacksPage() {
                 <button
                   onClick={() => setDeletingPackId(selectedPack.id)}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-red-500 bg-[var(--accent)] hover:bg-red-500/10 rounded-lg transition-colors"
-                  title="Delete pack"
+                  title="Delete set"
                 >
                   <Trash2 size={16} />
                 </button>

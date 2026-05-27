@@ -79,7 +79,7 @@ export function MarketplacePage() {
             Marketplace
           </h2>
           <p className="text-[var(--muted-foreground)] mt-1 text-sm">
-            Browse, buy, and sell .skill packs.
+            Browse, buy, and sell Skill Sets.
           </p>
         </div>
         <nav className="flex gap-1 p-1 rounded-lg bg-[var(--card)] border border-[var(--border)] text-sm">
@@ -1330,7 +1330,7 @@ function NewListingView({
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm text-[var(--foreground)]"
-              placeholder="What problem does this pack solve?"
+              placeholder="What problem does this set solve?"
             />
           </Field>
 

@@ -303,7 +303,9 @@ export function CloudPromptsPage() {
     setExportError(null);
 
     try {
-      // Generate the .pmtpk file data
+      // Generate the .skill file data. (File extension renamed from
+      // legacy `.pmtpk` — internal magic bytes / encoders unchanged so
+      // existing files still import.)
       let fileData: Uint8Array;
       if (exportPassword) {
         fileData = await encryptPmtpk(loaded.prompts, title, exportPassword);
@@ -313,8 +315,8 @@ export function CloudPromptsPage() {
 
       // Open native save dialog
       const filePath = await save({
-        defaultPath: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
+        defaultPath: `${title.replace(/[^a-zA-Z0-9]/g, '_')}.skill`,
+        filters: [{ name: 'Skill Set', extensions: ['skill'] }],
       });
 
       if (filePath) {
@@ -411,7 +413,7 @@ export function CloudPromptsPage() {
             No cloud prompts yet
           </h3>
           <p className="text-[var(--muted-foreground)] max-w-sm mx-auto">
-            Save prompts using the browser extension or create prompt packs on the web dashboard to see them here.
+            Save prompts using the browser extension or create prompt sets on the web dashboard to see them here.
           </p>
         </div>
       )}
@@ -690,7 +692,7 @@ export function CloudPromptsPage() {
                           <button
                             onClick={() => openExportModal(pack.id, 'saved', meta?.label || pack.source)}
                             className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
-                            title="Export pack"
+                            title="Export set"
                           >
                             <Download size={16} />
                             Export
@@ -725,7 +727,7 @@ export function CloudPromptsPage() {
               Your Skillsets
             </h2>
             <p className="text-sm text-[var(--muted-foreground)] mt-1">
-              Prompt packs created on the web dashboard
+              Prompt sets created on the web dashboard
             </p>
           </div>
 
@@ -994,7 +996,7 @@ export function CloudPromptsPage() {
                               <button
                                 onClick={() => openExportModal(pack.id, 'user', pack.title)}
                                 className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--accent)] rounded-lg transition-colors"
-                                title="Export pack"
+                                title="Export set"
                               >
                                 <Download size={16} />
                                 Export
@@ -1037,7 +1039,7 @@ export function CloudPromptsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">Export Pack</h3>
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Export Set</h3>
               <button
                 onClick={closeExportModal}
                 className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded"
@@ -1047,7 +1049,7 @@ export function CloudPromptsPage() {
             </div>
 
             <p className="text-sm text-[var(--muted-foreground)] mb-4">
-              Export "{showExportModal.title}" as a .pmtpk file. You can optionally add a password to encrypt the file.
+              Export "{showExportModal.title}" as a .skill file. You can optionally add a password to encrypt the file.
             </p>
 
             {exportError && (

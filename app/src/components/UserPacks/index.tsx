@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2, Workflow } from 'lucide-react';
-import { save, open as openDialog } from '@tauri-apps/plugin-dialog';
-import { writeFile, mkdir, exists, writeTextFile } from '@tauri-apps/plugin-fs';
-import { useSyncStore, encodePmtpk, encryptPmtpk, type UserPack } from '../../stores/syncStore';
+import { Package, RefreshCw, Lock, Unlock, Copy, Check, AlertCircle, Pencil, ChartNoAxesCombined, X, Save, Plus, ChevronLeft, Download, Trash2, Loader2, Sparkles, GitBranch, Palette } from 'lucide-react';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { useSyncStore, encodePmtpk, encryptPmtpk, type UserPack, type PackKind } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
 import { usePromptStore } from '../../stores/promptStore';
 import { useEvaluationStore } from '../../stores/evaluationStore';
@@ -10,12 +10,19 @@ import { usePromptLimits } from '../../hooks/usePromptLimits';
 import { usePackLimits, getPackLimitMessage } from '../../hooks/usePackLimits';
 import { PASSWORD_MAX_LENGTH, isValidPassword } from '../../lib/constants';
 import { parseTemplateVariables, replaceTemplateVariables } from '../../lib/templateParser';
-import { generateWorkflow, getSkillDirName } from '../../lib/workflowExporter';
 import { TemplateInputDialog } from '../TemplateInputDialog';
 import { ScoreBadge } from '../ScoreBadge';
 import { EvaluationModal } from '../EvaluationModal';
 import { PromptEditModal } from '../Common/PromptEditModal';
+import { InstallSkillModal } from './InstallSkillModal';
 import type { PromptEvaluation } from '../../types';
+
+// Kind picker pill row — labels/icons for the three skill shapes.
+const KIND_OPTIONS: Array<{ id: PackKind; label: string; Icon: typeof GitBranch }> = [
+  { id: 'flow', label: 'Workflow', Icon: GitBranch },
+  { id: 'folder', label: 'Folder', Icon: Package },
+  { id: 'preset', label: 'Preset', Icon: Palette },
+];
 
 // Common emojis for pack icons
 const EMOJI_OPTIONS = [
@@ -45,6 +52,7 @@ export function UserPacksPage() {
     generateMissingUserPackHeaders,
     addUserPackPrompt,
     updateUserPackIcon,
+    updateUserPackKind,
     deleteUserPackPrompt,
     deleteUserPack,
     createUserPack,
@@ -77,6 +85,9 @@ export function UserPacksPage() {
   const [exportPassword, setExportPassword] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Install Skill modal (replaces the old "Install Claude Skill" button)
+  const [showInstallModal, setShowInstallModal] = useState(false);
 
   // Delete confirmation state
   const [deletingPromptIndex, setDeletingPromptIndex] = useState<number | null>(null);
@@ -425,7 +436,9 @@ export function UserPacksPage() {
     setExportError(null);
 
     try {
-      // Generate the .pmtpk file data
+      // Generate the .skill file data. (File extension renamed from
+      // legacy `.pmtpk` — internal magic bytes / encoders unchanged so
+      // existing files still import.)
       let fileData: Uint8Array;
       if (exportPassword) {
         fileData = await encryptPmtpk(loaded.prompts, selectedPack.title, exportPassword);
@@ -435,8 +448,8 @@ export function UserPacksPage() {
 
       // Open native save dialog
       const filePath = await save({
-        defaultPath: `${selectedPack.title.replace(/[^a-zA-Z0-9]/g, '_')}.pmtpk`,
-        filters: [{ name: 'Skillset Pack', extensions: ['pmtpk'] }],
+        defaultPath: `${selectedPack.title.replace(/[^a-zA-Z0-9]/g, '_')}.skill`,
+        filters: [{ name: 'Skill Set', extensions: ['skill'] }],
       });
 
       if (filePath) {
@@ -452,37 +465,26 @@ export function UserPacksPage() {
     }
   };
 
-  const handleConvertToWorkflow = async () => {
+  // Opens the InstallSkillModal — gating on whether the pack has prompts
+  // loaded happens at the button (disabled state). The modal owns the
+  // target-app + folder picking flow and the actual file writes.
+  const openInstallSkillModal = () => {
     if (!selectedPack) return;
-    const loaded = loadedUserPacks[selectedPack.id];
-    if (!loaded || loaded.prompts.length === 0) return;
+    setShowInstallModal(true);
+  };
 
-    try {
-      const projectDir = await openDialog({
-        directory: true,
-        title: 'Select your project folder to install the skill',
-      });
-
-      if (!projectDir) return;
-
-      const markdown = generateWorkflow({
-        format: 'claude-skill',
-        packTitle: selectedPack.title,
-        prompts: loaded.prompts.map(p => ({ text: p.text, header: p.header })),
-      });
-
-      const slug = getSkillDirName(selectedPack.title);
-      const sep = projectDir.includes('/') ? '/' : '\\';
-      const skillDir = `${projectDir}${sep}.claude${sep}skills${sep}${slug}`;
-
-      if (!(await exists(skillDir))) {
-        await mkdir(skillDir, { recursive: true });
-      }
-
-      await writeTextFile(`${skillDir}${sep}SKILL.md`, markdown);
-    } catch (err) {
-      console.error('Workflow export failed:', err);
-    }
+  /**
+   * Tag this pack as workflow / folder / preset. Optimistically writes
+   * through `useSyncStore.updateUserPackKind` which patches Convex. Called
+   * from both the inline pill row in the header and the picker inside the
+   * Install Skill modal.
+   */
+  const handleKindChange = (kind: PackKind) => {
+    if (!selectedPack) return;
+    if ((selectedPack.kind ?? 'flow') === kind) return;
+    void updateUserPackKind(selectedPack.id, kind);
+    // Optimistic local mirror so the picker chip flips before Convex returns.
+    setSelectedPack({ ...selectedPack, kind });
   };
 
   const formatDate = (timestamp: number) => {
@@ -640,7 +642,7 @@ export function UserPacksPage() {
                 </div>
               )}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold text-[var(--foreground)]">{selectedPack.title}</h1>
               <p className="text-sm text-[var(--muted-foreground)]">
                 {selectedPack.promptCount} prompt{selectedPack.promptCount !== 1 ? 's' : ''}
@@ -650,6 +652,30 @@ export function UserPacksPage() {
               {selectedPack.description && (
                 <p className="text-sm text-[var(--muted-foreground)] mt-1">{selectedPack.description}</p>
               )}
+              {/* Kind picker pill row — tags this pack as Workflow / Folder / Preset.
+                  Selected pill changes how "Install Skill" generates output. */}
+              <div className="flex items-center gap-1 mt-2" role="radiogroup" aria-label="Skill kind">
+                {KIND_OPTIONS.map(({ id, label, Icon }) => {
+                  const active = (selectedPack.kind ?? 'flow') === id;
+                  return (
+                    <button
+                      key={id}
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => handleKindChange(id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                        active
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/15 text-[var(--foreground)]'
+                          : 'border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--accent)]'
+                      }`}
+                      title={`Tag this pack as ${label}`}
+                    >
+                      <Icon size={12} />
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {selectedPack.isEncrypted && <Lock size={20} className="text-[var(--muted-foreground)]" />}
@@ -657,19 +683,19 @@ export function UserPacksPage() {
                 onClick={openExportModal}
                 disabled={!loadedUserPacks[selectedPack.id] || loadedUserPacks[selectedPack.id].prompts.length === 0}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] bg-[var(--accent)] hover:bg-[var(--accent)]/80 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Export pack"
+                title="Export set"
               >
                 <Download size={16} />
                 Export
               </button>
               <button
-                onClick={handleConvertToWorkflow}
+                onClick={openInstallSkillModal}
                 disabled={!loadedUserPacks[selectedPack.id] || loadedUserPacks[selectedPack.id].prompts.length === 0}
                 className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--foreground)] bg-[var(--accent)] hover:bg-[var(--accent)]/80 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Convert to Claude Skill workflow"
+                title="Install as a skill for Claude Code, Cursor, or Codex"
               >
-                <Workflow size={16} />
-                Install Claude Skill
+                <Sparkles size={16} />
+                Install Skill
               </button>
               {deletingPackId === selectedPack.id ? (
                 <div className="flex items-center gap-2">
@@ -696,7 +722,7 @@ export function UserPacksPage() {
                 <button
                   onClick={() => setDeletingPackId(selectedPack.id)}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted-foreground)] hover:text-red-500 bg-[var(--accent)] hover:bg-red-500/10 rounded-lg transition-colors"
-                  title="Delete pack"
+                  title="Delete set"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -1072,12 +1098,26 @@ export function UserPacksPage() {
           />
         )}
 
+        {/* Install Skill modal — target picker + folder picker + file writes.
+            Mounted only when open and only when a pack is selected + loaded. */}
+        {showInstallModal && selectedPack && loadedUserPacks[selectedPack.id] && (
+          <InstallSkillModal
+            pack={selectedPack}
+            prompts={loadedUserPacks[selectedPack.id].prompts.map(p => ({
+              text: p.text,
+              header: p.header,
+            }))}
+            onKindChange={handleKindChange}
+            onClose={() => setShowInstallModal(false)}
+          />
+        )}
+
         {/* Export Modal */}
         {showExportModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 w-full max-w-md mx-4">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-[var(--foreground)]">Export Pack</h3>
+                <h3 className="text-lg font-semibold text-[var(--foreground)]">Export Set</h3>
                 <button
                   onClick={closeExportModal}
                   className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded"
@@ -1087,7 +1127,7 @@ export function UserPacksPage() {
               </div>
 
               <p className="text-sm text-[var(--muted-foreground)] mb-4">
-                Export "{selectedPack.title}" as a .pmtpk file. You can optionally add a password to encrypt the file.
+                Export "{selectedPack.title}" as a .skill file. You can optionally add a password to encrypt the file.
               </p>
 
               {exportError && (
@@ -1231,7 +1271,7 @@ export function UserPacksPage() {
       {!isLoading && userPacks.length === 0 && (
         <div className="text-center py-12 bg-[var(--card)] rounded-xl border border-[var(--border)]">
           <Package size={48} className="mx-auto text-[var(--muted-foreground)] mb-4" />
-          <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No prompt packs yet</h3>
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-2">No prompt sets yet</h3>
           <p className="text-[var(--muted-foreground)] max-w-sm mx-auto mb-4">
             Create your first prompt pack to organize and save your prompts.
           </p>
@@ -1354,7 +1394,7 @@ export function UserPacksPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-[var(--card)] rounded-xl border border-[var(--border)] p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--foreground)]">Create New Pack</h3>
+              <h3 className="text-lg font-semibold text-[var(--foreground)]">Create New Set</h3>
               <button
                 onClick={closeCreatePackModal}
                 className="p-1 text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--accent)] rounded"

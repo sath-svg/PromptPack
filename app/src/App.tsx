@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { ImportPage } from './components/ImportExport/ImportPage';
 import { ExportPage } from './components/ImportExport/ExportPage';
@@ -10,16 +10,22 @@ import { SkillControlPage } from './components/PromptControl';
 import { SkillChatPage } from './components/SkillChat';
 import { SkillPresetPage } from './components/SkillPreset';
 import { MarketplacePage } from './components/Marketplace';
+import { SkillyPlayground } from './components/Skilly/SkillyPlayground';
 import { useAuthStore } from './stores/authStore';
 import { useSyncStore } from './stores/syncStore';
 import { useSettingsStore } from './stores/settingsStore';
+import { useUiStore } from './stores/uiStore';
 import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { NotificationCenter } from './components/Notifications/NotificationCenter';
 import { checkForUpdateOnLaunch } from './lib/appUpdater';
+import { bootMessengerClient, shutdownMessengerClient } from './lib/messenger/client';
+// Skilly event bridge — subscribes to external stores on import. Side-effect only.
+import './components/Skilly/skillyEventBridge';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('chat');
+  const currentPage = useUiStore((s) => s.currentPage);
+  const setCurrentPage = useUiStore((s) => s.setCurrentPage);
   const { session, refreshTier, initAuthListener } = useAuthStore();
   const { fetchAllPacks, cloudPacks, userPacks } = useSyncStore();
   const { hasCompletedOnboarding, completeOnboarding } = useSettingsStore();
@@ -36,6 +42,25 @@ function App() {
   useEffect(() => {
     void checkForUpdateOnLaunch();
   }, []);
+
+  // Messenger bridge (Telegram gateway). Idempotent boot — the client
+  // reads `messengersEnabled` + `telegramBotToken` from settings and
+  // starts/stops the Rust long-poll loop accordingly. Toggling in
+  // Settings re-applies without an app restart.
+  //
+  // We intentionally DO NOT shut down on unmount: the App component is
+  // mounted for the process lifetime, and React StrictMode's mount →
+  // unmount → mount cycle in dev caused a double-listener race against
+  // the async `listen()` call (two `messenger://incoming` handlers
+  // attached, every inbound message handled twice — one wins the
+  // `inFlight` guard, the loser emits the spurious "Still working…"
+  // reply). `bootMessengerClient` itself is memoized so concurrent
+  // mounts share a single subscription.
+  useEffect(() => {
+    void bootMessengerClient();
+  }, []);
+  // Silence unused-import lint without changing the public surface.
+  void shutdownMessengerClient;
 
   // Fetch cloud and user packs when session is available
   useEffect(() => {
@@ -123,6 +148,8 @@ function App() {
         return <MarketplacePage />;
       case 'prompt-control':
         return <SkillControlPage />;
+      case 'skilly':
+        return <SkillyPlayground />;
       case 'import':
         return <ImportPage />;
       case 'export':

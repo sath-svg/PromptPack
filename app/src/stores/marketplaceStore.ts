@@ -3,6 +3,12 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { CONVEX_URL } from '../lib/constants';
 import { tauriFetch } from '../lib/tauriFetch';
 
+/**
+ * Marketplace listing shape — same enum as `syncStore.PackKind`
+ * (flow | folder | preset). Kept as a local alias here so this store
+ * stays self-contained, but the values MUST stay in sync with PackKind
+ * so a UserPack can be published to the marketplace without translation.
+ */
 export type ListingKind = 'flow' | 'folder' | 'preset';
 
 export interface FlowPreview {

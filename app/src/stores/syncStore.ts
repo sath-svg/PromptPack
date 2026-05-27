@@ -20,6 +20,21 @@ export interface CloudPack {
   updatedAt: number;
 }
 
+/**
+ * PackKind — discriminates the three skill shapes a user can author.
+ *  - 'flow'    → sequential workflow (one SKILL.md, prompts run as a chain).
+ *                Labelled "Workflow" in the UI. Default for legacy / untagged packs.
+ *  - 'folder'  → each prompt = its own independently invokable skill under a
+ *                parent namespace (multiple SKILL.md files written).
+ *  - 'preset'  → image/video style preset with extracted style characteristics;
+ *                installed via the SkillPreset/ExportModal flow rather than the
+ *                workflow exporter.
+ *
+ * Matches `marketplaceStore.ListingKind` exactly so a UserPack can be published
+ * to the marketplace without translation.
+ */
+export type PackKind = 'flow' | 'folder' | 'preset';
+
 // User-created pack from website dashboard
 export interface UserPack {
   id: string;
@@ -27,6 +42,7 @@ export interface UserPack {
   description?: string;
   category?: string;
   icon?: string; // Emoji icon for the pack
+  kind?: PackKind; // Skill shape — absent ⇒ treat as 'flow' (back-compat)
   r2Key: string;
   promptCount: number;
   fileSize: number;
@@ -96,6 +112,7 @@ interface SyncState {
   generateMissingUserPackHeaders: (packId: string) => Promise<void>;
   addUserPackPrompt: (packId: string, text: string, header?: string) => Promise<boolean>;
   updateUserPackIcon: (packId: string, icon: string) => Promise<boolean>;
+  updateUserPackKind: (packId: string, kind: PackKind) => Promise<boolean>;
   deleteUserPackPrompt: (packId: string, promptIndex: number) => Promise<boolean>;
   deleteUserPack: (packId: string) => Promise<boolean>;
 
@@ -1485,6 +1502,65 @@ export const useSyncStore = create<SyncState>()(
         } catch (error) {
           set((state) => ({
             error: error instanceof Error ? error.message : 'Failed to update icon',
+            isSaving: { ...state.isSaving, [packId]: false },
+          }));
+          return false;
+        }
+      },
+
+      // Update the kind (workflow / folder / preset) for a userPack.
+      // Optimistic: patches local state immediately, then PATCHes Convex.
+      // On failure, reverts and surfaces error.
+      updateUserPackKind: async (packId: string, kind: PackKind) => {
+        const { userPacks, isSaving } = get();
+        const pack = userPacks.find((p) => p.id === packId);
+
+        if (!pack || isSaving[packId]) return false;
+
+        const previousKind = pack.kind;
+
+        // Optimistic local update
+        set((state) => ({
+          userPacks: state.userPacks.map((p) =>
+            p.id === packId ? { ...p, kind } : p
+          ),
+          loadedUserPacks: state.loadedUserPacks[packId]
+            ? {
+                ...state.loadedUserPacks,
+                [packId]: { ...state.loadedUserPacks[packId], kind },
+              }
+            : state.loadedUserPacks,
+          isSaving: { ...state.isSaving, [packId]: true },
+          error: null,
+        }));
+
+        try {
+          const response = await tauriFetch(`${CONVEX_URL}/api/desktop/update-pack-kind`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packId, kind }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Failed to update kind');
+          }
+
+          set((state) => ({ isSaving: { ...state.isSaving, [packId]: false } }));
+          return true;
+        } catch (error) {
+          // Revert
+          set((state) => ({
+            userPacks: state.userPacks.map((p) =>
+              p.id === packId ? { ...p, kind: previousKind } : p
+            ),
+            loadedUserPacks: state.loadedUserPacks[packId]
+              ? {
+                  ...state.loadedUserPacks,
+                  [packId]: { ...state.loadedUserPacks[packId], kind: previousKind },
+                }
+              : state.loadedUserPacks,
+            error: error instanceof Error ? error.message : 'Failed to update kind',
             isSaving: { ...state.isSaving, [packId]: false },
           }));
           return false;

@@ -187,6 +187,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
               description: pack.description,
               category: pack.category,
               icon: pack.icon,
+              kind: pack.kind,
               r2Key: pack.r2Key,
               promptCount: pack.promptCount,
               fileSize: pack.fileSize,
@@ -798,6 +799,82 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
     }),
   });
 
+  // Desktop: update pack kind (flow | folder | preset)
+  // CORS preflight
+  http.route({
+    path: "/api/desktop/update-pack-kind",
+    method: "OPTIONS",
+    handler: httpAction(async (_, request) => {
+      const origin = request.headers.get("Origin");
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders(origin),
+      });
+    }),
+  });
+
+  // Desktop: update pack kind
+  http.route({
+    path: "/api/desktop/update-pack-kind",
+    method: "POST",
+    handler: httpAction(async (ctx, request) => {
+      const origin = request.headers.get("Origin");
+      const headers = corsHeaders(origin);
+
+      try {
+        const body = await request.json();
+        const { packId, kind } = body as {
+          packId: string;
+          kind: "flow" | "folder" | "preset";
+        };
+
+        if (!packId) {
+          return new Response(
+            JSON.stringify({ error: "Missing packId" }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        if (kind !== "flow" && kind !== "folder" && kind !== "preset") {
+          return new Response(
+            JSON.stringify({ error: "Invalid kind. Must be flow, folder, or preset." }),
+            {
+              status: 400,
+              headers: { ...headers, "Content-Type": "application/json" },
+            }
+          );
+        }
+
+        await ctx.runMutation(api.packs.updateKind, {
+          id: packId as Id<"userPacks">,
+          kind,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true }),
+          {
+            status: 200,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      } catch (error) {
+        console.error("Update pack kind error:", error);
+        return new Response(
+          JSON.stringify({
+            error: cleanErrorMessage(error, "Failed to update kind"),
+          }),
+          {
+            status: 500,
+            headers: { ...headers, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }),
+  });
+
   // Desktop: create a new userPack
   // CORS preflight
   http.route({
@@ -911,6 +988,7 @@ export function registerDesktopRoutes(http: ReturnType<typeof httpRouter>) {
               title: newPack.title,
               description: newPack.description,
               category: newPack.category,
+              kind: newPack.kind,
               r2Key: newPack.r2Key,
               promptCount: newPack.promptCount,
               fileSize: newPack.fileSize,

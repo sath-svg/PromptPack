@@ -170,7 +170,7 @@ export function AppMockupTabbed() {
           >
             Skillset Desktop
           </span>
-          <span className="text-[11px] text-zinc-500">v1.2</span>
+          <span className="text-[11px] text-zinc-500">v1.3</span>
         </div>
 
         <div className="flex">

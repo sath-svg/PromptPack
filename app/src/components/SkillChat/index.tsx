@@ -830,7 +830,7 @@ export function SkillChatPage() {
               // trailing icon; tooltip carries the Skill Flow context.
               <div
                 className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                title="Set runs always use Skill Flow — pack prompts are the predefined chain with shared memory between steps."
+                title="Set runs always use Skill Flow — set prompts are the predefined chain with shared memory between steps."
               >
                 <Brain size={11} />
                 <span style={{ fontFamily: 'var(--font-mono)' }}>
@@ -1017,7 +1017,7 @@ export function SkillChatPage() {
                       {[
                         'Summarize this PDF',
                         'Build a landing page',
-                        'Run my saved pack',
+                        'Run my saved set',
                         'Refactor src/utils.ts',
                       ].map((tip) => (
                         <button
@@ -1082,7 +1082,7 @@ export function SkillChatPage() {
                       <button
                         type="button"
                         onClick={() => setSaveAsPackText(msg.content)}
-                        title="Save as Skill pack"
+                        title="Save as Skill set"
                         className="p-1.5 rounded-md text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
                       >
                         <Bookmark size={11} />
@@ -1596,18 +1596,18 @@ export function SkillChatPage() {
                   <button
                     onClick={() => setShowPackPicker((v) => !v)}
                     className="p-2 rounded-lg text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)] transition-colors"
-                    title="Use a prompt pack"
+                    title="Use a prompt set"
                   >
                     <Package size={18} />
                   </button>
                   {showPackPicker && (
                     <div className="absolute bottom-full mb-2 left-0 w-64 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-lg z-10 overflow-hidden">
                       <p className="px-3 py-2 text-xs font-semibold text-[var(--muted-foreground)] uppercase tracking-wide border-b border-[var(--border)]">
-                        Choose a pack
+                        Choose a set
                       </p>
                       <div className="max-h-56 overflow-y-auto">
                         {allPacks.length === 0 && (
-                          <p className="px-3 py-3 text-sm text-[var(--muted-foreground)]">No packs yet</p>
+                          <p className="px-3 py-3 text-sm text-[var(--muted-foreground)]">No sets yet</p>
                         )}
                         {allPacks.map((pack) => (
                           <button

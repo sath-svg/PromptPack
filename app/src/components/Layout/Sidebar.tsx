@@ -15,8 +15,36 @@ import {
 } from 'lucide-react';
 import { useSyncStore } from '../../stores/syncStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { ConversationSwitcher } from '../SkillChat/ConversationSwitcher';
 import logoIcon from '../../assets/skillset-logo.png';
+
+const SkillyStarIcon = ({ size = 18 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 120 130"
+    style={{ flexShrink: 0 }}
+    aria-hidden
+  >
+    <g strokeLinejoin="round" strokeLinecap="round">
+      <polygon
+        points="58,14 78,56 106,42 88,76 98,108 58,86 18,112 30,78 10,50 40,50"
+        fill="#2b6bff"
+        stroke="#2b6bff"
+        strokeWidth="22"
+      />
+      <polygon
+        points="58.7,31.9 71.7,59.2 89.9,50.1 78.2,72.2 84.7,93 58.7,78.7 32.7,95.6 40.5,73.5 27.5,55.3 47,55.3"
+        fill="#aac7ff"
+        stroke="#aac7ff"
+        strokeWidth="10"
+      />
+    </g>
+    <circle cx="48" cy="60" r="3.5" fill="#0d266b" />
+    <circle cx="74" cy="63" r="3" fill="#0d266b" />
+  </svg>
+);
 
 interface SidebarProps {
   currentPage: string;
@@ -29,6 +57,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
   const [userPacksExpanded, setUserPacksExpanded] = useState(true);
   const { userPacks, selectedPackId, setSelectedPackId } = useSyncStore();
   const { session } = useAuthStore();
+  const skillyEnabled = useSettingsStore((s) => s.skillyEnabled);
 
   return (
     <aside
@@ -247,7 +276,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
         )}
 
         {/* Import/Export */}
-        <div className={`space-y-1 ${isCollapsed ? 'mt-4 pt-4 border-t border-[var(--border)]' : 'mt-6'}`}>
+        <div className={`space-y-1 ${isCollapsed ? 'mt-4 pt-4 border-t border-[var(--border)]' : 'mt-1'}`}>
           <button
             onClick={() => onNavigate('import')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
@@ -281,8 +310,24 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
         </div>
       </nav>
 
-      {/* Settings */}
-      <div className="p-2 border-t border-[var(--border)]">
+      {/* Skilly + Settings */}
+      <div className="p-2 border-t border-[var(--border)] space-y-1">
+        {skillyEnabled !== false && (
+          <button
+            onClick={() => onNavigate('skilly')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              currentPage === 'skilly'
+                ? 'bg-[var(--primary-soft)] text-[var(--foreground)] ring-1 ring-inset ring-[var(--primary)]/30'
+                : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
+            }`}
+            title={isCollapsed ? 'Skilly' : undefined}
+          >
+            <SkillyStarIcon size={18} />
+            <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
+              Skilly
+            </span>
+          </button>
+        )}
         <button
           onClick={() => onNavigate('settings')}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${

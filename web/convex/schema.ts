@@ -128,6 +128,15 @@ export default defineSchema({
     description: v.optional(v.string()),
     category: v.optional(v.string()),
     icon: v.optional(v.string()), // Emoji icon for the pack (e.g., "📦", "🚀", "💡")
+    // Skill shape — discriminates how the desktop "Install Skill" button
+    // generates the SKILL.md / rule files for this pack:
+    //   flow    → sequential workflow (one SKILL.md, prompts chained)
+    //   folder  → each prompt becomes its own invokable skill
+    //   preset  → image/video style preset (uses SkillPreset export instead)
+    // Matches `marketplaceListings.kind` so a UserPack can be published
+    // to the marketplace without value translation.
+    // Absent on legacy packs → UI treats as 'flow'.
+    kind: v.optional(v.union(v.literal("flow"), v.literal("folder"), v.literal("preset"))),
     // R2 object key where the .pmtpk file is stored (e.g., "users/user123/userpacks/pack456.pmtpk")
     r2Key: v.string(),
     promptCount: v.number(),

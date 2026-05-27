@@ -153,6 +153,32 @@ interface SettingsState extends AppSettings {
   defaultDownloadFolder: string;
   skipDownloadDialog: boolean;
 
+  // Messenger bridge (Slice B: Telegram online gateway).
+  // Feature-flagged off by default. Wholly client-side until WhatsApp +
+  // offline fallback ship (Slice C/D).
+  messengersEnabled: boolean;
+  telegramBotToken: string;
+  /** Chats the user has explicitly approved to spawn Skill Chat convos. */
+  telegramAuthorizedChats: TelegramAuthorizedChat[];
+  /** First-DM chats that hit the bot but haven't been approved yet. */
+  telegramPendingChats: TelegramPendingChat[];
+  /**
+   * Default workspace folder applied to every fresh Skill Chat convo
+   * spawned from an inbound Telegram message. Empty = no workspace —
+   * agent tools (read/write/edit/bash/glob/grep) stay dormant and the
+   * remote user gets text-only replies. Set this once via Settings →
+   * Messengers → "Default workspace" so remote messages can edit files
+   * without requiring the user to be at their desk. Per-chat overrides
+   * land via the in-chat `/workspace <path>` command.
+   */
+  messengerDefaultWorkspace: string;
+
+  /**
+   * Skilly companion toggle. When false: floating Skilly hides, sidebar
+   * row disappears, decay halts, the Skilly tab is inert. Default: true.
+   */
+  skillyEnabled: boolean;
+
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setStorageLocation: (path: string) => void;
@@ -185,9 +211,19 @@ interface SettingsState extends AppSettings {
   resetTokenUsage: () => void;
   setDefaultDownloadFolder: (path: string) => void;
   setSkipDownloadDialog: (skip: boolean) => void;
+  setMessengersEnabled: (enabled: boolean) => void;
+  setTelegramBotToken: (token: string) => void;
+  setMessengerDefaultWorkspace: (path: string) => void;
+  setSkillyEnabled: (enabled: boolean) => void;
+  addTelegramPendingChat: (chat: TelegramPendingChat) => void;
+  approveTelegramChat: (chatId: number) => void;
+  rejectTelegramChat: (chatId: number) => void;
+  removeTelegramAuthorizedChat: (chatId: number) => void;
   logout: () => void;
   initTheme: () => void;
   completeOnboarding: () => void;
+  /** Re-arm the onboarding tour — TutorialOverlay re-mounts on next render. */
+  resetOnboarding: () => void;
 }
 
 function todayLocal(): string {
@@ -196,6 +232,21 @@ function todayLocal(): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+export interface TelegramAuthorizedChat {
+  chatId: number;
+  username?: string;
+  displayName?: string;
+  approvedAt: number;
+}
+
+export interface TelegramPendingChat {
+  chatId: number;
+  username?: string;
+  displayName?: string;
+  firstSeenAt: number;
+  lastMessagePreview: string;
 }
 
 export const SERVER_DAILY_CAPS: Record<'free' | 'pro' | 'studio', number> = {
@@ -234,6 +285,12 @@ export const useSettingsStore = create<SettingsState>()(
       tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
       defaultDownloadFolder: '',
       skipDownloadDialog: false,
+      messengersEnabled: false,
+      telegramBotToken: '',
+      telegramAuthorizedChats: [],
+      telegramPendingChats: [],
+      messengerDefaultWorkspace: '',
+      skillyEnabled: true,
 
       setTheme: (theme) => {
         applyTheme(theme);
@@ -336,6 +393,45 @@ export const useSettingsStore = create<SettingsState>()(
       }),
       setDefaultDownloadFolder: (path) => set({ defaultDownloadFolder: path }),
       setSkipDownloadDialog: (skip) => set({ skipDownloadDialog: skip }),
+      setMessengersEnabled: (enabled) => set({ messengersEnabled: enabled }),
+      setTelegramBotToken: (token) => set({ telegramBotToken: token.trim() }),
+      setMessengerDefaultWorkspace: (path) => set({ messengerDefaultWorkspace: path.trim() }),
+      setSkillyEnabled: (enabled) => set({ skillyEnabled: enabled }),
+      addTelegramPendingChat: (chat) =>
+        set((state) => {
+          if (
+            state.telegramAuthorizedChats.some((c) => c.chatId === chat.chatId) ||
+            state.telegramPendingChats.some((c) => c.chatId === chat.chatId)
+          ) {
+            return {};
+          }
+          return { telegramPendingChats: [...state.telegramPendingChats, chat] };
+        }),
+      approveTelegramChat: (chatId) =>
+        set((state) => {
+          const pending = state.telegramPendingChats.find((c) => c.chatId === chatId);
+          if (!pending) return {};
+          return {
+            telegramPendingChats: state.telegramPendingChats.filter((c) => c.chatId !== chatId),
+            telegramAuthorizedChats: [
+              ...state.telegramAuthorizedChats,
+              {
+                chatId: pending.chatId,
+                username: pending.username,
+                displayName: pending.displayName,
+                approvedAt: Date.now(),
+              },
+            ],
+          };
+        }),
+      rejectTelegramChat: (chatId) =>
+        set((state) => ({
+          telegramPendingChats: state.telegramPendingChats.filter((c) => c.chatId !== chatId),
+        })),
+      removeTelegramAuthorizedChat: (chatId) =>
+        set((state) => ({
+          telegramAuthorizedChats: state.telegramAuthorizedChats.filter((c) => c.chatId !== chatId),
+        })),
       logout: () =>
         set({
           session: null,
@@ -348,6 +444,7 @@ export const useSettingsStore = create<SettingsState>()(
           tokenUsage: { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 },
         }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
+      resetOnboarding: () => set({ hasCompletedOnboarding: false }),
       initTheme: () => {
         const { theme } = get();
         applyTheme(theme);
@@ -361,7 +458,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'promptpack-settings',
-      version: 3,
+      version: 4,
       migrate: (persisted: unknown, version: number) => {
         const s = (persisted ?? {}) as Record<string, unknown>;
         if (version < 2) {
@@ -373,6 +470,10 @@ export const useSettingsStore = create<SettingsState>()(
         if (version < 3) {
           // Default existing users to opted-in, matching the new install default.
           if (typeof s.telemetryOptIn !== 'boolean') s.telemetryOptIn = true;
+        }
+        if (version < 4) {
+          // New Skilly companion toggle — default existing users on.
+          if (typeof s.skillyEnabled !== 'boolean') s.skillyEnabled = true;
         }
         return s as unknown as SettingsState;
       },

@@ -130,6 +130,22 @@ export const updateIcon = mutation({
   },
 });
 
+// Update pack kind (flow | folder | preset) only.
+// Used by the desktop app's kind-picker pill row in UserPacks detail.
+export const updateKind = mutation({
+  args: {
+    id: v.id("userPacks"),
+    kind: v.union(v.literal("flow"), v.literal("folder"), v.literal("preset")),
+  },
+  handler: async (ctx, { id, kind }) => {
+    await ctx.db.patch(id, {
+      kind,
+      updatedAt: Date.now(),
+    });
+    return id;
+  },
+});
+
 // Set or clear a prompt header override for a pack
 export const setHeader = mutation({
   args: {

@@ -46,3 +46,8 @@ convex/_generated/
 
 # Bun
 bun.lock
+
+# Skilly Telegram stickers — built from source by
+# app/scripts/build-skilly-stickers.mjs and uploaded to R2 once. R2 is
+# the source of truth; the WebMs are deployment-time artifacts.
+public/img/stickers/*.webm

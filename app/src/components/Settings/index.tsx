@@ -13,6 +13,7 @@ import { tauriFetch } from '../../lib/tauriFetch';
 import { refreshCreditBalance } from '../../lib/creditSync';
 import { formatShortcut } from '../../lib/platform';
 import { useNotificationStore } from '../../stores/notificationStore';
+import { MessengerPanel } from './MessengerPanel';
 
 interface BillingStatus {
   tier: 'free' | 'pro' | 'studio';
@@ -35,6 +36,8 @@ export function SettingsPage() {
     defaultDownloadFolder, setDefaultDownloadFolder,
     skipDownloadDialog, setSkipDownloadDialog,
     telemetryOptIn, setTelemetryOptIn,
+    skillyEnabled, setSkillyEnabled,
+    resetOnboarding,
   } = useSettingsStore();
   const { session } = useAuthStore();
   const [appVersion, setAppVersion] = useState('');
@@ -257,6 +260,49 @@ export function SettingsPage() {
                 ))}
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Companion (Skilly) */}
+        <section id="settings-companion" className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)] scroll-mt-16">
+          <h3 className="text-lg font-medium text-[var(--foreground)] mb-4">
+            Companion
+          </h3>
+
+          <label className="flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] cursor-pointer">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">Skilly companion</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Show the Skilly mascot on every page and in his own tab.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={skillyEnabled}
+              onChange={(e) => setSkillyEnabled(e.target.checked)}
+              className="w-5 h-5 accent-[var(--primary)]"
+            />
+          </label>
+
+          {/* Replay the Skilly-led onboarding tour. Flips
+              `hasCompletedOnboarding` to false so TutorialOverlay
+              re-mounts on the next render. Floating Skilly hides
+              automatically until the tour finishes. */}
+          <div className="flex items-center justify-between p-3 mt-3 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+            <div>
+              <p className="text-sm font-medium text-[var(--foreground)]">Replay onboarding tour</p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Watch Skilly's welcome walkthrough again. Useful for testing
+                or when new features ship.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => resetOnboarding()}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity"
+            >
+              Replay
+            </button>
           </div>
         </section>
 
@@ -984,6 +1030,9 @@ export function SettingsPage() {
             Open public roadmap
           </button>
         </section>
+
+        {/* Messengers */}
+        <MessengerPanel />
 
         {/* Privacy */}
         <section id="settings-privacy" className="p-4 border border-[var(--border)] rounded-lg bg-[var(--card)] scroll-mt-16">

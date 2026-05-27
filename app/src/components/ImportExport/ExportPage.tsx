@@ -204,7 +204,7 @@ export function ExportPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search prompts by text, header, or pack name..."
+              placeholder="Search prompts by text, header, or set name..."
               className="w-full pl-9 pr-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
             />
             {searchQuery && (

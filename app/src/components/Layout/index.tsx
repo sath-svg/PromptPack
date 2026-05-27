@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { SkillyFloating } from '../Skilly/SkillyFloating';
 
 interface LayoutProps {
   children: ReactNode;
@@ -26,6 +27,9 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
           {children}
         </main>
       </div>
+      {/* Skilly — global floating mascot. Hidden when on the Skilly tab or
+          when disabled in Settings. */}
+      <SkillyFloating />
     </div>
   );
 }

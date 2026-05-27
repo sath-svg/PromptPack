@@ -122,6 +122,10 @@ const contentTypeByExt = {
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  // Skilly Telegram stickers are VP9 WebM. Telegram rejects
+  // `application/octet-stream` for sendSticker, so the MIME must be
+  // explicit for the sticker pipeline to work end-to-end.
+  ".webm": "video/webm",
 };
 
 const client = new S3Client({

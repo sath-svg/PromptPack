@@ -1,0 +1,284 @@
+/* Skilly mascot — animations & layout.
+ * Ported from skillset-mascot.html prototype; classes are added by
+ * `Skilly.tsx` to drive transient states (hop / spin / sleeping).
+ */
+
+.skilly {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  pointer-events: auto;
+}
+.skilly:active { cursor: grabbing; }
+
+.skilly--floating {
+  position: fixed;
+  /* Wrapper sized so the star + stroke + any cloud overflow live
+     inside it. */
+  width: 108px;
+  height: 120px;
+  /* Anchor bottom-center of the viewport via 50% + translateX(-50%).
+     Works at any viewport width — never clipped by sidebar (left) or
+     notification toasts (right). */
+  left: 50%;
+  right: auto;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 30;
+  overflow: visible;
+}
+
+.skilly--playground {
+  position: absolute;
+  width: 200px;
+  height: 220px;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+.skilly__body {
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 60%;
+  animation: skilly-float 3s ease-in-out infinite;
+}
+
+/* ---------- Idle float ---------- */
+@keyframes skilly-float {
+  0%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
+  50%      { transform: translateY(-6px) scaleY(1.02) scaleX(0.98); }
+}
+
+/* ---------- Blink (applies to .eye groups) ---------- */
+.skilly .eye {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: skilly-blink 4.5s infinite;
+}
+.skilly .eye.right { animation-delay: 0.1s; }
+@keyframes skilly-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 98%      { transform: scaleY(0.08); }
+}
+
+/* ---------- Hop (transient, added on click / drag release) ---------- */
+.skilly.hop .skilly__body { animation: skilly-hop 0.7s cubic-bezier(.34,1.56,.64,1); }
+@keyframes skilly-hop {
+  0%   { transform: translateY(0) scaleY(1) scaleX(1); }
+  15%  { transform: translateY(2px) scaleY(0.82) scaleX(1.18); }
+  50%  { transform: translateY(-42px) scaleY(1.12) scaleX(0.9); }
+  80%  { transform: translateY(2px) scaleY(0.92) scaleX(1.08); }
+  100% { transform: translateY(0) scaleY(1) scaleX(1); }
+}
+
+/* ---------- Spin (click reward, full barrel roll) ---------- */
+.skilly.spin .skilly__body { animation: skilly-spin 0.8s cubic-bezier(.34,1.56,.64,1); }
+@keyframes skilly-spin {
+  0%   { transform: translateY(0)   rotate(0deg)   scale(1);    }
+  25%  { transform: translateY(-30px) rotate(180deg) scale(1.05); }
+  50%  { transform: translateY(-60px) rotate(360deg) scale(1.10); }
+  75%  { transform: translateY(-30px) rotate(540deg) scale(1.05); }
+  100% { transform: translateY(0)   rotate(720deg) scale(1);    }
+}
+
+/* ---------- Walking wobble ---------- */
+.skilly.walking .skilly__body { animation: skilly-wobble 0.6s ease-in-out infinite; }
+@keyframes skilly-wobble {
+  0%, 100% { transform: rotate(-3deg) translateY(0) scaleX(1); }
+  50%      { transform: rotate(3deg) translateY(-3px) scaleX(0.98); }
+}
+
+/* ---------- Sleeping snore ---------- */
+.skilly.sleeping .skilly__body { animation: skilly-snore 2.6s ease-in-out infinite; }
+@keyframes skilly-snore {
+  0%, 100% { transform: scaleY(0.95) scaleX(1.05); }
+  50%      { transform: scaleY(1.05) scaleX(0.97); }
+}
+/* Halt blink + cursor-tracking visuals so eyes stay shut. */
+.skilly.sleeping .eye { animation: none; }
+
+.skilly__zzz {
+  position: absolute;
+  top: -8px;
+  right: -4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #4f86ff;
+  opacity: 0;
+  pointer-events: none;
+}
+.skilly.sleeping .skilly__zzz { animation: skilly-floatZ 2.2s ease-in-out infinite; }
+@keyframes skilly-floatZ {
+  0%   { transform: translateY(0) scale(0.8); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(-30px) scale(1.2); opacity: 0; }
+}
+
+/* ---------- Hearts (spawned on click reward) ---------- */
+.skilly__heart {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  animation: skilly-heart 1s ease-out forwards;
+}
+@keyframes skilly-heart {
+  0%   { transform: translate(0,0) scale(0.6); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: translate(var(--dx, 0), -60px) scale(1.2); opacity: 0; }
+}
+
+/* ---------- Speech bubble ---------- */
+.skilly__speech {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: white;
+  color: #1a1d24;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.skilly__speech::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-top-color: white;
+  border-bottom: 0;
+}
+.skilly__speech.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.skilly.face-left .skilly__body { transform: scaleX(-1); }
+
+/* ---------- Thinking eyes squeeze ---------- */
+.skilly__thinking-eye {
+  animation: skilly-thinkingSqueeze 1.2s ease-in-out infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@keyframes skilly-thinkingSqueeze {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(0.65); }
+}
+
+/* ---------- Thought-cloud dots (skill-control state) ---------- */
+.skilly__think-dot {
+  animation: skilly-thinkDot 1.4s ease-in-out infinite;
+}
+.skilly__think-dot-2 { animation-delay: 0.2s; }
+.skilly__think-dot-3 { animation-delay: 0.4s; }
+@keyframes skilly-thinkDot {
+  0%, 60%, 100% { opacity: 0.25; }
+  30%           { opacity: 1; }
+}
+/* Asleep — thought cloud dots freeze (cloud still drawn but stops pulsing) */
+.skilly.sleeping .skilly__think-dot { animation: none; opacity: 0.6; }
+/* Cloud renders at full SVG-coord size in both variants. The cloud's
+ * viewBox-negative-y positioning means it naturally appears above the
+ * star's head; the parent SVG has `overflow: visible` so it's not
+ * clipped. */
+
+/* ---------- Prop animations ---------- */
+/* Writing hand: tiny vertical bob + sway, mimics pen strokes. */
+.skilly__writing { animation: skilly-writingHand 0.6s linear infinite; transform-origin: 50% 100%; }
+@keyframes skilly-writingHand {
+  0%   { transform: translate(0, 0)    rotate(0deg);   }
+  25%  { transform: translate(2px, -1px) rotate(-3deg); }
+  50%  { transform: translate(3px, 1px)  rotate(2deg);  }
+  75%  { transform: translate(1px, -1px) rotate(-2deg); }
+  100% { transform: translate(0, 0)    rotate(0deg);   }
+}
+
+/* Paintbrush wiggle. */
+.skilly__brush { animation: skilly-brushWiggle 0.8s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes skilly-brushWiggle {
+  0%, 100% { transform: rotate(-8deg); }
+  50%      { transform: rotate(8deg);  }
+}
+/* Asleep — paintbrush and pen go still. */
+.skilly.sleeping .skilly__brush,
+.skilly.sleeping .skilly__writing {
+  animation: none;
+  transform: none;
+}
+
+/* Book page flip — forward-only. Each cycle = ONE page turn (scaleX
+ * pivots at the spine). After the flip lands, the page fades out and
+ * snaps back to its starting side invisibly, then fades in for the
+ * next forward flip. Reads as turning successive pages, not a wobble.
+ */
+.skilly__page { animation: skilly-pageTurn 2.6s ease-in-out infinite; }
+@keyframes skilly-pageTurn {
+  0%   { transform: scaleX(1);  opacity: 1; }
+  70%  { transform: scaleX(-1); opacity: 1; }
+  78%  { transform: scaleX(-1); opacity: 0; }
+  79%  { transform: scaleX(1);  opacity: 0; }
+  88%  { transform: scaleX(1);  opacity: 1; }
+  100% { transform: scaleX(1);  opacity: 1; }
+}
+/* Page animation halts during sleep — Skilly's not reading. */
+.skilly.sleeping .skilly__page { animation: none; transform: scaleX(1); opacity: 1; }
+
+/* ---------- Sticker animation tempo ----------
+ * Applied via `.skilly--sticker-slow` wrapper class in the sticker
+ * harness + preview pages. (Class name historical — durations are now
+ * tuned for SEAMLESS LOOPS, not slowness.)
+ *
+ * All durations divide cleanly into the 3 s WebM capture window so
+ * each recording contains an INTEGER number of complete cycles.
+ * Integer cycles == seamless Telegram loop (last frame's animation
+ * state matches first frame's). Faster cycles also read more clearly
+ * in 3 s than one slow stretch.
+ *
+ * Period | Cycles per 3 s capture
+ *  1.0 s |  3
+ *  1.5 s |  2
+ *  3.0 s |  1
+ *
+ * Zero effect on the in-app Skilly — class is never set on the runtime
+ * floating / playground variants. */
+/* Spin + hop use SEPARATE keyframes in sticker context — lower translate
+ * amplitude so the star never clips outside the 512×512 canvas at peak. */
+.skilly--sticker-slow.spin .skilly__body {
+  animation: skilly-spin-sticker 3s cubic-bezier(.34,1.56,.64,1);
+}
+.skilly--sticker-slow.hop .skilly__body {
+  animation: skilly-hop-sticker 1.5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes skilly-spin-sticker {
+  0%   { transform: rotate(0deg)   scale(1);    }
+  50%  { transform: rotate(360deg) scale(1.06); }
+  100% { transform: rotate(720deg) scale(1);    }
+}
+@keyframes skilly-hop-sticker {
+  0%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
+  15%  { transform: translateY(2px)  scaleY(0.88) scaleX(1.12); }
+  50%  { transform: translateY(-22px) scaleY(1.08) scaleX(0.94); }
+  80%  { transform: translateY(2px)  scaleY(0.94) scaleX(1.06); }
+}
+.skilly--sticker-slow .skilly__brush        { animation-duration: 1s; }      /* 3× wiggle */
+.skilly--sticker-slow .skilly__page         { animation-duration: 3s; }      /* 1× page turn */
+.skilly--sticker-slow .skilly__writing      { animation-duration: 1s; }      /* 3× stroke cycle */
+.skilly--sticker-slow .skilly__body         { animation-duration: 1.5s; }    /* 2× breath (idle float) */
+.skilly--sticker-slow .eye                  { animation-duration: 1.5s; }    /* 2× blink */
+.skilly--sticker-slow .skilly__think-dot    { animation-duration: 1s; }      /* 3× dot pulse */
+.skilly--sticker-slow .skilly__thinking-eye { animation-duration: 1s; }      /* 3× squeeze */
+.skilly--sticker-slow.sleeping .skilly__body { animation-duration: 1.5s; }   /* 2× snore */
+.skilly--sticker-slow.sleeping .skilly__zzz  { animation-duration: 1.5s; }   /* 2× z float */
+
+/* Passed-out: kill float so the X X eyes feel limp. */
+.skilly.passed-out .skilly__body { animation: none; transform: translateY(2px) rotate(-5deg) scale(0.96); }
