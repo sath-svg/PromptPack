@@ -46,9 +46,15 @@ export function LandingSkilly({
       if (!el) return;
       const r = el.getBoundingClientRect();
       const dialogW = window.innerWidth >= 768 ? 300 : 260;
+      // Conservative tooltip height estimate: covers 2 paragraphs + CTA + padding.
+      const dialogH = dialogRef.current?.getBoundingClientRect().height ?? 160;
       const margin = 12;
-      // Tooltip uses position:fixed, so feed it viewport coords directly.
-      const top = r.bottom + margin;
+      // Prefer below; if it would clip the viewport, flip above.
+      const wouldOverflowBelow = r.bottom + margin + dialogH > window.innerHeight - 8;
+      const fitsAbove = r.top - margin - dialogH >= 8;
+      const top = wouldOverflowBelow && fitsAbove
+        ? r.top - margin - dialogH
+        : r.bottom + margin;
       const desired = tooltipSide === "right" ? r.left : r.right - dialogW;
       // Keep tooltip inside viewport with 8px breathing room on each side.
       const left = Math.max(8, Math.min(desired, window.innerWidth - dialogW - 8));
