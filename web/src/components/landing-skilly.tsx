@@ -59,9 +59,11 @@ export function LandingSkilly({
         }}
       >
         <SkillyFace mouth={mouth} uid={uid} />
+        {/* "tap me" hint — always visible below lg (where touch is likely),
+            fades in on hover at lg+ (pointer devices). */}
         <span
           aria-hidden
-          className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 opacity-0 backdrop-blur transition-opacity duration-200 group-hover:opacity-100"
+          className="pointer-events-none absolute -top-1 left-1/2 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-full border border-white/15 bg-[#0a0a0c]/85 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-zinc-300 backdrop-blur transition-opacity duration-200 opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
           tap me

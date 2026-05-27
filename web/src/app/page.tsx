@@ -160,8 +160,13 @@ function Hero() {
             <Stat value="50k+" label="public skills on GitHub" />
           </dl>
 
-          {/* Skilly mascot — sits below the stats row, anchored to left */}
-          <div className="relative mt-6 md:mt-8">
+          {/* Skilly mascot — sits below the stats row, anchored to left.
+              On desktop, nudged into the hero's left gutter so there is
+              open area to his left and the tooltip opens cleanly to his
+              right. -ml-6 (24px) lines Skilly's left edge up with the
+              viewport edge, leaving the column's padding as breathing
+              room around him. */}
+          <div className="relative mt-6 md:mt-8 lg:-ml-6">
             <LandingSkilly className="relative inline-block" size={96} tooltipSide="right" />
           </div>
         </div>
