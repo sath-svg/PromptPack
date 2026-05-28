@@ -154,6 +154,7 @@ export function Sidebar({ currentPage, onNavigate, isCollapsed, onToggleCollapse
                 : 'text-[var(--muted-foreground)] hover:bg-[var(--accent)] hover:text-[var(--foreground)]'
             }`}
             title={isCollapsed ? 'Draft' : undefined}
+            data-tutorial="draft"
           >
             <FileEdit size={18} className="flex-shrink-0" />
             <span className={`whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>

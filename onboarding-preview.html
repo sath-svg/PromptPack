@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Skilly Onboarding — Preview</title>
+  <style>
+    :root {
+      --bg: #050816;
+      --card: #11162a;
+      --border: #1f2540;
+      --foreground: #e6e9f5;
+      --muted-foreground: #8a92ab;
+      --primary: #3a7bff;
+      --primary-foreground: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; background: #0a0d1c; color: var(--foreground); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+
+    /* Fake app behind the tour — gives a sense of the real backdrop. */
+    .fake-app {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      pointer-events: none;
+    }
+    .fake-sidebar { background: #0d1124; border-right: 1px solid var(--border); padding: 20px 14px; }
+    .fake-sidebar .logo { font-weight: 700; letter-spacing: -0.01em; margin-bottom: 24px; }
+    .fake-sidebar .nav-item { padding: 8px 10px; border-radius: 8px; color: var(--muted-foreground); font-size: 14px; margin-bottom: 4px; }
+    .fake-sidebar .nav-item.active { background: rgba(58, 123, 255, 0.12); color: var(--foreground); }
+    .fake-main { padding: 32px; }
+    .fake-main h1 { font-size: 32px; margin: 0 0 6px; }
+    .fake-main p.sub { color: var(--muted-foreground); margin: 0; }
+
+    /* Overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(5, 8, 22, 0.78);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: background 700ms ease-out, backdrop-filter 700ms ease-out, -webkit-backdrop-filter 700ms ease-out;
+    }
+    .overlay.dropping {
+      background: rgba(5, 8, 22, 0);
+      backdrop-filter: blur(0);
+      -webkit-backdrop-filter: blur(0);
+      pointer-events: none;
+    }
+    .overlay-row {
+      display: flex;
+      align-items: center;
+      gap: 40px;
+      max-width: 760px;
+      padding: 0 24px;
+    }
+
+    /* Hero Skilly */
+    .skilly-hero {
+      width: 200px;
+      height: 220px;
+      flex-shrink: 0;
+      transform: translateY(40px) scale(0.9);
+      opacity: 0;
+      transition: transform 500ms cubic-bezier(.34,1.56,.64,1), opacity 400ms ease-out;
+    }
+    .skilly-hero.live { transform: translate(0, 0) scale(1); opacity: 1; }
+    .skilly-hero.dropping { transition: transform 700ms cubic-bezier(.34,1.56,.64,1), opacity 400ms ease-out; }
+    .skilly-hero svg { width: 100%; height: 100%; overflow: visible; }
+
+    /* Float idle */
+    .skilly-hero svg > g.body-root { transform-origin: 50% 60%; animation: skilly-float 3s ease-in-out infinite; }
+    @keyframes skilly-float {
+      0%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
+      50%      { transform: translateY(-6px) scaleY(1.02) scaleX(0.98); }
+    }
+
+    /* Speech bubble */
+    .bubble {
+      position: relative;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 22px 24px;
+      max-width: 380px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transform: translateX(-12px);
+      transition: opacity 300ms ease-out, transform 300ms ease-out;
+      pointer-events: none;
+    }
+    .bubble.live { opacity: 1; transform: translateX(0); pointer-events: auto; }
+
+    /* Bubble tail */
+    .bubble::before {
+      content: "";
+      position: absolute;
+      left: -10px;
+      top: 44px;
+      width: 0;
+      height: 0;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+      border-right: 10px solid var(--card);
+      filter: drop-shadow(-1px 0 0 var(--border));
+    }
+
+    .dots { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+    .dot { width: 12px; height: 6px; border-radius: 999px; background: var(--border); transition: all 300ms ease; }
+    .dot.done { background: var(--primary); width: 24px; }
+    .counter { margin-left: auto; font-size: 12px; color: var(--muted-foreground); }
+
+    .bubble h3 { margin: 0 0 8px; font-size: 18px; font-weight: 600; color: var(--foreground); }
+    .bubble p.body { margin: 0 0 18px; font-size: 14px; line-height: 1.55; color: var(--muted-foreground); }
+
+    .actions { display: flex; align-items: center; justify-content: space-between; }
+    .skip-btn { background: none; border: none; color: var(--muted-foreground); font-size: 14px; cursor: pointer; padding: 4px 0; font-family: inherit; }
+    .skip-btn:hover { color: var(--foreground); }
+    .next-btn { background: var(--primary); color: var(--primary-foreground); border: none; padding: 8px 18px; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit; transition: opacity 200ms; }
+    .next-btn:hover { opacity: 0.9; }
+
+    /* Restart pill — shown after tour completes */
+    .restart {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 200;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--foreground);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 300ms ease-out;
+    }
+    .restart.show { opacity: 1; pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <!-- Faux app behind the tour for context -->
+  <div class="fake-app" aria-hidden="true">
+    <div class="fake-sidebar">
+      <div class="logo">Skillset</div>
+      <div class="nav-item active">Chat</div>
+      <div class="nav-item">Draft</div>
+      <div class="nav-item">Skill Preset</div>
+      <div class="nav-item">Your Skillsets</div>
+      <div class="nav-item">Marketplace</div>
+      <div class="nav-item">Import</div>
+      <div class="nav-item">Export</div>
+    </div>
+    <div class="fake-main">
+      <h1>One chat. Every model.</h1>
+      <p class="sub">Auto-routes each message to the cheapest capable model.</p>
+    </div>
+  </div>
+
+  <button id="restart" class="restart" type="button">↻ Replay tour</button>
+
+  <div id="overlay" class="overlay">
+    <div class="overlay-row">
+      <!-- Hero Skilly — SVG ported verbatim from app/src/components/Skilly/SkillyFace.tsx -->
+      <div id="skilly" class="skilly-hero">
+        <svg viewBox="0 0 120 130" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <radialGradient id="skilly-outer-grad" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="110">
+              <stop offset="0%"   stop-color="#3658c2" />
+              <stop offset="50%"  stop-color="#0d266b" />
+              <stop offset="100%" stop-color="#04143f" />
+            </radialGradient>
+            <radialGradient id="skilly-mid-grad" gradientUnits="userSpaceOnUse" cx="35" cy="30" r="100">
+              <stop offset="0%"   stop-color="#82a8ff" />
+              <stop offset="55%"  stop-color="#2b6bff" />
+              <stop offset="100%" stop-color="#143fb0" />
+            </radialGradient>
+            <radialGradient id="skilly-inner-grad" gradientUnits="userSpaceOnUse" cx="40" cy="35" r="90">
+              <stop offset="0%"   stop-color="#ffffff" />
+              <stop offset="35%"  stop-color="#dde9ff" />
+              <stop offset="70%"  stop-color="#aac7ff" />
+              <stop offset="100%" stop-color="#8aa9dd" />
+            </radialGradient>
+            <radialGradient id="skilly-face-shine" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="22">
+              <stop offset="0%"  stop-color="white" stop-opacity="0.95" />
+              <stop offset="35%" stop-color="white" stop-opacity="0.45" />
+              <stop offset="70%" stop-color="white" stop-opacity="0.20" />
+              <stop offset="100%" stop-color="white" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="skilly-catchlight" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="6">
+              <stop offset="0%"   stop-color="white" stop-opacity="1" />
+              <stop offset="40%"  stop-color="white" stop-opacity="0.85" />
+              <stop offset="100%" stop-color="white" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="skilly-tip-shine" gradientUnits="objectBoundingBox" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0%"   stop-color="white" stop-opacity="0.9"  />
+              <stop offset="55%"  stop-color="white" stop-opacity="0.35" />
+              <stop offset="100%" stop-color="white" stop-opacity="0"    />
+            </radialGradient>
+            <filter id="skilly-body-shadow" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow dx="1.5" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.55" />
+            </filter>
+            <filter id="skilly-wonky" x="-15%" y="-15%" width="130%" height="130%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="4" result="noise" />
+              <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.5" />
+            </filter>
+          </defs>
+
+          <g class="body-root">
+            <g stroke-linejoin="round" stroke-linecap="round" filter="url(#skilly-body-shadow)">
+              <polygon points="58,14 78,56 106,42 88,76 98,108 58,86 18,112 30,78 10,50 40,50" fill="url(#skilly-outer-grad)" stroke="#0d266b" stroke-width="22" />
+              <polygon points="58.3,21.7 75.3,57.4 99.1,45.5 83.8,74.4 92.3,101.6 58.3,82.9 24.3,105 34.5,76.1 17.5,52.3 43,52.3" fill="url(#skilly-mid-grad)" stroke="#2b6bff" stroke-width="16" />
+              <polygon points="58.7,31.9 71.7,59.2 89.9,50.1 78.2,72.2 84.7,93 58.7,78.7 32.7,95.6 40.5,73.5 27.5,55.3 47,55.3" fill="url(#skilly-inner-grad)" stroke="#aac7ff" stroke-width="10" />
+            </g>
+
+            <!-- Per-tip glossy bubbles -->
+            <g>
+              <ellipse cx="59" cy="17" rx="4" ry="2.4" fill="url(#skilly-tip-shine)" />
+              <ellipse cx="102" cy="44" rx="4" ry="2.4" fill="url(#skilly-tip-shine)" transform="rotate(70 102 44)" />
+              <ellipse cx="94"  cy="104" rx="4" ry="2.4" fill="url(#skilly-tip-shine)" transform="rotate(-40 94 104)" />
+              <ellipse cx="22" cy="108" rx="4" ry="2.4" fill="url(#skilly-tip-shine)" transform="rotate(40 22 108)" />
+              <ellipse cx="14" cy="52" rx="4" ry="2.4" fill="url(#skilly-tip-shine)" transform="rotate(80 14 52)" />
+            </g>
+
+            <!-- Halo + specular -->
+            <g transform="translate(58 58)">
+              <ellipse cx="0" cy="0" rx="26" ry="20" fill="url(#skilly-face-shine)" />
+              <ellipse cx="0" cy="0" rx="7"  ry="5"  fill="url(#skilly-catchlight)" />
+            </g>
+
+            <!-- Blush -->
+            <ellipse cx="36" cy="74" rx="5" ry="2.8" fill="#ff8fb8" opacity="0.55" transform="rotate(-8 36 74)" />
+            <ellipse cx="84" cy="72" rx="4" ry="2.4" fill="#ff8fb8" opacity="0.5"  transform="rotate(6 84 72)" />
+
+            <!-- Eyes -->
+            <g>
+              <ellipse cx="48" cy="60" rx="6.2" ry="7" fill="#0d266b" />
+              <circle cx="49.5" cy="58" r="1.7" fill="white" />
+            </g>
+            <g>
+              <ellipse cx="74" cy="63" rx="5.2" ry="6.2" fill="#0d266b" />
+              <circle cx="75.2" cy="61" r="1.5" fill="white" />
+            </g>
+
+            <!-- Mouth: smile -->
+            <path d="M 52 74 Q 60 83 70 77" stroke="#0d266b" stroke-width="2.8" fill="none" stroke-linecap="round" />
+
+            <!-- Glasses -->
+            <g fill="rgba(255,255,255,0.18)" stroke="#0d266b" stroke-width="2.4" stroke-linecap="round" filter="url(#skilly-wonky)">
+              <ellipse cx="48" cy="60" rx="11"  ry="10.5" transform="rotate(-6 48 60)" />
+              <ellipse cx="74" cy="63" rx="9.5" ry="9"    transform="rotate(4 74 63)" />
+              <path d="M 59 59 Q 62 56 66 61" fill="none" />
+              <path d="M 37 58 Q 32 56 28 55" fill="none" />
+              <path d="M 83.5 62 Q 88 60 91 59" fill="none" />
+              <path d="M 43 53 Q 46 50 51 54" stroke="white" stroke-width="1.4" opacity="0.7" fill="none" />
+              <path d="M 69 56 Q 72 53 76 56" stroke="white" stroke-width="1.2" opacity="0.65" fill="none" />
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Speech bubble -->
+      <div id="bubble" class="bubble">
+        <div class="dots">
+          <span class="dot done" data-i="0"></span>
+          <span class="dot" data-i="1"></span>
+          <span class="dot" data-i="2"></span>
+          <span class="dot" data-i="3"></span>
+          <span class="dot" data-i="4"></span>
+          <span class="dot" data-i="5"></span>
+          <span class="dot" data-i="6"></span>
+          <span class="dot" data-i="7"></span>
+          <span class="dot" data-i="8"></span>
+          <span id="counter" class="counter">1 / 9</span>
+        </div>
+        <h3 id="title"></h3>
+        <p id="body" class="body"></p>
+        <div class="actions">
+          <button id="skip" class="skip-btn" type="button">Skip tour</button>
+          <button id="next" class="next-btn" type="button">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Steps mirror app/src/components/Onboarding/TutorialOverlay.tsx
+    const STEPS = [
+      { title: "Hi! I'm Skilly ✨",
+        body: "I'm your AI companion — I'll show you around in 30 seconds. Save prompts as portable skills, run them across ChatGPT, Claude, Gemini — any tool. Let's go!" },
+      { title: "Sign in so I can sync",
+        body: "Sign in first and I'll keep your skills synced across every device, unlock the marketplace, and track your seller earnings." },
+      { title: "Skill Chat — one box, every model",
+        body: "Talk to every model from one chat. I route each message to the cheapest capable one — Haiku for quick stuff, Sonnet for hard reasoning, Gemini when you paste images. Your bill stays tiny!" },
+      { title: "Draft & enhance with me",
+        body: "Draft prompts here — I auto-save as you type. When one feels weak, hit my enhancer and I'll rewrite it. Save the final version into a Set and reuse it forever." },
+      { title: "Lock your style into a Preset",
+        body: "Drop reference images and I'll pull out your palette, line weight, and signature into an encrypted Preset. List it on the marketplace and earn royalties every time someone buys it." },
+      { title: "Your Skillsets",
+        body: "Bundle prompts into reusable Sets with {variable} placeholders. Chain them into Skill Flows — output of step 1 feeds step 2. Run the whole pipeline with one click." },
+      { title: "Marketplace — browse, buy, sell",
+        body: "Browse Flows, Sets, and Presets from other creators. Buy with credits, filter by tag, save your favorite searches, and check ratings before grabbing. List your own and keep 70% of every sale — I'll handle payouts." },
+      { title: "Skill Control — version like Git",
+        body: "Pro+ unlock. Every edit gets versioned. Diff, branch, and rollback any skill like Git for prompts — never lose a good revision again." },
+      { title: "Import sets from anywhere",
+        body: "Import .skill files from friends, or pipe skills straight in from my Chrome extension as you save them from ChatGPT, Claude, and Gemini. See you inside!",
+        finalAction: "Let's go!" },
+    ];
+
+    const DROP_MS = 700;
+
+    const overlay = document.getElementById('overlay');
+    const skilly  = document.getElementById('skilly');
+    const bubble  = document.getElementById('bubble');
+    const titleEl = document.getElementById('title');
+    const bodyEl  = document.getElementById('body');
+    const nextBtn = document.getElementById('next');
+    const skipBtn = document.getElementById('skip');
+    const counter = document.getElementById('counter');
+    const dots    = [...document.querySelectorAll('.dot[data-i]')];
+    const restart = document.getElementById('restart');
+
+    let idx = 0;
+    let dropping = false;
+
+    function render() {
+      const step = STEPS[idx];
+      titleEl.textContent = step.title;
+      bodyEl.textContent = step.body;
+      counter.textContent = `${idx + 1} / ${STEPS.length}`;
+      dots.forEach((d, i) => d.classList.toggle('done', i <= idx));
+      nextBtn.textContent = idx === STEPS.length - 1 ? (step.finalAction || 'Finish') : 'Next';
+    }
+
+    function intro() {
+      overlay.classList.remove('dropping');
+      restart.classList.remove('show');
+      skilly.classList.remove('live', 'dropping');
+      skilly.style.transform = '';
+      bubble.classList.remove('live');
+      idx = 0;
+      render();
+      // Trigger slide-up + bubble fade-in.
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          skilly.classList.add('live');
+          bubble.classList.add('live');
+        }, 50);
+      });
+    }
+
+    function dropToFloating() {
+      if (dropping) return;
+      dropping = true;
+      bubble.classList.remove('live');
+
+      // Compute translate from hero center to floating slot
+      // (viewport center, 16px from bottom + half-height).
+      const r = skilly.getBoundingClientRect();
+      const heroCx = r.left + r.width / 2;
+      const heroCy = r.top + r.height / 2;
+      const targetX = window.innerWidth / 2;
+      const targetY = window.innerHeight - 16 - 60;
+      const dx = targetX - heroCx;
+      const dy = targetY - heroCy;
+
+      skilly.classList.add('dropping');
+      skilly.style.transform = `translate(${dx}px, ${dy}px) scale(0.55)`;
+      overlay.classList.add('dropping');
+
+      setTimeout(() => {
+        dropping = false;
+        restart.classList.add('show');
+      }, DROP_MS);
+    }
+
+    nextBtn.addEventListener('click', () => {
+      if (idx === STEPS.length - 1) {
+        dropToFloating();
+      } else {
+        idx++;
+        render();
+      }
+    });
+    skipBtn.addEventListener('click', dropToFloating);
+    restart.addEventListener('click', intro);
+
+    intro();
+  </script>
+</body>
+</html>

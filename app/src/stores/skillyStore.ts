@@ -71,6 +71,10 @@ interface SkillyState {
   // Credit deltas — used by the bridge to detect spend and monthly refresh.
   lastCreditTotal: number | null;
   lastMonthlyCredits: number | null;
+  // True only while the onboarding tour's Skilly is animating down into
+  // the floating slot. Lets SkillyFloating mount underneath the dropping
+  // hero so the hand-off is seamless (no unmount gap / size pop).
+  tourDropping: boolean;
 
   // Actions
   bootIfNeeded: () => void;
@@ -86,6 +90,7 @@ interface SkillyState {
   flashMouth: (kind: 'sad' | 'o', ms?: number) => void;
   setLastCreditTotal: (n: number) => void;
   setLastMonthlyCredits: (n: number) => void;
+  setTourDropping: (b: boolean) => void;
   revive: () => void;
   /** Test/debug only — force a decay tick to fire now. */
   _tick: () => void;
@@ -120,6 +125,7 @@ export const useSkillyStore = create<SkillyState>()(
       lastAction: { kind: null, at: 0 },
       lastCreditTotal: null,
       lastMonthlyCredits: null,
+      tourDropping: false,
 
       bootIfNeeded: () => {
         if (get().firstSeenAt === null) {
@@ -170,6 +176,7 @@ export const useSkillyStore = create<SkillyState>()(
 
       setLastCreditTotal: (n) => set({ lastCreditTotal: n }),
       setLastMonthlyCredits: (n) => set({ lastMonthlyCredits: n }),
+      setTourDropping: (b) => set({ tourDropping: b }),
 
       revive: () => set({
         ...INIT_STATS,

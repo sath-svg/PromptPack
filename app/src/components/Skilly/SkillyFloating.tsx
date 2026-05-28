@@ -19,17 +19,32 @@
 import { createPortal } from 'react-dom';
 import { useUiStore } from '../../stores/uiStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useSkillyStore } from '../../stores/skillyStore';
 import { Skilly } from './Skilly';
 
 export function SkillyFloating() {
   const currentPage = useUiStore((s) => s.currentPage);
   const skillyEnabled = useSettingsStore((s) => s.skillyEnabled);
   const hasCompletedOnboarding = useSettingsStore((s) => s.hasCompletedOnboarding);
+  const tourDropping = useSkillyStore((s) => s.tourDropping);
 
   if (skillyEnabled === false) return null;
   if (currentPage === 'skilly') return null;
-  if (!hasCompletedOnboarding) return null;
+  // Hidden through the tour, EXCEPT during the final drop — then we mount
+  // it (so the overlay can MEASURE its real rect as the hero's landing
+  // target) but keep it invisible while the hero animates. At drop-end
+  // `tourDropping` flips false the same tick the overlay unmounts, so the
+  // app-state Skilly reveals exactly where the hero landed and the hero
+  // disappears — a clean swap, no double mascot mid-flight.
+  if (!hasCompletedOnboarding && !tourDropping) return null;
   if (typeof document === 'undefined') return null;
 
-  return createPortal(<Skilly variant="floating" />, document.body);
+  return createPortal(
+    // Wrapper carries the drop-time invisibility. Opacity on this static
+    // wrapper still applies to the fixed-positioned Skilly inside it.
+    <div style={{ opacity: tourDropping ? 0 : 1 }}>
+      <Skilly variant="floating" />
+    </div>,
+    document.body,
+  );
 }
