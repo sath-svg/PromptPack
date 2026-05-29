@@ -121,21 +121,13 @@ function Hero() {
             </span>
           </h1>
 
-          <p className="mt-5 max-w-[56ch] text-[15.5px] leading-[1.55] text-zinc-400 md:mt-7 md:text-[17px]">
-            Claude this. ChatGPT that. The AI race never stops. Let Skillset run it for you.
-          </p>
-          <p className="mt-3 max-w-[56ch] text-[13px] leading-[1.5] text-zinc-500 md:text-[14px]">
-            Always the smartest model, always the cheapest price. Save prompts, rerun workflows, version your work. Cut token spend{" "}
-            <span className="font-medium text-emerald-400">up to 80%</span>, never lose quality.
-          </p>
-
           <div className="mt-7 flex flex-wrap items-center gap-3 md:mt-10 md:gap-4">
             <Link
               href="/downloads"
               style={{ padding: "10px 22px" }}
               className="group inline-flex items-center gap-2 rounded-full bg-[#2563EB] text-sm font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-[#1d4ed8] active:translate-y-[1px]"
             >
-              Meet Skillset
+              Take a look
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
             </Link>
             <a
