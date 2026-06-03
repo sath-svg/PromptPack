@@ -67,6 +67,22 @@ let bootPromise: Promise<void> | null = null;
 /** chat_id → conversationId mapping. Rebuilt lazily after restarts. */
 const chatToConvo = new Map<number, string>();
 
+/**
+ * Reverse lookup for the in-memory chat_id ↔ conversationId map.
+ *
+ * Used by the desktop SkillChat banner to detect whether a Telegram-bound
+ * convo's pairing is still valid (i.e. its chat_id is still in the
+ * authorized list). Returns `undefined` until the messenger client has
+ * processed at least one inbound message for that chat this session — the
+ * map is in-memory only and lazily rebuilt.
+ */
+export function getTelegramChatIdForConvo(convoId: string): number | undefined {
+  for (const [chatId, mapped] of chatToConvo) {
+    if (mapped === convoId) return chatId;
+  }
+  return undefined;
+}
+
 /** Per-chat reentrancy guard so two fast inbound messages don't double-spawn. */
 const inFlight = new Set<number>();
 /** Update-id dedupe — guards against the Rust loop emitting the same update

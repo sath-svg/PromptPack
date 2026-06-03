@@ -20,7 +20,7 @@ export async function checkForUpdateOnLaunch(): Promise<void> {
   try {
     update = await check();
   } catch (err) {
-    // Network or 404 from the manifest endpoint — silent. Don't bother
+    // Network or 404 from the manifest endpoint: silent. Don't bother
     // the user; they'll try again on next launch.
     console.warn('[updater] check failed:', err);
     return;
@@ -29,13 +29,27 @@ export async function checkForUpdateOnLaunch(): Promise<void> {
 
   pendingUpdate = update;
 
+  const notes = update.body?.trim();
+  // Title: keep tight + version-forward so the chip-style toast doesn't
+  // run the version into the label. Em dashes intentionally avoided per
+  // copy guidelines.
+  const title = `Skillset v${update.version} is ready`;
+  // Message: lead with what Install actually DOES so the user isn't left
+  // wondering whether the button opens a browser, the downloads page, or
+  // runs the upgrade in-place. Tauri's updater downloads + verifies the
+  // signed bundle and relaunches into the new version: no manual step.
+  const message = [
+    'Click Install to download and apply the update automatically. The app will restart into the new version. No manual download.',
+    notes ? `\nWhat's new: ${notes}` : '',
+  ].join('');
+
   useNotificationStore.getState().notify({
     category: 'unknown',
     severity: 'info',
-    title: `Update available — ${update.version}`,
-    message: update.body?.trim() || `A new version of Skillset (${update.version}) is ready to install.`,
+    title,
+    message,
     actions: [
-      { kind: 'install_update', label: 'Install' },
+      { kind: 'install_update', label: `Install v${update.version}` },
       { kind: 'dismiss' },
     ],
     details: `current=${update.currentVersion} latest=${update.version}\ndate=${update.date ?? 'unknown'}\nbody=${update.body ?? ''}`,
@@ -62,7 +76,7 @@ async function installAndRelaunch(update: Update): Promise<void> {
   const progressId = store.notify({
     category: 'unknown',
     severity: 'info',
-    title: `Downloading ${update.version}…`,
+    title: `Downloading v${update.version}…`,
     message: '0%',
     actions: [{ kind: 'dismiss' }],
     details: `installing ${update.version}`,
@@ -82,7 +96,7 @@ async function installAndRelaunch(update: Update): Promise<void> {
         store.notify({
           category: 'unknown',
           severity: 'info',
-          title: `Downloading ${update.version}…`,
+          title: `Downloading v${update.version}…`,
           message: total > 0 ? `${pct}% (${(downloaded / 1024 / 1024).toFixed(1)} / ${(total / 1024 / 1024).toFixed(1)} MB)` : `${(downloaded / 1024 / 1024).toFixed(1)} MB`,
           actions: [{ kind: 'dismiss' }],
           details: `progress ${pct}%`,
@@ -95,8 +109,8 @@ async function installAndRelaunch(update: Update): Promise<void> {
     store.notify({
       category: 'unknown',
       severity: 'info',
-      title: 'Installed — restarting',
-      message: `Skillset ${update.version} is installed. Restarting now.`,
+      title: 'Installed. Restarting…',
+      message: `Skillset v${update.version} is installed. Restarting now.`,
       actions: [{ kind: 'dismiss' }],
       details: 'about to relaunch',
       dedupeKey: 'updater.relaunch',

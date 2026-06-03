@@ -17,7 +17,7 @@
 
 import { tauriFetch } from '../tauriFetch';
 import { applyReasoning, capEffortForAgentLoop } from '../reasoningParams';
-import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool } from '../agentTools';
+import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, buildSkillyContext, dispatchTool } from '../agentTools';
 import { syncCreditsFromHeaders } from '../creditSync';
 import { friendlyApiError } from '../apiErrors';
 import type { ModelPreset } from '../classifier';
@@ -254,11 +254,16 @@ ${projectInstructions.trim()}`
     );
   }
   const contract = contractParts.join('\n\n');
+  // Skilly snapshot — placed AFTER skillBlock + contract so the cache prefix
+  // (AGENT_SYSTEM_PROMPT + SKILL_FLOW_PACK_ADDENDUM) stays stable. Stats
+  // change between turns but the rest of the system prompt doesn't.
+  const skillyBlock = buildSkillyContext();
   return [
     basePrompt,
     isPackChainStep ? SKILL_FLOW_PACK_ADDENDUM : '',
     skillBlock,
     contract,
+    skillyBlock,
   ]
     .filter((s) => s.length > 0)
     .join('\n\n');

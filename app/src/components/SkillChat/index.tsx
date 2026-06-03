@@ -27,6 +27,7 @@ import { predictRouteWithConfidence } from '../../lib/classifierModel';
 import { detectWriteFileIntent } from '../../lib/agentTools';
 import { useConversationsStore } from '../../stores/conversationsStore';
 import { getStoresFor } from '../../stores/registry';
+import { getTelegramChatIdForConvo } from '../../lib/messenger/client';
 import type { ChatState } from '../../stores/chatStore';
 
 function extractVariables(text: string): string[] {
@@ -346,6 +347,27 @@ export function SkillChatPage() {
     });
   }, [activeConvoId, loadConversationMessages]);
   void conversations; // referenced via getState() above — keep dep cheap
+
+  // Telegram-bound convos are created by the messenger client with a `📨 `
+  // title prefix (see `dispatchToSkillChat` in lib/messenger/client.ts).
+  // The chat_id ↔ convoId map is in-memory only across restarts; the
+  // persisted title is the durable marker that this convo *was* Telegram-
+  // bound at some point.
+  const activeConvo = conversations.find((c) => c.id === activeConvoId);
+  const isTelegramBound = activeConvo?.title?.startsWith('📨') ?? false;
+
+  // Reactive subscription so the unlink banner appears/clears in real time
+  // when the user toggles auth in Settings → Messengers.
+  const telegramAuthorizedChats = useSettingsStore((s) => s.telegramAuthorizedChats);
+  // Reverse-lookup the chat_id this convo is currently mapped to. Returns
+  // undefined on cold app start before the first inbound message rebuilds
+  // the map — in that case we default to the "linked" banner and only flip
+  // to "unlinked" once we have positive evidence the auth dropped.
+  const boundChatId = activeConvoId ? getTelegramChatIdForConvo(activeConvoId) : undefined;
+  const isTelegramUnlinked =
+    isTelegramBound &&
+    boundChatId !== undefined &&
+    !telegramAuthorizedChats.some((c) => c.chatId === boundChatId);
 
   const [input, setInput] = useState('');
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
@@ -741,6 +763,31 @@ export function SkillChatPage() {
         <WorkspaceBar />
         <GitBar />
         <LspStatusBar />
+        {isTelegramUnlinked ? (
+          <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-md border border-red-500/40 bg-red-500/10 text-[11px] text-[var(--foreground)] leading-relaxed">
+            <AlertCircle size={12} className="text-red-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0 space-y-1">
+              <p>
+                <span className="font-medium text-red-500">Telegram link broken.</span>{' '}
+                This chat is no longer paired with your Telegram bot. Send <code className="px-1 py-0.5 rounded bg-[var(--background)] text-[var(--foreground)]" style={{ fontFamily: 'var(--font-mono)' }}>/start</code> from Telegram to re-pair, then approve the chat in Settings → Messengers.
+              </p>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('skillset:navigate', { detail: { page: 'settings', section: 'settings-messengers' } }))}
+                className="inline-flex items-center gap-1 text-red-500 hover:text-red-400 underline"
+              >
+                Open Messenger settings
+              </button>
+            </div>
+          </div>
+        ) : isTelegramBound ? (
+          <div className="flex items-start gap-2 mb-3 px-3 py-2 rounded-md border border-[var(--primary)]/30 bg-[var(--primary)]/5 text-[11px] text-[var(--muted-foreground)] leading-relaxed">
+            <Info size={12} className="text-[var(--primary)] flex-shrink-0 mt-0.5" />
+            <span>
+              Heads up: this chat is linked to a Telegram chat with your bot. Messages you type here stay in the desktop app — they will NOT appear in Telegram. Telegram only shows messages you send from Telegram and the bot's replies to them.
+            </span>
+          </div>
+        ) : null}
         {/* Header */}
         <div className={`flex items-center justify-between ${messages.length === 0 ? 'mb-6' : 'mb-2'}`}>
           {messages.length === 0 ? (

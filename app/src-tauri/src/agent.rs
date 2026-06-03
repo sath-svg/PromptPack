@@ -441,6 +441,21 @@ Skill packs (formerly "prompt packs") are reusable templates with
   it, treat that as a missing input and stop to ask the user — never
   invent values for unfilled variables.
 
+## Skilly (in-app mascot)
+
+Skilly is a tamagotchi-style companion that lives in the Skillset
+sidebar. The user can Feed / Play / Sleep / Wake Skilly from the Skilly
+tab; stats decay over time and recover via those actions.
+
+The agent receives Skilly's live stats (hunger / happy / energy / mode)
+as a system-prompt block on every turn, so when the user asks "how is
+Skilly?" / "what's Skilly's hunger?" / "is Skilly okay?", answer
+directly from that snapshot — do not call any tools. Keep the reply
+short and warm; flag any stat below 25 and suggest the matching action:
+low hunger → Feed, low happy → Play, low energy → Sleep. If Skilly is
+passed out, say so and mention the recovery paths (upgrade or wait for
+the next monthly credit refresh).
+
 ## Project rules (edit this section)
 
 <!-- Add anything you want the agent to always follow here:

@@ -8,6 +8,8 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import { getActiveConvoId, getStoresFor } from '../stores/registry';
 import type { AgentState } from '../stores/agentStore';
 import type { RunState } from '../stores/runStore';
+import { useSkillyStore } from '../stores/skillyStore';
+import { useSettingsStore } from '../stores/settingsStore';
 
 // Phase 2 multi-conversation resolvers: route every tool-call mutation
 // to the OWNING conversation's stores (passed via ctx.convoId), not
@@ -986,3 +988,37 @@ If a required input is missing, say "I couldn't access \`<path>\`. Please confir
 - After meaningful edits, call \`lsp_diagnostics\` on the file to surface type errors before claiming success.
 - When running inside a Skill pack (one of a sequence of curated prompts auto-advancing), do NOT end with conversational closers like "Would you like me to proceed?" or "Should I move to the next step?". The pack runner advances automatically. Just give the one-line summary and stop.
 - When done, give a one-line summary. No filler, no apologies, no fabricated status banners.`;
+
+/**
+ * Build a short system-prompt block describing Skilly's current stats so
+ * the agent can answer "how is Skilly?" / "what's Skilly's hunger?" without
+ * any tool calls. Stats are NOT readable from disk (they live in browser
+ * localStorage via the persisted `skilly-store`), so we ship them inline.
+ *
+ * Returns an empty string when Skilly is disabled in Settings — no point
+ * priming the model with stats the user doesn't care about.
+ */
+export function buildSkillyContext(): string {
+  const enabled = useSettingsStore.getState().skillyEnabled;
+  if (enabled === false) return '';
+  const s = useSkillyStore.getState();
+  if (s.firstSeenAt === null) return ''; // not yet booted
+
+  const round = (n: number) => Math.round(n);
+  let mode: string;
+  if (s.passedOut) mode = 'PASSED OUT (revive via upgrade or monthly credit refresh)';
+  else if (s.sleeping) mode = 'sleeping (energy regenerating)';
+  else mode = 'awake';
+
+  return `# Skilly status (in-app mascot)
+
+Skilly is the user's tamagotchi-style companion that lives in the Skillset sidebar. The user can Feed / Play / Sleep / Wake Skilly from the Skilly tab; stats decay over time and recover via those actions.
+
+Current snapshot (live from the app, scale 0–100):
+- hunger: ${round(s.hunger)}
+- happy:  ${round(s.happy)}
+- energy: ${round(s.energy)}
+- mode:   ${mode}
+
+When the user asks about Skilly (e.g. "how is Skilly?", "what's Skilly's hunger?", "is Skilly okay?"), answer directly from the snapshot above — do NOT call any tools. Keep the reply short and warm; flag any stat below 25 as needing attention and suggest the matching action (low hunger → Feed, low happy → Play, low energy → Sleep). If Skilly is passed out, tell the user explicitly and explain the recovery paths above.`;
+}

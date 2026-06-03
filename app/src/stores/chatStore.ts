@@ -21,7 +21,7 @@ import { applyReasoning, capEffortForAgentLoop, managedProxyReasoning } from '..
 import { useSettingsStore, SERVER_DAILY_CAPS } from './settingsStore';
 import { useAuthStore } from './authStore';
 import { useNotificationStore } from './notificationStore';
-import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
+import { AGENT_TOOLS, AGENT_SYSTEM_PROMPT, buildSkillyContext, dispatchTool, detectWriteFileIntent } from '../lib/agentTools';
 import { pickFromSelections, getManagedModel, estimateCreditsForCall } from '../lib/managed-models';
 import { syncCreditsFromHeaders } from '../lib/creditSync';
 import { friendlyApiError, safeParseErrorBody } from '../lib/apiErrors';
@@ -936,6 +936,14 @@ async function runAnthropicAgent(
   // reliable than hoping the system prompt convinces the model.
   const forceWritePath = detectWriteFileIntent(userText);
 
+  // Pin Skilly stats at the start of the turn so the agent can answer
+  // "how is Skilly?" without tool calls. Recomputed per-turn so a long
+  // tool loop sees fresh values on each round.
+  const skillyBlock = buildSkillyContext();
+  const systemPromptWithSkilly = skillyBlock
+    ? `${AGENT_SYSTEM_PROMPT}\n\n${skillyBlock}`
+    : AGENT_SYSTEM_PROMPT;
+
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     onBeforeRound?.();
     const forceTool = round === 0 && forceWritePath ? 'write_file' : undefined;
@@ -943,7 +951,7 @@ async function runAnthropicAgent(
       apiKey,
       preset,
       apiMessages,
-      AGENT_SYSTEM_PROMPT,
+      systemPromptWithSkilly,
       effort ?? null,
       forceTool,
     );
@@ -1017,8 +1025,13 @@ async function runOpenAIAgent(
   effort?: EffortLevel | null,
   convoId?: string,
 ): Promise<void> {
+  // Live Skilly snapshot — ships as a separate system message so it sits
+  // alongside the agent base prompt without disturbing the cached prefix.
+  // Empty string when Skilly is disabled or pre-boot.
+  const skillyBlock = buildSkillyContext();
   const apiMessages: OpenAIMessage[] = [
     { role: 'system', content: AGENT_SYSTEM_PROMPT },
+    ...(skillyBlock ? [{ role: 'system' as const, content: skillyBlock }] : []),
   ];
 
   for (const m of history) {

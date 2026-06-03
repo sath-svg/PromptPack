@@ -146,7 +146,13 @@ function NotificationToast({
               {actionLabel(a)}
             </button>
           ))}
-          <CopyDetailsButton error={error} />
+          {/* Copy details is for SHARING errors with support — only show when
+              there's an actual failure to share. Updater toasts, "Installed —
+              restarting", and other purely informational notifications don't
+              benefit from a copy button cluttering the row. */}
+          {error.severity !== 'info' && !error.source.startsWith('appUpdater.') && (
+            <CopyDetailsButton error={error} />
+          )}
         </div>
       </div>
       <button
