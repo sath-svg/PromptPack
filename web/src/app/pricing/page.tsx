@@ -74,7 +74,7 @@ export default function PricingPage() {
             className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            Pricing
+            01 · Pricing
           </p>
           <h1 className="text-[40px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[56px]">
             Choose a plan that fits.
@@ -141,7 +141,7 @@ function Glossary() {
           className="mb-3 text-center text-[11px] uppercase tracking-[0.22em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          Quick glossary
+          02 · Quick glossary
         </p>
         <h2 className="text-center text-[24px] font-medium leading-[1.15] tracking-[-0.015em] text-zinc-50 md:text-[32px]">
           New here? Some terms unpacked.

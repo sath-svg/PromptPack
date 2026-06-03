@@ -364,7 +364,7 @@ function Testimonials() {
           className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
           style={{ fontFamily: "var(--font-geist-mono), monospace" }}
         >
-          06 — In the wild
+          02 · In the wild
         </p>
         <h2 className="max-w-[20ch] text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
           People who stopped losing prompts.
@@ -504,7 +504,7 @@ function FaqSection() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              07 — FAQ
+              03 · FAQ
             </p>
             <h2 className="text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
               Questions makers ask before signing up.

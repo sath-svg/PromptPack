@@ -2,6 +2,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import type { Metadata } from "next";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { ScrollReveal } from "@/components/scroll-reveal";
+import { LandingSkilly } from "@/components/landing-skilly";
 import {
   CoreFeatures,
   HowItWorks,
@@ -36,21 +37,26 @@ export default function HowItWorksPage() {
       <SkillsetNav />
 
       <section className="relative border-b border-white/5 bg-[#0a0a0c] py-16 md:py-24">
-        <div className="mx-auto max-w-[1100px] px-5 md:px-6">
-          <p
-            className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            How it works
-          </p>
-          <h1 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[56px]">
-            Everything in one app.
-            <br />
-            Built for how you actually use AI.
-          </h1>
-          <p className="mt-6 max-w-[60ch] text-[16px] leading-[1.6] text-zinc-400 md:text-[17px]">
-            The Skillset companion — features, building flow, role-based starter packs, and pro-grade tuning. All on one page.
-          </p>
+        <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-10 px-5 md:px-6 lg:grid-cols-[1fr_auto] lg:gap-16">
+          <div>
+            <p
+              className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
+              style={{ fontFamily: "var(--font-geist-mono), monospace" }}
+            >
+              How it works
+            </p>
+            <h1 className="text-[36px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[56px]">
+              Everything in one app.
+              <br />
+              Built for how you actually use AI.
+            </h1>
+            <p className="mt-6 max-w-[60ch] text-[16px] leading-[1.6] text-zinc-400 md:text-[17px]">
+              The Skillset companion — features, building flow, role-based starter packs, and pro-grade tuning. All on one page.
+            </p>
+          </div>
+          <div className="relative flex justify-center lg:justify-end lg:pr-4">
+            <LandingSkilly size={220} tooltipSide="left" />
+          </div>
         </div>
       </section>
 

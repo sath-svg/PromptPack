@@ -37,7 +37,7 @@ export function CoreFeatures() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              02 · A whole skill ecosystem
+              01 · A whole skill ecosystem
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Main features in
@@ -220,7 +220,7 @@ export function HowItWorks() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              03 · How to create a skillset
+              02 · How to create a skillset
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               From scratch to skill in
@@ -350,7 +350,7 @@ export function Personas() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              04 · Built for how you actually use AI
+              03 · Built for how you actually use AI
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[48px]">
               Pick the skillset that fits your life.
@@ -425,7 +425,7 @@ export function PowerFeatures() {
               className="mb-4 text-[11px] uppercase tracking-[0.22em] text-zinc-500"
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
-              05 · For quality nerds
+              04 · For quality nerds
             </p>
             <h2 className="text-[30px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[52px]">
               Tune your prompts
