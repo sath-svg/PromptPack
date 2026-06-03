@@ -336,12 +336,12 @@ function SkillBeltMarquee() {
 function Testimonials() {
   const quotes = [
     {
-      q: "Stopped re-typing the same UI prompt into Claude. Now it's just `skills run @taste`.",
+      q: "Stopped re-typing the same UI prompt into Claude. Now it's just `/run my-ui-skillset` on telegram from my phone.",
       n: "M. E.",
       r: "Frontend Eng, indie",
     },
     {
-      q: "Cut my Midjourney style-drift problem to zero. Presets > vibes.",
+      q: "I want to support Skillset for helping artists earn royalties in this new age where AI stealing art is normalized.",
       n: "B. B.",
       r: "Brand designer",
     },
