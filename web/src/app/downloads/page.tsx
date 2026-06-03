@@ -6,7 +6,7 @@ import { MacOSDownload } from "@/components/macos-download";
 import { WindowsDownload } from "@/components/windows-download";
 import { SignedOut } from "@/lib/auth-compat";
 
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.3.1";
 
 export const metadata: Metadata = {
   title: "Download Skillset — Mac & Windows desktop apps",
