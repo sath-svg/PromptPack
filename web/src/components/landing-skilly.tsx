@@ -13,12 +13,17 @@ interface LandingSkillyProps {
   size?: number;
   /** Side the tooltip anchors to relative to Skilly. */
   tooltipSide?: "left" | "right";
+  /** Pixel nudge applied to the tooltip's computed `left` (negative shifts
+      it leftward). Useful when Skilly is overlaid and the natural anchor
+      would collide with adjacent UI. */
+  tooltipOffsetX?: number;
 }
 
 export function LandingSkilly({
   className = "",
   size = 88,
   tooltipSide = "right",
+  tooltipOffsetX = 0,
 }: LandingSkillyProps) {
   const [open, setOpen] = useState(false);
   const [mouth, setMouth] = useState<Mouth>("smile");
@@ -55,7 +60,8 @@ export function LandingSkilly({
       const top = wouldOverflowBelow && fitsAbove
         ? r.top - margin - dialogH
         : r.bottom + margin;
-      const desired = tooltipSide === "right" ? r.left : r.right - dialogW;
+      const base = tooltipSide === "right" ? r.left : r.right - dialogW;
+      const desired = base + tooltipOffsetX;
       // Keep tooltip inside viewport with 8px breathing room on each side.
       const left = Math.max(8, Math.min(desired, window.innerWidth - dialogW - 8));
       setPos({ top, left });
@@ -67,7 +73,7 @@ export function LandingSkilly({
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
-  }, [open, tooltipSide]);
+  }, [open, tooltipSide, tooltipOffsetX]);
 
   useEffect(() => {
     if (!open) return;

@@ -8,8 +8,8 @@ import { SignedIn, SignedOut, UserButton } from "@/lib/auth-compat";
 type NavLink = { label: string; href: string };
 
 const DEFAULT_LINKS: NavLink[] = [
-  { label: "Features", href: "/#features" },
-  { label: "How it works", href: "/#how" },
+  { label: "Features", href: "/how-it-works#features" },
+  { label: "How it works", href: "/how-it-works" },
   { label: "Skillsets", href: "/skillsets" },
   { label: "Pricing", href: "/pricing" },
 ];
