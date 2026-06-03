@@ -131,8 +131,8 @@ function Hero() {
           </p>
 
           <dl className="mt-10 grid grid-cols-3 gap-3 border-t border-white/5 pt-5 text-left md:mt-14 md:gap-0 md:pt-6">
-            <Stat value="1B+" label="weekly AI users" />
-            <Stat value="10B+" label="prompts run daily" />
+            <Stat value="100+" label="active users" />
+            <Stat value="10B+" label={<>prompts sent to AI daily,<br />globally</>} />
             <Stat value="50k+" label="public skills on GitHub" />
           </dl>
 
@@ -155,7 +155,7 @@ function Hero() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label }: { value: string; label: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
       <dt
@@ -337,22 +337,22 @@ function Testimonials() {
   const quotes = [
     {
       q: "Stopped re-typing the same UI prompt into Claude. Now it's just `skills run @taste`.",
-      n: "Marisol Echegaray",
+      n: "M. E.",
       r: "Frontend Eng, indie",
     },
     {
       q: "Cut my Midjourney style-drift problem to zero. Presets > vibes.",
-      n: "Bergen Bergwin",
+      n: "B. B.",
       r: "Brand designer",
     },
     {
       q: "Finally — version control for the thing my whole product depends on.",
-      n: "Ohene Asafo-Agyei",
+      n: "O. A.",
       r: "Founder, AI agency",
     },
     {
       q: "I keep one library. ChatGPT, Cursor, Gemini all pull from it. That alone is worth Pro.",
-      n: "Liesel Frankland",
+      n: "L. F.",
       r: "Solo SaaS",
     },
   ];
@@ -369,6 +369,9 @@ function Testimonials() {
         <h2 className="max-w-[20ch] text-[28px] font-medium leading-[1.05] tracking-[-0.02em] text-zinc-50 md:text-[44px]">
           People who stopped losing prompts.
         </h2>
+        <p className="mt-3 text-[12px] text-zinc-500 md:text-[13px]">
+          Users not named for anonymity.
+        </p>
       </div>
 
       <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
