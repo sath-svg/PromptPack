@@ -10,14 +10,14 @@ type Arch = "x64" | "arm64";
 // (see "Collect artifacts" step). Upload them under /downloads/ on the web host.
 const FILES: Record<Arch, { exe: string; msi: string; label: string; size: string }> = {
   x64: {
-    exe: "/downloads/Skillset_1.3.1_x64-setup.exe",
-    msi: "/downloads/Skillset_1.3.1_x64_en-US.msi",
+    exe: "/downloads/Skillset_1.3.2_x64-setup.exe",
+    msi: "/downloads/Skillset_1.3.2_x64_en-US.msi",
     label: "x64 (64-bit Intel / AMD)",
     size: "~10 MB",
   },
   arm64: {
-    exe: "/downloads/Skillset_1.3.1_arm64-setup.exe",
-    msi: "/downloads/Skillset_1.3.1_arm64_en-US.msi",
+    exe: "/downloads/Skillset_1.3.2_arm64-setup.exe",
+    msi: "/downloads/Skillset_1.3.2_arm64_en-US.msi",
     label: "ARM64 (Snapdragon X / Surface Pro 9 5G)",
     size: "~9 MB",
   },
