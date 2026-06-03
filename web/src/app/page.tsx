@@ -12,9 +12,9 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Skillset, the only AI companion you need.",
+  title: "Skillset · The only AI companion you need.",
   description:
-    "Claude this. ChatGPT that. The AI race never stops. Let Skillset run it for you. Always the smartest model, always the cheapest price. Cut token spend up to 80% without losing quality.",
+    "The only AI companion you need. Save your prompts as reusable skills, run any model, and ship faster in ChatGPT, Claude, Gemini, and Telegram. Free forever, no credit card.",
 };
 
 export default function SkillsetLanding() {

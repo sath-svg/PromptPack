@@ -11,9 +11,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://skillset.so'),
-  title: "Skillset: cut your AI costs by up to 80%",
+  title: "Skillset · The only AI companion you need.",
   description:
-    "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste. Free Chrome extension and desktop app.",
+    "The only AI companion you need. Save your prompts as reusable skills, run any model, and ship faster in ChatGPT, Claude, Gemini, and Telegram. Free forever, no credit card.",
   keywords: [
     "Skillset",
     "AI skills",
@@ -46,8 +46,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Skillset: cut your AI costs by up to 80%",
-    description: "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste.",
+    title: "Skillset · The only AI companion you need.",
+    description: "Save your prompts as reusable skills. Run any model. Works in ChatGPT, Claude, Gemini, and Telegram. Free forever.",
     url: "https://skillset.so",
     siteName: "Skillset",
     locale: "en_US",
@@ -55,16 +55,16 @@ export const metadata: Metadata = {
     images: [
       {
         url: assetUrl('/img/skillset_og.jpg'),
-        width: 2048,
-        height: 1136,
-        alt: "Skillset — Portable AI skills across every tool",
+        width: 1200,
+        height: 630,
+        alt: "Skillset, the only AI companion you need.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skillset: cut your AI costs by up to 80%",
-    description: "Save your prompts as portable skills. Use them across ChatGPT, Claude, Gemini, and your IDE — no memory transfers, no copy-paste.",
+    title: "Skillset · The only AI companion you need.",
+    description: "Save your prompts as reusable skills. Run any model. Works in ChatGPT, Claude, Gemini, and Telegram. Free forever.",
     images: [assetUrl('/img/skillset_og.jpg')],
   },
   icons: {
