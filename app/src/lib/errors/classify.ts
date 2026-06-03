@@ -30,6 +30,7 @@ export type ErrorAction =
   | { kind: 'upgrade'; label?: string; url?: string }
   | { kind: 'restart'; label?: string }
   | { kind: 'open_url'; url: string; label: string }
+  | { kind: 'install_update'; label?: string }
   | { kind: 'dismiss'; label?: string };
 
 export type ErrorSeverity = 'info' | 'warning' | 'error';

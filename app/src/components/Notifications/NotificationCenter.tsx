@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, Info, X, RefreshCw } from 'lucide-react';
 import { open as openExternal } from '@tauri-apps/plugin-shell';
 import { useNotificationStore, type Notification } from '../../stores/notificationStore';
 import { useAuthStore } from '../../stores/authStore';
+import { installPendingUpdate } from '../../lib/appUpdater';
 import { CopyDetailsButton } from './CopyDetailsButton';
 import { InfoModal } from '../Common/InfoModal';
 import type { ErrorAction, AppError } from '../../lib/errors/classify';
@@ -31,6 +32,7 @@ function actionLabel(a: ErrorAction): string {
     case 'upgrade': return 'Upgrade';
     case 'restart': return 'Restart';
     case 'open_url': return a.label;
+    case 'install_update': return 'Install';
     case 'dismiss': return 'Dismiss';
   }
 }
@@ -81,6 +83,15 @@ function NotificationToast({
       case 'open_url':
         onDismiss(id);
         openExternal(action.url).catch(() => { /* ignore */ });
+        return;
+      case 'install_update':
+        setPending(id, true);
+        try {
+          await installPendingUpdate();
+        } finally {
+          setPending(id, false);
+          onDismiss(id);
+        }
         return;
       case 'restart':
         onRestartConfirm();

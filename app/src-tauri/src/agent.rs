@@ -21,13 +21,21 @@ use walkdir::WalkDir;
 #[allow(unused_imports)]
 use tauri::Manager;
 
+/// Suppresses the transient console window Windows would otherwise pop
+/// for each spawned child process when the parent is a windowed (no
+/// console) app like a Tauri release build. Without this, every
+/// `git status` poll, LSP spawn, and `agent_bash` flashes a black
+/// rectangle on screen.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 /// Windows resolves shims like `npx.cmd` only when the file extension is
 /// explicit; tokio's Command does not auto-append. For known node/python
 /// shim commands, prepend `cmd /C` so cmd handles PATHEXT lookup.
 #[cfg(target_os = "windows")]
 fn build_command(program: &str, args: &[String]) -> Command {
     const NEEDS_CMD: &[&str] = &["npx", "npm", "pnpm", "yarn", "bun", "pip", "pip3", "rustup", "go"];
-    if NEEDS_CMD.iter().any(|n| n.eq_ignore_ascii_case(program)) {
+    let mut c = if NEEDS_CMD.iter().any(|n| n.eq_ignore_ascii_case(program)) {
         let mut c = Command::new("cmd");
         c.arg("/C").arg(program);
         for a in args {
@@ -38,7 +46,9 @@ fn build_command(program: &str, args: &[String]) -> Command {
         let mut c = Command::new(program);
         c.args(args);
         c
-    }
+    };
+    c.creation_flags(CREATE_NO_WINDOW);
+    c
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -364,6 +374,7 @@ pub async fn agent_bash(
     let mut cmd = {
         let mut c = Command::new("cmd");
         c.arg("/C").arg(&command);
+        c.creation_flags(CREATE_NO_WINDOW);
         c
     };
     #[cfg(not(target_os = "windows"))]
@@ -664,6 +675,7 @@ pub async fn agent_check_tool(name: String) -> Result<bool, String> {
     let mut cmd = {
         let mut c = Command::new("where");
         c.arg(&name);
+        c.creation_flags(CREATE_NO_WINDOW);
         c
     };
     #[cfg(not(target_os = "windows"))]

@@ -2,6 +2,8 @@ import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { useNotificationStore } from '../stores/notificationStore';
 
+let pendingUpdate: Update | null = null;
+
 /**
  * Poll the configured updater endpoint once, and if a new version is
  * available, surface a sticky notification with an Install action. The
@@ -25,37 +27,33 @@ export async function checkForUpdateOnLaunch(): Promise<void> {
   }
   if (!update) return;
 
+  pendingUpdate = update;
+
   useNotificationStore.getState().notify({
     category: 'unknown',
     severity: 'info',
     title: `Update available — ${update.version}`,
     message: update.body?.trim() || `A new version of Skillset (${update.version}) is ready to install.`,
     actions: [
-      {
-        kind: 'open_url',
-        url: 'about:update',
-        label: 'Install',
-      },
+      { kind: 'install_update', label: 'Install' },
       { kind: 'dismiss' },
     ],
     details: `current=${update.currentVersion} latest=${update.version}\ndate=${update.date ?? 'unknown'}\nbody=${update.body ?? ''}`,
     dedupeKey: `updater.available:${update.version}`,
     source: 'appUpdater.check',
   }, { ttlMs: null });
+}
 
-  // The notification renders an "Install" button that fires
-  // `open_url`. We intercept by patching the shell's open call:
-  // listen for the sentinel URL and run the actual install instead.
-  // Simpler than threading a new action kind through the toast system.
-  const original = window.open;
-  window.open = ((url?: string | URL, ...rest: unknown[]) => {
-    if (url === 'about:update') {
-      void installAndRelaunch(update);
-      return null;
-    }
-    // @ts-expect-error — passthrough preserves original signature
-    return original.call(window, url, ...rest);
-  }) as typeof window.open;
+/**
+ * Trigger download + install of the pending update surfaced by
+ * `checkForUpdateOnLaunch`. No-op if no update is pending (e.g. user
+ * clicks Install on a stale toast after a successful install).
+ */
+export async function installPendingUpdate(): Promise<void> {
+  const update = pendingUpdate;
+  if (!update) return;
+  pendingUpdate = null;
+  await installAndRelaunch(update);
 }
 
 async function installAndRelaunch(update: Update): Promise<void> {
