@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { assertNotRetiredFree } from "./credits";
 
 // List all versions for a specific prompt in a pack, newest first
 export const listByPrompt = query({
@@ -57,6 +58,7 @@ export const create = mutation({
     header: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertNotRetiredFree(await ctx.db.get(args.authorId));
     return await ctx.db.insert("promptVersions", {
       ...args,
       savedAt: Date.now(),

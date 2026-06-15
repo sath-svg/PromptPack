@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findUserByAnyId } from "./users";
+import { assertNotRetiredFree } from "./credits";
 
 // Get skillset by ID
 export const get = query({
@@ -66,6 +67,7 @@ export const create = mutation({
     isPublic: v.boolean(),
   },
   handler: async (ctx, args) => {
+    assertNotRetiredFree(await ctx.db.get(args.authorId));
     return await ctx.db.insert("userSkillsets", {
       ...args,
       isVerified: false,
@@ -185,6 +187,8 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const { id, ...updateData } = args;
+    const skillset = await ctx.db.get(id);
+    if (skillset) assertNotRetiredFree(await ctx.db.get(skillset.authorId));
     await ctx.db.patch(id, {
       ...updateData,
       updatedAt: Date.now(),

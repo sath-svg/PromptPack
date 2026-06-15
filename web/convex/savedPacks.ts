@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findUserByAnyId } from "./users";
+import { assertNotRetiredFree } from "./credits";
 
 // Get all saved packs for a user (metadata only, file is in R2)
 export const listByUser = query({
@@ -37,6 +38,7 @@ export const upsert = mutation({
     fileSize: v.number(),
   },
   handler: async (ctx, { userId, source, r2Key, promptCount, fileSize }) => {
+    assertNotRetiredFree(await ctx.db.get(userId));
     // Check if a saved pack already exists for this user + source
     const existing = await ctx.db
       .query("savedPacks")
@@ -120,6 +122,7 @@ export const upsertByUserId = mutation({
     if (!user) {
       throw new Error("User not found");
     }
+    assertNotRetiredFree(user);
 
     // Check if a saved pack already exists for this user + source
     const existing = await ctx.db
