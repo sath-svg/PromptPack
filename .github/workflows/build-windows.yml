@@ -11,11 +11,11 @@ on:
       build_target:
         description: "Target to build"
         type: choice
-        default: "x64"
+        default: "all"
         options:
+          - all
           - x64
           - arm64
-          - all
 
 concurrency:
   group: build-windows-${{ github.ref }}
