@@ -105,6 +105,21 @@ export function isValidPassword(password: string): boolean {
 export const SYNC_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 // ============================================================================
+// FREE PLAN RETIREMENT
+// ============================================================================
+// The free plan is being retired due to rising AI costs. After this instant,
+// free-tier accounts are blocked from the app and must start a trial /
+// subscribe. KEEP IN SYNC with FREE_PLAN_SUNSET_MS in web/convex/credits.ts
+// (the server blocks AI spend at the same moment).
+export const FREE_PLAN_SUNSET_MS = Date.UTC(2026, 5, 18, 0, 0, 0); // 2026-06-18 UTC
+export const UPGRADE_URL = 'https://skillset.so/pricing';
+
+/** True when a free-tier account should be locked out of the app. */
+export function isFreePlanRetired(tier: string | undefined | null): boolean {
+  return tier === 'free' && Date.now() >= FREE_PLAN_SUNSET_MS;
+}
+
+// ============================================================================
 // PACK LIMITS BY TIER
 // ============================================================================
 // Custom packs are user-created packs (not platform-saved packs like ChatGPT, Claude, etc.)

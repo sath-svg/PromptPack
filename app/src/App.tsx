@@ -17,7 +17,9 @@ import { useSettingsStore } from './stores/settingsStore';
 import { useUiStore } from './stores/uiStore';
 import { TutorialOverlay } from './components/Onboarding/TutorialOverlay';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
+import { FreePlanGate } from './components/Common/FreePlanGate';
 import { NotificationCenter } from './components/Notifications/NotificationCenter';
+import { isFreePlanRetired } from './lib/constants';
 import { checkForUpdateOnLaunch } from './lib/appUpdater';
 import { bootMessengerClient, shutdownMessengerClient } from './lib/messenger/client';
 // Skilly event bridge — subscribes to external stores on import. Side-effect only.
@@ -160,6 +162,13 @@ function App() {
         return <DraftPage />;
     }
   };
+
+  // Free plan retired: lock signed-in free accounts out of the whole app until
+  // they upgrade. Server also blocks AI spend (FREE_PLAN_RETIRED); this is the
+  // UI lockout. tier refreshes on focus/visibility, so upgrading lifts it.
+  if (session && isFreePlanRetired(session.tier)) {
+    return <FreePlanGate />;
+  }
 
   return (
     <Layout currentPage={currentPage} onNavigate={setCurrentPage}>
