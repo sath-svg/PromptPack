@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import type { Metadata } from "next";
 import { EmailGateForm } from "@/components/email-gate-form";
+import { LandingSkilly } from "@/components/landing-skilly";
 import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
@@ -90,8 +91,14 @@ export default function HomeGate() {
             </ul>
           </div>
 
-          {/* Email capture card */}
-          <div className="relative flex flex-col rounded-3xl border border-white/[0.08] bg-[#0f0f12] p-7 md:p-9">
+          {/* Email capture card — Skilly peeks out from behind it */}
+          <div className="relative">
+            <LandingSkilly
+              className="pointer-events-none absolute -top-[78px] right-8 hidden -z-10 opacity-90 lg:block"
+              size={150}
+              tooltipSide="left"
+            />
+            <div className="relative z-10 flex flex-col rounded-3xl border border-white/[0.08] bg-[#0f0f12] p-7 md:p-9">
             <h2 className="text-[20px] font-medium tracking-tight text-zinc-50">
               See how it works
             </h2>
@@ -109,6 +116,7 @@ export default function HomeGate() {
                 Sign in
               </Link>
             </p>
+            </div>
           </div>
         </div>
       </main>

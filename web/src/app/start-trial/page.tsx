@@ -45,7 +45,7 @@ export default function StartTrialPage() {
     }
 
     startStripeCheckout({
-      interval: "annual",
+      interval: "month",
       plan: "pro",
       trial: true,
       successPath: TRIAL_SUCCESS_PATH,
