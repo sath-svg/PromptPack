@@ -15,6 +15,50 @@ const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL || "https://skillset.so",
 });
 
+/**
+ * Generate a strong random password. Used for the email-only trial gate, where
+ * we create the account silently from just an email. The user never types this;
+ * they can set their own later via password reset or sign in with Google.
+ * Includes one of each character class so it satisfies any min-complexity rule.
+ */
+function randomPassword(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  let base = "";
+  for (let i = 0; i < bytes.length; i++) base += String.fromCharCode(bytes[i]);
+  const token = btoa(base).replace(/[+/=]/g, "");
+  return `Aa1!${token}`;
+}
+
+/**
+ * Email-only trial signup. Creates the account from just an email and (because
+ * BetterAuth `autoSignIn` is on) logs the user in immediately, so the caller can
+ * send them straight to Stripe checkout. Returns `{ exists: true }` when the
+ * email is already registered, so the caller can route to sign-in instead.
+ */
+export async function autoTrialSignUp(
+  email: string,
+): Promise<{ ok: boolean; exists: boolean }> {
+  const name = email.split("@")[0] || "there";
+  try {
+    const { error } = await authClient.signUp.email({
+      email,
+      password: randomPassword(),
+      name,
+    });
+    if (!error) return { ok: true, exists: false };
+    const msg = (error.message || "").toLowerCase();
+    const exists =
+      error.status === 422 ||
+      msg.includes("exist") ||
+      msg.includes("already") ||
+      msg.includes("taken");
+    return { ok: false, exists };
+  } catch {
+    return { ok: false, exists: false };
+  }
+}
+
 // ---- Session Context ----
 
 interface AuthSession {
@@ -173,9 +217,12 @@ export function SignUpButton({
   );
 }
 
-export function SignIn({ callbackURL }: { callbackURL?: string } = {}) {
+export function SignIn({
+  callbackURL,
+  initialEmail,
+}: { callbackURL?: string; initialEmail?: string } = {}) {
   // Render BetterAuth sign-in form
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -281,8 +328,11 @@ export function SignIn({ callbackURL }: { callbackURL?: string } = {}) {
   );
 }
 
-export function SignUp({ callbackURL }: { callbackURL?: string } = {}) {
-  const [email, setEmail] = useState("");
+export function SignUp({
+  callbackURL,
+  initialEmail,
+}: { callbackURL?: string; initialEmail?: string } = {}) {
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");

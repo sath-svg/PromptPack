@@ -30,10 +30,11 @@ import {
   Video,
   Database,
   Activity,
-  Download,
+  ArrowRight,
   Eye,
   type LucideIcon,
 } from "lucide-react";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 /**
  * Map of named persona icons → Lucide components. The skillset-packs.ts
@@ -163,7 +164,7 @@ export function PersonaCardView({ persona, onPreview }: Props) {
             className="whitespace-nowrap rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300"
             style={{ fontFamily: "var(--font-geist-mono), monospace" }}
           >
-            free
+            trial
           </span>
         </div>
 
@@ -202,12 +203,11 @@ export function PersonaCardView({ persona, onPreview }: Props) {
             </button>
           )}
           <a
-            href={persona.file}
-            download
+            href={TRIAL_CTA_HREF}
             className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[13px] font-medium text-zinc-100 transition-all duration-200 hover:border-[#2563EB]/50 hover:bg-[#2563EB]/15 hover:text-white active:translate-y-[1px]"
           >
-            <Download className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
-            Download .skill
+            <ArrowRight className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+            Open in Skillset
           </a>
         </div>
       </div>

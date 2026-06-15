@@ -1,8 +1,6 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
 import type { PromptTemplate } from "@/lib/pseo/types";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 interface TemplateCardProps {
   template: PromptTemplate;
@@ -15,20 +13,10 @@ const difficultyClass: Record<PromptTemplate["difficulty"], string> = {
 };
 
 export function TemplateCard({ template }: TemplateCardProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    await navigator.clipboard.writeText(template.prompt);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <div className="flex flex-col gap-2.5 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all hover:border-white/[0.14]">
       <Link
-        href={`/prompts/${template.category}/${template.slug}`}
+        href={TRIAL_CTA_HREF}
         className="text-zinc-50 no-underline hover:text-white"
       >
         <h3 className="text-[15px] font-medium leading-[1.35]">
@@ -53,12 +41,12 @@ export function TemplateCard({ template }: TemplateCardProps) {
             {tag}
           </span>
         ))}
-        <button
-          onClick={handleCopy}
-          className={`ml-auto rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[12px] transition-all hover:border-white/20 hover:bg-white/[0.05] ${copied ? "text-emerald-400" : "text-zinc-300"}`}
+        <Link
+          href={TRIAL_CTA_HREF}
+          className="ml-auto rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-[12px] text-zinc-300 transition-all hover:border-white/20 hover:bg-white/[0.05]"
         >
-          {copied ? "Copied!" : "Copy"}
-        </button>
+          Use prompt
+        </Link>
       </div>
     </div>
   );

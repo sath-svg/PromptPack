@@ -60,6 +60,16 @@ export const HOLD_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 // Spreads the 100cr trial across multiple days, blocks instant drain.
 export const FREE_DAILY_BURN_LIMIT = 30;
 
+/**
+ * Free-plan sunset. After this instant, free-plan accounts can no longer spend
+ * AI credits — they must start the 3-day trial / subscribe. The closure email
+ * gives users 3 days, so set this to (closure-email send date + 3 days).
+ *
+ * NOTE: update this to the actual send date + 3 days before flipping it on.
+ * Default below assumes the email goes out ~2026-06-15.
+ */
+export const FREE_PLAN_SUNSET_MS = Date.UTC(2026, 5, 18, 0, 0, 0); // 2026-06-18 00:00 UTC
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MONTHLY_PERIOD_MS = 30 * MS_PER_DAY;
 
@@ -162,6 +172,13 @@ export const reserveCredits = internalMutation({
 
     const user = await findUserByAnyId(ctx.db, userId);
     if (!user) throw new Error("USER_NOT_FOUND");
+
+    // Free plan retired. After the sunset, free accounts cannot spend AI —
+    // they must start the 3-day trial / subscribe. Checked before any other
+    // gate so the upgrade prompt is the first thing the user sees.
+    if (user.plan === "free" && Date.now() >= FREE_PLAN_SUNSET_MS) {
+      throw new Error("FREE_PLAN_RETIRED");
+    }
 
     // SkillFlow (orchestrator + agent loops) gated to paid plans.
     if (fromOrchestrator === true && user.plan === "free") {

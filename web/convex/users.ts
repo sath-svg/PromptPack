@@ -76,16 +76,15 @@ const EARLY_BIRD_START_DATE = new Date("2026-02-01T00:00:00Z").getTime();
 
 export const countProUsers = query({
   handler: async (ctx) => {
-    const proUsers = await ctx.db
+    let count = 0;
+    for await (const _ of ctx.db
       .query("users")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("plan"), "pro"),
-          q.gte(q.field("_creationTime"), EARLY_BIRD_START_DATE)
-        )
-      )
-      .collect();
-    return proUsers.length;
+      .withIndex("by_plan", (q) =>
+        q.eq("plan", "pro").gte("_creationTime", EARLY_BIRD_START_DATE)
+      )) {
+      count += 1;
+    }
+    return count;
   },
 });
 
@@ -144,12 +143,23 @@ export const upsert = mutation({
         .first();
     }
 
-    // Fallback: try email lookup (links existing user on first BetterAuth login)
+    // Fallback: try email lookup (links existing user on first BetterAuth login).
+    // Indexed lookup — try as-given, then lowercase variant for mixed-case
+    // Clerk-migrated rows.
     if (!existing && email) {
-      const allUsers = await ctx.db.query("users").collect();
-      existing = allUsers.find(
-        (u) => u.email?.toLowerCase() === email.toLowerCase()
-      ) ?? null;
+      existing = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .first();
+      if (!existing) {
+        const lower = email.toLowerCase();
+        if (lower !== email) {
+          existing = await ctx.db
+            .query("users")
+            .withIndex("by_email", (q) => q.eq("email", lower))
+            .first();
+        }
+      }
     }
 
     if (existing) {
@@ -1036,6 +1046,109 @@ export const listLegacyProEmails = internalQuery({
     return legacy
       .filter((u) => u.email && u.email.includes("@"))
       .map((u) => ({ email: u.email, name: u.name }));
+  },
+});
+
+/**
+ * List the emails of users created on/after `sinceMs` (epoch ms). Consumed by
+ * the 1.3.0 upgrade email blast (web/scripts/send-1.3.0-upgrade-email.ts) to
+ * reach users who signed up since the previous announcement. Returns
+ * email + name (best-effort).
+ */
+export const listRecentUserEmails = internalQuery({
+  args: { sinceMs: v.number() },
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, { sinceMs }) => {
+    const recent = await ctx.db
+      .query("users")
+      .filter((q) => q.gte(q.field("createdAt"), sinceMs))
+      .collect();
+    return recent
+      .filter((u) => u.email && u.email.includes("@"))
+      .map((u) => ({ email: u.email, name: u.name }));
+  },
+});
+
+/**
+ * Public-action wrapper around `listRecentUserEmails` — gated by the shared
+ * SKILLSET_INTERNAL_KEY so the Node send script can fetch the recipient list
+ * via ConvexHttpClient without exposing emails publicly.
+ */
+type RecentRecipient = { email: string; name?: string };
+
+export const listRecentUserEmailsForBlast = action({
+  args: { internalKey: v.string(), sinceMs: v.number() },
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, { internalKey, sinceMs }): Promise<RecentRecipient[]> => {
+    const expected = process.env.SKILLSET_INTERNAL_KEY;
+    if (!expected) throw new Error("SKILLSET_INTERNAL_KEY not configured");
+    if (internalKey !== expected) throw new Error("Unauthorized");
+    const result: RecentRecipient[] = await ctx.runQuery(
+      internal.users.listRecentUserEmails,
+      { sinceMs },
+    );
+    return result;
+  },
+});
+
+/**
+ * List the emails of all current free-plan users. Consumed by the free-plan
+ * closure email blast (web/scripts/send-free-plan-closure-email.ts). Returns
+ * email + name (best-effort) so the script can personalise.
+ */
+export const listFreeUserEmails = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const free = await ctx.db
+      .query("users")
+      .withIndex("by_plan", (q) => q.eq("plan", "free"))
+      .collect();
+    return free
+      .filter((u) => u.email && u.email.includes("@"))
+      .map((u) => ({ email: u.email, name: u.name }));
+  },
+});
+
+/**
+ * Public-action wrapper around `listFreeUserEmails` — gated by the shared
+ * SKILLSET_INTERNAL_KEY so the Node send script can fetch the recipient list
+ * via ConvexHttpClient without exposing emails publicly.
+ */
+type FreeRecipient = { email: string; name?: string };
+
+export const listFreeUserEmailsForBlast = action({
+  args: { internalKey: v.string() },
+  returns: v.array(
+    v.object({
+      email: v.string(),
+      name: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, { internalKey }): Promise<FreeRecipient[]> => {
+    const expected = process.env.SKILLSET_INTERNAL_KEY;
+    if (!expected) throw new Error("SKILLSET_INTERNAL_KEY not configured");
+    if (internalKey !== expected) throw new Error("Unauthorized");
+    const result: FreeRecipient[] = await ctx.runQuery(
+      internal.users.listFreeUserEmails,
+      {},
+    );
+    return result;
   },
 });
 

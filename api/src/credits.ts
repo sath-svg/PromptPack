@@ -63,6 +63,9 @@ export async function reserveCredits(
       if (/DAILY_FREE_LIMIT_REACHED/i.test(messageBlob)) {
         return { ok: false, status: 429, body };
       }
+      if (/FREE_PLAN_RETIRED/i.test(messageBlob)) {
+        return { ok: false, status: 403, body };
+      }
     }
     return { ok: false, status: res.status, body };
   }
@@ -124,6 +127,17 @@ export function reserveErrorResponse(outcome: { status: number; body: unknown })
   }
   if (outcome.status === 403) {
     const blob = JSON.stringify(outcome.body ?? {});
+    if (/FREE_PLAN_RETIRED/i.test(blob)) {
+      return new Response(
+        JSON.stringify({
+          error: "free_plan_retired",
+          code: "FREE_PLAN_RETIRED",
+          message:
+            "Your free plan has ended. Start a 3-day free trial to keep using AI in Skillset: https://skillset.so/start-trial",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
     if (/SKILLFLOW_REQUIRES_PAID/i.test(blob)) {
       return new Response(
         JSON.stringify({

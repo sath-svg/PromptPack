@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PromptCategory } from "@/lib/pseo/types";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 interface CategoryCardProps {
   category: PromptCategory;
@@ -8,7 +9,7 @@ interface CategoryCardProps {
 export function CategoryCard({ category }: CategoryCardProps) {
   return (
     <Link
-      href={`/prompts/${category.slug}`}
+      href={TRIAL_CTA_HREF}
       className="group flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all duration-200 hover:border-white/[0.14] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_20px_40px_-30px_rgba(37,99,235,0.4)]"
     >
       <div className="text-[28px]">{category.icon}</div>

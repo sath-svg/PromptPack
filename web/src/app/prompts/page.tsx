@@ -7,6 +7,7 @@ import { CategoryCard } from "@/components/pseo/category-card";
 import { SkillsetShell } from "@/components/skillset-shell";
 import { SkillsetPageHeader } from "@/components/skillset-page-header";
 import { SkillsetCta } from "@/components/skillset-cta";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 export const metadata: Metadata = {
   title: "AI Prompt Templates - Free Prompts for ChatGPT, Claude & Gemini | Skillset",
@@ -65,7 +66,7 @@ export default function PromptsIndexPage() {
         <SkillsetPageHeader
           eyebrow="Library"
           title="AI prompt templates."
-          description={`${totalTemplates} ready-to-use prompts across ${promptCategories.length} categories. Copy any template and paste it into ChatGPT, Claude, Gemini, or any AI assistant.`}
+          description={`${totalTemplates} ready-to-use prompts across ${promptCategories.length} categories. Open any prompt inside Skillset and start a 3-day free trial to run them across ChatGPT, Claude, Gemini, and your IDE.`}
           align="left"
         />
 
@@ -80,7 +81,7 @@ export default function PromptsIndexPage() {
             {platformPages.map((p) => (
               <Link
                 key={p.slug}
-                href={`/prompts/for/${p.slug}`}
+                href={TRIAL_CTA_HREF}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[13px] text-zinc-300 transition-all hover:border-white/20 hover:bg-white/[0.05]"
               >
                 <span>{p.icon}</span>
@@ -101,7 +102,7 @@ export default function PromptsIndexPage() {
             {rolePages.map((r) => (
               <Link
                 key={r.slug}
-                href={`/prompts/for/${r.slug}`}
+                href={TRIAL_CTA_HREF}
                 className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.02] px-3.5 py-1.5 text-[13px] text-zinc-300 transition-all hover:border-white/20 hover:bg-white/[0.05]"
               >
                 <span>{r.icon}</span>

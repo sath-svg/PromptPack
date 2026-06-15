@@ -13,10 +13,17 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
-export async function startStripeCheckout(
-  interval: CheckoutInterval,
-  plan: CheckoutPlan = "pro"
-): Promise<void> {
+export interface StartCheckoutOptions {
+  interval: CheckoutInterval;
+  plan?: CheckoutPlan;
+  /** Open the subscription with a free trial (card collected, charged after). */
+  trial?: boolean;
+  /** App path Stripe redirects to on success (e.g. "/overview"). */
+  successPath?: string;
+}
+
+export async function startStripeCheckout(opts: StartCheckoutOptions): Promise<void> {
+  const { interval, plan = "pro", trial = false, successPath } = opts;
   trackEvent("checkout-started", { plan, interval });
   track("checkout_started", {
     plan,
@@ -27,7 +34,7 @@ export async function startStripeCheckout(
   const response = await fetch("/api/stripe/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ interval, plan }),
+    body: JSON.stringify({ interval, plan, trial, successPath }),
   });
 
   if (!response.ok) {

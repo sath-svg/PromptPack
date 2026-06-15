@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePlausible } from "next-plausible";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 export function SkillsetCta({
   eyebrow = "Get Skillset",
@@ -30,12 +31,12 @@ export function SkillsetCta({
       </p>
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Link
-          href="/downloads"
+          href={TRIAL_CTA_HREF}
           style={{ padding: "10px 22px" }}
           className="rounded-full bg-[#2563EB] text-sm font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all hover:bg-[#1d4ed8]"
-          onClick={() => plausible("CTA Click", { props: { button: "start_free", location: "skillset_cta" } })}
+          onClick={() => plausible("CTA Click", { props: { button: "start_trial", location: "skillset_cta" } })}
         >
-          Start Free
+          Start 3-day trial
         </Link>
         <Link
           href="/pricing"

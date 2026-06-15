@@ -88,7 +88,9 @@ export default defineSchema({
     .index("by_clerk_id", ["clerkId"])
     .index("by_better_auth_id", ["betterAuthId"])
     .index("by_stripe_customer_id", ["stripeCustomerId"])
-    .index("by_stripe_connect_account", ["stripeConnectAccountId"]),
+    .index("by_stripe_connect_account", ["stripeConnectAccountId"])
+    .index("by_email", ["email"])
+    .index("by_plan", ["plan"]),
 
   // Credit ledger: every grant, debit, hold, release, and expiration
   creditTransactions: defineTable({
@@ -452,4 +454,14 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_clerk_id", ["clerkId"])
     .index("by_clerk_id_active", ["clerkId", "isRevoked"]),
+
+  // Marketing leads captured by the homepage email gate before sign-up.
+  // Lets us follow up with people who entered an email but didn't finish the
+  // sign-up -> trial funnel.
+  leads: defineTable({
+    email: v.string(),
+    source: v.optional(v.string()), // e.g. "homepage_gate"
+    createdAt: v.number(),
+  })
+    .index("by_email", ["email"]),
 });
