@@ -70,6 +70,20 @@ export const FREE_DAILY_BURN_LIMIT = 30;
  */
 export const FREE_PLAN_SUNSET_MS = Date.UTC(2026, 5, 18, 0, 0, 0); // 2026-06-18 00:00 UTC
 
+/**
+ * Guard for non-credit data mutations (save pack/skillset, version control,
+ * marketplace, etc.). AI spend is already gated inside `reserveCredits`; this
+ * blocks every OTHER write for retired free-plan accounts so the app is fully
+ * locked for free users after the sunset. Throws the same FREE_PLAN_RETIRED
+ * code the worker maps to a 403 upgrade prompt.
+ */
+export function assertNotRetiredFree(user: Doc<"users"> | null): void {
+  if (!user) throw new Error("USER_NOT_FOUND");
+  if (user.plan === "free" && Date.now() >= FREE_PLAN_SUNSET_MS) {
+    throw new Error("FREE_PLAN_RETIRED");
+  }
+}
+
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MONTHLY_PERIOD_MS = 30 * MS_PER_DAY;
 

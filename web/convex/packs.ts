@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { findUserByAnyId } from "./users";
+import { assertNotRetiredFree } from "./credits";
 
 // Get all public user packs for marketplace
 export const listPublic = query({
@@ -77,6 +78,7 @@ export const create = mutation({
     isEncrypted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    assertNotRetiredFree(await ctx.db.get(args.authorId));
     return await ctx.db.insert("userPacks", {
       ...args,
       downloads: 0,
@@ -104,6 +106,8 @@ export const update = mutation({
     headers: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, { id, ...updates }) => {
+    const pack = await ctx.db.get(id);
+    if (pack) assertNotRetiredFree(await ctx.db.get(pack.authorId));
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([, v]) => v !== undefined)
     );
