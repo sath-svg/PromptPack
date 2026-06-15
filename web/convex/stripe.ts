@@ -45,6 +45,10 @@ export const createSubscriptionCheckout = action({
     successUrl: v.string(),
     cancelUrl: v.string(),
     couponId: v.optional(v.string()),
+    // When set, opens the subscription with a free trial. The card is collected
+    // up front and only charged after the trial ends. Used by the /start-trial
+    // funnel (3-day Pro trial).
+    trialDays: v.optional(v.number()),
   },
   returns: v.object({
     sessionId: v.string(),
@@ -61,9 +65,10 @@ export const createSubscriptionCheckout = action({
     // events can resolve back to the user even via fallback lookups.
     await stampCustomerMetadata(customer.customerId, args.userId);
 
-    // When a coupon is provided, use the raw Stripe SDK since the
-    // @convex-dev/stripe wrapper doesn't support the discounts parameter.
-    if (args.couponId) {
+    // The @convex-dev/stripe wrapper doesn't expose the discounts or
+    // trial_period_days parameters, so when either a coupon or a trial is
+    // requested we drop down to the raw Stripe SDK.
+    if (args.couponId || args.trialDays) {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
       const session = await stripe.checkout.sessions.create({
         customer: customer.customerId,
@@ -71,10 +76,11 @@ export const createSubscriptionCheckout = action({
         line_items: [{ price: args.priceId, quantity: 1 }],
         success_url: args.successUrl,
         cancel_url: args.cancelUrl,
-        discounts: [{ coupon: args.couponId }],
+        ...(args.couponId ? { discounts: [{ coupon: args.couponId }] } : {}),
         metadata: { userId: args.userId },
         subscription_data: {
           metadata: { userId: args.userId },
+          ...(args.trialDays ? { trial_period_days: args.trialDays } : {}),
         },
       });
       return { sessionId: session.id, url: session.url };

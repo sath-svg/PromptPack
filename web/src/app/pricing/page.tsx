@@ -3,7 +3,6 @@
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { Geist, Geist_Mono } from "next/font/google";
-import { FreeCard } from "./free-card";
 import { ProCard } from "./pro-card";
 import { StudioCard } from "./studio-card";
 import { SkillsetNav } from "@/components/skillset-nav";
@@ -74,13 +73,12 @@ export default function PricingPage() {
             Choose a plan that fits.
           </h1>
           <p className="mx-auto mt-5 max-w-[52ch] text-[16px] leading-[1.6] text-zinc-400">
-            Start free. Upgrade when your library outgrows it.
+            Start with a 3-day free trial. Cancel anytime before it ends.
           </p>
         </div>
 
         {/* Plan grid */}
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-          <FreeCard />
+        <div className="mx-auto grid max-w-[820px] grid-cols-1 gap-5 md:grid-cols-2">
           <ProCard />
           <StudioCard />
         </div>

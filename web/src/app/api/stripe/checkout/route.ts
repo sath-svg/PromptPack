@@ -39,10 +39,18 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       interval?: CheckoutInterval;
       plan?: CheckoutPlan;
+      trial?: boolean;
+      successPath?: string;
     };
     const interval: CheckoutInterval = body.interval === "annual" ? "annual" : "month";
     const plan: CheckoutPlan = body.plan === "studio" ? "studio" : "pro";
     const priceId = resolvePriceId(plan, interval);
+
+    // Only allow same-origin relative success paths (no open redirect).
+    const successPath =
+      typeof body.successPath === "string" && body.successPath.startsWith("/")
+        ? body.successPath
+        : "/dashboard?checkout=success";
 
     if (!priceId) {
       return NextResponse.json({ error: "Missing Stripe price configuration" }, { status: 500 });
@@ -68,8 +76,9 @@ export async function POST(request: Request) {
       email,
       name: user?.fullName ?? undefined,
       priceId,
-      successUrl: `${origin}/dashboard?checkout=success`,
+      successUrl: `${origin}${successPath}`,
       cancelUrl: `${origin}/pricing?checkout=cancel`,
+      trialDays: body.trial ? 3 : undefined,
     });
 
     if (!session?.url) {

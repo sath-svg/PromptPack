@@ -7,10 +7,11 @@ import { SignIn } from "@/lib/auth-compat";
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callback?: string }>;
+  searchParams: Promise<{ callback?: string; email?: string }>;
 }) {
   const params = await searchParams;
   const callback = typeof params.callback === "string" ? params.callback : undefined;
+  const email = typeof params.email === "string" ? params.email : undefined;
 
   return (
     <div
@@ -21,7 +22,7 @@ export default async function SignInPage({
         minHeight: "60vh",
       }}
     >
-      <SignIn callbackURL={callback} />
+      <SignIn callbackURL={callback} initialEmail={email} />
     </div>
   );
 }

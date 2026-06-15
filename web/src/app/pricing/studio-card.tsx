@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { SignedIn, SignedOut, SignUpButton, useUser } from "@/lib/auth-compat";
+import { SignedIn, SignedOut, useUser } from "@/lib/auth-compat";
 import { useQuery } from "convex/react";
 import { ArrowRight, Info } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import Link from "next/link";
 import { startStripeCheckout } from "@/lib/billing-client";
+import { TRIAL_CTA_HREF, TRIAL_SUCCESS_PATH } from "@/lib/cta";
 
 const FEATURES: { t: string; hi: boolean; tip?: string }[] = [
   {
@@ -54,7 +55,12 @@ export function StudioCard() {
     if (isCheckoutLoading) return;
     setIsCheckoutLoading(true);
     try {
-      await startStripeCheckout(isAnnual ? "annual" : "month", "studio");
+      await startStripeCheckout({
+        interval: isAnnual ? "annual" : "month",
+        plan: "studio",
+        trial: true,
+        successPath: TRIAL_SUCCESS_PATH,
+      });
     } catch (error) {
       console.error(error);
       alert(error instanceof Error ? error.message : "Checkout failed");
@@ -185,7 +191,7 @@ export function StudioCard() {
           )}
         </SignedIn>
         <SignedOut>
-          <SignUpButton mode="modal">
+          <Link href={TRIAL_CTA_HREF}>
             <button
               style={{ padding: "10px 22px" }}
               className="group inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.02] text-[14px] text-zinc-200 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.05] active:translate-y-[1px]"
@@ -193,7 +199,7 @@ export function StudioCard() {
               Get Studio
               <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
             </button>
-          </SignUpButton>
+          </Link>
         </SignedOut>
       </div>
     </div>

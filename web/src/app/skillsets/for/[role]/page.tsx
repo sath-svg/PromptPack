@@ -16,6 +16,7 @@ import { RoleHowTo } from "@/components/skillsets/role-how-to";
 import { RoleFaq } from "@/components/skillsets/role-faq";
 import { RoleSiblings } from "@/components/skillsets/role-siblings";
 import { RoleCitations } from "@/components/skillsets/role-citations";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 interface Props {
   params: Promise<{ role: string }>;
@@ -194,7 +195,7 @@ export default async function SkillsetForRolePage({ params }: Props) {
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link
-            href="/downloads"
+            href={TRIAL_CTA_HREF}
             style={{ padding: "12px 24px" }}
             className="rounded-full bg-[#2563EB] text-[14.5px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all hover:bg-[#1d4ed8]"
           >

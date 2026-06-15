@@ -8,6 +8,7 @@ import {
   getFeaturedPacks,
   getPacksForRole,
 } from "@/lib/pseo/skillset-packs";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 const TITLE = "Skillsets for every role — ChatGPT, Claude, Gemini & IDE prompts";
 const DESCRIPTION =
@@ -128,11 +129,11 @@ export default function SkillsetsPillarPage() {
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link
-            href="/downloads"
+            href={TRIAL_CTA_HREF}
             style={{ padding: "12px 24px" }}
             className="rounded-full bg-[#2563EB] text-[14.5px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] transition-all hover:bg-[#1d4ed8]"
           >
-            Get Skillset free
+            Start 3-day trial
           </Link>
           <Link
             href="/pricing"
@@ -205,7 +206,7 @@ export default function SkillsetsPillarPage() {
                   return (
                     <Link
                       key={r.slug}
-                      href={`/skillsets/for/${r.slug}`}
+                      href={TRIAL_CTA_HREF}
                       className="group flex flex-col gap-2 rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-6 transition-all hover:border-white/[0.14] hover:bg-white/[0.025]"
                     >
                       <div className="flex items-center gap-3">
@@ -245,7 +246,7 @@ export default function SkillsetsPillarPage() {
         <SkillsetCta
           eyebrow="Get Skillset"
           title="Save your first prompt as a Skillset"
-          body="Portable across ChatGPT, Claude, Gemini, Cursor, and Copilot. Free to start."
+          body="Portable across ChatGPT, Claude, Gemini, Cursor, and Copilot. Start with a 3-day free trial."
         />
       </main>
     </SkillsetShell>
@@ -271,7 +272,7 @@ function FeaturedSkillsetsRail() {
           </h2>
         </div>
         <span className="hidden text-[12.5px] text-zinc-500 md:inline">
-          Free · no card required
+          3-day free trial · cancel anytime
         </span>
       </header>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">

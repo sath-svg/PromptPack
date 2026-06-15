@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { X, Download } from "lucide-react";
+import { X, ArrowRight } from "lucide-react";
 import type { SkillsetPack } from "@/lib/pseo/skillset-packs";
+import { TRIAL_CTA_HREF } from "@/lib/cta";
 
 interface Props {
   pack: SkillsetPack | null;
@@ -81,7 +82,7 @@ export function PackPreviewModal({ pack, onClose }: Props) {
                   className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300"
                   style={{ fontFamily: "var(--font-geist-mono), monospace" }}
                 >
-                  free
+                  trial
                 </span>
               </div>
             </div>
@@ -132,12 +133,11 @@ export function PackPreviewModal({ pack, onClose }: Props) {
             Import into Skillset desktop or any AI tool.
           </span>
           <a
-            href={`/skillsets/${pack.id}.skill`}
-            download
+            href={TRIAL_CTA_HREF}
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#2563EB] px-5 py-2.5 text-[13px] font-medium text-white transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
           >
-            <Download className="h-3.5 w-3.5" strokeWidth={2} />
-            Download .skill
+            Start trial to import
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
           </a>
         </footer>
       </div>

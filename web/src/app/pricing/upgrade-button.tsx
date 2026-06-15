@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SignedIn } from "@/lib/auth-compat";
 import { startStripeCheckout } from "@/lib/billing-client";
+import { TRIAL_SUCCESS_PATH } from "@/lib/cta";
 
 export function UpgradeButton() {
   const [isLoading, setIsLoading] = useState(false);
@@ -11,7 +12,12 @@ export function UpgradeButton() {
     if (isLoading) return;
     setIsLoading(true);
     try {
-      await startStripeCheckout("annual");
+      await startStripeCheckout({
+        interval: "annual",
+        plan: "pro",
+        trial: true,
+        successPath: TRIAL_SUCCESS_PATH,
+      });
     } catch (error) {
       console.error(error);
       alert(error instanceof Error ? error.message : "Checkout failed");

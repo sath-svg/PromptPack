@@ -18,6 +18,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
 const publicRoutes = [
   "/",
+  "/overview",
+  "/start-trial",
   "/how-it-works",
   "/pricing",
   "/privacy",
