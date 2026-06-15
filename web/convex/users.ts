@@ -1153,6 +1153,25 @@ export const listFreeUserEmailsForBlast = action({
 });
 
 /**
+ * Flip the `passwordIsTemporary` flag. Set true when the email-only trial gate
+ * creates an account with a throwaway password; set false once the user sets a
+ * real password or links a social account. Gated by SKILLSET_INTERNAL_KEY since
+ * it's called from trusted server routes (not the browser).
+ */
+export const setPasswordTemporary = mutation({
+  args: { internalKey: v.string(), userId: v.string(), value: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, { internalKey, userId, value }) => {
+    if (internalKey !== process.env.SKILLSET_INTERNAL_KEY) {
+      throw new Error("Unauthorized");
+    }
+    const user = await findUserByAnyId(ctx.db, userId);
+    if (user) await ctx.db.patch(user._id, { passwordIsTemporary: value });
+    return null;
+  },
+});
+
+/**
  * Emergency rollback for `backfillPlanVariant`. Clears `planVariant` on every
  * Pro user (sets it back to undefined). Use only if a backfill run mis-classified
  * users — webhook handler will re-set planVariant correctly on next subscription
