@@ -25,6 +25,10 @@ export default defineSchema({
     evalTrialsUsed: v.optional(v.number()),
     // Whether the user has completed the onboarding tutorial
     onboardingCompleted: v.optional(v.boolean()),
+    // True for accounts created silently by the email-only trial gate (random
+    // throwaway password). Drives the post-checkout "set your password" prompt;
+    // cleared once the user sets a real password or links a social account.
+    passwordIsTemporary: v.optional(v.boolean()),
     emailVerified: v.optional(v.boolean()),
     freeCreditsGrantedAt: v.optional(v.number()),
     monthlyCredits: v.optional(v.number()),

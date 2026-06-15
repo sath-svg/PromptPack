@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-compat";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "convex/react";
+import { useAuth, useUser } from "@/lib/auth-compat";
 import { startStripeCheckout } from "@/lib/billing-client";
 import { TRIAL_CTA_HREF, TRIAL_SUCCESS_PATH } from "@/lib/cta";
+import { api } from "../../../convex/_generated/api";
 
 /**
  * Universal trial funnel entry. Reused by the homepage email gate, the
  * /prompts + /skillsets clickable assets, the pricing CTAs, and the nav.
  *
- * Signed in  → launch the 3-day Pro trial checkout (lands on /overview).
- * Signed out → bounce to sign-up, which returns here once the account exists.
+ * Signed out         -> bounce to sign-up, which returns here once signed in.
+ * Already subscribed -> skip checkout, go straight to the info page.
+ * Otherwise          -> launch the 3-day Pro trial checkout.
  */
 export default function StartTrialPage() {
   const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const convexUser = useQuery(
+    api.users.getByUserId,
+    user?.id ? { userId: user.id } : "skip",
+  );
   const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -24,15 +33,27 @@ export default function StartTrialPage() {
       return;
     }
 
+    // Wait until we know the user's plan before deciding to charge.
+    if (convexUser === undefined) return;
+    if (started.current) return;
+    started.current = true;
+
+    // Already on a paid plan — don't start a second trial/checkout.
+    if (convexUser && (convexUser.plan === "pro" || convexUser.plan === "studio")) {
+      window.location.assign(TRIAL_SUCCESS_PATH);
+      return;
+    }
+
     startStripeCheckout({
-      interval: "annual",
+      interval: "month",
       plan: "pro",
       trial: true,
       successPath: TRIAL_SUCCESS_PATH,
     }).catch((e) => {
+      started.current = false;
       setError(e instanceof Error ? e.message : "Could not start your trial");
     });
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, convexUser]);
 
   return (
     <div className="flex min-h-[100dvh] w-full flex-col items-center justify-center bg-[#0a0a0c] px-6 text-center text-zinc-100">

@@ -1,12 +1,19 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowRight, Check } from "lucide-react";
 import type { Metadata } from "next";
 import { EmailGateForm } from "@/components/email-gate-form";
+import { LandingSkilly } from "@/components/landing-skilly";
 import { TRIAL_CTA_HREF } from "@/lib/cta";
+import { auth } from "@/lib/auth-server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../convex/_generated/api";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export const metadata: Metadata = {
   title: "Skillset · Stop paying for native Claude and Codex apps.",
@@ -21,7 +28,20 @@ const BULLETS = [
   "One membership instead of five separate subscriptions",
 ];
 
-export default function HomeGate() {
+export default async function HomeGate() {
+  // Signed-in paid users skip the gate and land on the full info page.
+  const { userId } = await auth();
+  if (userId) {
+    let paid = false;
+    try {
+      const u = await convex.query(api.users.getByUserId, { userId });
+      paid = !!u && (u.plan === "pro" || u.plan === "studio");
+    } catch {
+      /* ignore — fall through to the gate */
+    }
+    if (paid) redirect("/overview");
+  }
+
   return (
     <div
       className={`landing-root ${geist.variable} ${geistMono.variable} relative flex min-h-[100dvh] w-full flex-col bg-[#0a0a0c] text-zinc-100`}
@@ -90,8 +110,14 @@ export default function HomeGate() {
             </ul>
           </div>
 
-          {/* Email capture card */}
-          <div className="relative flex flex-col rounded-3xl border border-white/[0.08] bg-[#0f0f12] p-7 md:p-9">
+          {/* Email capture card — Skilly peeks out from behind it */}
+          <div className="relative">
+            <LandingSkilly
+              className="pointer-events-none absolute -top-[78px] right-8 hidden -z-10 opacity-90 lg:block"
+              size={150}
+              tooltipSide="left"
+            />
+            <div className="relative z-10 flex flex-col rounded-3xl border border-white/[0.08] bg-[#0f0f12] p-7 md:p-9">
             <h2 className="text-[20px] font-medium tracking-tight text-zinc-50">
               See how it works
             </h2>
@@ -109,6 +135,7 @@ export default function HomeGate() {
                 Sign in
               </Link>
             </p>
+            </div>
           </div>
         </div>
       </main>
@@ -120,9 +147,6 @@ export default function HomeGate() {
             © {new Date().getFullYear()} Skillset · skillset.so
           </span>
           <nav className="flex flex-wrap items-center gap-5">
-            <Link href="/overview" className="transition-colors hover:text-zinc-200">
-              Overview
-            </Link>
             <Link href="/prompts" className="transition-colors hover:text-zinc-200">
               Prompts
             </Link>

@@ -11,5 +11,9 @@ export const TRIAL_CTA_HREF = "/start-trial";
 /** Length of the Stripe free trial, in days. Keep in sync with the email copy. */
 export const TRIAL_DAYS = 3;
 
-/** Where Stripe sends the user after a successful trial checkout. */
-export const TRIAL_SUCCESS_PATH = "/overview";
+/**
+ * Where Stripe sends the user after a successful trial checkout. The
+ * set-password page prompts email-only trial accounts to replace their
+ * throwaway password, then forwards everyone else straight to /overview.
+ */
+export const TRIAL_SUCCESS_PATH = "/account/set-password";

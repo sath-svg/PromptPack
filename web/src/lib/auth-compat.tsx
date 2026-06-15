@@ -38,25 +38,37 @@ function randomPassword(): string {
  */
 export async function autoTrialSignUp(
   email: string,
-): Promise<{ ok: boolean; exists: boolean }> {
+): Promise<{ ok: boolean; exists: boolean; userId: string | null }> {
   const name = email.split("@")[0] || "there";
   try {
-    const { error } = await authClient.signUp.email({
+    const { data, error } = await authClient.signUp.email({
       email,
       password: randomPassword(),
       name,
     });
-    if (!error) return { ok: true, exists: false };
+    if (!error) return { ok: true, exists: false, userId: data?.user?.id ?? null };
     const msg = (error.message || "").toLowerCase();
     const exists =
       error.status === 422 ||
       msg.includes("exist") ||
       msg.includes("already") ||
       msg.includes("taken");
-    return { ok: false, exists };
+    return { ok: false, exists, userId: null };
   } catch {
-    return { ok: false, exists: false };
+    return { ok: false, exists: false, userId: null };
   }
+}
+
+/**
+ * Start a social (Google/Facebook) sign-in. When the user is already logged in
+ * (e.g. a temp-password trial account), BetterAuth links the provider to the
+ * current account — see `accountLinking.trustedProviders` in lib/auth.ts.
+ */
+export async function continueWithSocial(
+  provider: "google" | "facebook",
+  callbackURL: string,
+): Promise<void> {
+  await authClient.signIn.social({ provider, callbackURL });
 }
 
 // ---- Session Context ----

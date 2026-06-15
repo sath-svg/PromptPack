@@ -33,6 +33,12 @@ export function EmailGateForm() {
     const res = await autoTrialSignUp(trimmed);
 
     if (res.ok) {
+      // Flag the throwaway password so the post-checkout page prompts for a
+      // real one. Best-effort — never block the funnel on it.
+      await fetch("/api/account/mark-temp-password", {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
       window.location.assign(TRIAL_CTA_HREF);
       return;
     }
