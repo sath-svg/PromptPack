@@ -87,7 +87,7 @@ export default async function HomeGate() {
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
-              Your new AI companion - version 1.3.1
+              Your new AI companion - version 1.3.2
             </span>
 
             <h1 className="text-[34px] font-medium leading-[1.05] tracking-[-0.025em] text-zinc-50 sm:text-[42px] md:text-[52px]">
