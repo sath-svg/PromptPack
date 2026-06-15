@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { useAuth, useUser, continueWithSocial } from "@/lib/auth-compat";
 import { api } from "../../../../convex/_generated/api";
 
 const DONE_PATH = "/overview";
+// Max time to wait for the Stripe webhook to flip the plan to pro before
+// forwarding anyway (webhook is usually 1-2s; this is just a safety net).
+const WEBHOOK_WAIT_MS = 20000;
 
 export default function SetPasswordPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -20,19 +23,38 @@ export default function SetPasswordPage() {
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
+  // True once we're done with this page and just waiting for the plan to go
+  // pro (Stripe webhook) before forwarding to the gated info page.
+  const [waiting, setWaiting] = useState(false);
+  const waitedTooLong = useRef(false);
 
-  // Returning from a social link (?linked=1): clear the temp flag, then go.
+  const isPaid =
+    convexUser?.plan === "pro" || convexUser?.plan === "studio";
+  const isTemp = convexUser?.passwordIsTemporary === true;
+
+  // Forward to the app once the plan is confirmed pro. If the webhook is slow,
+  // show a "finalizing" state and let the reactive query flip us through; a
+  // timeout forwards anyway so the user is never stuck.
+  const goToApp = () => {
+    if (isPaid) {
+      window.location.assign(DONE_PATH);
+    } else {
+      setWaiting(true);
+    }
+  };
+
+  // Returning from a social link (?linked=1): clear the temp flag, then forward.
   useEffect(() => {
     const sp = new URLSearchParams(window.location.search);
     if (sp.get("linked") === "1") {
       setFinalizing(true);
       fetch("/api/account/finalize-social", { method: "POST", credentials: "include" })
         .catch(() => {})
-        .finally(() => window.location.assign(DONE_PATH));
+        .finally(() => setWaiting(true));
     }
   }, []);
 
-  // Not signed in -> send to sign-in and come back here.
+  // Not signed in -> sign in and come back.
   useEffect(() => {
     if (!isLoaded) return;
     if (!isSignedIn) {
@@ -40,13 +62,26 @@ export default function SetPasswordPage() {
     }
   }, [isLoaded, isSignedIn]);
 
-  // Account already has a real password -> nothing to do here.
+  // Non-temp accounts have nothing to set here — wait for pro, then forward.
   useEffect(() => {
     if (convexUser === undefined || convexUser === null) return;
-    if (convexUser.passwordIsTemporary !== true) {
+    if (!isTemp && !waiting) setWaiting(true);
+  }, [convexUser, isTemp, waiting]);
+
+  // While waiting for the webhook: forward as soon as the plan is pro, or after
+  // the timeout regardless.
+  useEffect(() => {
+    if (!waiting) return;
+    if (isPaid) {
       window.location.assign(DONE_PATH);
+      return;
     }
-  }, [convexUser]);
+    const t = setTimeout(() => {
+      waitedTooLong.current = true;
+      window.location.assign(DONE_PATH);
+    }, WEBHOOK_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [waiting, isPaid]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +97,7 @@ export default function SetPasswordPage() {
         body: JSON.stringify({ password: pw }),
       });
       if (res.ok) {
-        window.location.assign(DONE_PATH);
+        goToApp();
         return;
       }
       const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -80,7 +115,7 @@ export default function SetPasswordPage() {
   };
 
   const showForm =
-    isLoaded && isSignedIn && convexUser?.passwordIsTemporary === true && !finalizing;
+    isLoaded && isSignedIn && isTemp && !waiting && !finalizing;
 
   return (
     <div className="flex min-h-[100dvh] w-full items-center justify-center bg-[#0a0a0c] px-5 py-12 text-zinc-100">
@@ -141,18 +176,21 @@ export default function SetPasswordPage() {
               </button>
             </div>
 
-            <a
-              href={DONE_PATH}
-              className="mt-6 block text-center text-[13px] text-zinc-500 underline-offset-4 hover:text-zinc-300 hover:underline"
+            <button
+              onClick={goToApp}
+              className="mt-6 block w-full text-center text-[13px] text-zinc-500 underline-offset-4 hover:text-zinc-300 hover:underline"
             >
               I&apos;ll do this later
-            </a>
+            </button>
           </>
         ) : (
           <div className="flex flex-col items-center py-6 text-center">
             <span className="h-7 w-7 animate-spin rounded-full border-2 border-white/15 border-t-[#2563EB]" />
             <p className="mt-5 text-[15px] text-zinc-300">
-              {finalizing ? "Linking your account…" : "Loading…"}
+              {finalizing ? "Linking your account…" : "Finalizing your trial…"}
+            </p>
+            <p className="mt-1 text-[12px] text-zinc-600" style={{ fontFamily: "var(--font-geist-mono), monospace" }}>
+              setting up your account
             </p>
           </div>
         )}
