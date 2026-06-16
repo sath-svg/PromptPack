@@ -54,10 +54,9 @@ export function LandingSkilly({
       // Conservative tooltip height estimate: covers 2 paragraphs + CTA + padding.
       const dialogH = dialogRef.current?.getBoundingClientRect().height ?? 160;
       const margin = 12;
-      // Prefer below; if it would clip the viewport, flip above.
-      const wouldOverflowBelow = r.bottom + margin + dialogH > window.innerHeight - 8;
+      // Prefer above; drop below only if there isn't room above the viewport.
       const fitsAbove = r.top - margin - dialogH >= 8;
-      const top = wouldOverflowBelow && fitsAbove
+      const top = fitsAbove
         ? r.top - margin - dialogH
         : r.bottom + margin;
       const base = tooltipSide === "right" ? r.left : r.right - dialogW;
@@ -67,9 +66,14 @@ export function LandingSkilly({
       setPos({ top, left });
     }
     place();
+    // Re-place once the dialog has actually rendered: the first pass uses a
+    // fallback height estimate, which can wrongly reject "above" when Skilly
+    // sits near the top. Measuring the real height on the next frame fixes it.
+    const raf = requestAnimationFrame(place);
     window.addEventListener("scroll", place, true);
     window.addEventListener("resize", place);
     return () => {
+      cancelAnimationFrame(raf);
       window.removeEventListener("scroll", place, true);
       window.removeEventListener("resize", place);
     };
