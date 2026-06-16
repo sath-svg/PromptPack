@@ -133,10 +133,8 @@ export function LandingSkilly({
             }}
           >
             <p className="text-[13.5px] leading-[1.5] text-zinc-200">
-              Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> — your AI buddy in Skillset.
-            </p>
-            <p className="mt-1.5 text-[12.5px] leading-[1.5] text-zinc-400">
-              Download now to meet me :)
+              Hi, I&rsquo;m <strong className="font-medium text-white">Skilly</strong> - your AI buddy!
+              Download Skillset and I&rsquo;ll be available there to assist you!
             </p>
             <Link
               href="/downloads"

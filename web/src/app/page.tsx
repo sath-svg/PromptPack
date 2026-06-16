@@ -113,7 +113,7 @@ export default async function HomeGate() {
           {/* Email capture card — Skilly peeks out from behind it */}
           <div className="relative">
             <LandingSkilly
-              className="pointer-events-none absolute -top-[78px] right-8 hidden -z-10 opacity-90 lg:block"
+              className="absolute -top-[78px] right-8 hidden -z-10 opacity-90 lg:block"
               size={150}
               tooltipSide="left"
             />
