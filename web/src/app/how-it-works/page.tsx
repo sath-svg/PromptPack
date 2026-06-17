@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { LandingSkilly } from "@/components/landing-skilly";
@@ -9,9 +10,14 @@ import {
   Personas,
   PowerFeatures,
 } from "@/components/landing-sections";
+import { auth } from "@/lib/auth-server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../convex/_generated/api";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export const metadata: Metadata = {
   title: "How Skillset works — features, flow, and skillsets.",
@@ -19,7 +25,21 @@ export const metadata: Metadata = {
     "Walkthrough of the Skillset companion: bento features, how to build a skillset, role-based starter packs, and pro-grade tuning.",
 };
 
-export default function HowItWorksPage() {
+export default async function HowItWorksPage() {
+  // Paid-only marketing/info page. Free + signed-out visitors are funneled to
+  // the trial instead of browsing it.
+  const { userId } = await auth();
+  let paid = false;
+  if (userId) {
+    try {
+      const u = await convex.query(api.users.getByUserId, { userId });
+      paid = !!u && (u.plan === "pro" || u.plan === "studio");
+    } catch {
+      /* treat as unpaid */
+    }
+  }
+  if (!paid) redirect("/start-trial");
+
   return (
     <div
       className={`landing-root ${geist.variable} ${geistMono.variable} relative min-h-[100dvh] w-full bg-[#0a0a0c] text-zinc-100`}

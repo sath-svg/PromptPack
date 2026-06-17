@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { usePlausible } from "next-plausible";
 import { SignedIn, SignedOut, UserButton } from "@/lib/auth-compat";
@@ -17,6 +18,23 @@ const DEFAULT_LINKS: NavLink[] = [
 
 export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
   const plausible = usePlausible();
+
+  // The header/info links are paid-only. Free + signed-out visitors are funneled
+  // to the trial, so we hide them rather than invite browsing. billing-status
+  // 401s for signed-out users -> isPaid stays false.
+  const [isPaid, setIsPaid] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/auth/billing-status", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (alive && j) setIsPaid(j.plan === "pro" || j.plan === "studio");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-[#0a0a0c]/80 backdrop-blur-xl">
@@ -43,15 +61,16 @@ export function SkillsetNav({ links = DEFAULT_LINKS }: { links?: NavLink[] }) {
         </Link>
 
         <nav className="hidden items-center justify-center gap-7 text-sm text-zinc-400 md:flex">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="transition-colors hover:text-zinc-50"
-            >
-              {l.label}
-            </Link>
-          ))}
+          {isPaid &&
+            links.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="transition-colors hover:text-zinc-50"
+              >
+                {l.label}
+              </Link>
+            ))}
         </nav>
 
         <div className="flex items-center justify-end gap-3 text-zinc-400">
