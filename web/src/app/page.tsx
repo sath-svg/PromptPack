@@ -29,7 +29,9 @@ const BULLETS = [
 ];
 
 export default async function HomeGate() {
-  // Signed-in paid users skip the gate and land on the full info page.
+  // No signed-in user sees the gate. Paid -> the full info page; everyone else
+  // (free / no subscription) -> straight to the trial checkout. Only signed-out
+  // visitors get the email gate below.
   const { userId } = await auth();
   if (userId) {
     let paid = false;
@@ -39,7 +41,7 @@ export default async function HomeGate() {
     } catch {
       /* ignore — fall through to the gate */
     }
-    if (paid) redirect("/overview");
+    redirect(paid ? "/overview" : "/start-trial");
   }
 
   return (
