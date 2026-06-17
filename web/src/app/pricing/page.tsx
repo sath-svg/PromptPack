@@ -18,6 +18,12 @@ function CheckoutCancelTracker() {
     if (searchParams.get("checkout") === "cancel") {
       trackEvent("checkout-cancelled");
       trackLinkedInConversion(24381844);
+      // Fire the Loops `checkoutCancelled` event (server resolves the email
+      // from the session) so the abandoned-checkout workflow triggers.
+      fetch("/api/loops/checkout-cancelled", {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
     }
   }, [searchParams]);
 

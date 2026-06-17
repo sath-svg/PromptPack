@@ -1,6 +1,7 @@
 "use node";
 
-import { internalAction } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 
 const ENDPOINT = "https://app.loops.so/api/v1/events/send";
@@ -56,5 +57,26 @@ export const sendEvent = internalAction({
       console.error(`[loops] ${eventName} for ${email} threw:`, err);
       return { success: false, error: String(err) };
     }
+  },
+});
+
+/**
+ * Public wrapper: fire the `checkoutCancelled` Loops event for a user who
+ * abandoned the Stripe checkout. Called from the cancel page via a Next route
+ * (which supplies the authenticated userId). Resolves the email server-side so
+ * the client never passes it. Fire-and-forget; never throws.
+ */
+export const notifyCheckoutCancelled = action({
+  args: { userId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.runQuery(api.users.getByUserId, { userId });
+    if (!user?.email) return null;
+    await ctx.runAction(internal.loops.sendEvent, {
+      email: user.email,
+      eventName: "checkoutCancelled",
+      userId,
+    });
+    return null;
   },
 });
