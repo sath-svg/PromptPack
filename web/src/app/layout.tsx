@@ -11,9 +11,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://skillset.so'),
-  title: "Skillset · The only AI companion you need.",
+  title: "Skillset · Replace Claude & Codex, save up to 80% on tokens.",
   description:
-    "The only AI companion you need. Save your prompts as reusable skills, run any model, and ship faster in ChatGPT, Claude, Gemini, and Telegram. Free forever, no credit card.",
+    "Use Skillset instead of separate Claude, Codex, and ChatGPT plans. It routes every task to the cheapest capable model and cuts your token spend up to 80%. Start a 3-day free trial.",
   keywords: [
     "Skillset",
     "AI skills",
@@ -36,6 +36,11 @@ export const metadata: Metadata = {
     "Claude extension",
     "Gemini extension",
     "PromptPack",
+    "Claude alternative",
+    "Codex alternative",
+    "save AI tokens",
+    "cut AI costs",
+    "cheaper than Claude",
   ],
   authors: [{ name: "Skillset" }],
   creator: "Skillset",
@@ -46,8 +51,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Skillset · The only AI companion you need.",
-    description: "Save your prompts as reusable skills. Run any model. Works in ChatGPT, Claude, Gemini, and Telegram. Free forever.",
+    title: "Skillset · Replace Claude & Codex, save tokens",
+    description: "One app instead of Claude, Codex, and ChatGPT. Auto-routes every task to the cheapest capable model to save up to 80% on tokens.",
     url: "https://skillset.so",
     siteName: "Skillset",
     locale: "en_US",
@@ -57,14 +62,14 @@ export const metadata: Metadata = {
         url: assetUrl('/img/skillset_og.jpg'),
         width: 1200,
         height: 630,
-        alt: "Skillset, the only AI companion you need.",
+        alt: "Skillset, one app instead of Claude and Codex.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skillset · The only AI companion you need.",
-    description: "Save your prompts as reusable skills. Run any model. Works in ChatGPT, Claude, Gemini, and Telegram. Free forever.",
+    title: "Skillset · Replace Claude & Codex, save tokens",
+    description: "One app instead of Claude, Codex, and ChatGPT. Auto-routes every task to the cheapest capable model to save up to 80% on tokens.",
     images: [assetUrl('/img/skillset_og.jpg')],
   },
   icons: {

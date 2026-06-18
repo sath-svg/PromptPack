@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export const metadata: Metadata = {
-  title: "Skillset · Stop paying for native Claude and Codex apps.",
+  title: "Skillset · Replace Claude & Codex, save up to 80% on tokens.",
   description:
-    "Skillset saves your prompts as reusable skills, routes every task to the cheapest capable model, and runs them in ChatGPT, Claude, Gemini, and Telegram. One membership, up to 80% less token spend. Start a 3-day free trial.",
+    "Use Skillset instead of separate Claude, Codex, and ChatGPT plans. Auto-route every task to the cheapest capable model and cut your token spend up to 80%. Start a 3-day free trial.",
 };
 
 const BULLETS = [
