@@ -577,6 +577,7 @@ function SiteFooter() {
             { label: "Skill Eval", href: "/how-it-works#power" },
             { label: "Skill Enhance", href: "/how-it-works#power" },
             { label: "Pricing", href: "/pricing" },
+            { label: "Enterprise", href: "/enterprise" },
           ]}
         />
         <FooterCol

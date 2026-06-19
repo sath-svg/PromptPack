@@ -158,6 +158,9 @@ export default async function HomeGate() {
             <Link href="/pricing" className="transition-colors hover:text-zinc-200">
               Pricing
             </Link>
+            <Link href="/enterprise" className="transition-colors hover:text-zinc-200">
+              Enterprise
+            </Link>
           </nav>
         </div>
       </footer>

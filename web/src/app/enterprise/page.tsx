@@ -1,28 +1,15 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Building2, Workflow, Database, CalendarCheck } from "lucide-react";
+import { ArrowRight, Building2, Workflow, Database } from "lucide-react";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { LandingSkilly } from "@/components/landing-skilly";
 import { TRIAL_CTA_HREF } from "@/lib/cta";
+import { BookDemoButton } from "./book-demo-button";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
-
-// "Book a demo" routes to the team inbox. hello@skillset.so is the same address
-// the landing footer + support flow already use.
-const DEMO_MAILTO =
-  "mailto:hello@skillset.so" +
-  "?subject=" +
-  encodeURIComponent("Skillset Enterprise demo request") +
-  "&body=" +
-  encodeURIComponent(
-    "Hi Skillset team,\n\n" +
-      "We'd like to see how Skillset Enterprise could work for our company.\n\n" +
-      "Company:\nTeam size:\nWhat we want to build (AI adoption / agentic workflows / RAG):\n\n" +
-      "Thanks!",
-  );
 
 export const metadata: Metadata = {
   title: "Skillset for Enterprise: AI adoption, agentic workflows, and RAG.",
@@ -102,14 +89,7 @@ export default function EnterprisePage() {
             </p>
 
             <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <a
-                href={DEMO_MAILTO}
-                style={{ padding: "12px 26px" }}
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[15px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
-              >
-                <CalendarCheck className="h-4 w-4" strokeWidth={2} />
-                Book a demo
-              </a>
+              <BookDemoButton className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[15px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]" />
               <Link
                 href={TRIAL_CTA_HREF}
                 style={{ padding: "12px 26px" }}
@@ -179,14 +159,7 @@ export default function EnterprisePage() {
               need it for yourself? Grab the consumer version instead.
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <a
-                href={DEMO_MAILTO}
-                style={{ padding: "12px 26px" }}
-                className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[15px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]"
-              >
-                <CalendarCheck className="h-4 w-4" strokeWidth={2} />
-                Book a demo
-              </a>
+              <BookDemoButton className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#2563EB] text-[15px] font-medium text-white whitespace-nowrap shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_-12px_rgba(37,99,235,0.6)] transition-all duration-200 hover:bg-[#1d4ed8] active:translate-y-[1px]" />
               <Link
                 href={TRIAL_CTA_HREF}
                 style={{ padding: "12px 26px" }}
