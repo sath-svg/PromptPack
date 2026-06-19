@@ -21,6 +21,7 @@ const publicRoutes = [
   "/start-trial",
   "/how-it-works",
   "/pricing",
+  "/enterprise",
   "/privacy",
   "/downloads",
   "/marketplace",
