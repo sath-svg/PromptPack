@@ -5,6 +5,7 @@ import { ArrowRight, Check } from "lucide-react";
 import type { Metadata } from "next";
 import { EmailGateForm } from "@/components/email-gate-form";
 import { LandingSkilly } from "@/components/landing-skilly";
+import { SkillTeaser } from "@/components/skill-teaser";
 import { TRIAL_CTA_HREF } from "@/lib/cta";
 import { auth } from "@/lib/auth-server";
 import { ConvexHttpClient } from "convex/browser";
@@ -16,16 +17,16 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export const metadata: Metadata = {
-  title: "Skillset · Replace Claude & Codex, save up to 80% on tokens.",
+  title: "Skillset · Teach AI the way you work. No code.",
   description:
-    "Use Skillset instead of separate Claude, Codex, and ChatGPT plans. Auto-route every task to the cheapest capable model and cut your token spend up to 80%. Start a 3-day free trial.",
+    "Show Skillset how you work, in plain words, and it turns your process into something AI runs for you again and again. Reuse it, share it, even sell it. No code. Start a 3-day free trial.",
 };
 
 const BULLETS = [
-  "Every model in one place: ChatGPT, Claude, Codex, Gemini",
-  "All your skills in one place, reusable across every tool",
-  "Auto-routes each task to the cheapest capable model and saves tokens",
-  "One membership instead of five separate subscriptions",
+  "Works with any AI: ChatGPT, Claude, Gemini, and more",
+  "No markdown, no prompt writing, no setup",
+  "Build a library of workflows for everything you do",
+  "Use ready-made workflows from other experts too",
 ];
 
 export default async function HomeGate() {
@@ -89,17 +90,17 @@ export default async function HomeGate() {
               style={{ fontFamily: "var(--font-geist-mono), monospace" }}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
-              Your new AI companion - version 1.3.2
+              Build AI, no code · v1.3.2
             </span>
 
             <h1 className="text-[34px] font-medium leading-[1.05] tracking-[-0.025em] text-zinc-50 sm:text-[42px] md:text-[52px]">
-              All the AI tools you need.
-              One bill.
+              Teach AI the way you work.
+              No code needed.
             </h1>
 
             <p className="mt-6 max-w-[52ch] text-[16px] leading-[1.6] text-zinc-400 md:text-[17px]">
-              Stop paying for Claude, Codex, and a stack of separate model subscriptions. Save
-              tokens and boost your productivity.
+              Just describe what you do, in plain words. Skillset turns it into a workflow AI runs
+              for you, again and again. Share it with others, and even earn from it.
             </p>
 
             <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -110,22 +111,27 @@ export default async function HomeGate() {
                 </li>
               ))}
             </ul>
+
+            <p className="mt-5 max-w-[52ch] text-[13px] leading-[1.55] text-zinc-500">
+              Built-in routing sends each step to the cheapest capable model, so your library
+              costs less to run too.
+            </p>
           </div>
 
           {/* Email capture card — Skilly peeks out from behind it */}
           <div className="relative">
             <LandingSkilly
-              className="absolute -top-[78px] right-8 hidden -z-10 opacity-90 lg:block"
-              size={150}
+              className="absolute -top-[112px] right-8 hidden -z-10 opacity-90 lg:block"
+              size={136}
               tooltipSide="left"
             />
             <div className="relative z-10 flex flex-col rounded-3xl border border-white/[0.08] bg-[#0f0f12] p-7 md:p-9">
             <h2 className="text-[20px] font-medium tracking-tight text-zinc-50">
-              See how it works
+              Start building. No code needed.
             </h2>
             <p className="mt-2 text-[14px] leading-[1.55] text-zinc-400">
-              Enter your email to start a 3-day free trial and unlock the full tour, your library, and
-              every model inside Skillset.
+              Enter your email for a 3-day free trial. Teach AI your first task in minutes. No markdown,
+              no code, just the way you work.
             </p>
             <div className="mt-6">
               <EmailGateForm />
@@ -141,6 +147,9 @@ export default async function HomeGate() {
           </div>
         </div>
       </main>
+
+      {/* Mini teaser — how a skillset works, just under the fold */}
+      <SkillTeaser />
 
       {/* Slim footer — keeps key pages crawlable for SEO */}
       <footer className="relative z-10 border-t border-white/5">
