@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Bolt, Check, Folder, Play } from "lucide-react";
+import { ArrowRight, Bolt, Check, ChevronDown, Folder, Play } from "lucide-react";
 
 const MONO = { fontFamily: "var(--font-geist-mono), monospace" } as const;
 
@@ -13,14 +13,26 @@ const MONO = { fontFamily: "var(--font-geist-mono), monospace" } as const;
  */
 export function SkillTeaser() {
   const [ran, setRan] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
     <section className="relative z-10 border-t border-white/5 bg-[#0a0a0c]">
       <div className="mx-auto w-full max-w-[1100px] px-5 py-10 md:px-6 md:py-12">
-        <p className="mb-5 text-[11px] uppercase tracking-[0.22em] text-zinc-500" style={MONO}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="mb-5 flex w-full items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-zinc-500 transition-colors hover:text-zinc-300"
+          style={MONO}
+        >
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${open ? "" : "-rotate-90"}`}
+            strokeWidth={2}
+          />
           How a skillset works
-        </p>
+        </button>
 
+        {open && (
         <div className="rounded-2xl border border-white/[0.06] bg-[#0f0f12] p-5 md:p-6">
           <div className="flex flex-wrap items-stretch gap-3 md:gap-4">
             {/* prompt */}
@@ -97,6 +109,7 @@ export function SkillTeaser() {
             </div>
           )}
         </div>
+        )}
       </div>
     </section>
   );
