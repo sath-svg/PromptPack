@@ -11,9 +11,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://skillset.so'),
-  title: "Skillset · Replace Claude & Codex, save up to 80% on tokens.",
+  title: "Skillset · Teach AI the way you work. No code.",
   description:
-    "Use Skillset instead of separate Claude, Codex, and ChatGPT plans. It routes every task to the cheapest capable model and cuts your token spend up to 80%. Start a 3-day free trial.",
+    "Teach AI the way you work, in plain words. Skillset turns it into a workflow that runs for you again and again. No code. Build, reuse, share, or sell it. Start a 3-day free trial.",
   keywords: [
     "Skillset",
     "AI skills",
@@ -36,11 +36,12 @@ export const metadata: Metadata = {
     "Claude extension",
     "Gemini extension",
     "PromptPack",
-    "Claude alternative",
-    "Codex alternative",
-    "save AI tokens",
-    "cut AI costs",
-    "cheaper than Claude",
+    "no-code AI",
+    "AI workflows",
+    "build AI workflows",
+    "AI workflow builder",
+    "teach AI",
+    "no-code automation",
   ],
   authors: [{ name: "Skillset" }],
   creator: "Skillset",
@@ -51,8 +52,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   openGraph: {
-    title: "Skillset · Replace Claude & Codex, save tokens",
-    description: "One app instead of Claude, Codex, and ChatGPT. Auto-routes every task to the cheapest capable model to save up to 80% on tokens.",
+    title: "Skillset · Teach AI the way you work. No code",
+    description: "Describe what you do in plain words. Skillset turns it into a workflow AI runs for you, again and again. No code. Build, reuse, share, or sell it.",
     url: "https://skillset.so",
     siteName: "Skillset",
     locale: "en_US",
@@ -62,14 +63,14 @@ export const metadata: Metadata = {
         url: assetUrl('/img/skillset_og.jpg'),
         width: 1200,
         height: 630,
-        alt: "Skillset, one app instead of Claude and Codex.",
+        alt: "Skillset, teach AI the way you work, no code needed.",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Skillset · Replace Claude & Codex, save tokens",
-    description: "One app instead of Claude, Codex, and ChatGPT. Auto-routes every task to the cheapest capable model to save up to 80% on tokens.",
+    title: "Skillset · Teach AI the way you work. No code",
+    description: "Describe what you do in plain words. Skillset turns it into a workflow AI runs for you, again and again. No code. Build, reuse, share, or sell it.",
     images: [assetUrl('/img/skillset_og.jpg')],
   },
   icons: {
