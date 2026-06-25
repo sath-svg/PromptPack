@@ -7,25 +7,56 @@ import { ProCard } from "./pro-card";
 import { StudioCard } from "./studio-card";
 import { SkillsetNav } from "@/components/skillset-nav";
 import { trackEvent, trackLinkedInConversion } from "@/lib/analytics";
+import { useAuth } from "@/lib/auth-compat";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 function CheckoutCancelTracker() {
   const searchParams = useSearchParams();
+  const { signOut } = useAuth();
 
   useEffect(() => {
-    if (searchParams.get("checkout") === "cancel") {
+    if (searchParams.get("checkout") !== "cancel") return;
+
+    let cancelled = false;
+    (async () => {
       trackEvent("checkout-cancelled");
       trackLinkedInConversion(24381844);
-      // Fire the Loops `checkoutCancelled` event (server resolves the email
-      // from the session) so the abandoned-checkout workflow triggers.
-      fetch("/api/loops/checkout-cancelled", {
+
+      // Fire the Loops `checkoutCancelled` event first — it resolves the email
+      // from the still-valid session — so the abandoned-checkout workflow
+      // triggers before we sign the user out.
+      await fetch("/api/loops/checkout-cancelled", {
         method: "POST",
         credentials: "include",
       }).catch(() => {});
-    }
-  }, [searchParams]);
+
+      // Trial-funnel accounts that bail at checkout: sign them out and send
+      // them back to the email gate. Paid subscribers re-upgrading are left
+      // signed in (don't kick them out for cancelling an upsell).
+      let paid = false;
+      try {
+        const r = await fetch("/api/auth/billing-status", { credentials: "include" });
+        const j = await r.json();
+        paid = j?.plan === "pro" || j?.plan === "studio";
+      } catch {
+        /* ignore — treat as non-paid */
+      }
+      if (cancelled || paid) return;
+
+      try {
+        await signOut();
+      } catch {
+        /* ignore — redirect to the gate regardless */
+      }
+      window.location.assign("/");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, signOut]);
 
   return null;
 }

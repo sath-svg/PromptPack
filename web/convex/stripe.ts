@@ -78,6 +78,10 @@ export const createSubscriptionCheckout = action({
         cancel_url: args.cancelUrl,
         ...(args.couponId ? { discounts: [{ coupon: args.couponId }] } : {}),
         metadata: { userId: args.userId },
+        // Expire fast (30 min, Stripe's minimum) so a tab-close abandon fires
+        // `checkout.session.expired` quickly instead of waiting ~24h. The
+        // webhook handler turns that into the `checkoutCancelled` Loops event.
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         subscription_data: {
           metadata: { userId: args.userId },
           ...(args.trialDays ? { trial_period_days: args.trialDays } : {}),

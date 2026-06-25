@@ -402,6 +402,40 @@ registerRoutes(http, components.stripe, {
         },
       });
     },
+    // Checkout session abandoned (user closed the tab — never hit the cancel
+    // page). Stripe expires it (we set expires_at to 30 min) and fires this.
+    // Turn it into the `checkoutCancelled` Loops event so the abandoned-checkout
+    // workflow catches tab-closers server-side. Subscription sessions only.
+    "checkout.session.expired": async (
+      ctx,
+      event: Stripe.CheckoutSessionExpiredEvent,
+    ) => {
+      const session = event.data.object;
+      if (session.mode !== "subscription") return;
+
+      const stripeCustomerId =
+        typeof session.customer === "string"
+          ? session.customer
+          : session.customer?.id;
+      const userId = await resolveUserIdWithFallback(
+        ctx,
+        session.metadata as Stripe.Metadata | undefined,
+        stripeCustomerId,
+      );
+      if (!userId) return;
+
+      // Don't email someone who actually subscribed (e.g. completed a second
+      // session) — only fire if they're still unpaid.
+      const u = await ctx.runQuery(api.users.getByUserId, { userId });
+      if (!u?.email) return;
+      if (u.plan === "pro" || u.plan === "studio") return;
+
+      await ctx.runAction(internal.loops.sendEvent, {
+        email: u.email,
+        eventName: "checkoutCancelled",
+        userId,
+      });
+    },
     // Auto top-up — off-session PaymentIntent succeeded. Grants credits via
     // the existing `grantTopup` mutation (idempotent on stripeEventId), then
     // records success on the user's autoTopup state.
