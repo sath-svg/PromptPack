@@ -167,6 +167,23 @@ registerRoutes(http, components.stripe, {
         stripeSubscriptionId: subscription.id,
         subscriptionCancelledAt: resolveCancelledAt(subscription),
       });
+
+      // Fire the Loops `checkoutCompleted` event so the abandoned-checkout
+      // workflow (triggered by `checkoutStarted`) exits for users who actually
+      // subscribed and never emails them. Fire-and-forget; never blocks the
+      // webhook.
+      try {
+        const u = await ctx.runQuery(api.users.getByUserId, { userId });
+        if (u?.email) {
+          await ctx.runAction(internal.loops.sendEvent, {
+            email: u.email,
+            eventName: "checkoutCompleted",
+            userId,
+          });
+        }
+      } catch (err) {
+        console.error("[loops] checkoutCompleted failed:", err);
+      }
     },
     "customer.subscription.updated": async (
       ctx,

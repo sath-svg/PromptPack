@@ -61,6 +61,32 @@ export const sendEvent = internalAction({
 });
 
 /**
+ * Public wrapper: fire the `checkoutStarted` Loops event when a user launches
+ * the Stripe trial checkout. Paired with `checkoutCancelled` so the Loops
+ * abandoned-checkout workflow can target users who *started* but never
+ * completed — instead of relying on the user landing back on the cancel page.
+ * Called server-side from the checkout route. Fire-and-forget; never throws.
+ */
+export const notifyCheckoutStarted = action({
+  args: { userId: v.string(), email: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, { userId, email }) => {
+    let to = email;
+    if (!to) {
+      const user = await ctx.runQuery(api.users.getByUserId, { userId });
+      to = user?.email ?? undefined;
+    }
+    if (!to) return null;
+    await ctx.runAction(internal.loops.sendEvent, {
+      email: to,
+      eventName: "checkoutStarted",
+      userId,
+    });
+    return null;
+  },
+});
+
+/**
  * Public wrapper: fire the `checkoutCancelled` Loops event for a user who
  * abandoned the Stripe checkout. Called from the cancel page via a Next route
  * (which supplies the authenticated userId). Resolves the email server-side so

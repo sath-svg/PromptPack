@@ -85,6 +85,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Checkout URL missing" }, { status: 500 });
     }
 
+    // Fire the Loops `checkoutStarted` event so the abandoned-checkout workflow
+    // can target users who started but never completed — without depending on
+    // the client landing back on the cancel page. Fire-and-forget.
+    void convexClient
+      .action(api.loops.notifyCheckoutStarted, { userId, email })
+      .catch(() => {});
+
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error("Stripe checkout error:", error);
