@@ -16,12 +16,32 @@ export default async function SignUpPage({
   return (
     <div
       style={{
+        position: "relative",
         display: "flex",
+        flexDirection: "column",
         justifyContent: "center",
         alignItems: "center",
         minHeight: "60vh",
       }}
     >
+      <a
+        href="/"
+        aria-label="Back to home"
+        style={{
+          alignSelf: "flex-start",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          marginLeft: 24,
+          marginBottom: 4,
+          color: "#a1a1aa",
+          fontSize: 14,
+          textDecoration: "none",
+        }}
+      >
+        <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>&larr;</span>
+        Back
+      </a>
       <SignUp callbackURL={callback} initialEmail={email} />
     </div>
   );

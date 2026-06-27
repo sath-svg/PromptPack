@@ -1,106 +1,59 @@
 import { MetadataRoute } from 'next'
-import { promptCategories } from '@/lib/pseo/prompts'
-import { comparisonPages } from '@/lib/pseo/comparisons'
-import { platformPages } from '@/lib/pseo/platforms'
-import { rolePages } from '@/lib/pseo/roles'
 
+// Top-level sitemap = core static pages only.
+//
+// The prompts / skillsets / compare sections are each served by their own
+// dedicated route-handler sitemap (sitemap-prompts.xml, sitemap-skillsets.xml,
+// sitemap-compare.xml), all advertised in robots.ts. This file used to *also*
+// list every one of those URLs, so each pSEO page appeared in two sitemaps with
+// a conflicting lastmod (full timestamp here vs date-only there) — a muddy crawl
+// signal. Keeping each URL in exactly one sitemap with a single stable lastmod
+// is cleaner for crawlers.
 export default function sitemap(): MetadataRoute.Sitemap {
   const baseUrl = 'https://skillset.so'
-
-  const promptEntries: MetadataRoute.Sitemap = [
-    {
-      url: `${baseUrl}/prompts`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.8,
-    },
-    ...promptCategories.map((category) => ({
-      url: `${baseUrl}/prompts/${category.slug}`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.7,
-    })),
-    ...promptCategories.flatMap((category) =>
-      category.templates.map((template) => ({
-        url: `${baseUrl}/prompts/${category.slug}/${template.slug}`,
-        lastModified: new Date(),
-        changeFrequency: 'monthly' as const,
-        priority: 0.6,
-      }))
-    ),
-  ]
-
-  const platformEntries: MetadataRoute.Sitemap = platformPages.map((page) => ({
-    url: `${baseUrl}/prompts/for/${page.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }))
-
-  const skillsetRoleEntries: MetadataRoute.Sitemap = rolePages.map((page) => ({
-    url: `${baseUrl}/skillsets/for/${page.slug}`,
-    lastModified: new Date(),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }))
-
-  const skillsetsPillar: MetadataRoute.Sitemap = [
-    {
-      url: `${baseUrl}/skillsets`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-  ]
-
-  const compareEntries: MetadataRoute.Sitemap = [
-    {
-      url: `${baseUrl}/compare`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
-    ...comparisonPages.map((page) => ({
-      url: `${baseUrl}/compare/${page.slug}`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.6,
-    })),
-  ]
+  // Date-only, matching the section sitemaps' format. Stable within a build.
+  const lastModified = new Date().toISOString().split('T')[0]
 
   return [
     {
       url: baseUrl,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: 'weekly',
       priority: 1.0,
     },
     {
       url: `${baseUrl}/pricing`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: 'monthly',
       priority: 0.9,
     },
     {
       url: `${baseUrl}/downloads`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: 'weekly',
       priority: 0.9,
     },
-    ...skillsetsPillar,
-    ...skillsetRoleEntries,
-    ...promptEntries,
-    ...platformEntries,
-    ...compareEntries,
+    {
+      url: `${baseUrl}/how-it-works`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
+    {
+      url: `${baseUrl}/enterprise`,
+      lastModified,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
     {
       url: `${baseUrl}/skillset/brand`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: 'monthly',
       priority: 0.5,
     },
     {
       url: `${baseUrl}/privacy`,
-      lastModified: new Date(),
+      lastModified,
       changeFrequency: 'yearly',
       priority: 0.3,
     },
