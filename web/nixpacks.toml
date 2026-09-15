@@ -5,7 +5,12 @@ nixPkgs = ["nodejs"]
 cmds = ["npm install"]
 
 [phases.build]
-cmds = ['npx convex deploy --cmd="npm run build"']
+# Convex is deployed from the Skillset repo now. Running `convex deploy` here
+# would delete the hub functions only that repo has (appSkillsets, appCredits,
+# buildPluginZip, rateLimit) and fails schema validation against data written
+# by its newer @convex-dev/stripe. Build Next.js only, against the committed
+# convex/_generated bindings.
+cmds = ["npm run build:skillsets", "npm run build:local"]
 
 
 [watch]
