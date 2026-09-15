@@ -44,9 +44,26 @@ export interface Env {
 type EnhanceMode = "clarity" | "structured" | "concise" | "strict";
 
 const ENHANCE_DEFAULT_MODE: EnhanceMode = "structured";
+// Groq retired llama-3.3-70b-versatile and llama-3.1-8b-instant for self-serve
+// accounts on 2026-08-16 (every request fails instantly). The gpt-oss models are
+// the current self-serve production models. They reason before answering and
+// reasoning tokens count against max_tokens, so every call uses groqParams().
+const GROQ_LARGE_MODEL = "openai/gpt-oss-120b";
+const GROQ_SMALL_MODEL = "openai/gpt-oss-20b";
+// Legacy ids still sent by shipped desktop builds, mapped to current models.
+const GROQ_LEGACY_MODEL_MAP: Record<string, string> = {
+  "llama-3.3-70b-versatile": GROQ_LARGE_MODEL,
+  "llama-3.1-8b-instant": GROQ_SMALL_MODEL,
+};
+// Floor leaves room for reasoning so short outputs do not come back empty.
+const GROQ_MIN_MAX_TOKENS = 1024;
+function groqParams(maxTokens: number): { max_tokens: number; reasoning_effort: "low" } {
+  return { max_tokens: Math.max(maxTokens, GROQ_MIN_MAX_TOKENS), reasoning_effort: "low" };
+}
+
 // Model gating: Pro users get the bigger model, free users get the smaller one
-const ENHANCE_PRO_MODEL = "llama-3.3-70b-versatile";
-const ENHANCE_FREE_MODEL = "llama-3.1-8b-instant";
+const ENHANCE_PRO_MODEL = GROQ_LARGE_MODEL;
+const ENHANCE_FREE_MODEL = GROQ_SMALL_MODEL;
 const ENHANCE_MAX_INPUT_CHARS = 6000;
 
 // Rate limits - daily
@@ -64,7 +81,7 @@ const WEB_MIGRATE_ANON_DAY = 1;         // Anonymous: 1/day
 const WEB_MIGRATE_FREE_DAY = 1;         // Free logged in: 1/day (migration is one-time use)
 const WEB_MIGRATE_PRO_DAY = 3;          // Pro: 3/day
 const MIGRATE_MAX_INPUT_CHARS = 15000;   // Memories + conversation excerpts
-const MIGRATE_MODEL = "llama-3.3-70b-versatile";
+const MIGRATE_MODEL = GROQ_LARGE_MODEL;
 const MIGRATE_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day cache
 
 // Rolling window limits (applies to all users)
@@ -109,7 +126,7 @@ const EVAL_10MIN_LIMIT = 20;             // 20 requests/10 minutes
 const EVAL_IN_FLIGHT_TTL_SECONDS = 60;   // 1 concurrent request per user
 const EVAL_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30-day cache
 const EVAL_MAX_INPUT_CHARS = 6000;       // Same as enhance
-const EVAL_MODEL = "llama-3.3-70b-versatile"; // Use pro model for quality
+const EVAL_MODEL = GROQ_LARGE_MODEL; // Use the large model for quality
 
 // Tier descriptions for the evaluator's system prompt. Mirrors how chat
 // already routes — see app/src/lib/classifier.ts.
@@ -592,7 +609,7 @@ async function callGroqChatCompletion(params: {
         { role: "user", content: params.text },
       ],
       temperature: 0.25,
-      max_tokens: getMaxOutputTokens(params.mode, params.isPro),
+      ...groqParams(getMaxOutputTokens(params.mode, params.isPro)),
     }),
   });
 
@@ -1118,7 +1135,7 @@ Return ONLY valid JSON, no markdown:
                   { role: "user", content: userMessage },
                 ],
                 temperature: 0.15,
-                max_tokens: 400,
+                ...groqParams(400),
               }),
             });
 
@@ -1566,7 +1583,7 @@ Return ONLY valid JSON, no markdown:
                   { role: "user", content: userMessage },
                 ],
                 temperature: 0.15,
-                max_tokens: 400,
+                ...groqParams(400),
               }),
             });
 
@@ -1851,7 +1868,7 @@ How they want AI responses formatted. Constraints, formatting preferences.
                 { role: "user", content: text },
               ],
               temperature: 0.2,
-              max_tokens: 2500,
+              ...groqParams(2500),
             }),
           });
 
@@ -2684,12 +2701,12 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
                 Authorization: `Bearer ${groqKey}`,
               },
               body: JSON.stringify({
-                model: "llama-3.1-8b-instant",
+                model: GROQ_SMALL_MODEL,
                 messages: [
                   { role: "system", content: systemPrompt },
                   { role: "user", content: `Prompt to classify:\n${promptSnippet}` },
                 ],
-                max_tokens: 20,
+                ...groqParams(20),
                 temperature: 0.3,
               }),
             });
@@ -2856,7 +2873,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
               "Authorization": `Bearer ${groqApiKey}`,
             },
             body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
+              model: GROQ_LARGE_MODEL,
               messages: [
                 {
                   role: "system",
@@ -2868,7 +2885,7 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
                 },
               ],
               temperature: 0.1,
-              max_tokens: 200,
+              ...groqParams(200),
             }),
           });
 
@@ -2960,14 +2977,14 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
           }
 
-          const model = "llama-3.1-8b-instant";
+          const model = GROQ_SMALL_MODEL;
           const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${groqKey}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ model, max_tokens: 4096, messages: body.messages }),
+            body: JSON.stringify({ model, ...groqParams(4096), messages: body.messages }),
           });
 
           if (!groqRes.ok) {
@@ -3096,20 +3113,18 @@ Respond with ONLY the header text, nothing else. Keep it ${maxWords} words or le
             await cache.put(rlReq, new Response("1", { headers: { "Cache-Control": "max-age=60" } }));
           }
 
-          // Whitelist Groq-hosted Llama variants so a malicious caller
-          // can't use this endpoint to hit any Groq model.
-          const allowed = new Set([
-            "llama-3.1-8b-instant",
-            "llama-3.3-70b-versatile",
-          ]);
-          const requestedModel = typeof body.model === "string" && allowed.has(body.model)
-            ? body.model
-            : "llama-3.1-8b-instant";
+          // Whitelist current Groq models (legacy llama ids from shipped desktop
+          // builds are remapped) so a malicious caller can't use this endpoint
+          // to hit any Groq model.
+          const allowed = new Set([GROQ_SMALL_MODEL, GROQ_LARGE_MODEL]);
+          const rawModel = typeof body.model === "string" ? body.model : "";
+          const mappedModel = GROQ_LEGACY_MODEL_MAP[rawModel] ?? rawModel;
+          const requestedModel = allowed.has(mappedModel) ? mappedModel : GROQ_SMALL_MODEL;
 
           const groqPayload: Record<string, unknown> = {
             model: requestedModel,
             messages: body.messages,
-            max_tokens: typeof body.max_tokens === "number" ? body.max_tokens : 2048,
+            ...groqParams(typeof body.max_tokens === "number" ? body.max_tokens : 2048),
           };
           if (typeof body.temperature === "number") {
             groqPayload.temperature = body.temperature;
